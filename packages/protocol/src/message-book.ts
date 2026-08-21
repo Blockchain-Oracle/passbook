@@ -35,6 +35,7 @@ export const CLIENT_ACTION = {
 
 export type ClientAction =
   | { type: 'SetViewingKey'; random: bigint }
+  | { type: 'OpenChannel'; recipientAddr: string; index: number; random: bigint; salt: bigint }
   | { type: 'InvokeExternal'; contractAddress: string; calldata: readonly string[] }
 
 const toFelt = (v: bigint | number | string): string =>
@@ -54,6 +55,15 @@ export function encodeClientActions(actions: readonly ClientAction[]): string[] 
   for (const a of actions) {
     if (a.type === 'SetViewingKey') {
       out.push(toFelt(CLIENT_ACTION.SetViewingKey), toFelt(a.random))
+    } else if (a.type === 'OpenChannel') {
+      // OpenChannelInput { recipient_addr, index: u32, random, salt }
+      out.push(
+        toFelt(CLIENT_ACTION.OpenChannel),
+        toFelt(a.recipientAddr),
+        toFelt(a.index),
+        toFelt(a.random),
+        toFelt(a.salt),
+      )
     } else {
       out.push(
         toFelt(CLIENT_ACTION.InvokeExternal),
@@ -144,36 +154,98 @@ export function packUtf8ToFelts(text: string): bigint[] {
 }
 
 /**
- * Builds the complete client action list for one gate transaction.
+ * THE REPLAY-PROTECTION RULE, and why each transaction gets a DIFFERENT companion.
  *
- * THE COMPANION ACTION IS `SetViewingKey`, NOT A 1-WEI SELF-NOTE. This contradicts the
- * plan and the contradiction is load-bearing, so here is the evidence rather than an
- * assertion: on mainnet, `[Deposit(STRK, 1), InvokeExternal]` is rejected
- * `NO_REPLAY_PROTECTION`, and so is `[InvokeExternal]` alone. `[SetViewingKey,
- * InvokeExternal]` compiles cleanly to four server actions. A transaction carrying only
- * an invoke is illegal on this protocol, exactly as the plan said — but the thing that
- * makes it legal is the viewing-key write, because that is what supplies the replay
- * nonce.
+ * A transaction carrying only an invoke is illegal: `[InvokeExternal]` is rejected
+ * `NO_REPLAY_PROTECTION`. So is `[Deposit(STRK, 1), InvokeExternal]` — which kills the
+ * plan's "1-wei self-note" companion outright.
  *
- * ORDER IS NOT FREE. `[InvokeExternal, SetViewingKey]` is rejected
- * `ACTIONS_OUT_OF_ORDER`, as is any list with two invoke-phase actions. Actions execute
- * in a fixed phase order and the invoke is last, so `SetViewingKey` must be first.
+ * What actually satisfies the rule is **an action that compiles to a `WriteOnce`**.
+ * Three independent observations agree:
+ *   - `SetViewingKey` compiles to two `WriteOnce`s and is accepted.
+ *   - `Deposit` compiles to a `TransferFrom` with no `WriteOnce`, and is rejected.
+ *   - A real successful mainnet invoke transaction
+ *     (0x3ba71e9b1893d7d9bf60845a3619fb293827885ddab063b09db168de1c4004c) carries NO
+ *     registration at all: its action list begins `WriteOnce(1 felt)` + `EmitNoteUsed`
+ *     — a `UseNote` nullifier — and then the `Invoke`. That is proof the rule is
+ *     "some WriteOnce", not "SetViewingKey specifically".
  *
- * SIDE EFFECT, FLAGGED DELIBERATELY: `SetViewingKey` rotates the caller's viewing key.
- * That is a real state change on the user's account, not an inert nonce, and running
- * this three times rotates it three times. It is the pool's own replay primitive and the
- * registration flow uses it, so it is legitimate — but it is not free of consequences
- * and whoever runs this should know that before they do.
+ * `SetViewingKey` IS SINGLE-USE PER ADDRESS AND CANNOT BE THE COMPANION TWICE. Its
+ * `WriteOnce` targets the user's key slot, and `_apply_write_once` asserts the slot
+ * currently reads zero. Verified directly: `compile_actions` for an already-registered
+ * mainnet address rejects `[SetViewingKey]` with `NON_ZERO_VALUE`. Using it on all
+ * three transactions would land transaction 1 and burn the fee on 2 and 3.
+ *
+ * The repeatable companion is `OpenChannel` AT A FRESH INDEX. Its own `WriteOnce`
+ * targets a per-index slot, so successive indices do not collide, and a real mainnet
+ * user was observed holding **2 channels** — proof that a second `OpenChannel` succeeds
+ * in a later transaction. Two constraints, both verified:
+ *   - indices must be strictly sequential from 0 (`INDEX_NOT_SEQUENTIAL` otherwise), and
+ *   - the sender must already be registered (`SENDER_NOT_REGISTERED` otherwise), which
+ *     is why transaction 1 is the one that registers.
+ *
+ * ORDER IS NOT FREE. `[InvokeExternal, SetViewingKey]` is `ACTIONS_OUT_OF_ORDER`, as is
+ * any list with two invoke-phase actions. The invoke executes last, so the companion
+ * always comes first.
  */
+export type GateCompanion =
+  | { kind: 'SetViewingKey'; reason: string }
+  | { kind: 'OpenChannel'; index: number; reason: string }
+
+/**
+ * The ordered companion plan for `count` gate transactions.
+ *
+ * Transaction 1 registers, because it must happen once anyway and `OpenChannel` refuses
+ * to run before it. Every later transaction opens the next channel. Nothing in this plan
+ * repeats a single-use action.
+ */
+export function planGateCompanions(count: number): GateCompanion[] {
+  const plan: GateCompanion[] = [
+    {
+      kind: 'SetViewingKey',
+      reason:
+        'registers the sender (single-use: a second one reverts NON_ZERO_VALUE) and ' +
+        'supplies this transaction WriteOnce for replay protection',
+    },
+  ]
+  for (let i = 1; i < count; i++) {
+    plan.push({
+      kind: 'OpenChannel',
+      index: i - 1,
+      reason:
+        `opens channel ${i - 1} — repeatable because each index gets its own WriteOnce slot; ` +
+        'indices must be sequential from 0 and the sender must already be registered',
+    })
+  }
+  return plan
+}
+
+/** Builds the complete client action list for one gate transaction. */
 export function buildGateActionList(input: {
   messageBookAddress: string
+  senderAddress: string
+  companion: GateCompanion
   mode: bigint
   tag: bigint
   payload: readonly bigint[]
-  viewingKeyRandom: bigint
+  random: bigint
+  salt: bigint
 }): ClientAction[] {
+  const companion: ClientAction =
+    input.companion.kind === 'SetViewingKey'
+      ? { type: 'SetViewingKey', random: input.random }
+      : {
+          type: 'OpenChannel',
+          // Self-addressed. `open_channel` requires a REGISTERED recipient, and after
+          // transaction 1 the sender is the one address we know satisfies that.
+          recipientAddr: input.senderAddress,
+          index: input.companion.index,
+          random: input.random,
+          salt: input.salt,
+        }
+
   return [
-    { type: 'SetViewingKey', random: input.viewingKeyRandom },
+    companion,
     {
       type: 'InvokeExternal',
       contractAddress: input.messageBookAddress,
@@ -189,14 +261,19 @@ export function buildGateActionList(input: {
  */
 export const ACTION_LIST_EVIDENCE = [
   ['[InvokeExternal]', 'ERR NO_REPLAY_PROTECTION'],
-  ['[Deposit(STRK,1), InvokeExternal]', 'ERR NO_REPLAY_PROTECTION'],
-  ['[Withdraw(STRK,0)]', 'ERR ZERO_AMOUNT'],
-  ['[CreateOpenNote, InvokeExternal]', 'ERR ZERO_RECIPIENT_PUBLIC_KEY (needs a registered user)'],
+  ['[Deposit(STRK,1), InvokeExternal]', 'ERR NO_REPLAY_PROTECTION — kills the 1-wei-note plan'],
+  ['[Withdraw(STRK,1), InvokeExternal]', 'ERR NEGATIVE_INTERMEDIATE_BALANCE'],
   ['[InvokeExternal, SetViewingKey]', 'ERR ACTIONS_OUT_OF_ORDER'],
   ['[SetViewingKey, InvokeExternal, InvokeExternal]', 'ERR ACTIONS_OUT_OF_ORDER'],
-  ['[SetViewingKey]', 'OK  3 server actions'],
   ['[SetViewingKey, InvokeExternal]', 'OK  4 server actions — calldata returned verbatim'],
   ['[SetViewingKey, InvokeExternal(empty payload)]', 'OK  — pool does NOT catch EMPTY_PAYLOAD'],
   ['[SetViewingKey, InvokeExternal(bad len prefix)]', 'OK  — pool does NOT catch a wrong prefix'],
   ['[SetViewingKey, InvokeExternal(mode 3)]', 'OK  — pool does NOT catch UNKNOWN_MODE'],
+  ['-- single-use vs repeatable ------------------', ''],
+  ['[SetViewingKey] on an ALREADY-REGISTERED addr', 'ERR NON_ZERO_VALUE — single-use, proven'],
+  ['[OpenChannel(0), InvokeExternal] unregistered', 'ERR SENDER_NOT_REGISTERED — needs tx 1 first'],
+  ['[SetViewingKey, OpenChannel(0), InvokeExternal]', 'OK  7 server actions'],
+  ['[SetViewingKey, OpenChannel(1), InvokeExternal]', 'ERR INDEX_NOT_SEQUENTIAL — must start at 0'],
+  ['[SetViewingKey, OpenChannel(0), OpenChannel(1)]', 'ERR NON_ZERO_VALUE — one channel per tx'],
+  ['a real mainnet user holds 2 channels', 'so OpenChannel DOES repeat across transactions'],
 ] as const
