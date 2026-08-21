@@ -6,6 +6,7 @@ import {
   ACTIVE_NETWORK,
   SELECTOR_PRIVACY_INVOKE,
   SELECTOR_PRIVACY_INVOKE_WITH_COMPUTATION,
+  STRK_TOKEN,
 } from '../src/constants.js'
 
 describe('network config', () => {
@@ -40,6 +41,15 @@ describe('network config', () => {
     )
     expect(BigInt(SELECTOR_PRIVACY_INVOKE_WITH_COMPUTATION)).toBe(
       BigInt(hash.getSelectorFromName('privacy_invoke_with_computation')),
+    )
+  })
+
+  // The relayer's allowlist keys off this address to permit `approve` and refuse
+  // `transfer`. A wrong value there would not fail loudly — it would quietly stop
+  // matching, and the refusal it is meant to enforce would apply to nothing.
+  it('pins the STRK fee token, which the relayer allowlist depends on', () => {
+    expect(BigInt(STRK_TOKEN)).toBe(
+      BigInt('0x04718f5a0fc34cc1af16a1cdee98ffb20c31f5cd61d6ab07201858f4287c938d'),
     )
   })
 

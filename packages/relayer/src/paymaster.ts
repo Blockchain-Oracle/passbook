@@ -52,6 +52,15 @@ export class RelayerPaymaster {
    * Posts to our server, which holds the key and submits the v3 invoke.
    * The URL is relative because the browser holds this instance: it resolves against
    * the app's own origin, which is where the relayer endpoint is served from.
+   *
+   * KNOWN GAP — these two halves do not connect yet, and this is the honest record of
+   * it rather than a surprise for whoever wires them. `buildTransaction` above returns
+   * `{ actions, feeAction }`; the server requires `{ calls: Call[] }`. The step that
+   * turns an action list into pool calls does not exist: it needs `compile_actions`
+   * output fed verbatim into `apply_actions`, plus the `STRK.approve(pool, fee)` that
+   * must ride in the same transaction because `collect_fee` pulls from the caller.
+   * Passing a `buildTransaction` result straight into here earns a 400 today. Closing
+   * that is the submission-path work, which is still an open unknown.
    */
   async executeTransaction(payload: unknown): Promise<{ transactionHash: string }> {
     const res = await fetch('/api/submit', {

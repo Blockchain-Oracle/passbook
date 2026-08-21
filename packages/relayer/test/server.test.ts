@@ -1,9 +1,13 @@
 import { describe, it, expect, vi } from 'vitest'
 import http from 'node:http'
 import type { AddressInfo } from 'node:net'
+import { NET, STRK_TOKEN } from '../../protocol/src/constants.js'
 import { createRelayerServer, type SubmitCalls } from '../src/server.js'
+import { MAX_CALLS_PER_SUBMISSION } from '../src/allowlist.js'
 
-const A_CALL = { contractAddress: '0x1', entrypoint: 'apply_actions' }
+// An allowlisted call, so tests about everything else are not silently blocked by policy.
+const A_CALL = { contractAddress: NET.pool, entrypoint: 'apply_actions', calldata: [] }
+const ATTACKER = '0x0dead0000000000000000000000000000000000000000000000000000000beef'
 
 async function start(submit: SubmitCalls) {
   const server = createRelayerServer(submit)
@@ -94,6 +98,67 @@ describe('relayer server', () => {
       expect(submit).not.toHaveBeenCalled()
     } finally {
       await s.close()
+    }
+  })
+
+  // The relayer signs with a funded key, so the only assertion that matters in these
+  // is that submit was NEVER reached. A refusal reported after signing is not a refusal,
+  // and a test that checked only the status code would pass against exactly that bug.
+  describe('refuses to sign anything outside the allowlist', () => {
+    const cases: Array<{ name: string; calls: unknown[] }> = [
+      {
+        name: 'STRK.transfer — the whole-balance drain',
+        calls: [
+          {
+            contractAddress: STRK_TOKEN,
+            entrypoint: 'transfer',
+            calldata: [ATTACKER, '0xffffffffffffffff', '0x0'],
+          },
+        ],
+      },
+      {
+        name: 'STRK.approve to an attacker — the drain with one extra step',
+        calls: [
+          {
+            contractAddress: STRK_TOKEN,
+            entrypoint: 'approve',
+            calldata: [ATTACKER, '0xffffffffffffffff', '0x0'],
+          },
+        ],
+      },
+      {
+        name: 'a contract that is not on the list',
+        calls: [{ contractAddress: ATTACKER, entrypoint: 'apply_actions', calldata: [] }],
+      },
+      {
+        name: 'a non-submission entrypoint on the pool',
+        calls: [{ contractAddress: NET.pool, entrypoint: 'upgrade', calldata: [] }],
+      },
+      {
+        name: 'an implausibly large batch',
+        calls: Array.from({ length: MAX_CALLS_PER_SUBMISSION + 1 }, () => A_CALL),
+      },
+      {
+        name: 'one bad call hidden among good ones',
+        calls: [
+          A_CALL,
+          { contractAddress: STRK_TOKEN, entrypoint: 'transfer', calldata: [ATTACKER, '0x1', '0x0'] },
+        ],
+      },
+    ]
+
+    for (const { name, calls } of cases) {
+      it(`refuses ${name}, without signing`, async () => {
+        const submit = vi.fn<SubmitCalls>(async () => '0xshould-never-happen')
+        const s = await start(submit)
+        try {
+          const res = await request(s.port, '/submit', JSON.stringify({ calls }))
+          expect(res.status).toBe(403)
+          expect(submit).not.toHaveBeenCalled()
+        } finally {
+          await s.close()
+        }
+      })
     }
   })
 

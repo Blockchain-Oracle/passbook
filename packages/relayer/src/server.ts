@@ -8,11 +8,24 @@
 // network parameters are facts about a network and live in constants.ts, under
 // version control where they can be reviewed. Only secrets come from the env.
 //
+// This process holds a funded key and pays for what it signs, so reaching the port is
+// itself an ability worth restricting. Two controls, in order of how much they buy:
+//
+//   1. It binds 127.0.0.1 unless RELAYER_HOST says otherwise. Exposing a funded signer
+//      to every interface has to be a deliberate act, not what a missed setting does.
+//   2. allowlist.ts decides what may be signed at all. Everything else is refused
+//      BEFORE the key is used — see the policy gate in handle().
+//
+// Operational rule that backs both up: fund this wallet with only what the current
+// batch needs, so a mistake in either control costs a batch rather than a balance.
+//
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
 import { fileURLToPath } from 'node:url'
+import { readFileSync } from 'node:fs'
 import { Account, RpcProvider, type Call } from 'starknet'
 import { NET } from '../../protocol/src/constants.js'
 import { withFallback } from '../../protocol/src/rpc.js'
+import { assertSubmittable, type SubmissionPolicy } from './allowlist.js'
 
 // R10 names `POST /submit`; the browser posts to the same-origin `/api/submit`, which
 // a dev-server proxy or edge rule normally rewrites. Accepting both means the two
@@ -66,7 +79,12 @@ async function readJsonBody(req: IncomingMessage): Promise<unknown> {
   return JSON.parse(Buffer.concat(chunks).toString('utf8'))
 }
 
-async function handle(req: IncomingMessage, res: ServerResponse, submit: SubmitCalls) {
+async function handle(
+  req: IncomingMessage,
+  res: ServerResponse,
+  submit: SubmitCalls,
+  policy: SubmissionPolicy,
+) {
   if (req.method !== 'POST' || !SUBMIT_PATHS.has(req.url ?? '')) {
     send(res, 404, { error: 'not found' })
     return
@@ -86,6 +104,16 @@ async function handle(req: IncomingMessage, res: ServerResponse, submit: SubmitC
     return
   }
 
+  // The policy gate. This runs BEFORE the key is used, and its order relative to
+  // submit() is the whole control: a refusal reported after signing would be no
+  // refusal at all. 403 rather than 400 — the request was legible, just not permitted.
+  try {
+    assertSubmittable(calls, policy)
+  } catch (e) {
+    send(res, 403, { error: String(e) })
+    return
+  }
+
   try {
     // Our address is the one the public record will show against this transaction.
     // That is the entire service being offered; see paymaster.ts.
@@ -95,7 +123,7 @@ async function handle(req: IncomingMessage, res: ServerResponse, submit: SubmitC
   }
 }
 
-export function createRelayerServer(submit: SubmitCalls): Server {
+export function createRelayerServer(submit: SubmitCalls, policy: SubmissionPolicy = {}): Server {
   return createServer((req, res) => {
     // A client that vanishes mid-request — closed tab, dropped network — makes Node
     // emit 'error' on these streams. An 'error' event with no listener is rethrown as
@@ -105,7 +133,7 @@ export function createRelayerServer(submit: SubmitCalls): Server {
     req.on('error', (e) => console.warn(`relayer: request stream failed: ${e.message}`))
     res.on('error', (e) => console.warn(`relayer: response stream failed: ${e.message}`))
 
-    handle(req, res, submit).catch((e) => {
+    handle(req, res, submit, policy).catch((e) => {
       // Last line of defence. Nothing in handle() may escape as an unhandled rejection.
       console.warn(`relayer: unhandled request failure: ${String(e)}`)
       send(res, 500, { error: 'internal error' })
@@ -130,10 +158,27 @@ export async function pickLiveRpcHost(): Promise<string> {
   })
 }
 
+/**
+ * The deployed MessageBook, if there is one. Absent before Task 7 deploys it, which is
+ * not an error: the pool and STRK entries stand on their own, and an allowlist that is
+ * missing an entry refuses too much rather than too little.
+ */
+function deployedMessageBook(): string | undefined {
+  try {
+    const raw = readFileSync(new URL('../../../evidence/deployment.json', import.meta.url), 'utf8')
+    return (JSON.parse(raw) as { contractAddress?: string }).contractAddress
+  } catch {
+    return undefined
+  }
+}
+
 async function main(): Promise<void> {
   const address = required('RELAYER_ADDRESS')
   const privateKey = required('RELAYER_PRIVATE_KEY')
   const port = Number(process.env.PORT ?? 8787)
+  // Loopback unless deliberately overridden. A funded signer reachable from every
+  // interface must be something someone chose, not something a missing variable did.
+  const host = process.env.RELAYER_HOST ?? '127.0.0.1'
 
   const nodeUrl = await pickLiveRpcHost()
   const account = new Account({
@@ -142,13 +187,19 @@ async function main(): Promise<void> {
     signer: privateKey,
   })
 
+  const messageBook = deployedMessageBook()
   const server = createRelayerServer(async (calls) => {
     const { transaction_hash } = await account.execute(calls)
     return transaction_hash
-  })
+  }, { messageBook })
 
-  server.listen(port, () => {
-    console.log(`relayer listening on :${port}, submitting as ${address} via ${nodeUrl}`)
+  server.listen(port, host, () => {
+    console.log(`relayer listening on ${host}:${port}, submitting as ${address} via ${nodeUrl}`)
+    console.log(`allowlist: pool ${NET.pool} · STRK approve-to-pool only`)
+    console.log(messageBook ? `allowlist: MessageBook ${messageBook}` : 'allowlist: no MessageBook deployed yet')
+    if (host !== '127.0.0.1') {
+      console.warn(`WARNING: bound to ${host}, not loopback. This signer is reachable off-host.`)
+    }
   })
 }
 
