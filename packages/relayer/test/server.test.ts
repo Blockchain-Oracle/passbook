@@ -2,15 +2,26 @@ import { describe, it, expect, vi } from 'vitest'
 import http from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { NET, STRK_TOKEN } from '../../protocol/src/constants.js'
-import { createRelayerServer, type SubmitCalls } from '../src/server.js'
+import {
+  createRelayerServer,
+  resolveHost,
+  offHostWarning,
+  type SubmitCalls,
+  type RelayerServerOptions,
+} from '../src/server.js'
 import { MAX_CALLS_PER_SUBMISSION } from '../src/allowlist.js'
 
 // An allowlisted call, so tests about everything else are not silently blocked by policy.
 const A_CALL = { contractAddress: NET.pool, entrypoint: 'apply_actions', calldata: [] }
 const ATTACKER = '0x0dead0000000000000000000000000000000000000000000000000000000beef'
+const FEE_CEILING = 18_000_000_000_000_000_000n // 3 x a 6 STRK fee
 
-async function start(submit: SubmitCalls) {
-  const server = createRelayerServer(submit)
+async function start(submit: SubmitCalls, extra: Partial<RelayerServerOptions> = {}) {
+  const server = createRelayerServer({
+    submit,
+    resolvePolicy: async () => ({ maxApproveWei: FEE_CEILING }),
+    ...extra,
+  })
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
   const { port } = server.address() as AddressInfo
   return {
@@ -19,10 +30,16 @@ async function start(submit: SubmitCalls) {
   }
 }
 
-function request(port: number, path: string, body: string, method = 'POST') {
+function request(
+  port: number,
+  path: string,
+  body: string,
+  method = 'POST',
+  headers: Record<string, string> = { 'content-type': 'application/json' },
+) {
   return new Promise<{ status: number; body: string }>((resolve, reject) => {
     const req = http.request(
-      { host: '127.0.0.1', port, path, method, headers: { 'content-type': 'application/json' } },
+      { host: '127.0.0.1', port, path, method, headers },
       (res) => {
         let data = ''
         res.on('data', (c) => (data += c))
@@ -160,6 +177,141 @@ describe('relayer server', () => {
         }
       })
     }
+  })
+
+  // Loopback binds the socket; it does not keep out the operator's own browser, which
+  // is already inside that boundary. These are what actually stand between a web page
+  // and the funded key, so each asserts the key was never reached.
+  describe('refuses what a web page can send', () => {
+    // The whole exploit: <form enctype="text/plain"> is a CORS simple request, so no
+    // preflight fires. The page cannot read the reply — it does not need to, because
+    // the transaction would already be signed.
+    it('refuses a cross-origin text/plain form post', async () => {
+      const submit = vi.fn<SubmitCalls>(async () => '0xshould-never-happen')
+      const s = await start(submit)
+      try {
+        const body = `{"calls":[{"contractAddress":"${NET.pool}","entrypoint":"apply_actions","calldata":["0x9"]}],"pad":"="}`
+        const res = await request(s.port, '/submit', body, 'POST', {
+          'content-type': 'text/plain',
+          origin: 'https://evil.example',
+        })
+        expect(res.status).toBe(415)
+        expect(submit).not.toHaveBeenCalled()
+      } finally {
+        await s.close()
+      }
+    })
+
+    it.each([
+      ['text/plain', 415],
+      ['application/x-www-form-urlencoded', 415],
+      ['multipart/form-data', 415],
+      ['', 415],
+    ])('refuses content-type %s, the only kinds a form can send', async (ct, expected) => {
+      const submit = vi.fn<SubmitCalls>(async () => '0xshould-never-happen')
+      const s = await start(submit)
+      try {
+        const res = await request(
+          s.port,
+          '/submit',
+          JSON.stringify({ calls: [A_CALL] }),
+          'POST',
+          ct ? { 'content-type': ct } : {},
+        )
+        expect(res.status).toBe(expected)
+        expect(submit).not.toHaveBeenCalled()
+      } finally {
+        await s.close()
+      }
+    })
+
+    it('refuses a foreign Origin even with the right content-type', async () => {
+      const submit = vi.fn<SubmitCalls>(async () => '0xshould-never-happen')
+      const s = await start(submit)
+      try {
+        const res = await request(s.port, '/submit', JSON.stringify({ calls: [A_CALL] }), 'POST', {
+          'content-type': 'application/json',
+          origin: 'https://evil.example',
+        })
+        expect(res.status).toBe(403)
+        expect(submit).not.toHaveBeenCalled()
+      } finally {
+        await s.close()
+      }
+    })
+
+    it('accepts a configured Origin, so the browser app is not locked out', async () => {
+      const submit = vi.fn<SubmitCalls>(async () => '0xok')
+      const s = await start(submit, { allowedOrigins: new Set(['https://app.example']) })
+      try {
+        const res = await request(s.port, '/submit', JSON.stringify({ calls: [A_CALL] }), 'POST', {
+          'content-type': 'application/json',
+          origin: 'https://app.example',
+        })
+        expect(res.status).toBe(200)
+        expect(submit).toHaveBeenCalled()
+      } finally {
+        await s.close()
+      }
+    })
+
+    it('tolerates a charset parameter on the content-type', async () => {
+      const submit = vi.fn<SubmitCalls>(async () => '0xok')
+      const s = await start(submit)
+      try {
+        const res = await request(s.port, '/submit', JSON.stringify({ calls: [A_CALL] }), 'POST', {
+          'content-type': 'application/json; charset=utf-8',
+        })
+        expect(res.status).toBe(200)
+      } finally {
+        await s.close()
+      }
+    })
+  })
+
+  it('refuses to sign when the live fee cannot be read', async () => {
+    const submit = vi.fn<SubmitCalls>(async () => '0xshould-never-happen')
+    const s = await start(submit, {
+      resolvePolicy: async () => {
+        throw new Error('all RPC hosts failed')
+      },
+    })
+    try {
+      const res = await request(s.port, '/submit', JSON.stringify({ calls: [A_CALL] }))
+      // Without a fee there is no ceiling to check an approve against, so we stop.
+      expect(res.status).toBe(503)
+      expect(submit).not.toHaveBeenCalled()
+    } finally {
+      await s.close()
+    }
+  })
+
+  // The bind default is a security control, and it lived only in main() where no test
+  // could reach it — which is exactly why the set-but-empty case went unnoticed.
+  describe('host resolution', () => {
+    it('defaults to loopback when RELAYER_HOST is unset', () => {
+      expect(resolveHost({})).toBe('127.0.0.1')
+    })
+
+    // `??` would fall through to listen(port, ''), which binds every interface. A .env
+    // placeholder or an empty compose value must not silently expose a funded signer.
+    it('treats a set-but-empty RELAYER_HOST as unset', () => {
+      expect(resolveHost({ RELAYER_HOST: '' })).toBe('127.0.0.1')
+    })
+
+    it('honours an explicit host', () => {
+      expect(resolveHost({ RELAYER_HOST: '0.0.0.0' })).toBe('0.0.0.0')
+    })
+
+    it('warns off-loopback, naming what must be true first', () => {
+      const warning = offHostWarning('0.0.0.0')
+      expect(warning).toMatch(/authentication and rate limiting/)
+      expect(warning).toMatch(/0\.0\.0\.0/)
+    })
+
+    it('stays silent on loopback', () => {
+      expect(offHostWarning('127.0.0.1')).toBeNull()
+    })
   })
 
   // The backstop that makes "a failure while answering cannot escape" true. Without
