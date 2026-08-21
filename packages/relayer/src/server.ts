@@ -13,6 +13,8 @@
 //
 //   1. It binds 127.0.0.1 unless RELAYER_HOST says otherwise. Exposing a funded signer
 //      to every interface has to be a deliberate act, not what a missed setting does.
+//      Treat RELAYER_HOST as a gate that authentication and rate limiting must come
+//      before: the allowlist bounds what may be signed, never by whom or how often.
 //   2. allowlist.ts decides what may be signed at all. Everything else is refused
 //      BEFORE the key is used — see the policy gate in handle().
 //
@@ -198,7 +200,12 @@ async function main(): Promise<void> {
     console.log(`allowlist: pool ${NET.pool} · STRK approve-to-pool only`)
     console.log(messageBook ? `allowlist: MessageBook ${messageBook}` : 'allowlist: no MessageBook deployed yet')
     if (host !== '127.0.0.1') {
-      console.warn(`WARNING: bound to ${host}, not loopback. This signer is reachable off-host.`)
+      console.warn(
+        `WARNING: bound to ${host}, not loopback. This signer is reachable off-host. ` +
+          `Do not run this way without authentication and rate limiting in front of it: ` +
+          `the allowlist bounds what may be signed, not by whom or how often, so an ` +
+          `exposed port still lets anyone spend the fee on every submission it permits.`,
+      )
     }
   })
 }
