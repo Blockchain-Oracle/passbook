@@ -7,7 +7,9 @@ project in this space makes those. It is that each screen names which parties ca
 before you act, including the parties you did not choose.
 
 That inversion is the product. A privacy tool that overstates what it hides is worse than no
-privacy tool at all, because its users act on the difference.
+privacy tool at all, because its users act on the difference. Not all of what follows is built
+yet, so the inventory of what actually exists today sits above the build instructions rather
+than buried under them.
 
 ---
 
@@ -24,17 +26,20 @@ does. But the protection it gives is partial in ways that matter, and the parts 
 cover are exactly the parts most products quietly imply they do. Two of them are structural:
 
 - **Privacy is a crowd property.** A pool with few active users gives little cover no matter
-  how good the cryptography is. So this app puts the real anonymity-set number on screen at the
-  moment of decision, rather than the word "private". No shipped privacy product does this —
-  Railgun, Privacy Pools and Railway were each checked.
+  how good the cryptography is. So the binding design commitment here is to put the real
+  anonymity-set number on screen at the moment of decision, rather than the word "private".
+  None of the shipped privacy products we checked does this — Railgun, Privacy Pools, Railway.
 - **Some things are public and cannot be made otherwise here.** Deposits into the pool are
   public. Amounts in any leg that touches an open note — a swap, a launch, a market bet — are
-  public. The section at the bottom of this file is the complete list, and it is not an
+  public. The section at the bottom of this file states these plainly, and it is not an
   appendix; it is the part of this project we would most like a judge to read.
 
 ---
 
 ## Surfaces
+
+Six surfaces, one pool. This is the design, not the inventory — the next section says which
+parts exist.
 
 | Surface | What it is |
 |---|---|
@@ -82,8 +87,8 @@ npm run lint:claims     # the claims and network guard, described below
 cd contracts && scarb build && snforge test && cd ..
 ```
 
-Two probes read mainnet and write to `evidence/`, which is the audit trail for every number
-this project asserts:
+Two probes read mainnet. `evidence/` is the audit trail for every number this project asserts,
+and only a probe that actually measured something is allowed to write into it:
 
 ```bash
 npx tsx scripts/probe-constants.ts      # live fee, pause state, proof validity
@@ -116,7 +121,7 @@ lint prints every line it exempts so a reviewer can check each one.
 
 ## Mainnet addresses
 
-Network is `SN_MAIN`. Everything here is independently checkable with one RPC call.
+Network is `SN_MAIN`. Every filled row here is independently checkable with one RPC call.
 
 | What | Address |
 |---|---|
@@ -132,9 +137,9 @@ this file cannot be submitted with a guess in them.
 **The pool class hash is pinned on purpose.** The pool is upgradeable with zero delay and can
 be paused, including during judging week — StarkWare can swap the implementation instantly and
 owes nobody notice. If the running pool's class hash stops matching the pinned one, the
-implementation is no longer the one this code was tested against; the app says so and stops
-rather than guessing. A lane that still works while the pool is paused is a design requirement
-here, not a nicety.
+implementation is no longer the one this code was tested against — so the app must say so and
+stop, rather than guess. That, and keeping a lane that still works while the pool is paused,
+are design requirements here rather than niceties.
 
 ---
 
