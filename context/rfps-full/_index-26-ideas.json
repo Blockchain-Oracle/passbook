@@ -1,0 +1,184 @@
+[
+ {
+  "n": "01",
+  "genre": "social-communications",
+  "slug": "private-messaging",
+  "title": "Encrypted on-chain messaging via the privacy pool",
+  "pitch": "A private messaging layer built on the existing privacy pool - sender anonymity, encrypted payloads, persistent channels. No modifications to the pool contract, no trusted server, no metadata."
+ },
+ {
+  "n": "02",
+  "genre": "gaming",
+  "slug": "private-poker",
+  "title": "Provably fair on-chain poker where cheating is mathematically impossible",
+  "pitch": "A fully on-chain poker game where players' hands are cryptographically private, dealing is STARK-proven fair, and betting settles through the privacy pool. No trusted server, no admin who can peek at cards."
+ },
+ {
+  "n": "03",
+  "genre": "markets-trading",
+  "slug": "private-otc-settlement",
+  "title": "Trustless, atomic, private OTC settlement for large block trades",
+  "pitch": "Two counterparties agree off-chain, settle on-chain through the privacy pool: no intermediary holds funds, no counterparty risk, and neither party's identity is linked to the trade. 5–15bps per side undercuts every desk in the market."
+ },
+ {
+  "n": "04",
+  "genre": "markets-trading",
+  "slug": "private-pumpfun",
+  "title": "Bonding-curve token launches with hidden buyers, visible price action",
+  "pitch": "A Pump.fun-style launchpad where bonding-curve mechanics, trade sizes, and the social feed stay fully visible - but no observer can attribute any trade to any wallet. Whales buy without triggering copy-trade cascades; devs sell without panic dumps."
+ },
+ {
+  "n": "06",
+  "genre": "infrastructure",
+  "slug": "cross-chain-privacy-hub",
+  "title": "One-click privacy from any chain - Starknet as the privacy layer of crypto",
+  "pitch": "Any user on Ethereum, Base, Arbitrum, or Solana gets one-click access to STRK20 privacy - without learning Starknet, installing a new wallet, or holding STRK. Bridge in, hold private, withdraw to any chain with zero on-chain link."
+ },
+ {
+  "n": "07",
+  "genre": "markets-trading",
+  "slug": "private-prediction-market",
+  "title": "Prediction markets with visible odds and invisible bettors",
+  "pitch": "Bet sizes and odds stay fully visible - the information aggregation works. Bettor identities are completely hidden. Markets stay informationally efficient while the identity-based manipulation that plagues Polymarket disappears."
+ },
+ {
+  "n": "08",
+  "genre": "markets-trading",
+  "slug": "sealed-bid-auctions",
+  "title": "Sealed-bid auctions where the bids are actually sealed",
+  "pitch": "Bids are encrypted STRK20 notes - invisible to everyone, including the auctioneer, until reveal. First-price, second-price Vickrey, and multi-unit auctions, all with cryptographic bid sealing that's impossible on any transparent chain."
+ },
+ {
+  "n": "09",
+  "genre": "gaming",
+  "slug": "social-deduction-game",
+  "title": "On-chain Among Us with provably fair roles and anonymous votes",
+  "pitch": "A fully on-chain social deduction game - hidden roles as encrypted notes, night actions as private transfers, voting as anonymous channel transfers. No server can leak roles, no admin can peek, vote tallies are provably correct."
+ },
+ {
+  "n": "10",
+  "genre": "infrastructure",
+  "slug": "privacy-wallet",
+  "title": "An Umbra-style privacy wallet for Starknet",
+  "pitch": "A wallet that delivers the Umbra UX - publish once, receive privately, spend freely - fully powered by the existing STRK20 privacy pool. No protocol changes. The hard parts are already shipped; what's missing is the UI."
+ },
+ {
+  "n": "11",
+  "genre": "payments-money",
+  "slug": "private-payroll",
+  "title": "Private payroll and treasury disbursement at company scale",
+  "pitch": "A payroll protocol where per-recipient amounts stay private from each other and from the public, but the payer can prove aggregate spend to auditors and each recipient can prove income for tax filings. The compliance model traditional payroll uses, brought onchain without a centralized intermediary."
+ },
+ {
+  "n": "12",
+  "genre": "payments-money",
+  "slug": "private-subscriptions",
+  "title": "Private subscriptions and creator monetization with Web2-grade UX",
+  "pitch": "Recurring private payments from subscribers to creators - gas-sponsored, set-and-forget, with subscriber identity cryptographically hidden. Tier-gated access via STARK proofs, not wallet scanning. The onchain Patreon that finally works."
+ },
+ {
+  "n": "13",
+  "genre": "payments-money",
+  "slug": "savings-circle-vaults",
+  "title": "Savings circle vaults the organizer holds, not you",
+  "pitch": "Hundreds of millions of people save in circles - a tanda, a kameti, a pardner, an ayuuto, a paluwagan, a stokvel. Ten people put in $100 a month; each month one member takes the pot, in the order the group set at the start. Every app that tried to digitize this died the moment the company held the pooled money and the law treated it like a bank. A vault only the organizer controls removes that: the rules live in code, the schedule is enforced on-chain, and the people who built the software never touch the money."
+ },
+ {
+  "n": "14",
+  "genre": "markets-trading",
+  "slug": "chain-abstracted-private-execution",
+  "title": "Chain-abstracted private execution across every chain and venue",
+  "pitch": "One interface for private spot, perps, and prediction-market execution across Starknet, Solana, and EVM liquidity — routing, chain selection, and privacy are abstracted away, and solvers compete to fill your intent."
+ },
+ {
+  "n": "15",
+  "genre": "payments-money",
+  "slug": "universal-private-payment-rail",
+  "title": "Universal private payment rail for stablecoins",
+  "pitch": "A Beam-powered rail to send stablecoins privately using identifiers people already use — phone, email, wallet, or QR — exposed as both a consumer app and a business payouts API. Nobody has to understand wallets, chains, gas, or privacy."
+ },
+ {
+  "n": "16",
+  "genre": "markets-trading",
+  "slug": "private-multi-wallet-launchpad",
+  "title": "Private multi-wallet launchpad for external venues",
+  "pitch": "A launchpad where you participate through one interface while activity auto-distributes across multiple unlinkable sub-accounts — private participation, reduced wallet-level attribution, and chain-abstracted deposits."
+ },
+ {
+  "n": "17",
+  "genre": "markets-trading",
+  "slug": "confidential-token-launch",
+  "title": "Confidential token launch platform on Starknet",
+  "pitch": "A privacy-native token launch platform on Starknet — confidential participation, private bonding curves, dark liquidity, unlinkable execution — so projects launch without exposing every participant's identity, allocation, and trades in real time."
+ },
+ {
+  "n": "18",
+  "genre": "payments-money",
+  "slug": "private-crypto-neobank",
+  "title": "Private crypto neobank with a non-custodial spending card",
+  "pitch": "A chain-abstracted account to hold fiat, stables, and crypto, convert, earn yield, and spend through a non-custodial card connected to private balances — public and private modes per activity, closing the loop between shielded balances and real-world spending."
+ },
+ {
+  "n": "19",
+  "genre": "markets-trading",
+  "slug": "private-otc-rfq-block-trading",
+  "title": "Private OTC and RFQ block trading for institutions",
+  "pitch": "A confidential RFQ venue where whales, funds, and treasuries request quotes for large trades without revealing identity, size, or direction — market makers compete privately, best quote wins, and settlement runs through STRK20."
+ },
+ {
+  "n": "20",
+  "genre": "markets-trading",
+  "slug": "private-market-maker-vaults",
+  "title": "Private market-maker vaults across venues and chains",
+  "pitch": "Professional-managed vaults that deploy across DEXs, perps, lending, and multiple chains with confidential strategies and positions — while publicly proving NAV, PnL, historical performance, and solvency."
+ },
+ {
+  "n": "21",
+  "genre": "markets-trading",
+  "slug": "private-index-copy-trading-vaults",
+  "title": "Private index and copy-trading vaults",
+  "pitch": "Spot-portfolio vaults — private crypto ETFs, index strategies, thematic baskets — where composition and execution stay confidential while NAV and historical performance stay verifiable."
+ },
+ {
+  "n": "22",
+  "genre": "infrastructure",
+  "slug": "private-cross-chain-bridge",
+  "title": "Private cross-chain bridge with unlinkable settlement",
+  "pitch": "A chain-abstracted bridge that moves assets between chains without publicly linking the source wallet to the destination — STRK20 and private sub-accounts as the privacy routing layer between transparent blockchains."
+ },
+ {
+  "n": "23",
+  "genre": "infrastructure",
+  "slug": "privacy-compliance-layer",
+  "title": "Privacy compliance layer for onchain privacy apps",
+  "pitch": "Shared compliance infrastructure for privacy apps — deposit and sanctions screening, selective disclosure, viewing keys, authorized tracing, source-of-funds proofs, and configurable policies — the compliance standard for programmable onchain privacy."
+ },
+ {
+  "n": "24",
+  "genre": "markets-trading",
+  "slug": "private-yield-account",
+  "title": "Private chain-abstracted yield account",
+  "pitch": "A private, chain-abstracted savings-and-investment account — hold shielded assets, lend, stake, and route capital across DeFi opportunities without exposing total holdings or linking positions to your primary identity."
+ },
+ {
+  "n": "25",
+  "genre": "infrastructure",
+  "slug": "private-account-portfolio-layer",
+  "title": "Private account and portfolio layer for the crypto economy",
+  "pitch": "One private account controlling an unlimited number of unlinkable execution identities, with a single interface aggregating everything you hold and do across chains and apps — the universal private identity and account layer for crypto."
+ },
+ {
+  "n": "26",
+  "genre": "infrastructure",
+  "slug": "private-governance-delegation",
+  "title": "Private DAO governance and delegation",
+  "pitch": "Confidential DAO voting where individual votes stay private but the final result is verifiable — plus private delegation, so nobody publicly learns which whale delegated to whom. Kills whale signaling and bandwagon voting."
+ },
+ {
+  "n": "27",
+  "genre": "infrastructure",
+  "slug": "private-dao-treasury-os",
+  "title": "Private DAO treasury OS",
+  "pitch": "Safe + privacy + Starknet account abstraction — one private treasury for swaps, yield, grants, payroll, OTC, and LP with configurable role-based permissions, where members verify solvency without seeing every transaction."
+ }
+]

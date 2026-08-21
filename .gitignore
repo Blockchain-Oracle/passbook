@@ -1,0 +1,15 @@
+node_modules/
+dist/
+.env
+.env.*
+!.env.example
+*.log
+.playwright-mcp/
+uni-*.png
+.claude/
+.agents/
+_bmad/
+_bmad-output/
+.superpowers/
+ev.json
+.DS_Store

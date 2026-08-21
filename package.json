@@ -1,0 +1,21 @@
+{
+  "name": "strk20-app",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=24" },
+  "workspaces": ["packages/*"],
+  "scripts": {
+    "test": "vitest run",
+    "lint:claims": "node scripts/lint-claims.mjs"
+  },
+  "devDependencies": {
+    "typescript": "5.6.3",
+    "vitest": "2.1.8",
+    "tsx": "4.19.2",
+    "@types/node": "22.10.2"
+  },
+  "dependencies": {
+    "starknet": "10.5.0",
+    "@starknet-io/types-js": "0.10.3"
+  }
+}
