@@ -25,27 +25,30 @@ pub mod MessageBook {
         seals: Map<felt252, felt252>,
     }
 
+    // `pub` on the event types and their fields is what lets the test crate build the
+    // expected event and assert it was emitted. Visibility only: the ABI and the emitted
+    // keys/data are identical either way.
     #[event]
     #[derive(Drop, starknet::Event)]
-    enum Event {
+    pub enum Event {
         MessageAppended: MessageAppended,
         ConversationSealed: ConversationSealed,
     }
 
     #[derive(Drop, starknet::Event)]
-    struct MessageAppended {
+    pub struct MessageAppended {
         #[key]
-        tag: felt252,
-        index: u64,
-        ciphertext: Span<felt252>,
+        pub tag: felt252,
+        pub index: u64,
+        pub ciphertext: Span<felt252>,
     }
 
     #[derive(Drop, starknet::Event)]
-    struct ConversationSealed {
+    pub struct ConversationSealed {
         #[key]
-        tag: felt252,
-        root: felt252,
-        count: u64,
+        pub tag: felt252,
+        pub root: felt252,
+        pub count: u64,
     }
 
     #[abi(embed_v0)]
