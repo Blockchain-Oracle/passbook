@@ -10,6 +10,16 @@ import { NET, STRK_TOKEN } from '../../protocol/src/constants.js'
 // batch needs. The allowlist is the primary control; a small balance is what stops a
 // carelessly-widened allowlist from becoming a total loss.
 //
+// KNOWN RESIDUAL — bounded, accepted, and written down so the next person finds it
+// rather than rediscovering it. A submission approves up to the ceiling while
+// `collect_fee` pulls one fee, so roughly one fee's worth of allowance can be left
+// standing afterwards. Nothing stops a later allowlisted, approve-free submission from
+// consuming that remainder. It is bounded because the allowance is never set above the
+// ceiling, which is itself capped by ABSOLUTE_MAX_APPROVE_WEI — so the exposure is at
+// most one ceiling's worth at any instant, not a growing total. Approving exactly one
+// fee would close it, at the cost of reverting whenever the fee moves between the read
+// and the execution, which is the risk the multiple exists to absorb.
+//
 
 /** A real submission is one approve plus a pool call. Anything long is not ours. */
 export const MAX_CALLS_PER_SUBMISSION = 8
@@ -247,12 +257,36 @@ export function needsApproveCeiling(calls: Call[]): boolean {
 }
 
 function isStrkApprove(call: Call): boolean {
+  return matches(call, STRK_TOKEN, 'approve')
+}
+
+function isPoolApplyActions(call: Call): boolean {
+  return matches(call, NET.pool, 'apply_actions')
+}
+
+function matches(call: Call, address: string, entrypoint: string): boolean {
   return (
     typeof call?.contractAddress === 'string' &&
     FELT.test(call.contractAddress) &&
-    sameAddress(call.contractAddress, STRK_TOKEN) &&
-    call.entrypoint === 'approve'
+    sameAddress(call.contractAddress, address) &&
+    call.entrypoint === entrypoint
   )
+}
+
+/**
+ * The closing sentence both one-per-batch rules share. It exists because the cheap fix
+ * for either refusal is to raise the count, and that removes the control rather than
+ * satisfying it.
+ */
+const RAISING_IT_IS_WRONG =
+  `If a flow genuinely needs more than one, that is a change to what the relayer funds ` +
+  `and belongs in allowlist.ts as a decision — raising this count to clear the error ` +
+  `would remove the only thing bounding a batch to one fee.`
+
+function assertAtMostOne(count: number, label: string, because: string): void {
+  if (count > 1) {
+    throw new Error(`refusing a batch with ${count} ${label}: ${because} ${RAISING_IT_IS_WRONG}`)
+  }
 }
 
 /** Throws unless every call is one the relayer is willing to sign and pay for. */
@@ -263,22 +297,24 @@ export function assertSubmittable(calls: Call[], policy: SubmissionPolicy = {}):
     )
   }
 
-  // The per-call ceiling bounds one approve; a batch can hold eight. Because `approve`
-  // SETS the allowance, `[approve, apply_actions, approve, apply_actions, …]` re-arms it
-  // between pulls, so four approves cost four fees inside a single signed transaction
-  // while every individual call sits under the limit. One approve per batch is what
-  // makes the ceiling bound the transaction rather than merely the call.
-  const approves = calls.filter(isStrkApprove).length
-  if (approves > 1) {
-    throw new Error(
-      `refusing a batch with ${approves} approves: one submission pays one fee, and ` +
-        `because approve SETS the allowance, re-arming it between calls multiplies the ` +
-        `fee inside a single transaction while every call stays under the ceiling. If a ` +
-        `flow genuinely needs more than one, that is a change to what the relayer funds ` +
-        `and belongs in allowlist.ts as a decision — raising this count to clear the ` +
-        `error would remove the only thing bounding a batch to one fee.`,
-    )
-  }
+  // ONE SUBMISSION PAYS ONE FEE, so both halves of the legitimate shape —
+  // `[STRK.approve(pool, fee), pool.apply_actions(…)]` — are capped at one each. The
+  // per-call ceiling bounds a single call; a batch can hold eight, and without these two
+  // rules the ceiling bounds the call rather than the transaction.
+  assertAtMostOne(
+    calls.filter(isStrkApprove).length,
+    'approves',
+    'one submission pays one fee, and because approve SETS the allowance, re-arming it ' +
+      'between calls multiplies the fee inside a single transaction while every call ' +
+      'stays under the ceiling.',
+  )
+  assertAtMostOne(
+    calls.filter(isPoolApplyActions).length,
+    'apply_actions',
+    'one submission pays one fee, and collect_fee() runs once per apply_actions ' +
+      'invocation — at the top of the function body, not inside a per-action loop — so ' +
+      'each one in a batch is a separate pull from this wallet.',
+  )
 
   for (const call of calls) assertCallAllowed(call, policy)
 }
