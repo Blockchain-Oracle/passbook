@@ -6,16 +6,21 @@ import { assertSubmittable, MAX_CALLS_PER_SUBMISSION } from '../src/allowlist.js
 const MESSAGE_BOOK = '0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef'
 const ATTACKER = '0x0dead0000000000000000000000000000000000000000000000000000000beef'
 
+// A 6 STRK fee with the 3x multiple applied, as the server derives it from the live read.
+const FEE_WEI = 6_000_000_000_000_000_000n
+const POLICY = { maxApproveWei: FEE_WEI * 3n }
+const toHex = (n: bigint) => `0x${n.toString(16)}`
+
 const applyActions: Call = { contractAddress: NET.pool, entrypoint: 'apply_actions', calldata: [] }
 const approvePool: Call = {
   contractAddress: STRK_TOKEN,
   entrypoint: 'approve',
-  calldata: [NET.pool, '0x53444835ec580000', '0x0'],
+  calldata: [NET.pool, toHex(FEE_WEI), '0x0'],
 }
 
 describe('submission allowlist', () => {
   it('permits the real submission shape: approve the pool, then apply_actions', () => {
-    expect(() => assertSubmittable([approvePool, applyActions])).not.toThrow()
+    expect(() => assertSubmittable([approvePool, applyActions], POLICY)).not.toThrow()
   })
 
   // The exploit this allowlist exists to stop: one call, whole balance gone.
@@ -35,7 +40,7 @@ describe('submission allowlist', () => {
       entrypoint: 'approve',
       calldata: [ATTACKER, '0xffffffffffffffff', '0x0'],
     }
-    expect(() => assertSubmittable([sneaky])).toThrow(/only permitted spender/)
+    expect(() => assertSubmittable([sneaky], POLICY)).toThrow(/only permitted spender/)
   })
 
   it('refuses an approve whose calldata cannot be inspected positionally', () => {
@@ -44,7 +49,7 @@ describe('submission allowlist', () => {
       entrypoint: 'approve',
       calldata: { spender: ATTACKER, amount: 1 },
     } as unknown as Call
-    expect(() => assertSubmittable([opaque])).toThrow(/not an array this server can inspect/)
+    expect(() => assertSubmittable([opaque], POLICY)).toThrow(/not an array this server can inspect/)
   })
 
   it('refuses a non-submission entrypoint on the pool itself', () => {
@@ -68,7 +73,7 @@ describe('submission allowlist', () => {
       entrypoint: 'transfer',
       calldata: [ATTACKER, '0x1', '0x0'],
     }
-    expect(() => assertSubmittable([approvePool, drain, applyActions])).toThrow(/not an allowlisted/)
+    expect(() => assertSubmittable([approvePool, drain, applyActions], POLICY)).toThrow(/not an allowlisted/)
   })
 
   // Felts have no canonical padding, so an address check that compared strings would
@@ -81,6 +86,100 @@ describe('submission allowlist', () => {
     }
     expect(unpadded.contractAddress).not.toBe(NET.pool) // genuinely a different string
     expect(() => assertSubmittable([unpadded])).not.toThrow()
+  })
+
+  // The security direction of the same property: an odd form of the STRK address must
+  // still land on the transfer refusal rather than slipping past as "some other token".
+  it('still refuses transfer when the STRK address is written unpadded', () => {
+    const drain: Call = {
+      contractAddress: STRK_TOKEN.replace(/^0x0+/, '0x'),
+      entrypoint: 'transfer',
+      calldata: [ATTACKER, '0x1', '0x0'],
+    }
+    expect(drain.contractAddress).not.toBe(STRK_TOKEN)
+    expect(() => assertSubmittable([drain], POLICY)).toThrow(/not an allowlisted call/)
+  })
+
+  // BigInt() parses plenty of things that are not addresses. If the allowlist inspects
+  // one shape and __execute__ compiles another, the gate is checking the wrong object —
+  // today saved only by the payload being garbage, which is not a control.
+  describe('validates address shape before value', () => {
+    it.each([
+      ['an array that stringifies to the pool', [NET.pool]],
+      ['a whitespace-padded address', `  ${NET.pool}  `],
+      ['a decimal string', BigInt(NET.pool).toString()],
+      ['a number', 1234],
+      ['null', null],
+      ['an object', { toString: () => NET.pool }],
+    ])('refuses contractAddress given as %s', (_label, value) => {
+      const call = { contractAddress: value, entrypoint: 'apply_actions', calldata: [] } as unknown as Call
+      expect(() => assertSubmittable([call], POLICY)).toThrow(/not a 0x-prefixed felt address/)
+    })
+
+    it('refuses an approve spender that is not a felt address', () => {
+      const call = {
+        contractAddress: STRK_TOKEN,
+        entrypoint: 'approve',
+        calldata: [[NET.pool], '0x1', '0x0'],
+      } as unknown as Call
+      expect(() => assertSubmittable([call], POLICY)).toThrow(/not a 0x-prefixed felt address/)
+    })
+
+    it('refuses a non-string entrypoint', () => {
+      const call = { contractAddress: NET.pool, entrypoint: 42, calldata: [] } as unknown as Call
+      expect(() => assertSubmittable([call], POLICY)).toThrow(/entrypoint is not a string/)
+    })
+  })
+
+  // The finding that changes the blast radius: approve(pool, MAX_U256) is two entirely
+  // allowlisted calls, and turns "one submission" into "the balance".
+  describe('bounds the approve amount', () => {
+    const approveOf = (low: string, high = '0x0'): Call => ({
+      contractAddress: STRK_TOKEN,
+      entrypoint: 'approve',
+      calldata: [NET.pool, low, high],
+    })
+
+    it('refuses an unbounded approve to the pool', () => {
+      const maxU128 = toHex((1n << 128n) - 1n)
+      expect(() => assertSubmittable([approveOf(maxU128, maxU128)], POLICY)).toThrow(
+        /above the .* ceiling/,
+      )
+    })
+
+    it('refuses an approve just over the ceiling', () => {
+      expect(() => assertSubmittable([approveOf(toHex(FEE_WEI * 3n + 1n))], POLICY)).toThrow(
+        /above the .* ceiling/,
+      )
+    })
+
+    it('permits an approve exactly at the ceiling', () => {
+      expect(() => assertSubmittable([approveOf(toHex(FEE_WEI * 3n))], POLICY)).not.toThrow()
+    })
+
+    it('counts the high limb, so a u256 cannot smuggle the amount past the check', () => {
+      expect(() => assertSubmittable([approveOf('0x0', '0x1')], POLICY)).toThrow(
+        /above the .* ceiling/,
+      )
+    })
+
+    // Fail closed: no fee read means no ceiling, and an unbounded approve is the wallet.
+    it('refuses any approve when the ceiling is unknown', () => {
+      expect(() => assertSubmittable([approvePool], {})).toThrow(/no bound to check it against/)
+    })
+
+    it.each([
+      ['too few felts', [NET.pool, '0x1']],
+      ['too many felts', [NET.pool, '0x1', '0x0', '0x9']],
+    ])('refuses an approve with %s', (_label, calldata) => {
+      const call = { contractAddress: STRK_TOKEN, entrypoint: 'approve', calldata } as Call
+      expect(() => assertSubmittable([call], POLICY)).toThrow(/expected 3 calldata felts/)
+    })
+
+    it('refuses a limb that is not a well-formed u128', () => {
+      const tooBig = toHex(1n << 128n)
+      expect(() => assertSubmittable([approveOf(tooBig)], POLICY)).toThrow(/well-formed u256/)
+    })
   })
 
   describe('the deployed MessageBook', () => {
