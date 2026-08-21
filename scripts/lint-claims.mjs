@@ -11,7 +11,7 @@
 // Every check runs before the process exits, so one run reports every problem
 // rather than one problem at a time.
 //
-import { readdirSync, readFileSync, statSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { join, extname } from 'node:path'
 
 // Spec §11. These are false on this protocol: the viewing private key is escrowed
@@ -92,17 +92,14 @@ function walk(p) {
   }
 }
 
+// A root that does not exist yet is fine, and that is the only tolerated absence.
+// Nothing wraps the walk itself: a guard that swallows an unexpected error is not a
+// guard, and a `try { walk(r) } catch {}` would silently skip the rest of a root.
 for (const r of ROOTS) {
-  // A root that does not exist yet is fine. Any other error is not, and must not be
-  // swallowed: a guard that disables itself on an unexpected error is not a guard.
-  try {
-    walk(r)
-  } catch (e) {
-    if (e.code !== 'ENOENT') throw e
-  }
+  if (existsSync(r)) walk(r)
 }
 
-if (exempted.length || exemptedLineCount) {
+if (exemptedLineCount) {
   console.log(
     `\n${exemptedLineCount} line(s) exempted by claims-lint markers, ${exempted.length} of them` +
       ` non-blank and listed here. Read each one and confirm it refuses a claim rather than` +
@@ -149,6 +146,16 @@ if (s20) {
     deployed = JSON.parse(readFileSync('evidence/deployment.json', 'utf8'))
   } catch (e) {
     if (e.code !== 'ENOENT') throw e
+  }
+
+  // A gate field that is not an array is skipped by the per-value loop below, which
+  // would leave it entirely unchecked — the same silent-drop failure the loop exists
+  // to catch. The gate reads flat bare-string arrays and nothing else.
+  for (const field of ['transactions', 'contracts']) {
+    if (field in s20 && !Array.isArray(s20[field])) {
+      console.error(`strk20.json ${field}: must be a flat array of bare strings`)
+      guardFailed = true
+    }
   }
 
   const declaredContracts = Array.isArray(s20.contracts) ? s20.contracts : []
