@@ -8,9 +8,29 @@
 // network parameters are facts about a network and live in constants.ts, under
 // version control where they can be reviewed. Only secrets come from the env.
 //
-import { createServer, type IncomingMessage } from 'node:http'
+import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
+import { fileURLToPath } from 'node:url'
 import { Account, RpcProvider, type Call } from 'starknet'
 import { NET } from '../../protocol/src/constants.js'
+import { withFallback } from '../../protocol/src/rpc.js'
+
+// R10 names `POST /submit`; the browser posts to the same-origin `/api/submit`, which
+// a dev-server proxy or edge rule normally rewrites. Accepting both means the two
+// halves connect whether or not that rewrite is in place.
+const SUBMIT_PATHS = new Set(['/submit', '/api/submit'])
+
+const JSON_HEADERS = { 'content-type': 'application/json' }
+
+// A submission is a handful of calls. Anything larger is not one, so stop reading
+// rather than buffering an unbounded body into memory.
+const MAX_BODY_BYTES = 1_000_000
+
+/**
+ * Signs and broadcasts the calls, yielding the transaction hash. Injected rather than
+ * reached for directly so the request handling around it can be tested without a real
+ * mainnet submission — the one part of this file that cannot be exercised for free.
+ */
+export type SubmitCalls = (calls: Call[]) => Promise<string>
 
 /** Fails at startup rather than as an opaque signing error on the first request. */
 function required(name: string): string {
@@ -24,26 +44,16 @@ function required(name: string): string {
   return value
 }
 
-const RELAYER_ADDRESS = required('RELAYER_ADDRESS')
-const RELAYER_PRIVATE_KEY = required('RELAYER_PRIVATE_KEY')
-const PORT = Number(process.env.PORT ?? 8787)
-
-// R10 names `POST /submit`; the browser posts to the same-origin `/api/submit`, which
-// a dev-server proxy or edge rule normally rewrites. Accepting both means the two
-// halves connect whether or not that rewrite is in place.
-const SUBMIT_PATHS = new Set(['/submit', '/api/submit'])
-
-const JSON_HEADERS = { 'content-type': 'application/json' }
-
-// A submission is a handful of calls. Anything larger is not one, so stop reading
-// rather than buffering an unbounded body into memory.
-const MAX_BODY_BYTES = 1_000_000
-
-const account = new Account({
-  provider: new RpcProvider({ nodeUrl: NET.rpc[0] }),
-  address: RELAYER_ADDRESS,
-  signer: RELAYER_PRIVATE_KEY,
-})
+/** Never throws: a response we cannot deliver must not become an uncaught exception. */
+function send(res: ServerResponse, status: number, body: unknown): void {
+  if (res.writableEnded || res.destroyed) return
+  try {
+    res.writeHead(status, JSON_HEADERS).end(JSON.stringify(body))
+  } catch (e) {
+    // The socket died between the check above and the write. Nobody left to tell.
+    console.warn(`relayer: could not send ${status}: ${String(e)}`)
+  }
+}
 
 async function readJsonBody(req: IncomingMessage): Promise<unknown> {
   const chunks: Buffer[] = []
@@ -56,37 +66,94 @@ async function readJsonBody(req: IncomingMessage): Promise<unknown> {
   return JSON.parse(Buffer.concat(chunks).toString('utf8'))
 }
 
-const server = createServer((req, res) => {
-  void (async () => {
-    if (req.method !== 'POST' || !SUBMIT_PATHS.has(req.url ?? '')) {
-      res.writeHead(404, JSON_HEADERS).end(JSON.stringify({ error: 'not found' }))
-      return
-    }
-    // A malformed request is the caller's fault (400); a failed submission is ours or
-    // the chain's (502). Collapsing both into one status would misdirect every debug.
-    let calls: Call[]
-    try {
-      const body = (await readJsonBody(req)) as { calls?: Call[] }
-      if (!Array.isArray(body.calls) || body.calls.length === 0) {
-        throw new Error('body must carry a non-empty `calls` array')
-      }
-      calls = body.calls
-    } catch (e) {
-      res.writeHead(400, JSON_HEADERS).end(JSON.stringify({ error: String(e) }))
-      return
-    }
+async function handle(req: IncomingMessage, res: ServerResponse, submit: SubmitCalls) {
+  if (req.method !== 'POST' || !SUBMIT_PATHS.has(req.url ?? '')) {
+    send(res, 404, { error: 'not found' })
+    return
+  }
 
-    try {
-      // Our address is the one the public record will show against this transaction.
-      // That is the entire service being offered; see paymaster.ts.
-      const { transaction_hash } = await account.execute(calls)
-      res.writeHead(200, JSON_HEADERS).end(JSON.stringify({ transactionHash: transaction_hash }))
-    } catch (e) {
-      res.writeHead(502, JSON_HEADERS).end(JSON.stringify({ error: String(e) }))
+  // A malformed request is the caller's fault (400); a failed submission is ours or
+  // the chain's (502). Collapsing both into one status would misdirect every debug.
+  let calls: Call[]
+  try {
+    const body = (await readJsonBody(req)) as { calls?: Call[] }
+    if (!Array.isArray(body.calls) || body.calls.length === 0) {
+      throw new Error('body must carry a non-empty `calls` array')
     }
-  })()
-})
+    calls = body.calls
+  } catch (e) {
+    send(res, 400, { error: String(e) })
+    return
+  }
 
-server.listen(PORT, () => {
-  console.log(`relayer listening on :${PORT}, submitting as ${RELAYER_ADDRESS}`)
-})
+  try {
+    // Our address is the one the public record will show against this transaction.
+    // That is the entire service being offered; see paymaster.ts.
+    send(res, 200, { transactionHash: await submit(calls) })
+  } catch (e) {
+    send(res, 502, { error: String(e) })
+  }
+}
+
+export function createRelayerServer(submit: SubmitCalls): Server {
+  return createServer((req, res) => {
+    // A client that vanishes mid-request — closed tab, dropped network — makes Node
+    // emit 'error' on these streams. An 'error' event with no listener is rethrown as
+    // an uncaught exception, and this process is a singleton that must outlive the
+    // whole judging session: one dropped connection must not end it. There is nobody
+    // left to answer by this point, so noting it is the only action available.
+    req.on('error', (e) => console.warn(`relayer: request stream failed: ${e.message}`))
+    res.on('error', (e) => console.warn(`relayer: response stream failed: ${e.message}`))
+
+    handle(req, res, submit).catch((e) => {
+      // Last line of defence. Nothing in handle() may escape as an unhandled rejection.
+      console.warn(`relayer: unhandled request failure: ${String(e)}`)
+      send(res, 500, { error: 'internal error' })
+    })
+  })
+}
+
+/**
+ * Returns the first RPC host that actually answers, so a dead primary at boot does not
+ * silently become a relayer that cannot submit anything.
+ *
+ * This probes with a READ, before any key is used and before anything is signed, so
+ * there is no double-submission risk. Deliberately NOT retry-on-error for the write
+ * path: once a submission has been broadcast, a connection failure and a JSON-RPC
+ * error are not distinguishable from here, and retrying the latter risks broadcasting
+ * twice. That distinction needs the real submission path and stays deferred.
+ */
+export async function pickLiveRpcHost(): Promise<string> {
+  return withFallback(async (p) => {
+    await p.getBlockNumber()
+    return p.channel.nodeUrl
+  })
+}
+
+async function main(): Promise<void> {
+  const address = required('RELAYER_ADDRESS')
+  const privateKey = required('RELAYER_PRIVATE_KEY')
+  const port = Number(process.env.PORT ?? 8787)
+
+  const nodeUrl = await pickLiveRpcHost()
+  const account = new Account({
+    provider: new RpcProvider({ nodeUrl }),
+    address,
+    signer: privateKey,
+  })
+
+  const server = createRelayerServer(async (calls) => {
+    const { transaction_hash } = await account.execute(calls)
+    return transaction_hash
+  })
+
+  server.listen(port, () => {
+    console.log(`relayer listening on :${port}, submitting as ${address} via ${nodeUrl}`)
+  })
+}
+
+// Only when run directly. Importing this module (tests, tooling) must stay side-effect
+// free, but launching it must still fail loudly on a missing secret before it listens.
+if (process.argv[1] && process.argv[1] === fileURLToPath(import.meta.url)) {
+  await main()
+}
