@@ -1,0 +1,21 @@
+[package]
+name = "strk20_app"
+version = "0.1.0"
+edition = "2024_07"
+
+[dependencies]
+starknet = "2.8.2"
+
+[dev-dependencies]
+snforge_std = "0.31.0"
+
+[[target.starknet-contract]]
+sierra = true
+# CASM is required, not optional: declaring on Starknet needs the compiled class
+# hash, which is derived from the CASM. With `sierra = true` alone scarb emits only
+# `*.contract_class.json` and the deploy step has nothing to compute
+# `compiled_class_hash` from. The sponsor's own workspace sets `casm = true` too.
+casm = true
+
+[scripts]
+test = "snforge test"

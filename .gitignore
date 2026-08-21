@@ -13,3 +13,7 @@ _bmad-output/
 .superpowers/
 ev.json
 .DS_Store
+
+# Cairo / Scarb build output. Scarb.lock IS committed; target/ is not.
+contracts/target/
+contracts/.snfoundry_cache/
