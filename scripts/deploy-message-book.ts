@@ -18,9 +18,10 @@
 // deployment record would be writing a claim about mainnet that mainnet does not
 // support, into the one directory whose entire purpose is that a judge can trust it.
 //
-import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs'
 import { Account, RpcProvider, hash, json } from 'starknet'
 import { ACTIVE_NETWORK, NET, STRK_TOKEN } from '../packages/protocol/src/constants.js'
+import { EXPECTED_POOL_CLASS_HASH } from '../packages/protocol/src/message-book.js'
 
 const ARTIFACT_BASE = 'contracts/target/dev/strk20_app_MessageBook'
 const SIERRA_PATH = `${ARTIFACT_BASE}.contract_class.json`
@@ -40,14 +41,27 @@ const EXPECTED_CLASS_HASH =
   '0x52c432b3751ef6e61aa742e6b04a75bd929f2c85e1f2e632df812d424e4460f'
 
 /**
- * A floor, not an estimate. Its job is to catch an unfunded or wrong wallet before it
- * produces a confusing mid-declare failure, so it is set well below anything that would
- * reject a genuinely ready wallet and well above zero. Measured all-in cost of a pool
- * transaction on this network is ~9.1 STRK; a declare plus deploy of a contract this
- * size is cheaper than that, but not by enough to make 5 STRK an unreasonable bar.
- * Use `--estimate` for a real number.
+ * A floor with a measured basis, not a round number.
+ *
+ * `estimateDeclareFee` returns ~8.66 STRK (8655118334796113136 FRI) for this contract,
+ * consistently against both hosts, and the UDC deploy invoke lands on top of that. 12
+ * STRK leaves headroom for gas-price movement between the check and the broadcast
+ * without being so high it rejects a genuinely ready wallet. Use `--estimate` for the
+ * live number rather than trusting this one.
  */
-const MIN_BALANCE_WEI = 5n * 10n ** 18n
+const MIN_BALANCE_WEI = 12n * 10n ** 18n
+
+/**
+ * RPC spec versions `starknet@10.5.0` will talk to. Mainnet hosts disagree: at the time
+ * of writing `rpc.starknet.lava.build` serves 0.8.1 (OUT of window) and
+ * `starknet-rpc.publicnode.com` serves 0.10.2 (in window).
+ *
+ * Reads and even the declare *estimate* work fine against the out-of-window host — but
+ * the broadcast and `waitForTransaction` leg is the one thing nobody has exercised, and
+ * the most expensive transaction in the project must not be its first test. So the
+ * declare picks a host that advertises a supported version, and refuses if none does.
+ */
+const SUPPORTED_SPEC = new Set(['0.9.0', '0.10.0', '0.10.2', '0.10.3'])
 
 const execute = process.argv.includes('--execute')
 const wantEstimate = process.argv.includes('--estimate')
@@ -75,6 +89,26 @@ async function read<T>(fn: (p: RpcProvider) => Promise<T>): Promise<T> {
     }
   }
   throw new Error(`all RPC hosts failed: ${String(last)}`)
+}
+
+/**
+ * Returns the first configured host whose advertised spec version starknet@10.5.0 will
+ * actually talk to, or null if none will. Deliberately separate from `read()`: reads may
+ * use any host that answers, but the broadcast may not.
+ */
+async function pickDeclareHost(): Promise<{ nodeUrl: string; spec: string } | null> {
+  const seen: string[] = []
+  for (const nodeUrl of NET.rpc) {
+    try {
+      const spec = await new RpcProvider({ nodeUrl }).getSpecVersion()
+      seen.push(`${nodeUrl} -> ${spec}`)
+      if (SUPPORTED_SPEC.has(spec)) return { nodeUrl, spec }
+    } catch {
+      seen.push(`${nodeUrl} -> unreachable`)
+    }
+  }
+  record('FAIL', 'declare RPC spec version', `no host in window. Saw: ${seen.join(', ')}`)
+  return null
 }
 
 /**
@@ -146,6 +180,29 @@ for (const [label, path] of [
   }
 }
 
+// `contracts/target/` is gitignored, so nothing otherwise proves the artifact about to
+// be declared was built from the committed source rather than from an edit someone made
+// and reverted. Comparing mtimes is not a proof of that, but it does catch the common
+// case — a .cairo file touched after the last build — and turns the class-hash assertion
+// below into a meaningful check rather than a check of a stale file against itself.
+if (sierra && casm) {
+  const artifactBuilt = Math.min(statSync(SIERRA_PATH).mtimeMs, statSync(CASM_PATH).mtimeMs)
+  const sources = readdirSync('contracts/src')
+    .filter((f) => f.endsWith('.cairo'))
+    .map((f) => ({ f, mtime: statSync(`contracts/src/${f}`).mtimeMs }))
+  const stale = sources.filter((s) => s.mtime > artifactBuilt)
+  if (stale.length) {
+    record(
+      'FAIL',
+      'artifacts newer than sources',
+      `${stale.map((s) => s.f).join(', ')} changed after the last build.\n` +
+        `      Run: cd contracts && scarb build && cd ..  — then re-run this script.`,
+    )
+  } else {
+    record('PASS', 'artifacts newer than sources', `${sources.length} .cairo file(s), none newer`)
+  }
+}
+
 let classHash = ''
 let compiledClassHash = ''
 if (sierra && casm) {
@@ -190,6 +247,36 @@ try {
   record('FAIL', 'RPC reachable', String(e).slice(0, 120))
 }
 
+// Spec §10.5. The pool can be upgraded with zero delay, so "it matched when we tested"
+// is not a statement about now.
+try {
+  const poolClass = await read((p) => p.getClassHashAt(NET.pool))
+  if (BigInt(poolClass) === BigInt(EXPECTED_POOL_CLASS_HASH)) {
+    record('PASS', 'pool implementation unchanged', poolClass)
+  } else {
+    record(
+      'FAIL',
+      'pool implementation unchanged',
+      `pool is now class ${poolClass}\n      expected ${EXPECTED_POOL_CLASS_HASH}\n` +
+        `      The pool was upgraded. Every protocol finding this repository relies on was\n` +
+        `      established against the old implementation and is now unverified. Re-run the\n` +
+        `      compile_actions probes before spending anything.`,
+    )
+  }
+} catch (e) {
+  record('FAIL', 'pool implementation unchanged', `could not read: ${String(e).slice(0, 120)}`)
+}
+
+// Only relevant to the broadcast, so it is checked but not fatal to a dry run's purpose.
+const declareHost = await pickDeclareHost()
+if (declareHost) {
+  record(
+    'PASS',
+    'declare RPC spec version',
+    `${declareHost.nodeUrl} serves ${declareHost.spec} (supported)`,
+  )
+}
+
 let declared: boolean | null = null
 if (classHash) {
   declared = await isDeclared(classHash)
@@ -231,7 +318,9 @@ if (DEPLOYER_ADDRESS) {
 
 const mark = { PASS: '  ok  ', FAIL: ' FAIL ', SKIP: ' skip ' }
 console.log(`\nMessageBook deploy — ${execute ? 'EXECUTE (SPENDS REAL STRK)' : 'DRY RUN (spends nothing)'}`)
-console.log(`network ${ACTIVE_NETWORK} · rpc ${NET.rpc[0]}\n`)
+console.log(
+  `network ${ACTIVE_NETWORK} · reads ${NET.rpc[0]} · declares via ${declareHost?.nodeUrl ?? '(none in window)'}\n`,
+)
 for (const c of checks) console.log(`[${mark[c.status]}] ${c.name.padEnd(30)} ${c.detail}`)
 
 const failed = checks.filter((c) => c.status === 'FAIL')
@@ -244,7 +333,7 @@ if (wantEstimate && !failed.length && DEPLOYER_ADDRESS && DEPLOYER_PRIVATE_KEY &
     // starknet@10.5.0 takes an options object. The positional form in the plan
     // (`new Account(provider, address, key)`) is the 6.x signature and does not compile.
     const account = new Account({
-      provider: new RpcProvider({ nodeUrl: NET.rpc[0] }),
+      provider: new RpcProvider({ nodeUrl: declareHost?.nodeUrl ?? NET.rpc[0] }),
       address: DEPLOYER_ADDRESS,
       signer: DEPLOYER_PRIVATE_KEY,
     })
@@ -282,14 +371,28 @@ if (!execute) {
 // From here down it costs money. Nothing above this line did.
 // ---------------------------------------------------------------------------------
 
-const provider = new RpcProvider({ nodeUrl: NET.rpc[0] })
+// The broadcast goes to a host whose spec version starknet@10.5.0 supports, which is not
+// necessarily NET.rpc[0]. pickDeclareHost already failed the pre-flight if none qualified.
+const provider = new RpcProvider({ nodeUrl: declareHost!.nodeUrl })
 const account = new Account({
   provider,
   address: DEPLOYER_ADDRESS!,
   signer: DEPLOYER_PRIVATE_KEY!,
 })
 
-let declareTx: string | null = null
+/**
+ * `null` is not a good enough answer here.
+ *
+ * `declareAndDeploy` skips the declare when the class already exists and returns
+ * `transaction_hash: ""` for it. Writing `""` — or silently coercing it to null — puts a
+ * value in the audit trail whose provenance nobody can reconstruct: did the declare fail,
+ * was it skipped, or did someone hand-edit the file? So the three cases are named.
+ */
+type DeclareRecord =
+  | { declareTx: string }
+  | { declareTx: null; declareNote: 'class was already declared before this run' }
+
+let declareResult: DeclareRecord
 let deployTx: string
 let contractAddress: string
 
@@ -297,15 +400,22 @@ if (declared === true) {
   // Re-declaring an existing class is refused by the sequencer anyway, but paying to
   // find that out is avoidable, so we do not.
   console.log(`\nclass ${classHash} is already declared — deploying an instance only`)
+  // MessageBook has no constructor, so there is nothing to pass.
   const res = await account.deployContract({ classHash, constructorCalldata: [] })
   await provider.waitForTransaction(res.transaction_hash)
+  declareResult = { declareTx: null, declareNote: 'class was already declared before this run' }
   deployTx = res.transaction_hash
   contractAddress = res.contract_address
 } else {
-  console.log(`\ndeclaring and deploying class ${classHash} ...`)
+  console.log(`\ndeclaring and deploying class ${classHash} via ${declareHost!.nodeUrl} ...`)
   const res = await account.declareAndDeploy({ contract: sierra, casm })
   await provider.waitForTransaction(res.deploy.transaction_hash)
-  declareTx = res.declare.transaction_hash || null
+  const declareHash = res.declare.transaction_hash
+  declareResult = declareHash
+    ? { declareTx: declareHash }
+    : // declareAndDeploy found the class already on chain between our check and the
+      // broadcast, and skipped its declare leg. Nothing was overpaid; say what happened.
+      { declareTx: null, declareNote: 'class was already declared before this run' }
   deployTx = res.deploy.transaction_hash
   contractAddress = res.deploy.contract_address
 }
@@ -325,10 +435,17 @@ const out = {
   classHash,
   compiledClassHash,
   contractAddress,
-  declareTx,
+  ...declareResult,
   deployTx,
   network: ACTIVE_NETWORK,
   chainId: NET.chainId,
+  // Recorded so the lint, and a judge, can re-derive that the address really holds this
+  // class rather than taking the file's word for it. This is the value read back from
+  // the chain, not the one we computed locally.
+  verifiedClassHashAt: onChainClassHash,
+  verifiedAtBlock: await read((p) => p.getBlockNumber()),
+  poolClassHash: EXPECTED_POOL_CLASS_HASH,
+  declaredVia: declareHost!.nodeUrl,
   deployedAt: new Date().toISOString(),
 }
 mkdirSync('evidence', { recursive: true })

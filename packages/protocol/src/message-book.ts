@@ -16,6 +16,18 @@ export const MODE_APPEND = 1n
 export const MODE_SEAL = 2n
 
 /**
+ * The pool implementation every finding in this file was established against.
+ *
+ * The pool is upgradeable with a ZERO delay and pausable, so "it matched when we tested"
+ * says nothing about now — it can change mid-run, including during judging. If the
+ * deployed class hash has moved, `ACTION_LIST_EVIDENCE` below describes a contract that
+ * is no longer running and none of it can be relied on. Spec §10.5 requires re-checking
+ * this immediately before spending; both scripts do.
+ */
+export const EXPECTED_POOL_CLASS_HASH =
+  '0x67dddd89d80fedadc06b6f160798f94800a4a70164e5a24301cd0d6076b554d'
+
+/**
  * `ClientAction` variant indices, read from the deployed pool's own ABI (enum member
  * order IS the serde discriminant). We only build two of these; the rest are listed so
  * that the ordering rule below is checkable by eye.
