@@ -15,11 +15,24 @@ import { NET, STRK_TOKEN } from '../../protocol/src/constants.js'
 export const MAX_CALLS_PER_SUBMISSION = 8
 
 /**
- * How much more than one fee an approve may authorise. Above one because the fee can
- * rise between the read and the submission; small because this multiple IS the blast
- * radius — it is the most a single accepted submission can cost us.
+ * How much more than one fee an approve may authorise. This multiple IS the blast
+ * radius, so it is derived rather than picked — do not widen it without redoing this:
+ *
+ *   - What is actually needed is 1x. `collect_fee` pulls exactly one fee per submission.
+ *   - Headroom exists for one reason only: the pool's fee is mutable with ZERO upgrade
+ *     delay, so it can change between our read and the execution.
+ *   - It is sized against precedent, not imagination. The largest fee change in this
+ *     pool's history is 4 -> 6 STRK, or 1.5x. Two covers a repeat of the worst observed
+ *     jump, with margin, and nothing beyond it.
+ *   - The failure directions are asymmetric, which is what settles the number. Too
+ *     tight and the transaction reverts, costing gas. Too loose and a funded wallet
+ *     carries standing spend authority. Bias toward the revert.
+ *
+ * What makes this a ceiling rather than a per-request rate limit: ERC-20 `approve`
+ * SETS the allowance, it does not add to it. So the standing authority at any instant
+ * is this multiple times the fee — repeated requests overwrite, they do not accumulate.
  */
-export const APPROVE_FEE_MULTIPLE = 3n
+export const APPROVE_FEE_MULTIPLE = 2n
 
 export interface SubmissionPolicy {
   /** The deployed MessageBook, once evidence/deployment.json exists. */
@@ -142,6 +155,27 @@ function assertCallAllowed(call: Call, policy: SubmissionPolicy): void {
   }
 
   throw refuse(call)
+}
+
+/**
+ * Whether this batch needs the fee-derived ceiling — i.e. whether it contains anything
+ * that will reach the approve check. Lets the server skip a live RPC read for batches
+ * that have no approve in them, so chain availability is not a precondition for
+ * accepting every submission.
+ *
+ * Deliberately the same predicate `assertCallAllowed` uses to route to the approve
+ * branch. It fails closed in both directions: a malformed address returns false here
+ * and is then refused on shape, and anything that reaches the approve check without a
+ * ceiling is refused for having no bound. Neither path can sign an unbounded approve.
+ */
+export function needsApproveCeiling(calls: Call[]): boolean {
+  return calls.some(
+    (call) =>
+      typeof call?.contractAddress === 'string' &&
+      FELT_HEX.test(call.contractAddress) &&
+      sameAddress(call.contractAddress, STRK_TOKEN) &&
+      call.entrypoint === 'approve',
+  )
 }
 
 /** Throws unless every call is one the relayer is willing to sign and pay for. */

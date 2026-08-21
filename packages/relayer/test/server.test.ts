@@ -6,20 +6,27 @@ import {
   createRelayerServer,
   resolveHost,
   offHostWarning,
+  resolveAllowedOrigins,
   type SubmitCalls,
   type RelayerServerOptions,
 } from '../src/server.js'
-import { MAX_CALLS_PER_SUBMISSION } from '../src/allowlist.js'
+import { MAX_CALLS_PER_SUBMISSION, APPROVE_FEE_MULTIPLE } from '../src/allowlist.js'
 
 // An allowlisted call, so tests about everything else are not silently blocked by policy.
 const A_CALL = { contractAddress: NET.pool, entrypoint: 'apply_actions', calldata: [] }
 const ATTACKER = '0x0dead0000000000000000000000000000000000000000000000000000000beef'
-const FEE_CEILING = 18_000_000_000_000_000_000n // 3 x a 6 STRK fee
+const FEE_WEI = 6_000_000_000_000_000_000n
+const FEE_CEILING = FEE_WEI * APPROVE_FEE_MULTIPLE
+const AN_APPROVE = {
+  contractAddress: STRK_TOKEN,
+  entrypoint: 'approve',
+  calldata: [NET.pool, `0x${FEE_WEI.toString(16)}`, '0x0'],
+}
 
 async function start(submit: SubmitCalls, extra: Partial<RelayerServerOptions> = {}) {
   const server = createRelayerServer({
     submit,
-    resolvePolicy: async () => ({ maxApproveWei: FEE_CEILING }),
+    resolveApproveCeiling: async () => FEE_CEILING,
     ...extra,
   })
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
@@ -272,18 +279,55 @@ describe('relayer server', () => {
   it('refuses to sign when the live fee cannot be read', async () => {
     const submit = vi.fn<SubmitCalls>(async () => '0xshould-never-happen')
     const s = await start(submit, {
-      resolvePolicy: async () => {
+      resolveApproveCeiling: async () => {
         throw new Error('all RPC hosts failed')
       },
     })
     try {
-      const res = await request(s.port, '/submit', JSON.stringify({ calls: [A_CALL] }))
+      const res = await request(s.port, '/submit', JSON.stringify({ calls: [AN_APPROVE] }))
       // Without a fee there is no ceiling to check an approve against, so we stop.
       expect(res.status).toBe(503)
       expect(submit).not.toHaveBeenCalled()
     } finally {
       await s.close()
     }
+  })
+
+  // Chain availability must not be a precondition for accepting a submission that has
+  // nothing to check against a ceiling. Trading a spending risk for an outage is a bad
+  // trade when the batch contains no approve at all.
+  describe('reads the live fee only when it is needed', () => {
+    it('accepts an approve-less batch without consulting the chain', async () => {
+      const submit = vi.fn<SubmitCalls>(async () => '0xok')
+      const resolveApproveCeiling = vi.fn(async () => {
+        throw new Error('RPC is down')
+      })
+      const s = await start(submit, { resolveApproveCeiling })
+      try {
+        const res = await request(s.port, '/submit', JSON.stringify({ calls: [A_CALL] }))
+        expect(res.status).toBe(200)
+        expect(resolveApproveCeiling).not.toHaveBeenCalled()
+      } finally {
+        await s.close()
+      }
+    })
+
+    it('consults the chain when the batch does contain an approve', async () => {
+      const submit = vi.fn<SubmitCalls>(async () => '0xok')
+      const resolveApproveCeiling = vi.fn(async () => FEE_CEILING)
+      const s = await start(submit, { resolveApproveCeiling })
+      try {
+        const res = await request(
+          s.port,
+          '/submit',
+          JSON.stringify({ calls: [AN_APPROVE, A_CALL] }),
+        )
+        expect(res.status).toBe(200)
+        expect(resolveApproveCeiling).toHaveBeenCalledTimes(1)
+      } finally {
+        await s.close()
+      }
+    })
   })
 
   // The bind default is a security control, and it lived only in main() where no test
@@ -311,6 +355,30 @@ describe('relayer server', () => {
 
     it('stays silent on loopback', () => {
       expect(offHostWarning('127.0.0.1')).toBeNull()
+    })
+  })
+
+  // Same failure shape as the ??/|| bug: an empty value must read as absence, never as
+  // permission. There is no wildcard syntax to fall into — matching is exact.
+  describe('allowed-origin resolution', () => {
+    it.each([
+      ['unset', {}],
+      ['set but empty', { RELAYER_ALLOWED_ORIGINS: '' }],
+      ['only separators', { RELAYER_ALLOWED_ORIGINS: ' , , ' }],
+    ])('yields an empty set when %s, never "allow all"', (_label, env) => {
+      expect(resolveAllowedOrigins(env).size).toBe(0)
+    })
+
+    it('parses and trims a real list, dropping stray commas', () => {
+      const origins = resolveAllowedOrigins({
+        RELAYER_ALLOWED_ORIGINS: ' https://app.example , ,https://admin.example',
+      })
+      expect([...origins].sort()).toEqual(['https://admin.example', 'https://app.example'])
+    })
+
+    it('treats a "*" entry as the literal string it is, not a wildcard', () => {
+      const origins = resolveAllowedOrigins({ RELAYER_ALLOWED_ORIGINS: '*' })
+      expect(origins.has('https://evil.example')).toBe(false)
     })
   })
 
