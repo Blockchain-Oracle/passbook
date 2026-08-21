@@ -11,13 +11,28 @@
 // This process holds a funded key and pays for what it signs, so reaching the port is
 // itself an ability worth restricting. Four controls, in order of how much they buy:
 //
-//   1. It requires content-type: application/json and refuses an unexpected Origin.
-//      This is what separates a web page from the key. Loopback is NOT a boundary
-//      against the operator's own browser: a cross-origin <form enctype="text/plain">
-//      is a CORS simple request, fires no preflight, and posts a body that parses as
-//      JSON. The attacker cannot read the reply and does not need to — the transaction
-//      is already signed. A form cannot send application/json, and anything that can
-//      is preflighted against a server that answers no CORS headers.
+//   1. It requires content-type: application/json. This is what separates a web page
+//      from the key. Loopback is NOT a boundary against the operator's own browser: a
+//      cross-origin <form enctype="text/plain"> is a CORS simple request, fires no
+//      preflight, and posts a body that parses as JSON. The attacker cannot read the
+//      reply and does not need to — the transaction is already signed. A form cannot
+//      send application/json, and anything that can is preflighted against a server
+//      that answers no CORS headers.
+//
+//      The Origin check is a second line only. Note honestly what it can do: it can
+//      REFUSE, and it cannot GRANT. A browser request carrying both a non-null Origin
+//      and application/json is by definition cross-origin, so it is preflighted, and
+//      this server answers no CORS headers — the request never arrives. So configuring
+//      an origin does not enable a browser caller; it only narrows non-browser ones.
+//
+//   1b. RELAYER_AUTH_TOKEN, when set, is required on every request. This is the control
+//      for the layer above: paymaster.ts fetches the same-origin relative /api/submit,
+//      and this server accepts that path so a proxy can forward it. The moment such a
+//      rewrite exists, loopback stops being a boundary and NO warning fires, because
+//      offHostWarning keys off RELAYER_HOST, which nobody changed. Behind a proxy every
+//      internet client arrives Origin-less, which is the shape treated as same-process.
+//      Content-type is a CSRF control, not authentication. Any deployment reachable
+//      through a proxy MUST set this.
 //   2. allowlist.ts decides what may be signed at all, and caps how much an approve
 //      may authorise. Everything is refused BEFORE the key is used — see handle().
 //   3. It binds 127.0.0.1 unless RELAYER_HOST says otherwise. Exposing a funded signer
@@ -32,6 +47,7 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
 import { fileURLToPath } from 'node:url'
 import { readFileSync } from 'node:fs'
+import { createHash, timingSafeEqual } from 'node:crypto'
 import { Account, RpcProvider, type Call } from 'starknet'
 import { NET } from '../../protocol/src/constants.js'
 import { withFallback } from '../../protocol/src/rpc.js'
@@ -39,7 +55,7 @@ import { readPoolConstants } from '../../protocol/src/pool.js'
 import {
   assertSubmittable,
   needsApproveCeiling,
-  APPROVE_FEE_MULTIPLE,
+  approveCeiling,
   type SubmissionPolicy,
 } from './allowlist.js'
 
@@ -73,6 +89,20 @@ function required(name: string): string {
   return value
 }
 
+/**
+ * Constant-time token comparison.
+ *
+ * Both sides are hashed first so `timingSafeEqual` always gets equal-length buffers —
+ * it throws on a length mismatch, and comparing raw values would leak the token's length
+ * through that error before leaking its bytes through timing.
+ */
+function tokenMatches(expected: string, presented: string | string[] | undefined): boolean {
+  if (typeof presented !== 'string') return false
+  const a = createHash('sha256').update(expected).digest()
+  const b = createHash('sha256').update(presented).digest()
+  return timingSafeEqual(a, b)
+}
+
 /** Never throws: a response we cannot deliver must not become an uncaught exception. */
 function send(res: ServerResponse, status: number, body: unknown): void {
   if (res.writableEnded || res.destroyed) return
@@ -96,7 +126,7 @@ async function readJsonBody(req: IncomingMessage): Promise<unknown> {
 }
 
 async function handle(req: IncomingMessage, res: ServerResponse, opts: RelayerServerOptions) {
-  const { submit, allowedOrigins = new Set<string>() } = opts
+  const { submit, allowedOrigins = new Set<string>(), authToken } = opts
 
   if (req.method !== 'POST' || !SUBMIT_PATHS.has(req.url ?? '')) {
     send(res, 404, { error: 'not found' })
@@ -116,11 +146,19 @@ async function handle(req: IncomingMessage, res: ServerResponse, opts: RelayerSe
     return
   }
 
-  // A same-process caller sends no Origin at all. A browser always sends one, so an
-  // Origin we did not expect is by definition not the caller this endpoint is for.
+  // Refuses, never grants — see the header note. An Origin we did not configure is not
+  // the caller this endpoint is for; a configured one merely stops being refused here.
   const origin = req.headers.origin
   if (origin !== undefined && !allowedOrigins.has(origin)) {
     send(res, 403, { error: `refusing a submission from origin ${origin}` })
+    return
+  }
+
+  // The only control that survives a proxy, because behind one every caller looks like
+  // the trusted Origin-less same-process case. Constant-time so a wrong token cannot be
+  // narrowed a byte at a time.
+  if (authToken !== undefined && !tokenMatches(authToken, req.headers['x-relayer-auth'])) {
+    send(res, 401, { error: 'missing or invalid x-relayer-auth' })
     return
   }
 
@@ -186,6 +224,12 @@ export interface RelayerServerOptions {
   resolveApproveCeiling: () => Promise<bigint>
   /** Browser origins permitted to post. Empty means only callers that send no Origin. */
   allowedOrigins?: ReadonlySet<string>
+  /**
+   * Shared secret required on every request as `x-relayer-auth`. Optional only because
+   * a loopback-only relayer has a boundary already; behind a proxy it is mandatory,
+   * since content-type is a CSRF control and not authentication.
+   */
+  authToken?: string
 }
 
 export function createRelayerServer(options: RelayerServerOptions): Server {
@@ -307,8 +351,9 @@ async function main(): Promise<void> {
       return transaction_hash
     },
     policy: { messageBook },
-    resolveApproveCeiling: async () => (await readPoolConstants()).feeWei * APPROVE_FEE_MULTIPLE,
+    resolveApproveCeiling: async () => approveCeiling((await readPoolConstants()).feeWei),
     allowedOrigins,
+    authToken: process.env.RELAYER_AUTH_TOKEN || undefined,
   })
 
   server.listen(port, host, () => {

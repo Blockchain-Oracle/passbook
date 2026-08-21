@@ -4,8 +4,10 @@ import { NET, STRK_TOKEN } from '../../protocol/src/constants.js'
 import {
   assertSubmittable,
   needsApproveCeiling,
+  approveCeiling,
   MAX_CALLS_PER_SUBMISSION,
   APPROVE_FEE_MULTIPLE,
+  ABSOLUTE_MAX_APPROVE_WEI,
 } from '../src/allowlist.js'
 
 const MESSAGE_BOOK = '0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef'
@@ -112,13 +114,12 @@ describe('submission allowlist', () => {
     it.each([
       ['an array that stringifies to the pool', [NET.pool]],
       ['a whitespace-padded address', `  ${NET.pool}  `],
-      ['a decimal string', BigInt(NET.pool).toString()],
       ['a number', 1234],
       ['null', null],
       ['an object', { toString: () => NET.pool }],
     ])('refuses contractAddress given as %s', (_label, value) => {
       const call = { contractAddress: value, entrypoint: 'apply_actions', calldata: [] } as unknown as Call
-      expect(() => assertSubmittable([call], POLICY)).toThrow(/not a 0x-prefixed felt address/)
+      expect(() => assertSubmittable([call], POLICY)).toThrow(/not a felt address/)
     })
 
     it('refuses an approve spender that is not a felt address', () => {
@@ -127,7 +128,42 @@ describe('submission allowlist', () => {
         entrypoint: 'approve',
         calldata: [[NET.pool], '0x1', '0x0'],
       } as unknown as Call
-      expect(() => assertSubmittable([call], POLICY)).toThrow(/not a 0x-prefixed felt address/)
+      expect(() => assertSubmittable([call], POLICY)).toThrow(/not a felt address/)
+    })
+
+    // Not an attack shape — it is what starknet.js emits. CallData.compile returns
+    // decimal felts, so a hex-only check would refuse every real compiled submission.
+    it('accepts the decimal felts CallData.compile actually produces', () => {
+      const decimalPool = BigInt(NET.pool).toString()
+      expect(decimalPool).toMatch(/^[0-9]+$/)
+      const call = {
+        contractAddress: decimalPool,
+        entrypoint: 'apply_actions',
+        calldata: [],
+      } as Call
+      expect(() => assertSubmittable([call], POLICY)).not.toThrow()
+    })
+
+    it('accepts an approve whose spender and amount are decimal felts', () => {
+      const call = {
+        contractAddress: BigInt(STRK_TOKEN).toString(),
+        entrypoint: 'approve',
+        calldata: [BigInt(NET.pool).toString(), FEE_WEI.toString(), '0'],
+      } as Call
+      expect(() => assertSubmittable([call], POLICY)).not.toThrow()
+    })
+
+    // The formatter must not become the failure it is reporting on.
+    it('describes a bigint in a refusal rather than throwing on it', () => {
+      const call = {
+        contractAddress: NET.pool,
+        entrypoint: 'apply_actions',
+        calldata: [],
+      } as Call
+      const withBigint = { ...call, contractAddress: 6_000_000_000_000_000_000n } as unknown as Call
+      // JSON.stringify raises TypeError on a bigint; this must still be a clean refusal.
+      expect(() => assertSubmittable([withBigint], POLICY)).toThrow(/not a felt address/)
+      expect(() => assertSubmittable([withBigint], POLICY)).not.toThrow(TypeError)
     })
 
     it('refuses a non-string entrypoint', () => {
@@ -168,6 +204,69 @@ describe('submission allowlist', () => {
       const junk = [{ contractAddress: null, entrypoint: 'approve' }] as unknown as Call[]
       expect(() => needsApproveCeiling(junk)).not.toThrow()
       expect(needsApproveCeiling(junk)).toBe(false)
+    })
+  })
+
+  // The most expensive bug found in review: the ceiling was per-call, and a batch holds
+  // eight. Because approve SETS the allowance, re-arming it between pulls multiplies the
+  // fee inside one signed transaction while every individual call stays under the limit.
+  describe('refuses batch amplification', () => {
+    it('refuses the 4x amplification batch, every call of which is individually legal', () => {
+      const batch: Call[] = [
+        approvePool,
+        applyActions,
+        approvePool,
+        applyActions,
+        approvePool,
+        applyActions,
+        approvePool,
+        applyActions,
+      ]
+      expect(batch).toHaveLength(MAX_CALLS_PER_SUBMISSION) // within the batch cap
+      // Each approve on its own is under the ceiling — that is exactly why this worked.
+      expect(() => assertSubmittable([approvePool, applyActions], POLICY)).not.toThrow()
+      expect(() => assertSubmittable(batch, POLICY)).toThrow(/batch with 4 approves/)
+    })
+
+    it('refuses even two approves', () => {
+      expect(() => assertSubmittable([approvePool, approvePool], POLICY)).toThrow(
+        /batch with 2 approves/,
+      )
+    })
+
+    it('still permits the one legitimate shape', () => {
+      expect(() => assertSubmittable([approvePool, applyActions], POLICY)).not.toThrow()
+    })
+
+    it('counts approves regardless of how the STRK address is written', () => {
+      const unpadded = { ...approvePool, contractAddress: STRK_TOKEN.replace(/^0x0+/, '0x') }
+      const decimal = { ...approvePool, contractAddress: BigInt(STRK_TOKEN).toString() }
+      expect(() => assertSubmittable([approvePool, unpadded], POLICY)).toThrow(/2 approves/)
+      expect(() => assertSubmittable([unpadded, decimal], POLICY)).toThrow(/2 approves/)
+    })
+  })
+
+  // The multiple bounds us to twice the live fee, but that fee is set by a pool admin
+  // outside this repo at zero delay — so without a second bound the ceiling is "twice
+  // whatever a third party says", which is not a bound.
+  describe('caps the ceiling independently of the live fee', () => {
+    it('uses the fee-derived bound while it is the smaller one', () => {
+      expect(approveCeiling(FEE_WEI)).toBe(FEE_WEI * APPROVE_FEE_MULTIPLE)
+    })
+
+    it('stops following the fee once the absolute cap binds', () => {
+      // A pool admin raising the fee 1000x must not raise our exposure with it.
+      expect(approveCeiling(FEE_WEI * 1000n)).toBe(ABSOLUTE_MAX_APPROVE_WEI)
+    })
+
+    it('is pinned at 60 STRK — ten times the measured fee', () => {
+      expect(ABSOLUTE_MAX_APPROVE_WEI).toBe(60_000_000_000_000_000_000n)
+    })
+
+    it('crosses over exactly where the two bounds meet', () => {
+      const crossover = ABSOLUTE_MAX_APPROVE_WEI / APPROVE_FEE_MULTIPLE
+      expect(approveCeiling(crossover)).toBe(ABSOLUTE_MAX_APPROVE_WEI)
+      expect(approveCeiling(crossover - 1n)).toBe((crossover - 1n) * APPROVE_FEE_MULTIPLE)
     })
   })
 
