@@ -259,8 +259,20 @@ describe('submission allowlist', () => {
       expect(approveCeiling(FEE_WEI * 1000n)).toBe(ABSOLUTE_MAX_APPROVE_WEI)
     })
 
-    it('is pinned at 60 STRK — ten times the measured fee', () => {
-      expect(ABSOLUTE_MAX_APPROVE_WEI).toBe(60_000_000_000_000_000_000n)
+    // Pinned, because the other tests derive from the constant and would follow a wrong
+    // one silently. 20 STRK sits below the ~30 STRK this wallet is funded with, which is
+    // what makes it a cap at all — a cap above the balance can never bind before the
+    // balance does, and is decoration. Raise this only alongside the funding.
+    it('is pinned at 20 STRK, below the funded balance so it can actually bind', () => {
+      expect(ABSOLUTE_MAX_APPROVE_WEI).toBe(20_000_000_000_000_000_000n)
+      const FUNDED_BALANCE_ESTIMATE = 30_000_000_000_000_000_000n
+      expect(ABSOLUTE_MAX_APPROVE_WEI).toBeLessThan(FUNDED_BALANCE_ESTIMATE)
+    })
+
+    it('still clears any observed fee — 6 STRK measured, 4 STRK historic', () => {
+      // Both known values stay well inside the cap, so it never blocks normal operation.
+      expect(approveCeiling(6_000_000_000_000_000_000n)).toBeLessThan(ABSOLUTE_MAX_APPROVE_WEI)
+      expect(approveCeiling(4_000_000_000_000_000_000n)).toBeLessThan(ABSOLUTE_MAX_APPROVE_WEI)
     })
 
     it('crosses over exactly where the two bounds meet', () => {

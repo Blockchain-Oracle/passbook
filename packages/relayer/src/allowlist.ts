@@ -49,12 +49,27 @@ export const APPROVE_FEE_MULTIPLE = 2n
  * mutability the multiple exists to absorb, so on its own the bound reads "twice whatever
  * a third party currently says", which is not a bound at all.
  *
- * 60 STRK is ten times the 6 STRK measured on mainnet: comfortably above any plausible
- * fee change, far below a balance worth losing. The effective ceiling is the LOWER of the
- * two, so a fee rise past 30 STRK stops raising our exposure and starts causing reverts —
- * which is the correct direction to fail when the number is not ours to trust.
+ * 20 STRK, derived — and the first reason is the one most likely to be forgotten by
+ * someone later wondering why it is not higher:
+ *
+ *   - A CAP ONLY MEANS ANYTHING IF IT SITS BELOW THE FUNDED BALANCE. This wallet holds
+ *     roughly what the gate work needs — about three fees plus gas, so on the order of
+ *     30 STRK. A cap above that can never bind before the balance does, which makes it
+ *     decorative. 20 binds first. That is the entire point of having it.
+ *   - It is still far above anything observed. The only measured fee is 6 STRK and the
+ *     only other known historical value is 4, so the largest real change is 1.5x.
+ *     20 permits a 3.3x rise over the measured fee before it binds.
+ *   - Above that, refusing loudly beats paying. A fee that high is a protocol event a
+ *     human should look at, not something to auto-approve.
+ *
+ * The effective ceiling is the LOWER of this and the fee-derived bound, so once the fee
+ * passes 10 STRK our exposure stops tracking it and reverts begin instead — the correct
+ * direction to fail when the number is not ours to trust.
+ *
+ * If the relayer is ever funded with materially more, revisit this: the first bullet
+ * stops holding, and the cap quietly becomes decoration again.
  */
-export const ABSOLUTE_MAX_APPROVE_WEI = 60_000_000_000_000_000_000n
+export const ABSOLUTE_MAX_APPROVE_WEI = 20_000_000_000_000_000_000n
 
 /** The effective ceiling: whichever of the two bounds binds first. */
 export function approveCeiling(liveFeeWei: bigint): bigint {
@@ -257,7 +272,11 @@ export function assertSubmittable(calls: Call[], policy: SubmissionPolicy = {}):
   if (approves > 1) {
     throw new Error(
       `refusing a batch with ${approves} approves: one submission pays one fee, and ` +
-        `re-setting the allowance between calls would multiply it`,
+        `because approve SETS the allowance, re-arming it between calls multiplies the ` +
+        `fee inside a single transaction while every call stays under the ceiling. If a ` +
+        `flow genuinely needs more than one, that is a change to what the relayer funds ` +
+        `and belongs in allowlist.ts as a decision — raising this count to clear the ` +
+        `error would remove the only thing bounding a batch to one fee.`,
     )
   }
 
