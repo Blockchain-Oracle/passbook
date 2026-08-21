@@ -56,5 +56,12 @@ export const SELECTOR_PRIVACY_INVOKE =
 export const SELECTOR_PRIVACY_INVOKE_WITH_COMPUTATION =
   '0x00d7dcfbab5157247251535943d20090fb50187f80535f739fbacc8febab767'
 
+// The STRK fee token, identical on every network. `collect_fee` pulls the fee from
+// `get_caller_address()`, so a submission's first call is `STRK.approve(pool, fee)`.
+// Verified live on SN_MAIN rather than copied: symbol "STRK", name "Starknet Token",
+// 18 decimals. It is also the one address an allowlist must never permit `transfer` on.
+export const STRK_TOKEN =
+  '0x04718f5a0fc34cc1af16a1cdee98ffb20c31f5cd61d6ab07201858f4287c938d'
+
 // Deliberately absent: the pool fee, note maturity, and proof validity.
 // All three are mutable on-chain and MUST be read at call time. See pool.ts.

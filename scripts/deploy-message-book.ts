@@ -20,7 +20,7 @@
 //
 import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { Account, RpcProvider, hash, json } from 'starknet'
-import { ACTIVE_NETWORK, NET } from '../packages/protocol/src/constants.js'
+import { ACTIVE_NETWORK, NET, STRK_TOKEN } from '../packages/protocol/src/constants.js'
 
 const ARTIFACT_BASE = 'contracts/target/dev/strk20_app_MessageBook'
 const SIERRA_PATH = `${ARTIFACT_BASE}.contract_class.json`
@@ -38,9 +38,6 @@ const OUTPUT_FILE = 'evidence/deployment.json'
  */
 const EXPECTED_CLASS_HASH =
   '0x52c432b3751ef6e61aa742e6b04a75bd929f2c85e1f2e632df812d424e4460f'
-
-/** STRK, the fee token. Verified live: symbol() = "STRK", decimals() = 18. */
-const STRK_TOKEN = '0x04718f5a0fc34cc1af16a1cdee98ffb20c31f5cd61d6ab07201858f4287c938d'
 
 /**
  * A floor, not an estimate. Its job is to catch an unfunded or wrong wallet before it
