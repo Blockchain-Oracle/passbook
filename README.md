@@ -100,6 +100,38 @@ been measured by anyone on this protocol, and a probe that reported zeros would 
 number into the audit trail. That is also why no duration appears anywhere in this repository,
 including in this README.
 
+### Running the relayer, and the one setting you must not skip
+
+The relayer holds a funded key and pays for what it signs, so whatever can reach its port can
+spend. It binds `127.0.0.1` by default and refuses anything outside a small allowlist of
+`(contract, entrypoint)` pairs, with the STRK approve capped from the live fee.
+
+```bash
+cp .env.example .env      # fill in the two relayer values; see that file
+npx tsx packages/relayer/src/server.ts
+```
+
+**If this server is reachable through a proxy, `RELAYER_AUTH_TOKEN` is mandatory.** The browser
+posts to the same-origin relative path `/api/submit`, and the server accepts that path so a proxy
+can forward it. The moment that rewrite exists loopback has stopped being a boundary — and nothing
+warns you, because the off-host warning keys off `RELAYER_HOST`, which you never changed. Behind a
+proxy every internet client arrives with no `Origin` header, which is exactly the shape the other
+checks treat as a trusted same-process caller.
+
+Requiring `content-type: application/json` is a CSRF control. It is not authentication.
+
+| Variable | Default | What it does |
+|---|---|---|
+| `RELAYER_AUTH_TOKEN` | unset | Shared secret required as `x-relayer-auth`. **Required behind a proxy.** |
+| `RELAYER_ALLOWED_ORIGINS` | unset | Comma-separated browser origins. Can only refuse — see below. |
+| `RELAYER_HOST` | `127.0.0.1` | Interface to bind. Empty is treated as unset. |
+| `PORT` | `8787` | Port to listen on. |
+
+`RELAYER_ALLOWED_ORIGINS` **cannot grant access, only withhold it.** A browser request carrying
+both an `Origin` and `application/json` is by definition cross-origin, so it is preflighted, and
+this server answers no CORS headers — the request never arrives. Setting an origin does not let a
+web app in. It is not a substitute for `RELAYER_AUTH_TOKEN`.
+
 ### No protocol number is hardcoded, in the code or in this file
 
 The pool's fee is mutable and has been changed before, and the pool has no upgrade delay, so it

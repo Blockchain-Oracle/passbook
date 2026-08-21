@@ -247,7 +247,12 @@ describe('relayer server', () => {
       }
     })
 
-    it('accepts a configured Origin, so the browser app is not locked out', async () => {
+    // NOT "the browser app is not locked out" — that claim was false. This passes only
+    // because raw http.request can spoof an Origin a browser could never send: a real
+    // browser request with a non-null Origin AND application/json is cross-origin, so it
+    // is preflighted, and this server answers no CORS headers. The allowlist can refuse;
+    // it cannot grant. What this pins is that a configured origin stops being refused.
+    it('stops refusing an Origin once it is configured', async () => {
       const submit = vi.fn<SubmitCalls>(async () => '0xok')
       const s = await start(submit, { allowedOrigins: new Set(['https://app.example']) })
       try {
@@ -291,6 +296,86 @@ describe('relayer server', () => {
     } finally {
       await s.close()
     }
+  })
+
+  // The only control that survives a proxy. Behind one, every internet client arrives
+  // Origin-less — the shape every other check treats as the trusted same-process caller
+  // — and no warning fires, because RELAYER_HOST was never changed.
+  describe('shared-secret authentication', () => {
+    const AUTH = 'a-long-shared-secret-value'
+
+    it('refuses a request with no token when one is configured', async () => {
+      const submit = vi.fn<SubmitCalls>(async () => '0xshould-never-happen')
+      const s = await start(submit, { authToken: AUTH })
+      try {
+        const res = await request(s.port, '/submit', JSON.stringify({ calls: [A_CALL] }))
+        expect(res.status).toBe(401)
+        expect(submit).not.toHaveBeenCalled()
+      } finally {
+        await s.close()
+      }
+    })
+
+    it('refuses a wrong token', async () => {
+      const submit = vi.fn<SubmitCalls>(async () => '0xshould-never-happen')
+      const s = await start(submit, { authToken: AUTH })
+      try {
+        const res = await request(s.port, '/submit', JSON.stringify({ calls: [A_CALL] }), 'POST', {
+          'content-type': 'application/json',
+          'x-relayer-auth': 'a-long-shared-secret-valuf',
+        })
+        expect(res.status).toBe(401)
+        expect(submit).not.toHaveBeenCalled()
+      } finally {
+        await s.close()
+      }
+    })
+
+    // The proxy scenario in full: an Origin-less internet client, correct content-type,
+    // an allowlisted call — everything else on this server says yes.
+    it('refuses the exact request a proxied internet client would send', async () => {
+      const submit = vi.fn<SubmitCalls>(async () => '0xshould-never-happen')
+      const s = await start(submit, { authToken: AUTH })
+      try {
+        const res = await request(
+          s.port,
+          '/api/submit',
+          JSON.stringify({ calls: [A_CALL] }),
+          'POST',
+          { 'content-type': 'application/json' },
+        )
+        expect(res.status).toBe(401)
+        expect(submit).not.toHaveBeenCalled()
+      } finally {
+        await s.close()
+      }
+    })
+
+    it('accepts the right token', async () => {
+      const submit = vi.fn<SubmitCalls>(async () => '0xok')
+      const s = await start(submit, { authToken: AUTH })
+      try {
+        const res = await request(s.port, '/submit', JSON.stringify({ calls: [A_CALL] }), 'POST', {
+          'content-type': 'application/json',
+          'x-relayer-auth': AUTH,
+        })
+        expect(res.status).toBe(200)
+        expect(submit).toHaveBeenCalled()
+      } finally {
+        await s.close()
+      }
+    })
+
+    it('is off when unset, so a loopback-only relayer still works', async () => {
+      const submit = vi.fn<SubmitCalls>(async () => '0xok')
+      const s = await start(submit)
+      try {
+        const res = await request(s.port, '/submit', JSON.stringify({ calls: [A_CALL] }))
+        expect(res.status).toBe(200)
+      } finally {
+        await s.close()
+      }
+    })
   })
 
   // Chain availability must not be a precondition for accepting a submission that has
