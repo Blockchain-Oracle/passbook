@@ -27,6 +27,7 @@ import { ACTIVE_NETWORK, NET } from '../packages/protocol/src/constants.js'
 import { readPoolConstants } from '../packages/protocol/src/pool.js'
 import {
   ACTION_LIST_EVIDENCE,
+  EXPECTED_POOL_CLASS_HASH,
   MODE_APPEND,
   buildGateActionList,
   buildInvokeCalldata,
@@ -411,6 +412,23 @@ console.log(
     `fee=${(Number(pool.feeWei) / 1e18).toFixed(2)} STRK · proof valid ${pool.proofValidityBlocks} blocks`,
 )
 if (pool.paused) abort('the pool is PAUSED. New actions are refused. Nothing submitted, nothing written.')
+
+// Spec §10.5, and it is read here rather than at startup on purpose: the pool upgrades
+// with zero delay, so the only useful time to check is as close to submission as
+// possible. Every rule in ACTION_LIST_EVIDENCE was established against one specific
+// implementation; if that has changed, none of them are known to hold.
+const poolClass = await read((p) => p.getClassHashAt(NET.pool))
+if (BigInt(poolClass) !== BigInt(EXPECTED_POOL_CLASS_HASH)) {
+  abort(
+    `the pool implementation CHANGED.\n` +
+      `  running:  ${poolClass}\n` +
+      `  expected: ${EXPECTED_POOL_CLASS_HASH}\n` +
+      `  Every action-list rule this script relies on was established against the previous\n` +
+      `  implementation and is now unverified. Re-run the compile_actions probes before\n` +
+      `  spending anything. Nothing submitted, nothing written.`,
+  )
+}
+console.log(`pool implementation unchanged: ${poolClass}`)
 
 const totalFee = pool.feeWei * BigInt(planned.length)
 console.log(
