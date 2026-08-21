@@ -242,6 +242,22 @@ describe('submission allowlist', () => {
       )
     })
 
+    // Capped for uniformity, not because it pulls a fee. MessageBook has no collect_fee,
+    // so this bounds gas — but gas is still paid by a wallet funded for one batch, and
+    // "one of each allowlisted action" is a rule verifiable without knowing why.
+    it('refuses several privacy_invoke calls', () => {
+      const invoke: Call = {
+        contractAddress: MESSAGE_BOOK,
+        entrypoint: 'privacy_invoke',
+        calldata: ['0x1', '0x7', '0x0'],
+      }
+      const policy = { ...POLICY, messageBook: MESSAGE_BOOK }
+      expect(() => assertSubmittable([invoke], policy)).not.toThrow()
+      expect(() => assertSubmittable([invoke, invoke, invoke], policy)).toThrow(
+        /3 privacy_invoke/,
+      )
+    })
+
     it('refuses even two approves', () => {
       expect(() => assertSubmittable([approvePool, approvePool], POLICY)).toThrow(
         /batch with 2 approves/,

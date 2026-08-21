@@ -264,6 +264,10 @@ function isPoolApplyActions(call: Call): boolean {
   return matches(call, NET.pool, 'apply_actions')
 }
 
+function isMessageBookInvoke(call: Call, policy: SubmissionPolicy): boolean {
+  return policy.messageBook !== undefined && matches(call, policy.messageBook, 'privacy_invoke')
+}
+
 function matches(call: Call, address: string, entrypoint: string): boolean {
   return (
     typeof call?.contractAddress === 'string' &&
@@ -281,7 +285,7 @@ function matches(call: Call, address: string, entrypoint: string): boolean {
 const RAISING_IT_IS_WRONG =
   `If a flow genuinely needs more than one, that is a change to what the relayer funds ` +
   `and belongs in allowlist.ts as a decision — raising this count to clear the error ` +
-  `would remove the only thing bounding a batch to one fee.`
+  `would remove the only thing holding a batch to one of each action.`
 
 function assertAtMostOne(count: number, label: string, because: string): void {
   if (count > 1) {
@@ -297,10 +301,17 @@ export function assertSubmittable(calls: Call[], policy: SubmissionPolicy = {}):
     )
   }
 
-  // ONE SUBMISSION PAYS ONE FEE, so both halves of the legitimate shape —
-  // `[STRK.approve(pool, fee), pool.apply_actions(…)]` — are capped at one each. The
-  // per-call ceiling bounds a single call; a batch can hold eight, and without these two
-  // rules the ceiling bounds the call rather than the transaction.
+  // ONE SUBMISSION CARRIES AT MOST ONE OF EACH ALLOWLISTED ACTION. The per-call ceiling
+  // bounds a single call; a batch can hold eight, and without these rules the ceiling
+  // bounds the call rather than the transaction. The legitimate shape is
+  // `[STRK.approve(pool, fee), pool.apply_actions(…)]`.
+  //
+  // The rule is uniform on purpose. Two of these bound fees and the third bounds only
+  // gas, and it would be defensible to exempt the third — but "one of each" can be
+  // checked at a glance, while "one approve, one apply_actions, unlimited privacy_invoke
+  // because that contract has no fee collection" cannot be checked without knowing a
+  // fact that lives in someone else's repository. Every composition bug found here came
+  // from a control that was correct alone and unexamined in combination.
   assertAtMostOne(
     calls.filter(isStrkApprove).length,
     'approves',
@@ -314,6 +325,14 @@ export function assertSubmittable(calls: Call[], policy: SubmissionPolicy = {}):
     'one submission pays one fee, and collect_fee() runs once per apply_actions ' +
       'invocation — at the top of the function body, not inside a per-action loop — so ' +
       'each one in a batch is a separate pull from this wallet.',
+  )
+  assertAtMostOne(
+    calls.filter((call) => isMessageBookInvoke(call, policy)).length,
+    'privacy_invoke calls',
+    'this one bounds gas rather than fees — MessageBook has no collect_fee, holds no ' +
+      'value and grants no allowance — but gas is still paid by a wallet funded for a ' +
+      'single batch, and the pool reaches MessageBook through InvokeExternal anyway, so ' +
+      'a direct call is already the unusual path.',
   )
 
   for (const call of calls) assertCallAllowed(call, policy)
