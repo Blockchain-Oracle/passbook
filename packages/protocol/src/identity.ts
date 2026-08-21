@@ -19,12 +19,14 @@ function generateRecoveryCode(): string {
   return [0, 4, 8, 12].map((i) => chars.slice(i, i + 4).join('')).join('-')
 }
 
-async function deriveWrappingKey(code: string, salt: Uint8Array): Promise<CryptoKey> {
+async function deriveWrappingKey(
+  code: string, salt: Uint8Array, iterations: number,
+): Promise<CryptoKey> {
   const base = await crypto.subtle.importKey(
     'raw', new TextEncoder().encode(code), 'PBKDF2', false, ['deriveKey'],
   )
   return crypto.subtle.deriveKey(
-    { name: 'PBKDF2', salt, iterations: KDF_ITERATIONS, hash: 'SHA-256' },
+    { name: 'PBKDF2', salt, iterations, hash: 'SHA-256' },
     base, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt'],
   )
 }
@@ -43,7 +45,7 @@ export async function createBackup(
   const recoveryCode = generateRecoveryCode()
   const salt = crypto.getRandomValues(new Uint8Array(16))
   const iv = crypto.getRandomValues(new Uint8Array(12))
-  const key = await deriveWrappingKey(recoveryCode, salt)
+  const key = await deriveWrappingKey(recoveryCode, salt, KDF_ITERATIONS)
   const ct = new Uint8Array(
     await crypto.subtle.encrypt(
       { name: 'AES-GCM', iv }, key, new TextEncoder().encode(privateKey),
@@ -58,11 +60,17 @@ export async function createBackup(
 }
 
 export async function restoreBackup(file: string, recoveryCode: string): Promise<string> {
-  const env = JSON.parse(file) as {
-    v: number; iterations: number; salt: string; iv: string; ct: string
+  let env: { v: number; iterations: number; salt: string; iv: string; ct: string }
+  try {
+    env = JSON.parse(file)
+  } catch {
+    throw new Error('That backup file is malformed or truncated.')
   }
   if (env.v !== 1) throw new Error(`unsupported backup version ${env.v}`)
-  const key = await deriveWrappingKey(recoveryCode, unb64(env.salt))
+  // Use the iteration count the envelope itself recorded, not the module's current
+  // KDF_ITERATIONS floor — that floor is expected to rise over time, and every backup
+  // must keep opening with the count it was actually written at.
+  const key = await deriveWrappingKey(recoveryCode, unb64(env.salt), env.iterations)
   try {
     const pt = await crypto.subtle.decrypt(
       { name: 'AES-GCM', iv: unb64(env.iv) }, key, unb64(env.ct),
