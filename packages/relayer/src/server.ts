@@ -36,7 +36,12 @@ import { Account, RpcProvider, type Call } from 'starknet'
 import { NET } from '../../protocol/src/constants.js'
 import { withFallback } from '../../protocol/src/rpc.js'
 import { readPoolConstants } from '../../protocol/src/pool.js'
-import { assertSubmittable, APPROVE_FEE_MULTIPLE, type SubmissionPolicy } from './allowlist.js'
+import {
+  assertSubmittable,
+  needsApproveCeiling,
+  APPROVE_FEE_MULTIPLE,
+  type SubmissionPolicy,
+} from './allowlist.js'
 
 // R10 names `POST /submit`; the browser posts to the same-origin `/api/submit`, which
 // a dev-server proxy or edge rule normally rewrites. Accepting both means the two
@@ -91,7 +96,7 @@ async function readJsonBody(req: IncomingMessage): Promise<unknown> {
 }
 
 async function handle(req: IncomingMessage, res: ServerResponse, opts: RelayerServerOptions) {
-  const { submit, resolvePolicy, allowedOrigins = new Set<string>() } = opts
+  const { submit, allowedOrigins = new Set<string>() } = opts
 
   if (req.method !== 'POST' || !SUBMIT_PATHS.has(req.url ?? '')) {
     send(res, 404, { error: 'not found' })
@@ -133,15 +138,20 @@ async function handle(req: IncomingMessage, res: ServerResponse, opts: RelayerSe
     return
   }
 
-  // The approve ceiling is drawn from the live fee, which is mutable with zero upgrade
-  // delay, so it is read per submission rather than pinned at boot. If it cannot be
-  // read we refuse: without a bound there is nothing to check an approve against.
-  let policy: SubmissionPolicy
-  try {
-    policy = await resolvePolicy()
-  } catch (e) {
-    send(res, 503, { error: `refusing to sign: the live fee could not be read: ${String(e)}` })
-    return
+  // The approve ceiling comes from the live fee, which is mutable at zero upgrade delay,
+  // so it is read per submission rather than pinned at boot — but only when the batch
+  // actually contains an approve. A batch without one has nothing to check against a
+  // ceiling, and making every submission depend on chain availability would trade a
+  // spending risk for an outage. When it IS needed and cannot be read, we refuse:
+  // without a bound there is nothing to hold an approve to.
+  let policy = opts.policy ?? {}
+  if (needsApproveCeiling(calls)) {
+    try {
+      policy = { ...policy, maxApproveWei: await opts.resolveApproveCeiling() }
+    } catch (e) {
+      send(res, 503, { error: `refusing to sign: the live fee could not be read: ${String(e)}` })
+      return
+    }
   }
 
   // The policy gate. This runs BEFORE the key is used, and its order relative to
@@ -166,8 +176,14 @@ async function handle(req: IncomingMessage, res: ServerResponse, opts: RelayerSe
 export interface RelayerServerOptions {
   /** Signs and broadcasts. Injected so everything around it is testable for free. */
   submit: SubmitCalls
-  /** Resolved per submission, because the fee it bounds is mutable at zero delay. */
-  resolvePolicy: () => Promise<SubmissionPolicy>
+  /** The part of the policy that needs no network: the deployed MessageBook, if any. */
+  policy?: SubmissionPolicy
+  /**
+   * The approve ceiling, from the LIVE fee. Called only for batches that contain an
+   * approve, so a batch without one does not make chain availability a precondition
+   * for being accepted at all.
+   */
+  resolveApproveCeiling: () => Promise<bigint>
   /** Browser origins permitted to post. Empty means only callers that send no Origin. */
   allowedOrigins?: ReadonlySet<string>
 }
@@ -223,6 +239,28 @@ export function resolveHost(env: NodeJS.ProcessEnv = process.env): string {
   return env.RELAYER_HOST || '127.0.0.1'
 }
 
+/**
+ * Browser origins permitted to post, from a comma-separated RELAYER_ALLOWED_ORIGINS.
+ *
+ * Blanks are filtered, so neither `RELAYER_ALLOWED_ORIGINS=` nor a stray comma can turn
+ * into an entry — the same failure the `??`/`||` bug had, an empty value read as
+ * permission rather than as absence. There is no wildcard syntax at all: matching is
+ * exact Set membership, so a `*` entry would only ever match a literal `Origin: *`,
+ * which no browser sends. The empty set means "only callers that send no Origin",
+ * which is what doing nothing gets you.
+ *
+ * Exported for the same reason as resolveHost: a control that lives only inside main()
+ * is a control no test can reach.
+ */
+export function resolveAllowedOrigins(env: NodeJS.ProcessEnv = process.env): ReadonlySet<string> {
+  return new Set(
+    (env.RELAYER_ALLOWED_ORIGINS ?? '')
+      .split(',')
+      .map((origin) => origin.trim())
+      .filter(Boolean),
+  )
+}
+
 /** What must be true before running off-loopback, or null when it is loopback. */
 export function offHostWarning(host: string): string | null {
   if (host === '127.0.0.1' || host === 'localhost' || host === '::1') return null
@@ -253,12 +291,7 @@ async function main(): Promise<void> {
   const privateKey = required('RELAYER_PRIVATE_KEY')
   const port = Number(process.env.PORT ?? 8787)
   const host = resolveHost()
-  const allowedOrigins = new Set(
-    (process.env.RELAYER_ALLOWED_ORIGINS ?? '')
-      .split(',')
-      .map((o) => o.trim())
-      .filter(Boolean),
-  )
+  const allowedOrigins = resolveAllowedOrigins()
 
   const nodeUrl = await pickLiveRpcHost()
   const account = new Account({
@@ -273,10 +306,8 @@ async function main(): Promise<void> {
       const { transaction_hash } = await account.execute(calls)
       return transaction_hash
     },
-    resolvePolicy: async () => ({
-      messageBook,
-      maxApproveWei: (await readPoolConstants()).feeWei * APPROVE_FEE_MULTIPLE,
-    }),
+    policy: { messageBook },
+    resolveApproveCeiling: async () => (await readPoolConstants()).feeWei * APPROVE_FEE_MULTIPLE,
     allowedOrigins,
   })
 

@@ -1,14 +1,19 @@
 import { describe, it, expect } from 'vitest'
 import type { Call } from 'starknet'
 import { NET, STRK_TOKEN } from '../../protocol/src/constants.js'
-import { assertSubmittable, MAX_CALLS_PER_SUBMISSION } from '../src/allowlist.js'
+import {
+  assertSubmittable,
+  needsApproveCeiling,
+  MAX_CALLS_PER_SUBMISSION,
+  APPROVE_FEE_MULTIPLE,
+} from '../src/allowlist.js'
 
 const MESSAGE_BOOK = '0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef'
 const ATTACKER = '0x0dead0000000000000000000000000000000000000000000000000000000beef'
 
-// A 6 STRK fee with the 3x multiple applied, as the server derives it from the live read.
+// A 6 STRK fee with the multiple applied, as the server derives it from the live read.
 const FEE_WEI = 6_000_000_000_000_000_000n
-const POLICY = { maxApproveWei: FEE_WEI * 3n }
+const POLICY = { maxApproveWei: FEE_WEI * APPROVE_FEE_MULTIPLE }
 const toHex = (n: bigint) => `0x${n.toString(16)}`
 
 const applyActions: Call = { contractAddress: NET.pool, entrypoint: 'apply_actions', calldata: [] }
@@ -133,7 +138,49 @@ describe('submission allowlist', () => {
 
   // The finding that changes the blast radius: approve(pool, MAX_U256) is two entirely
   // allowlisted calls, and turns "one submission" into "the balance".
+  // Which batches need a live fee read. Fails closed both ways: a malformed address is
+  // false here and refused on shape, and reaching the approve check without a ceiling
+  // is refused for having no bound.
+  describe('needsApproveCeiling', () => {
+    it('is false for a batch with no approve in it', () => {
+      expect(needsApproveCeiling([applyActions])).toBe(false)
+    })
+
+    it('is true when the batch contains a STRK approve', () => {
+      expect(needsApproveCeiling([approvePool, applyActions])).toBe(true)
+    })
+
+    it('is true regardless of how the STRK address is padded', () => {
+      const unpadded = { ...approvePool, contractAddress: STRK_TOKEN.replace(/^0x0+/, '0x') }
+      expect(needsApproveCeiling([unpadded])).toBe(true)
+    })
+
+    it('is false for STRK.transfer, which is refused without needing a ceiling', () => {
+      const drain: Call = {
+        contractAddress: STRK_TOKEN,
+        entrypoint: 'transfer',
+        calldata: [ATTACKER, '0x1', '0x0'],
+      }
+      expect(needsApproveCeiling([drain])).toBe(false)
+    })
+
+    it('does not throw on malformed input — shape validation is assertSubmittable\'s job', () => {
+      const junk = [{ contractAddress: null, entrypoint: 'approve' }] as unknown as Call[]
+      expect(() => needsApproveCeiling(junk)).not.toThrow()
+      expect(needsApproveCeiling(junk)).toBe(false)
+    })
+  })
+
   describe('bounds the approve amount', () => {
+    // The other ceiling tests derive from this constant, so they cannot catch it being
+    // wrong. This one pins the value, because the multiple IS the blast radius: 1x is
+    // what collect_fee actually pulls, and the headroom exists only for the pool's
+    // zero-delay fee mutability, sized against the largest observed change (4 -> 6 STRK,
+    // 1.5x). Widening this grants standing spend authority against a funded wallet.
+    it('is pinned at 2x the live fee', () => {
+      expect(APPROVE_FEE_MULTIPLE).toBe(2n)
+    })
+
     const approveOf = (low: string, high = '0x0'): Call => ({
       contractAddress: STRK_TOKEN,
       entrypoint: 'approve',
@@ -148,13 +195,13 @@ describe('submission allowlist', () => {
     })
 
     it('refuses an approve just over the ceiling', () => {
-      expect(() => assertSubmittable([approveOf(toHex(FEE_WEI * 3n + 1n))], POLICY)).toThrow(
+      expect(() => assertSubmittable([approveOf(toHex(FEE_WEI * APPROVE_FEE_MULTIPLE + 1n))], POLICY)).toThrow(
         /above the .* ceiling/,
       )
     })
 
     it('permits an approve exactly at the ceiling', () => {
-      expect(() => assertSubmittable([approveOf(toHex(FEE_WEI * 3n))], POLICY)).not.toThrow()
+      expect(() => assertSubmittable([approveOf(toHex(FEE_WEI * APPROVE_FEE_MULTIPLE))], POLICY)).not.toThrow()
     })
 
     it('counts the high limb, so a u256 cannot smuggle the amount past the check', () => {
