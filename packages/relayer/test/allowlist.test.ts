@@ -228,6 +228,20 @@ describe('submission allowlist', () => {
       expect(() => assertSubmittable(batch, POLICY)).toThrow(/batch with 4 approves/)
     })
 
+    // collect_fee is called once per apply_actions invocation — at the top of the
+    // function body, not inside a per-action loop — so N apply_actions in one multicall
+    // is N separate fee pulls. The approve rule alone did not bound this.
+    it('refuses eight apply_actions with no approve at all', () => {
+      const batch = Array.from({ length: 8 }, () => applyActions)
+      expect(() => assertSubmittable(batch, POLICY)).toThrow(/8 apply_actions/)
+    })
+
+    it('refuses two apply_actions', () => {
+      expect(() => assertSubmittable([applyActions, applyActions], POLICY)).toThrow(
+        /2 apply_actions/,
+      )
+    })
+
     it('refuses even two approves', () => {
       expect(() => assertSubmittable([approvePool, approvePool], POLICY)).toThrow(
         /batch with 2 approves/,
