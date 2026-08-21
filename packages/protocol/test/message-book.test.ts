@@ -7,6 +7,7 @@ import {
   buildInvokeCalldata,
   encodeClientActions,
   packUtf8ToFelts,
+  planGateCompanions,
   predictMessageBookRevert,
   FELT_PRIME,
 } from '../src/message-book.js'
@@ -85,29 +86,72 @@ describe('encodeClientActions', () => {
   })
 })
 
+describe('planGateCompanions', () => {
+  // The single most expensive mistake available here is reusing SetViewingKey. It is
+  // single-use per address (WriteOnce on the key slot), so transactions 2 and 3 would
+  // revert NON_ZERO_VALUE *after* collect_fee had taken 6 STRK each.
+  it('uses SetViewingKey exactly once, and only as the first transaction', () => {
+    const plan = planGateCompanions(3)
+    expect(plan.filter((c) => c.kind === 'SetViewingKey')).toHaveLength(1)
+    expect(plan[0]!.kind).toBe('SetViewingKey')
+  })
+
+  it('gives every later transaction a fresh, sequential channel index', () => {
+    const plan = planGateCompanions(3)
+    expect(plan.slice(1).map((c) => (c.kind === 'OpenChannel' ? c.index : null))).toEqual([0, 1])
+  })
+
+  it('never repeats a companion', () => {
+    const plan = planGateCompanions(5)
+    const labels = plan.map((c) => (c.kind === 'OpenChannel' ? `OpenChannel:${c.index}` : c.kind))
+    expect(new Set(labels).size).toBe(labels.length)
+  })
+
+  it('explains every companion, so the reason survives into the dry-run output', () => {
+    for (const c of planGateCompanions(3)) expect(c.reason.length).toBeGreaterThan(20)
+  })
+})
+
 describe('buildGateActionList', () => {
-  it('puts SetViewingKey first — the pool rejects the other order', () => {
+  const base = {
+    messageBookAddress: '0xabc',
+    senderAddress: '0xsender',
+    mode: MODE_APPEND,
+    tag: 1n,
+    payload: [0x2an],
+    random: 0x99n,
+    salt: 0x77n,
+  }
+
+  it('puts the companion first — the pool rejects the other order', () => {
     // [InvokeExternal, SetViewingKey] is ACTIONS_OUT_OF_ORDER on mainnet.
-    const actions = buildGateActionList({
-      messageBookAddress: '0xabc',
-      mode: MODE_APPEND,
-      tag: 1n,
-      payload: [0x2an],
-      viewingKeyRandom: 0x99n,
-    })
+    const actions = buildGateActionList({ ...base, companion: planGateCompanions(3)[0]! })
     expect(actions.map((a) => a.type)).toEqual(['SetViewingKey', 'InvokeExternal'])
+  })
+
+  it('builds an OpenChannel companion for later transactions', () => {
+    const actions = buildGateActionList({ ...base, companion: planGateCompanions(3)[1]! })
+    expect(actions.map((a) => a.type)).toEqual(['OpenChannel', 'InvokeExternal'])
+    const oc = actions[0]!
+    if (oc.type !== 'OpenChannel') throw new Error('expected OpenChannel')
+    expect(oc.index).toBe(0)
+    // open_channel requires a REGISTERED recipient; after transaction 1 the sender is
+    // the one address known to qualify.
+    expect(oc.recipientAddr).toBe('0xsender')
   })
 
   it('carries exactly one invoke-phase action', () => {
     // Two invokes is ACTIONS_OUT_OF_ORDER; the invoke phase admits at most one.
-    const actions = buildGateActionList({
-      messageBookAddress: '0xabc',
-      mode: MODE_APPEND,
-      tag: 1n,
-      payload: [0x2an],
-      viewingKeyRandom: 0x99n,
-    })
-    expect(actions.filter((a) => a.type === 'InvokeExternal')).toHaveLength(1)
+    for (const companion of planGateCompanions(3)) {
+      const actions = buildGateActionList({ ...base, companion })
+      expect(actions.filter((a) => a.type === 'InvokeExternal')).toHaveLength(1)
+    }
+  })
+
+  it('serialises an OpenChannel companion in the deployed ABI field order', () => {
+    const actions = buildGateActionList({ ...base, companion: planGateCompanions(2)[1]! })
+    // OpenChannelInput { recipient_addr, index: u32, random, salt }
+    expect(encodeClientActions([actions[0]!])).toEqual(['0x1', '0x1', '0xsender', '0x0', '0x99', '0x77'])
   })
 })
 
