@@ -303,6 +303,32 @@ if (classHash) {
   record('SKIP', 'already declared', 'no class hash to check')
 }
 
+// Starknet has no EOAs: the deployer address is counterfactual until a DEPLOY_ACCOUNT
+// transaction puts a contract at it, and a declare signed by an address with no contract
+// behind it fails validation. Without this check the script reports READY against an
+// account that cannot sign, and the failure surfaces mid-declare where it is expensive
+// to diagnose.
+if (DEPLOYER_ADDRESS) {
+  try {
+    const accountClass = await read((p) => p.getClassHashAt(DEPLOYER_ADDRESS))
+    record('PASS', 'deployer account deployed', `class ${accountClass}`)
+  } catch (e) {
+    const notFound = /Contract not found|CONTRACT_NOT_FOUND|not found/i.test(String(e))
+    record(
+      'FAIL',
+      'deployer account deployed',
+      notFound
+        ? `no contract at ${DEPLOYER_ADDRESS}.\n` +
+          `      The address is counterfactual until it is deployed, and it cannot sign a\n` +
+          `      declare until then. Fund it, then run:\n` +
+          `        npx tsx scripts/deploy-account.ts --role=deployer`
+        : `could not check: ${String(e).slice(0, 120)}`,
+    )
+  }
+} else {
+  record('SKIP', 'deployer account deployed', 'no DEPLOYER_ADDRESS')
+}
+
 let balance = -1n
 if (DEPLOYER_ADDRESS) {
   try {
