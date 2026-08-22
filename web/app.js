@@ -21,6 +21,7 @@ import {
   checkInvokeCalldata,
   packUtf8ToFelts,
 } from './message-book.js'
+import { probeStrk20Support, sweepInjectedWallets } from './injected-wallet.js'
 
 // ---------------------------------------------------------------------------
 // Facts. Mirrored from packages/protocol/src/constants.ts and evidence/deployment.json,
@@ -174,25 +175,71 @@ const callContract = (address, entrypoint, calldata = []) =>
   ])
 
 // ---------------------------------------------------------------------------
-// Wallet discovery, over the Wallet Standard handshake: the app announces itself with
-// `wallet-standard:app-ready` and every wallet already loaded registers in response;
-// wallets that load later fire `wallet-standard:register-wallet` at us instead. Both
-// directions are needed — an extension can be either side of the race.
+// Wallet discovery. TWO routes, because a wallet may take either and neither is
+// optional:
 //
-// Only wallets exposing `starknet:walletApi` are listed. That feature is where
-// `wallet_strk20InvokeTransaction` lives; a legacy `window.starknet_*` injection cannot
-// carry it, so offering one here would just fail later with a worse message.
+//   1. The Wallet Standard handshake. The app announces itself with
+//      `wallet-standard:app-ready` and every wallet already loaded registers in response;
+//      wallets that load later fire `wallet-standard:register-wallet` at us instead. Both
+//      directions are needed — an extension can be either side of the race.
+//
+//   2. A sweep of `window` for a legacy injected `starknet_*` object, each wrapped by
+//      `StarknetInjectedWallet` into the same Wallet Standard shape. A wallet that only
+//      injects and never announces is invisible to route 1, and an earlier version of
+//      this page claimed such a wallet could not submit these transactions. THAT WAS
+//      WRONG, and it is what made a working wallet look like no wallet at all. The
+//      wrapper's `request` is a passthrough, so a wrapped wallet reaches exactly the same
+//      `wallet_strk20InvokeTransaction` as an announced one.
+//
+// Injection can also land after page load, so the sweep runs on every scan, not once.
 // ---------------------------------------------------------------------------
 const wallets = new Map()
 
-function acceptWallet(wallet) {
-  if (!wallet?.features?.['starknet:walletApi'] || !wallet.features['standard:connect']) return
+/**
+ * What discovery saw but could not use, so the failure message can be specific.
+ *
+ * Keyed rather than a list, and NOT cleared wholesale on a rescan. A wallet that
+ * announced itself out of band — via `register-wallet`, at whatever moment the extension
+ * happened to load — will not necessarily announce again just because we pressed Scan,
+ * so wiping the map would silently lose the one note that explains the failure. Only the
+ * injection sweep clears its own entries, because it re-derives them every time.
+ */
+const discoveryNotes = new Map()
+
+function acceptWallet(wallet, origin) {
+  if (!wallet) return
+  const name = wallet.name || 'unnamed wallet'
+  const features = wallet.features ?? {}
+  if (!features['starknet:walletApi'] || !features['standard:connect']) {
+    // Naming the wallet and its features is the difference between a diagnosis and a
+    // dead end. "Found X, but it exposes only these features" tells you what to do next.
+    discoveryNotes.set(
+      `wallet:${name}`,
+      `${name} (${origin}) does not expose the features this page needs. It has: ` +
+        `${Object.keys(features).join(', ') || 'no features at all'}. Required: ` +
+        `starknet:walletApi and standard:connect. This usually means the wallet is too ` +
+        `old for STRK20 — update it.`,
+    )
+    // Repaint now. A wallet can announce itself at any moment, long after the last scan,
+    // and a diagnosis the user cannot see until they press a button is not a diagnosis.
+    renderWallets()
+    return
+  }
   const key = wallet.name || `wallet-${wallets.size}`
-  if (wallets.get(key) === wallet) return
+  // A wallet doing both routes must not be listed twice. First one in wins; the handshake
+  // runs first and its object is the wallet's own, not our wrapper.
+  if (wallets.has(key)) return
   wallets.set(key, wallet)
-  log(`discovered wallet: ${key}`)
+  log(`discovered wallet: ${key} (${origin})`)
   renderWallets()
 }
+
+const registrationApi = (origin) => ({
+  register(...found) {
+    found.forEach((w) => acceptWallet(w, origin))
+    return () => {}
+  },
+})
 
 function scanForWallets() {
   // The deprecated `navigator.wallets` queue is deliberately not used. It is ambiguous
@@ -200,26 +247,26 @@ function scanForWallets() {
   // registers nothing is worse than not having one — it would make "no wallet found"
   // mean two different things.
   window.dispatchEvent(
-    new CustomEvent('wallet-standard:app-ready', {
-      detail: {
-        register(...found) {
-          found.forEach(acceptWallet)
-          return () => {}
-        },
-      },
-    }),
+    new CustomEvent('wallet-standard:app-ready', { detail: registrationApi('announced') }),
   )
+
+  // The sweep owns its notes: it looks at the whole of `window` every time, so a stale
+  // entry for something no longer there would be a lie.
+  for (const key of discoveryNotes.keys()) {
+    if (key.startsWith('injected:')) discoveryNotes.delete(key)
+  }
+  const { wrapped, rejected } = sweepInjectedWallets()
+  for (const { key, wallet } of wrapped) acceptWallet(wallet, `injected as window.${key}`)
+  for (const { key, reason } of rejected) {
+    discoveryNotes.set(`injected:${key}`, `window.${key} was not usable: ${reason}`)
+  }
+
   renderWallets()
 }
 
 window.addEventListener('wallet-standard:register-wallet', (event) => {
   try {
-    event.detail({
-      register(...found) {
-        found.forEach(acceptWallet)
-        return () => {}
-      },
-    })
+    event.detail(registrationApi('announced'))
   } catch (e) {
     log(`a wallet failed to register: ${e.message}`, 'bad')
   }
@@ -266,10 +313,30 @@ function renderWallets() {
     return
   }
   if (wallets.size === 0) {
-    $('wallet-hint').innerHTML =
-      'No Starknet wallet exposing the STRK20 wallet API was found. Install or unlock the ' +
-      'wallet, then press <em>Scan again</em>. A wallet that only injects the legacy ' +
-      '<code>window.starknet</code> object cannot submit these transactions.'
+    const hint = $('wallet-hint')
+    hint.replaceChildren()
+    const p = document.createElement('p')
+    p.textContent =
+      'No wallet exposing the STRK20 wallet API was found — neither through the Wallet ' +
+      'Standard announcement handshake nor as a legacy injected window.starknet_* object. ' +
+      'Unlock the wallet and press Scan again; injection often lands after the page does. ' +
+      'STRK20 support also needs a recent wallet version, so update it if scanning keeps ' +
+      'coming up empty.'
+    hint.append(p)
+    // Everything the scan saw and could not use. Without this the two very different
+    // failures — "nothing is installed" and "your wallet is here but too old" — look
+    // identical, and that is what cost us a round.
+    if (discoveryNotes.size) {
+      const heading = document.createElement('p')
+      heading.textContent = 'What discovery did find:'
+      const list = document.createElement('ul')
+      for (const note of discoveryNotes.values()) {
+        const li = document.createElement('li')
+        li.textContent = note
+        list.append(li)
+      }
+      hint.append(heading, list)
+    }
     return
   }
   $('wallet-hint').textContent = 'Choose a wallet to connect.'
@@ -336,11 +403,23 @@ async function refreshWalletFacts() {
   } catch {
     /* keep the address from connect() */
   }
-  try {
-    const versions = await sn.walletV6.supportedWalletApi(state.wallet)
-    $('wallet-api').textContent = Array.isArray(versions) ? versions.join(', ') : String(versions)
-  } catch {
-    $('wallet-api').textContent = 'not reported'
+  // There is no capability flag for STRK20 — and for a wrapped legacy wallet the
+  // `starknet:walletApi` feature is present unconditionally, so its presence proves
+  // nothing. Asking the wallet is the only real signal, and a wallet that cannot answer
+  // this at all is the one to be suspicious of, so the error is shown rather than hidden
+  // behind a bland "not reported".
+  const probe = await probeStrk20Support(state.wallet)
+  if (probe.versions) {
+    $('wallet-api').textContent = probe.versions.join(', ')
+    $('wallet-api').className = 'mono'
+  } else {
+    $('wallet-api').textContent = `wallet_supportedWalletApi failed: ${probe.error}`
+    $('wallet-api').className = 'warn'
+    log(
+      `this wallet could not answer wallet_supportedWalletApi (${probe.error}). It may not ` +
+        'support STRK20; the dry run will tell you for certain, and costs nothing.',
+      'warn',
+    )
   }
   renderAll()
 }
