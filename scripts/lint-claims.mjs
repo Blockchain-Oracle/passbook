@@ -110,9 +110,9 @@ if (exemptedLineCount) {
 }
 
 // ---- Network guard ------------------------------------------------------------
-// Rival `veyl` has SEPOLIA addresses sitting in a mainnet array in its strk20.json
-// and scores ZERO on real work. Adding a second network raises that risk, so the
-// guard is what makes the toggle safe to have at all. Make it impossible, not unlikely.
+// Entrants in this event have scored ZERO on real work by leaving testnet addresses
+// in a mainnet array. Having a second network configured at all raises that risk, so
+// this guard is what makes the toggle safe to have. Make it impossible, not unlikely.
 const constants = readFileSync('packages/protocol/src/constants.ts', 'utf8')
 const active = constants.match(/ACTIVE_NETWORK:\s*NetworkName\s*=\s*'(\w+)'/)?.[1]
 if (active !== 'mainnet') {
