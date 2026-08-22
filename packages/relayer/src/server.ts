@@ -50,6 +50,7 @@ import { readFileSync } from 'node:fs'
 import { createHash, timingSafeEqual } from 'node:crypto'
 import { Account, RpcProvider, type Call } from 'starknet'
 import { NET } from '../../protocol/src/constants.js'
+import { loadDotEnv } from '../../protocol/src/env.js'
 import { withFallback } from '../../protocol/src/rpc.js'
 import { readPoolConstants } from '../../protocol/src/pool.js'
 import {
@@ -331,6 +332,13 @@ function deployedMessageBook(): string | undefined {
 }
 
 async function main(): Promise<void> {
+  // Before required(), so a populated .env is actually seen. required() still throws on
+  // a genuinely missing secret afterwards — loading a file is not the same as finding
+  // the variable in it, and the relayer must still refuse to start without a key.
+  const envFile = loadDotEnv()
+  if (envFile.loaded) console.log(`relayer: loaded ${envFile.path}`)
+  else if (envFile.path) console.warn(`relayer: WARNING ${envFile.reason}`)
+
   const address = required('RELAYER_ADDRESS')
   const privateKey = required('RELAYER_PRIVATE_KEY')
   const port = Number(process.env.PORT ?? 8787)

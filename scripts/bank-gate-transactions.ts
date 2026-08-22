@@ -24,6 +24,7 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { RpcProvider } from 'starknet'
 import { ACTIVE_NETWORK, NET } from '../packages/protocol/src/constants.js'
+import { loadDotEnvVerbose } from '../packages/protocol/src/env.js'
 import { readPoolConstants } from '../packages/protocol/src/pool.js'
 import {
   ACTION_LIST_EVIDENCE,
@@ -65,6 +66,9 @@ const GATE_MESSAGES = [
   { tag: 1n, text: 'strk20 messagebook: gate transaction 2 of 3' },
   { tag: 2n, text: 'strk20 messagebook: gate transaction 3 of 3, second tag' },
 ] as const
+
+// Must run before SENDER and IDENTITY_KEY are read below.
+loadDotEnvVerbose()
 
 /**
  * The address that will actually send these transactions.
