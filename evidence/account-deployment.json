@@ -1,0 +1,13 @@
+{
+  "deployer": {
+    "address": "0x10fe91ce9947fdfb2b8dbfcb146560176ab3bf5ec15f3fc501170a5880f4b97",
+    "classHash": "0x061dac032f228abef9c6626f995015233097ae253a7f72d68552db02f2971b8f",
+    "transactionHash": "0x7775f789a9ac5035026af78fdc110d3ee263294b002ae52a27c89040a157f3a",
+    "verifiedClassHashAt": "0x61dac032f228abef9c6626f995015233097ae253a7f72d68552db02f2971b8f",
+    "verifiedAtBlock": 13673020,
+    "network": "mainnet",
+    "chainId": "0x534e5f4d41494e",
+    "deployedVia": "https://rpc.starknet.lava.build",
+    "deployedAt": "2026-08-22T04:23:43.352Z"
+  }
+}

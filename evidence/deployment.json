@@ -1,0 +1,14 @@
+{
+  "classHash": "0x52c432b3751ef6e61aa742e6b04a75bd929f2c85e1f2e632df812d424e4460f",
+  "compiledClassHash": "0x2b23708a9b4e78b0be0a76652bc82ed7da8a4f771fafebf8aa5ce436863bcf4",
+  "contractAddress": "0x3105b6a327ba11f5464335f480046348a4052be2c12df726f37633d50ae35bc",
+  "declareTx": "0x15556694543347058cf931daf31042840a768e601175eda7639edc0352b8309",
+  "deployTx": "0x1df2698443f4bf7d49f802aae3180674394d3e339c31666780c1e640562569",
+  "network": "mainnet",
+  "chainId": "0x534e5f4d41494e",
+  "verifiedClassHashAt": "0x52c432b3751ef6e61aa742e6b04a75bd929f2c85e1f2e632df812d424e4460f",
+  "verifiedAtBlock": 13673080,
+  "poolClassHash": "0x67dddd89d80fedadc06b6f160798f94800a4a70164e5a24301cd0d6076b554d",
+  "declaredVia": "https://starknet-rpc.publicnode.com",
+  "deployedAt": "2026-08-22T04:25:27.774Z"
+}
