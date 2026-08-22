@@ -22,3 +22,6 @@ contracts/.snfoundry_cache/
 context/
 rfps.md
 docs/
+
+# Upstream sources cloned for ground truth — not ours to ship
+reference/
