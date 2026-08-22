@@ -17,3 +17,8 @@ ev.json
 # Cairo / Scarb build output. Scarb.lock IS committed; target/ is not.
 contracts/target/
 contracts/.snfoundry_cache/
+
+# Research and competitive analysis — not for the public repo
+context/
+rfps.md
+docs/
