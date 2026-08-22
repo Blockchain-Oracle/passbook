@@ -159,8 +159,8 @@ Network is `SN_MAIN`. Every filled row here is independently checkable with one 
 |---|---|
 | STRK20 pool | `0x040337b1af3c663e86e333bab5a4b28da8d4652a15a69beee2b677776ffe812a` |
 | Pool class hash this code was tested against | `0x67dddd89d80fedadc06b6f160798f94800a4a70164e5a24301cd0d6076b554d` |
-| `MessageBook` (ours) | `TODO_DEPLOYED_ADDRESS` |
-| `MessageBook` class hash | `TODO_DEPLOYED_ADDRESS` |
+| `MessageBook` (ours) | `0x3105b6a327ba11f5464335f480046348a4052be2c12df726f37633d50ae35bc` |
+| `MessageBook` class hash | `0x52c432b3751ef6e61aa742e6b04a75bd929f2c85e1f2e632df812d424e4460f` |
 
 The two unfilled rows are why `npm run lint:claims` currently exits non-zero. They are filled
 from the deployment record the moment the contract is deployed, and the lint is what guarantees
