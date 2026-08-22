@@ -514,6 +514,40 @@ for (const [shape, verdict] of ACTION_LIST_EVIDENCE) console.log(`  ${shape.padE
 //      its calldata or signature. Whatever SNIP-36 proving happens, it does not change
 //      the shape of what gets broadcast.
 //
+// SETTLED 22 Aug, by estimating the real calls against the live contract. All free.
+//
+//   g. THE DIRECT PATH IS RULED OUT. `account.execute([approve, apply_actions])` cannot
+//      work. Calling `apply_actions` directly — which bypasses the OZ account's
+//      `__execute__`, whose `.unwrap()` masks every inner panic as the useless
+//      "Result::unwrap failed." — gives the real reason: **`EMPTY_PROOF_FACTS`**.
+//      An EMPTY ServerAction span fails identically, so the check is unconditional and
+//      has nothing to do with our action list. `approve` alone estimates fine at
+//      0.0881 STRK, so the account and the calls are otherwise sound.
+//
+//   h. THE PROVER IS REAL, LIVE AND REACHABLE. `starknet_specVersion` against
+//      NET.prover answers `0.10.3-rc.2`. It accepts our exact transaction shape from
+//      `Account.getSignedTransaction(calls, {resourceBounds, proofFacts})` and gives
+//      precise, actionable errors — it told us to zero every `max_price_per_unit` and
+//      the tip, and that "Proving is client-side — no fees are charged."
+//
+//   i. `proofFacts` IS A `UniversalDetails` FIELD that lands in the broadcast as a
+//      top-level `proof_facts` array on the v3 invoke — not in calldata, not in the
+//      signature, not in paymaster_data. That is consistent with the earlier finding
+//      that no proof material appears in a real transaction's calldata or signature.
+//
+// THE ONE REMAINING BLOCKER, and it is a genuine chicken-and-egg:
+//
+//   j. The prover rejects a transaction that HAS proof facts — "The proof_facts field
+//      must be empty on input" — because it is the thing that produces them. But the
+//      pool rejects a transaction that LACKS them, with EMPTY_PROOF_FACTS, and the
+//      prover refuses to prove a transaction that reverts ("Reverted transactions are
+//      not supported"). So the transaction cannot be proven until it is valid, and it
+//      cannot be valid until it is proven.
+//
+//      Something must break that cycle — most likely a prover mode or a field we have
+//      not found, or the sponsor's own SDK, which is NOT installed and which is the only
+//      place a client-side action compiler exists. Guessing costs ~9 STRK per attempt.
+//
 // NOT KNOWN, and this is why --execute refuses:
 //
 //   d. WHETHER THE PROVER MUST BE CALLED AT ALL, AND WHAT CONSUMES THE RESULT. Item (c)
