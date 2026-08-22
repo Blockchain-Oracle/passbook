@@ -21,7 +21,11 @@
 import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs'
 import { Account, RpcProvider, hash, json } from 'starknet'
 import { ACTIVE_NETWORK, NET, STRK_TOKEN } from '../packages/protocol/src/constants.js'
+import { loadDotEnv } from '../packages/protocol/src/env.js'
 import { EXPECTED_POOL_CLASS_HASH } from '../packages/protocol/src/message-book.js'
+
+// Must run before anything reads process.env, which the pre-flight below does.
+const envFile = loadDotEnv()
 
 const ARTIFACT_BASE = 'contracts/target/dev/strk20_app_MessageBook'
 const SIERRA_PATH = `${ARTIFACT_BASE}.contract_class.json`
@@ -145,6 +149,14 @@ async function strkBalance(address: string): Promise<bigint> {
 // ---------------------------------------------------------------------------------
 
 const { DEPLOYER_ADDRESS, DEPLOYER_PRIVATE_KEY } = process.env
+
+// Where the secrets came from is itself a check. "Not set" reads very differently when
+// no .env was found than when one was read and simply lacks the variable.
+record(
+  envFile.loaded ? 'PASS' : 'SKIP',
+  '.env',
+  envFile.loaded ? `loaded ${envFile.path}` : (envFile.reason ?? 'not loaded'),
+)
 
 if (DEPLOYER_ADDRESS) record('PASS', 'DEPLOYER_ADDRESS', DEPLOYER_ADDRESS)
 else record('FAIL', 'DEPLOYER_ADDRESS', 'not set — see .env.example')
