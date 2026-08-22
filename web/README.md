@@ -47,14 +47,36 @@ so the counter moving is the proof the transaction really routed through our con
 
 ## Files
 
-| file                  | what it is                                                        |
-| --------------------- | ----------------------------------------------------------------- |
-| `index.html`          | markup and styles, no logic                                        |
-| `app.js`              | wallet discovery, live reads, validation gates, dry run, submit    |
-| `message-book.js`     | the call rules, ported from `packages/protocol/src/message-book.ts` |
-| `message-book.test.js`| pins that port against the TypeScript module it was ported from    |
+| file                     | what it is                                                          |
+| ------------------------ | ------------------------------------------------------------------- |
+| `index.html`             | markup and styles, no logic                                          |
+| `app.js`                 | wallet discovery, live reads, validation gates, dry run, submit      |
+| `message-book.js`        | the call rules, ported from `packages/protocol/src/message-book.ts`  |
+| `message-book.test.js`   | pins that port against the TypeScript module it was ported from      |
+| `injected-wallet.js`     | wraps a legacy injected wallet into the Wallet Standard shape        |
+| `injected-wallet.test.js`| covers the sweep, the wrapper, and the request passthrough           |
 
-`npm test` runs the port-agreement test along with everything else.
+`npm test` runs both of these along with everything else.
+
+## Finding the wallet
+
+Discovery takes two routes, and both are needed:
+
+1. **The Wallet Standard handshake** — the page announces itself with
+   `wallet-standard:app-ready` and listens for `wallet-standard:register-wallet`, because
+   an extension can load before or after the page.
+2. **A sweep of `window` for a legacy injected `starknet_*` object**, each wrapped by
+   `injected-wallet.js` into the same shape. A wallet that only injects and never
+   announces is invisible to route 1. Injection can also land after page load, so the
+   sweep re-runs on every **Scan again**.
+
+A wrapped legacy wallet is not second-class: the wrapper's `request` is a passthrough, so
+it reaches exactly the same `wallet_strk20InvokeTransaction`.
+
+When nothing usable is found, the page lists what discovery *did* see and why each was
+rejected — a wallet found but missing `starknet:walletApi` is named along with the features
+it does expose. "Found X, but it is too old for STRK20" is a diagnosis; "no wallet found"
+is a dead end.
 
 ## What this page does not do
 
