@@ -14,6 +14,10 @@ _bmad-output/
 ev.json
 .DS_Store
 
+# The relayer's durable sponsorship ledger. Runtime state of one deployment, and it holds
+# the salt that keys its hashed visitor ids — see packages/relayer/src/sponsorship-store.ts.
+.relayer/
+
 # Cairo / Scarb build output. Scarb.lock IS committed; target/ is not.
 contracts/target/
 contracts/.snfoundry_cache/

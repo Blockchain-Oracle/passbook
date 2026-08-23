@@ -6,7 +6,9 @@
   "workspaces": ["packages/*"],
   "scripts": {
     "test": "vitest run",
-    "lint:claims": "node scripts/lint-claims.mjs"
+    "lint": "npm run lint:claims && npm run lint:secrets",
+    "lint:claims": "node scripts/lint-claims.mjs",
+    "lint:secrets": "node scripts/lint-secrets.mjs"
   },
   "devDependencies": {
     "typescript": "5.6.3",

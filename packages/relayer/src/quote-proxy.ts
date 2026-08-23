@@ -17,6 +17,45 @@ export const PROXY_TARGETS = {
 
 export type ProxyTargetName = keyof typeof PROXY_TARGETS
 
+/**
+ * A third-party call the browser still makes DIRECTLY, and what that costs the user.
+ *
+ * "Everything is proxied" would be the easy sentence, and it would be false. These are the
+ * exceptions, enumerated so the disclosure panel can state them and so a reviewer can count
+ * them: an unlisted browser-direct host is a leak nobody wrote down. `scripts/lint-secrets.mjs`
+ * fails the build on a third-party host in `web/` that is not one of these, which is what keeps
+ * this list from drifting out of date the first time someone adds a fetch.
+ *
+ * Each entry names the leak in one line. Adding an entry is a disclosure decision, not a
+ * formality — if the leak cannot be described in a sentence a user would accept, route it
+ * through the proxy instead.
+ */
+export interface ProxyException {
+  /** What the browser fetches directly. */
+  readonly what: string
+  /** Where in the source it happens, so the claim is checkable. */
+  readonly where: string
+  /** One line: what the upstream learns that it would not learn through the proxy. */
+  readonly leaks: string
+}
+
+export const PROXY_EXCEPTIONS: readonly ProxyException[] = [
+  {
+    what: 'Starknet JSON-RPC reads (starknet_call and class-hash lookups) go straight to the RPC hosts',
+    where: 'web/app.js:151',
+    leaks:
+      'the RPC provider sees the visitor IP alongside which contracts they read, though not ' +
+      'which note or key the read is about.',
+  },
+  {
+    what: 'Explorer links open Voyager in the user’s own browser',
+    where: 'web/app.js:44',
+    leaks:
+      'the explorer sees the visitor IP together with the transaction they clicked, so a ' +
+      'link followed is a link attributed. Copy the hash instead to avoid it.',
+  },
+] as const
+
 export class UnknownProxyTarget extends Error {}
 
 /**

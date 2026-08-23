@@ -1,7 +1,9 @@
 // Sponsorship budgeting (FR-053 / AD-7, story 1.5). The funded relayer key pays for a cold
 // visitor's first registration — bounded by a per-visitor cap AND a global daily budget, and
-// failing OPEN into pay-your-own-way (never a locked door). Pure decision + an in-memory store
-// with atomic single-claim semantics for invite codes.
+// failing OPEN into pay-your-own-way (never a locked door). Pure decision + a stateful ledger
+// with atomic single-claim semantics for invite codes, persisted through an injected store.
+
+import type { PersistedLedger, SponsorshipStore } from './sponsorship-store.js'
 
 /** Shown when the daily budget is spent — the flow still offers the self-funded path (FR-012). */
 export const BUDGET_EXHAUSTED_NOTICE =
@@ -61,33 +63,72 @@ export function commitSponsorship(state: BudgetState, visitorId: string, now: nu
 }
 
 /**
- * A stateful budget with an atomic single-claim ledger for invite codes. `tryClaim` burns a code
- * exactly once — a second claim of the same code returns false without spending budget (one
- * sponsorship per code, burned before submission). JS is single-threaded so the check-then-set is
- * atomic within the process; a multi-process deployment must back `claimed` with a store that
- * offers the same atomicity (documented, not assumed).
+ * A stateful budget with an atomic single-claim ledger for invite codes, durable across restarts.
+ *
+ * `tryClaim` burns a code exactly once — a second claim of the same code returns false without
+ * spending budget (one sponsorship per code, burned before submission). The check-then-set is
+ * atomic because nothing in it yields: the decision, the mutation and the store write are all
+ * synchronous, so two concurrent requests cannot both observe the last unit of budget. That is
+ * why `SponsorshipStore` is a synchronous interface and must stay one.
+ *
+ * The store is a constructor argument with no default on purpose. An in-memory fallback is a
+ * relayer that hands the whole daily budget out again on every restart, and the failure is
+ * invisible — so the caller states which store it wants, and the type system asks.
+ * Multi-process deployment remains out of scope; see sponsorship-store.ts.
  */
 export class SponsorshipLedger {
   private state: BudgetState
-  private readonly claimed = new Set<string>()
-  constructor(private readonly caps: BudgetCaps, now: number = Date.now()) {
-    this.state = emptyBudget(now)
+  private readonly claimed: Set<string>
+  /** The key that turns a client IP into the opaque visitor id this budget is keyed by. */
+  readonly salt: string
+
+  constructor(
+    private readonly caps: BudgetCaps,
+    private readonly store: SponsorshipStore,
+    now: number = Date.now(),
+  ) {
+    const loaded = store.load()
+    this.salt = loaded.salt
+    // Roll on the way in, so a ledger last written yesterday does not spend today's first
+    // request against yesterday's exhausted counters.
+    this.state = rolledToDay(loaded.budget, now)
+    this.claimed = new Set(loaded.claimed)
   }
 
   decide(visitorId: string, now: number = Date.now()): SponsorDecision {
     return decideSponsorship(this.state, this.caps, visitorId, now)
   }
 
-  /** Records a sponsored action if the decision allows; returns the decision made. */
+  /**
+   * Records a sponsored action if the decision allows; returns the decision made.
+   *
+   * The store is written BEFORE memory is updated, and both mutators do the same. Mutating
+   * first and persisting second means a failed write (a full disk, a permissions change)
+   * leaves the spend counted in memory and absent from the file — so the count is right until
+   * the next restart resurrects the budget, which is the exact bug durability was added to
+   * fix, now arriving silently and later. Persisting first makes a write failure a refusal
+   * to spend rather than a spend nobody recorded; the exception reaches the caller, who
+   * answers 500 rather than signing.
+   */
   spend(visitorId: string, now: number = Date.now()): SponsorDecision {
     const d = this.decide(visitorId, now)
-    if (d.allow) this.state = commitSponsorship(this.state, visitorId, now)
+    if (d.allow) {
+      const next = commitSponsorship(this.state, visitorId, now)
+      this.store.save({ salt: this.salt, budget: next, claimed: [...this.claimed] })
+      this.state = next
+    }
     return d
   }
 
   /** Atomic one-time claim of an invite code. True the first time, false forever after. */
   tryClaim(code: string): boolean {
     if (this.claimed.has(code)) return false
+    const next: PersistedLedger = {
+      salt: this.salt,
+      budget: this.state,
+      claimed: [...this.claimed, code],
+    }
+    this.store.save(next)
     this.claimed.add(code)
     return true
   }
