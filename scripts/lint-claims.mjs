@@ -30,7 +30,7 @@ const PLACEHOLDER = 'TODO_DEPLOYED_ADDRESS'
 
 // `scripts` is deliberately not a scan root: this file necessarily contains every
 // string it bans. Do not add it.
-const ROOTS = ['packages', 'src', 'README.md']
+const ROOTS = ['packages', 'apps', 'workers', 'src', 'README.md']
 const EXTS = new Set(['.ts', '.tsx', '.md', '.html'])
 
 // The scoped opt-out, for the one place that must state these claims in order to

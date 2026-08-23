@@ -10,6 +10,11 @@
 export interface NetworkConfig {
   readonly chainId: string
   readonly pool: string
+  // The pinned pool class hash — the deployed class we built against, tag
+  // CONTRACT_V2_DEPLOYED_MAINNET_2026-07-08 / commit 74841caf (AD-3/AD-8, never `main`).
+  // A live class hash that differs from this is the "pool upgraded" degraded mode (FR-052).
+  // Empty where no pool is pinned (sepolia).
+  readonly poolClassHash: string
   readonly rpc: readonly string[]
   readonly prover: string
   readonly discovery: string
@@ -20,6 +25,7 @@ export const NETWORKS = {
   mainnet: {
     chainId: '0x534e5f4d41494e', // SN_MAIN
     pool: '0x040337b1af3c663e86e333bab5a4b28da8d4652a15a69beee2b677776ffe812a',
+    poolClassHash: '0x67dddd89d80fedadc06b6f160798f94800a4a70164e5a24301cd0d6076b554d',
     rpc: [
       'https://rpc.starknet.lava.build',
       'https://starknet-rpc.publicnode.com',

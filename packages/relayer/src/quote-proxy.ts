@@ -1,0 +1,56 @@
+// Third-party HTTP proxy (FR-029 / AD-7 / A8, story 1.5). Every third-party call — AVNU quotes,
+// Circle Iris bridge polling, oracle/price feeds — is fetched SERVER-SIDE so the aggregator sees
+// the relay's address, never the user's IP+intent (a browser-direct poll leaks exactly the class
+// FR-029 sells closing). Credentials live only here, never in the client bundle. This module is
+// the pure request-builder + an allowlist of proxiable upstreams; the http route wires it in.
+
+export interface ProxyTarget {
+  readonly host: string          // exact upstream host permitted
+  readonly injectsCredential: boolean  // whether the server attaches a secret header/param
+}
+
+/** The only upstreams the proxy will forward to — an allowlist, not an open relay (SSRF guard). */
+export const PROXY_TARGETS = {
+  avnuQuotes: { host: 'starknet.api.avnu.fi', injectsCredential: false },   // quote API is keyless
+  circleIris: { host: 'iris-api.circle.com', injectsCredential: false },
+} as const satisfies Record<string, ProxyTarget>
+
+export type ProxyTargetName = keyof typeof PROXY_TARGETS
+
+export class UnknownProxyTarget extends Error {}
+
+/**
+ * Builds the server-side upstream request for a proxied call. Carries ONLY the app-supplied
+ * path+query — never a forwarded client IP, cookie, or user identifier — so the upstream cannot
+ * attribute the call to a user. A credential (if the target needs one) is attached from server
+ * env HERE, never surfaced to the client.
+ */
+export function buildUpstreamRequest(
+  target: ProxyTargetName,
+  path: string,
+  query: Record<string, string> = {},
+  credential?: string,
+): { url: string; headers: Record<string, string> } {
+  const t = PROXY_TARGETS[target]
+  if (!t) throw new UnknownProxyTarget(target)
+  if (!path.startsWith('/')) throw new Error('proxy path must be absolute')
+  const qs = new URLSearchParams(query).toString()
+  const url = `https://${t.host}${path}${qs ? `?${qs}` : ''}`
+  const headers: Record<string, string> = { accept: 'application/json' }
+  if (t.injectsCredential && credential) headers['authorization'] = `Bearer ${credential}`
+  return { url, headers }
+}
+
+/** True iff a header name would leak the client's identity and must be stripped before forwarding. */
+export function isIdentityLeakingHeader(name: string): boolean {
+  return /^(cookie|authorization|x-forwarded-for|x-real-ip|forwarded|referer|user-agent)$/i.test(name)
+}
+
+/** Strips every identity-leaking header from a client request before the server forwards upstream. */
+export function scrubClientHeaders(headers: Record<string, string>): Record<string, string> {
+  const out: Record<string, string> = {}
+  for (const [k, v] of Object.entries(headers)) {
+    if (!isIdentityLeakingHeader(k)) out[k] = v
+  }
+  return out
+}
