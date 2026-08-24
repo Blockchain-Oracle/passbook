@@ -9,5 +9,17 @@
     "chainId": "0x534e5f4d41494e",
     "deployedVia": "https://rpc.starknet.lava.build",
     "deployedAt": "2026-08-22T04:23:43.352Z"
+  },
+  "relayer": {
+    "address": "0x6e1c309456733fa40d17a560e4802b4ca65464cec172571b8883881bb6a0389",
+    "classHash": "0x061dac032f228abef9c6626f995015233097ae253a7f72d68552db02f2971b8f",
+    "transactionHash": "0x12cc3719ca0cf0d905a6e5230f547b88d660087529d2d250141db1ecfaf90c4",
+    "deployFeeWei": "59102427052342432",
+    "verifiedClassHashAt": "0x61dac032f228abef9c6626f995015233097ae253a7f72d68552db02f2971b8f",
+    "verifiedAtBlock": 13800832,
+    "network": "mainnet",
+    "chainId": "0x534e5f4d41494e",
+    "deployedVia": "https://starknet-rpc.publicnode.com",
+    "deployedAt": "2026-08-24T16:49:03.730Z"
   }
 }

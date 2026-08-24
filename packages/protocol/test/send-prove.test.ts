@@ -94,6 +94,7 @@ function mockSdk(
     span?: string[]
     call?: { contractAddress: string; entrypoint: string; calldata: string[] }
     proofFacts?: string[]
+    proofData?: string
     output?: string[]
     notes?: [string, { id: bigint }[]][]
   } = {},
@@ -146,7 +147,7 @@ function mockSdk(
     executeWithInvocation: async () => ({
       callAndProof: {
         call: over.call ?? APPLY_ACTIONS,
-        proof: { data: '', output: over.output ?? PROOF_OUTPUT, proofFacts: over.proofFacts ?? ['0x11', '0x22'] },
+        proof: { data: over.proofData ?? 'AQICsend-proof-blob', output: over.output ?? PROOF_OUTPUT, proofFacts: over.proofFacts ?? ['0x11', '0x22'] },
       },
       registry: registryAfter,
     }),
@@ -173,6 +174,7 @@ describe('proveSend wiring', () => {
     expect(await run()).toEqual({
       call: APPLY_ACTIONS,
       proofFacts: ['0x11', '0x22'],
+      proof: 'AQICsend-proof-blob',
       provingBlockId: BLOCK,
       mintedNoteIds: [0x999n],
     })
@@ -390,5 +392,12 @@ describe('proveSend refuses a poisoned compiler', () => {
   it('refuses proof facts that are not felts', async () => {
     mockSdk({ proofFacts: ['0x11', 'not-a-felt'] })
     await expect(run()).rejects.toThrow(/not a felt at index 1/)
+  })
+
+  // The sequencer takes proof_facts and proof together or not at all (story 1.13's
+  // first real broadcast). A prove without the blob is not a submittable transaction.
+  it('refuses a prover response whose proof blob is empty', async () => {
+    mockSdk({ proofData: '' })
+    await expect(run()).rejects.toThrow(/no proof blob alongside its facts/)
   })
 })

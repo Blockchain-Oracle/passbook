@@ -1,0 +1,28 @@
+{
+  "purpose": "story 1.13 — the Day-0 viewing-key derivation bug, verified at upstream HEAD and filed",
+  "issueUrl": "https://github.com/starkware-libs/starknet-privacy/issues/961",
+  "repo": "starkware-libs/starknet-privacy",
+  "filedAt": "2026-08-24T16:37:00Z",
+  "verifiedAtUpstreamCommit": "51652200561151499b03f90e3a05f03c91f5b349",
+  "pinnedReferenceCommit": "74841caf (tag CONTRACT_V2_DEPLOYED_MAINNET_2026-07-08)",
+  "bugs": [
+    {
+      "where": "demo/src/session.ts:33-36 (deriveViewingKey fold)",
+      "what": "residues 0, HALF_ORDER, HALF_ORDER+1 have no legal (k, ORDER-k) representative; the fold remaps residue 0 to key 1 silently and emits contract-rejected keys for the other two",
+      "presentAtHead": true
+    },
+    {
+      "where": "sdk/src/utils/validation.ts:25 with sdk/src/interfaces.ts:24",
+      "what": "assertViewingKey uses starknet.js num.assertInRange, inclusive on both bounds, so it admits k == MAX_VIEWING_KEY == HALF_ORDER, which is_canonical_key rejects (strict <)",
+      "presentAtHead": true
+    }
+  ],
+  "contractRule": "1 <= k < HALF_ORDER, strict — privacy.cairo:259-260 (ZERO_PRIVATE_KEY, PRIVATE_KEY_NOT_CANONICAL) + utils.cairo:273-276 (is_canonical_key), identical at pinned commit and HEAD",
+  "dupCheck": {
+    "how": "gh search issues/prs on the repo for: viewing key, canonical, deriveViewingKey, HALF_ORDER, assertInRange, range, assertViewingKey",
+    "result": "no existing issue or PR reports the fold or the off-by-one; filed fresh",
+    "checkedAt": "2026-08-24T16:36:00Z"
+  },
+  "ourFix": "packages/protocol/src/identity.ts — canonicalizeViewingKey folds the strict upper half and throws on the three unrepresentable residues (assertViewingKey enforces the contract's strict bound)",
+  "reproIncludedInIssue": true
+}

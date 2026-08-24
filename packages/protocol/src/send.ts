@@ -61,6 +61,7 @@ import {
   RelayDeliveryUnknown,
   RegistrationReverted,
   assembleRegistrationCalls,
+  proofBlobFrom,
   confirmFromReceipt,
   extractClientActionSpan,
   formatStrk,
@@ -1045,6 +1046,12 @@ export interface ProveSendInput {
 export interface ProvedSend {
   call: Call
   proofFacts: string[]
+  /**
+   * The proof blob the facts belong to. The sequencer takes `proof_facts` and `proof`
+   * together or not at all (verified live in story 1.13's first real broadcast), so a
+   * proven send must carry both — see `ProvedRegistration.proof` for the full account.
+   */
+  proof: string
   provingBlockId: number
   /** Notes this send mints for the sender, read off the registry the SDK handed back. */
   mintedNoteIds: bigint[]
@@ -1133,10 +1140,12 @@ export async function proveSend(input: ProveSendInput): Promise<ProvedSend> {
   if (bad !== -1) {
     throw new Error(`the prover returned a proof fact that is not a felt at index ${bad}: ${String(proofFacts[bad])}`)
   }
-
   return {
     call,
     proofFacts,
+    // Same rule, same helper, same free failure point as registration: the sequencer
+    // rejects facts without their blob. See `proofBlobFrom` in register.ts.
+    proof: proofBlobFrom(proof),
     provingBlockId: input.provingBlockId,
     mintedNoteIds: mintedNoteIds(after, wallet),
   }
@@ -1205,11 +1214,12 @@ function mintedNoteIds(registry: PrivateRegistry, wallet: SendWalletData): bigin
  * A seam rather than an implementation, because what signs here is the connected wallet and this
  * package holds no wallet. Whatever supplies it gets the assembled calls — the same
  * `[STRK.approve(pool, ceiling), apply_actions]` the relayer would have signed — plus the proof
- * facts, which are V3 transaction details and cannot ride inside a call.
+ * facts AND the proof blob, which are V3 transaction details and cannot ride inside a call. The
+ * sequencer takes the pair or nothing, so an executor that drops either broadcasts a rejection.
  */
 export type SelfSubmitExecutor = (
   calls: Call[],
-  details: { proofFacts: string[] },
+  details: { proofFacts: string[]; proof: string },
 ) => Promise<string>
 
 /**
@@ -1603,7 +1613,7 @@ export async function sendShielded(input: SendInput, deps: SendDeps = {}): Promi
     let transactionHash: string
     if (input.mode === 'self') {
       try {
-        transactionHash = await selfSubmit(calls, { proofFacts: proved.proofFacts })
+        transactionHash = await selfSubmit(calls, { proofFacts: proved.proofFacts, proof: proved.proof })
       } catch (e) {
         // The user's own account was the caller, so a rejected or reverting attempt has still
         // been paid for. Saying so is the whole difference between an honest tradeoff and a
@@ -1618,7 +1628,7 @@ export async function sendShielded(input: SendInput, deps: SendDeps = {}): Promi
         })
       }
     } else {
-      const relayed = await relay(submit, relayerUrl, calls, proved.proofFacts, offer)
+      const relayed = await relay(submit, relayerUrl, calls, proved.proofFacts, proved.proof, offer)
       if ('failure' in relayed) return fail(relayed.failure)
       transactionHash = relayed.transactionHash
     }
@@ -1690,6 +1700,7 @@ async function relay(
   url: string,
   calls: Call[],
   proofFacts: string[],
+  proof: string,
   offer: SelfSubmitOffer,
 ): Promise<{ transactionHash: string } | { failure: SendFailure }> {
   let response: RelayResponse
@@ -1697,7 +1708,7 @@ async function relay(
     // NO `sponsored` FLAG. A send reimburses the relayer's fee from its own proven action chain,
     // so it is not a sponsorship and must not be charged to the budget that buys cold visitors
     // their one free account — nor refused with copy about registrations.
-    response = await submit(url, { calls, proofFacts })
+    response = await submit(url, { calls, proofFacts, proof })
   } catch (e) {
     if (e instanceof RelayDeliveryUnknown) {
       return { failure: { kind: 'confirmation-unknown', transactionHash: '', reason: String(e) } }

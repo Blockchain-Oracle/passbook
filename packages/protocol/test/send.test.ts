@@ -58,6 +58,7 @@ const USDC = '0x053c91253bc9682c04929ca02ed00b3e423f6710d2ee7e0d5ebb06f3ecf368a8
 
 const APPLY_ACTIONS: Call = { contractAddress: NET.pool, entrypoint: 'apply_actions', calldata: ['0x1', '0x0'] }
 const PROOF_FACTS = ['0x11', '0x22']
+const PROOF_BLOB = 'AQICsend-proof-blob'
 const MINTED = [0x111n]
 
 function note(amount: bigint, token = STRK_TOKEN, id = amount) {
@@ -117,7 +118,7 @@ function wallet(over: Partial<SendWalletData> = {}): SendWalletData {
 function harness(over: Partial<SendDeps> = {}, input: Partial<Parameters<typeof sendShielded>[0]> = {}) {
   const proveCalls: unknown[] = []
   const relayCalls: SubmitBody[] = []
-  const selfCalls: { calls: Call[]; details: { proofFacts: string[] } }[] = []
+  const selfCalls: { calls: Call[]; details: { proofFacts: string[]; proof: string } }[] = []
   const stages: SendStage[] = []
   const matureCalls: readonly bigint[][] = []
 
@@ -131,7 +132,7 @@ function harness(over: Partial<SendDeps> = {}, input: Partial<Parameters<typeof 
     readFeeRecipient: async () => RELAYER_FEE_ADDRESS,
     prove: async (i): Promise<ProvedSend> => {
       proveCalls.push(i)
-      return { call: APPLY_ACTIONS, proofFacts: PROOF_FACTS, provingBlockId: i.provingBlockId, mintedNoteIds: MINTED }
+      return { call: APPLY_ACTIONS, proofFacts: PROOF_FACTS, proof: PROOF_BLOB, provingBlockId: i.provingBlockId, mintedNoteIds: MINTED }
     },
     submit: async (_url, body): Promise<RelayResponse> => {
       relayCalls.push(body)
@@ -198,7 +199,7 @@ describe('sendShielded — the relayer default', () => {
     await h.run()
     expect(h.relayCalls).toHaveLength(1)
     expect(h.relayCalls[0]).not.toHaveProperty('sponsored')
-    expect(Object.keys(h.relayCalls[0]!).sort()).toEqual(['calls', 'proofFacts'])
+    expect(Object.keys(h.relayCalls[0]!).sort()).toEqual(['calls', 'proof', 'proofFacts'])
   })
 
   it('submits [approve, apply_actions] — the batch its own relayer allowlist accepts', async () => {
@@ -237,7 +238,7 @@ describe('sendShielded — degraded self-submit', () => {
     expect(result.stages).toEqual(['build', 'prove', 'relay', 'mature', 'confirmed'])
     expect(h.relayCalls).toHaveLength(0)
     expect(h.selfCalls).toHaveLength(1)
-    expect(h.selfCalls[0]!.details).toEqual({ proofFacts: PROOF_FACTS })
+    expect(h.selfCalls[0]!.details).toEqual({ proofFacts: PROOF_FACTS, proof: PROOF_BLOB })
     expect(h.selfCalls[0]!.calls.map((c) => c.entrypoint)).toEqual(['approve', 'apply_actions'])
   })
 
@@ -295,7 +296,7 @@ describe('sendShielded — degraded self-submit', () => {
         readBlockNumber: async () => HEAD,
         readRecipientKey: async () => 0x99n,
         readChannelCount: async () => 2,
-        prove: async (i) => ({ call: APPLY_ACTIONS, proofFacts: PROOF_FACTS, provingBlockId: i.provingBlockId, mintedNoteIds: [] }),
+        prove: async (i) => ({ call: APPLY_ACTIONS, proofFacts: PROOF_FACTS, proof: PROOF_BLOB, provingBlockId: i.provingBlockId, mintedNoteIds: [] }),
       },
     )
     expect(result.ok).toBe(false)
@@ -590,7 +591,7 @@ describe('confirmation and maturity', () => {
 
   it('enters mature even when the send minted nothing for the sender', async () => {
     const h = harness({
-      prove: async (i) => ({ call: APPLY_ACTIONS, proofFacts: PROOF_FACTS, provingBlockId: i.provingBlockId, mintedNoteIds: [] }),
+      prove: async (i) => ({ call: APPLY_ACTIONS, proofFacts: PROOF_FACTS, proof: PROOF_BLOB, provingBlockId: i.provingBlockId, mintedNoteIds: [] }),
       confirmNoteMature: makeNoteMatureWatcher(async () => false),
     })
     const result = await h.run()
