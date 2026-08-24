@@ -5,13 +5,13 @@
 // `backup-gate.ts` projects a ceremony and never writes it, `backup-cadence.ts` declares a
 // store interface and ships a refusal in its place. This module is the one place that
 // actually touches a browser storage API, and it is deliberately the smallest surface that
-// can carry the three values story 1.11 is allowed to persist.
+// can carry the values this app is allowed to persist.
 //
-// THREE VALUES, AND THE LIST IS CLOSED. The account key, the `ready` projection of the
-// backup ceremony, and the backup cadence record. Never a note, never a discovery result,
-// never a Recovery Code, never a wrapped Recovery File. See `session.ts`'s header for why
-// each of those is excluded; `SESSION_KEYS` below is the enforcement, because a value with
-// no key here has nowhere to go.
+// THE LIST IS CLOSED, AND IT IS FOUR LONG. The account key, the `ready` projection of the
+// backup ceremony, the backup cadence record, and (story 1.14) the sender's invite intents.
+// Never a note, never a discovery result, never a Recovery Code, never a wrapped Recovery
+// File. See `session.ts`'s header for why each of those is excluded; `SESSION_KEYS` below is
+// the enforcement, because a value with no key here has nowhere to go.
 //
 // SYNCHRONOUS ON PURPOSE, following `relayer/src/sponsorship-store.ts`. The cadence seam
 // (`BackupCadenceStore`) is declared synchronous, and the reason is the same one written
@@ -41,19 +41,24 @@ export interface SessionStore {
  * The only keys a `SessionStore` will accept — the union of `SESSION_KEYS`' values.
  *
  * "The list is closed" was a claim in a comment and a count in a test; this makes it a rule the
- * compiler enforces. A fourth value cannot be persisted by adding a string at a call site: it
- * has to be added to `SESSION_KEYS`, which is the line a reviewer is watching and the decision
- * the spec reserves. The feature probe writes through the raw `Storage` API rather than through
- * a `SessionStore`, so its scratch key is unaffected by this and does not belong in the union.
+ * compiler enforces. A new value cannot be persisted by adding a string at a call site: it has
+ * to be added to `SESSION_KEYS`, which is the line a reviewer is watching and the decision the
+ * spec reserves. The feature probe writes through the raw `Storage` API rather than through a
+ * `SessionStore`, so its scratch key is unaffected by this and does not belong in the union.
  */
 export type SessionKey = (typeof SESSION_KEYS)[keyof typeof SESSION_KEYS]
 
 /**
- * Every key this application is allowed to persist under, and there are exactly three.
+ * Every key this application is allowed to persist under, and there are exactly four.
  *
  * Namespaced so the app can be hosted on an origin it shares with something else without
  * either side stepping on the other, and so a human reading their own localStorage can tell
  * what belongs to this app.
+ *
+ * THE FOURTH ENTRY WAS ADDED DELIBERATELY BY STORY 1.14, which is the process this union exists
+ * to force. Story 1.11 wrote "exactly three" and meant it; the count is not the rule. The rule
+ * is that adding one is a reviewable decision with an argument attached, and the argument for
+ * `inviteIntents` is written at the key below and again in `session-invite-store.ts`.
  */
 export const SESSION_KEYS = {
   /** The root Account Key (D33). The one secret this tier holds. */
@@ -62,6 +67,24 @@ export const SESSION_KEYS = {
   ceremony: 'passbook.backup-ceremony',
   /** The backup cadence ladder and its status. */
   cadence: 'passbook.backup-cadence',
+  /**
+   * Invite intents: what the SENDER TYPED when they attached money to an invite, plus where each
+   * one stands (story 1.14, FR-014/FR-060).
+   *
+   * IT HAS TO BE PERSISTED OR THE FEATURE DOES NOT EXIST. There is no escrow and no relayer-held
+   * record — deliberately, because relayer-opened channels would serialize globally on
+   * `INDEX_NOT_SEQUENTIAL` and would put the relayer's address on chain as the sender of
+   * somebody else's money. The sender's own app is therefore the only party holding the intent,
+   * and an intent that does not survive a reload is a promise the app forgets while the invitee
+   * is still reading the link.
+   *
+   * WHY IT IS NOT ON THE MUST-NEVER LIST, stated here because `amount` superficially resembles
+   * something that is: this record is what the user TYPED — a recipient they chose, a token they
+   * picked, an amount they entered, and a state this app set. Nothing in it is decrypted, nothing
+   * is discovered, and nothing is read out of the pool. It is not a cache of a balance; it is a
+   * note-to-self about money that has not moved. See `session-invite-store.ts` and `session.ts`.
+   */
+  inviteIntents: 'passbook.invite-intents',
 } as const
 
 /** An in-memory store: real semantics, no durability. The default for tests. */

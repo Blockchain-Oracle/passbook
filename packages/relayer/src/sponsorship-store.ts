@@ -147,14 +147,60 @@ function validate(path: string, value: unknown): PersistedLedger {
 }
 
 /**
- * The named durable store: one JSON file, replaced whole on every write.
+ * Replaces a JSON file whole, atomically and durably. The one write discipline every ledger
+ * in this package uses.
  *
  * Writes go to a sibling temp file and are then renamed over the target. Rename is atomic
  * within a filesystem, so a crash mid-write leaves either the previous ledger or the new
  * one — never a half-written file that the next boot refuses to parse. Writing in place
  * would make "the process died while saving" and "someone corrupted the ledger" the same
  * observable state.
+ *
+ * SHARED RATHER THAN COPIED, because the invite ledger (invite-store.ts) needs exactly this
+ * and a second hand-written copy is how one of the four steps below quietly goes missing from
+ * one of them — and the missing step would only show up after a power loss, which is the one
+ * occasion nobody gets to re-run.
  */
+export function atomicWriteJson(path: string, value: unknown): void {
+  mkdirSync(dirname(path), { recursive: true })
+  const tmp = `${path}.tmp`
+  // fsync before the rename, because the interface promises the bytes are committed when
+  // this returns and a plain write only promises they reached the page cache. Renaming over
+  // an unflushed temp file survives a process crash but not a power loss: the rename can be
+  // durable while the contents it points at are not, which is how an atomic write still
+  // yields an empty ledger. The whole point of these files is to be right after a hard stop.
+  // 0o600: they hold a salt beside the hashes that salt keys, so anyone who can read one can
+  // brute-force the addresses back out (see PersistedLedger). Default permissions would make
+  // it world-readable on a shared host — the mode is set at creation rather than chmod'd
+  // after, so there is no window where it exists readable.
+  const fd = openSync(tmp, 'w', 0o600)
+  try {
+    writeFileSync(fd, `${JSON.stringify(value, null, 2)}\n`, 'utf8')
+    fsyncSync(fd)
+  } finally {
+    closeSync(fd)
+  }
+  try {
+    renameSync(tmp, path)
+    // The rename is atomic but not, by itself, durable: the directory entry it creates lives
+    // in the parent's metadata, which can still be in cache when the power goes. fsync on the
+    // file guarantees the CONTENTS survive; fsync on the directory is what guarantees the
+    // NAME points at them. Without this the promise in the interface is half true.
+    syncDirectory(dirname(path))
+  } catch (e) {
+    // Leaving the temp file behind would make the next save's write land on a stale name
+    // and, worse, leave a copy of the ledger at a path nothing manages. Best-effort: the
+    // rename failure is the error worth reporting, not whatever cleanup hits on the way out.
+    try {
+      unlinkSync(tmp)
+    } catch {
+      // Nothing useful to do; the rename error below is the one that matters.
+    }
+    throw e
+  }
+}
+
+/** The named durable store: one JSON file, replaced whole on every write. */
 export class FileSponsorshipStore implements SponsorshipStore {
   constructor(readonly path: string) {}
 
@@ -180,42 +226,7 @@ export class FileSponsorshipStore implements SponsorshipStore {
   }
 
   save(next: PersistedLedger): void {
-    mkdirSync(dirname(this.path), { recursive: true })
-    const tmp = `${this.path}.tmp`
-    // fsync before the rename, because the interface promises the bytes are committed when
-    // this returns and a plain write only promises they reached the page cache. Renaming over
-    // an unflushed temp file survives a process crash but not a power loss: the rename can be
-    // durable while the contents it points at are not, which is how an atomic write still
-    // yields an empty ledger. The whole point of this file is to be right after a hard stop.
-    // 0o600: this file holds the salt beside the hashes that salt keys, so anyone who can read
-    // it can brute-force the addresses back out (see PersistedLedger). Default permissions
-    // would make it world-readable on a shared host — the mode is set at creation rather than
-    // chmod'd after, so there is no window where it exists readable.
-    const fd = openSync(tmp, 'w', 0o600)
-    try {
-      writeFileSync(fd, `${JSON.stringify(next, null, 2)}\n`, 'utf8')
-      fsyncSync(fd)
-    } finally {
-      closeSync(fd)
-    }
-    try {
-      renameSync(tmp, this.path)
-      // The rename is atomic but not, by itself, durable: the directory entry it creates lives
-      // in the parent's metadata, which can still be in cache when the power goes. fsync on the
-      // file guarantees the CONTENTS survive; fsync on the directory is what guarantees the
-      // NAME points at them. Without this the promise in the interface is half true.
-      syncDirectory(dirname(this.path))
-    } catch (e) {
-      // Leaving the temp file behind would make the next save's write land on a stale name
-      // and, worse, leave a copy of the ledger at a path nothing manages. Best-effort: the
-      // rename failure is the error worth reporting, not whatever cleanup hits on the way out.
-      try {
-        unlinkSync(tmp)
-      } catch {
-        // Nothing useful to do; the rename error below is the one that matters.
-      }
-      throw e
-    }
+    atomicWriteJson(this.path, next)
   }
 }
 

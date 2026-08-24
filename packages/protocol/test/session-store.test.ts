@@ -48,12 +48,19 @@ describe('the session store interface (G1)', () => {
     expect(inMemorySessionStore({ [SESSION_KEYS.accountKey]: '0x1' }).read(SESSION_KEYS.accountKey)).toBe('0x1')
   })
 
-  it('there are exactly three keys, and every one of them is namespaced', () => {
-    // The list is closed on purpose — see `session.ts`'s storage boundary. A fourth value
-    // arriving here is a decision, not a detail, so the count is asserted.
+  it('there are exactly four keys, and every one of them is namespaced', () => {
+    // The list is closed on purpose — see `session.ts`'s storage boundary. A new value arriving
+    // here is a decision, not a detail, so the count is asserted.
+    //
+    // IT WENT FROM THREE TO FOUR IN STORY 1.14, and this line failing is exactly how that
+    // decision was surfaced for review. `passbook.invite-intents` holds what the SENDER TYPED
+    // when they attached money to an invite — a recipient, a token, an amount, a state. It is
+    // not on the MUST-NEVER list because nothing in it is decrypted, discovered or read out of
+    // the pool; the full argument is at `session-invite-store.ts`. Anyone raising this number
+    // again owes the same argument.
     const keys = Object.values(SESSION_KEYS)
-    expect(keys).toHaveLength(3)
-    expect(new Set(keys).size).toBe(3)
+    expect(keys).toHaveLength(4)
+    expect(new Set(keys).size).toBe(4)
     for (const key of keys) expect(key.startsWith('passbook.')).toBe(true)
   })
 })

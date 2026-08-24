@@ -65,7 +65,12 @@ import {
   approveCeiling,
   type SubmissionPolicy,
 } from './allowlist.js'
-import type { SubmitBody } from '../../protocol/src/relayer-wire.js'
+import type {
+  InviteClaimResponse,
+  InviteMintResponse,
+  InviteStatusResponse,
+  SubmitBody,
+} from '../../protocol/src/relayer-wire.js'
 import {
   SEND_CAP_NOTICE,
   SponsorshipLedger,
@@ -74,6 +79,8 @@ import {
   type SponsorDecision,
 } from './sponsorship.js'
 import { FileSponsorshipStore, isAcceptableSalt } from './sponsorship-store.js'
+import { InviteLedger, normalizeCode, type InviteConfig } from './invite.js'
+import { FileInviteStore } from './invite-store.js'
 import {
   createFundingMonitor,
   MAX_TIMER_MS,
@@ -98,6 +105,17 @@ const QUOTE_PATHS = new Set(['/quote', '/api/quote'])
 // Where a client asks which address a fee reimbursement should name (story 1.16). Both
 // spellings for the same reason as SUBMIT_PATHS.
 const FEE_RECIPIENT_PATHS = new Set(['/fee-recipient', '/api/fee-recipient'])
+
+// The invite substrate (story 1.14). Both spellings for the same reason as SUBMIT_PATHS.
+//
+// THERE IS NO `/i/<code>` ROUTE HERE, and there must not be one. The invite link's job is to
+// open the WEB APP, which then claims through an ordinary JSON POST to `/invite/claim` like
+// everything else. A path-parameter route would mean teaching `handle()` — the one function
+// every security gate in this file lives in — to parse a path prefix, and it would buy nothing
+// the app cannot already do.
+const INVITE_MINT_PATHS = new Set(['/invite/mint', '/api/invite/mint'])
+const INVITE_CLAIM_PATHS = new Set(['/invite/claim', '/api/invite/claim'])
+const INVITE_STATUS_PATHS = new Set(['/invite/status', '/api/invite/status'])
 
 // An upstream that will not answer in this long is an upstream the caller has already
 // given up on, and a request left hanging is a socket the relayer keeps paying for.
@@ -193,7 +211,17 @@ async function handle(req: IncomingMessage, res: ServerResponse, opts: RelayerSe
   const url = req.url ?? ''
   const isSubmit = SUBMIT_PATHS.has(url)
   const isFeeRecipient = req.method === 'GET' && FEE_RECIPIENT_PATHS.has(url)
-  if (!isFeeRecipient && (req.method !== 'POST' || !(isSubmit || QUOTE_PATHS.has(url)))) {
+  // An invite route on a relayer with no invite ledger is NOT FOUND rather than refused, which
+  // is the honest answer: this deployment does not offer invites at all, so there is no code to
+  // present and nothing for a client to retry. `/submit` is the one place a presented code gets
+  // a typed refusal instead, because there the client has already built a body around it.
+  const isInvite =
+    opts.invites !== undefined &&
+    (INVITE_MINT_PATHS.has(url) || INVITE_CLAIM_PATHS.has(url) || INVITE_STATUS_PATHS.has(url))
+  if (
+    !isFeeRecipient &&
+    (req.method !== 'POST' || !(isSubmit || isInvite || QUOTE_PATHS.has(url)))
+  ) {
     send(res, 404, { error: 'not found' })
     return
   }
@@ -243,7 +271,138 @@ async function handle(req: IncomingMessage, res: ServerResponse, opts: RelayerSe
     handleFeeRecipient(res, opts)
     return
   }
+  // BEHIND ALL FOUR GATES ABOVE, in the same order, for the same reasons. An invite mint is a
+  // write against a giveaway allowance and a claim is a burn; an unauthenticated one is a
+  // stranger spending somebody's invites and probing codes. Same door, same lock.
+  if (isInvite) {
+    await handleInvite(req, res, url, opts)
+    return
+  }
   await (isSubmit ? handleSubmit(req, res, opts) : handleQuote(req, res, opts))
+}
+
+/**
+ * The three invite routes (story 1.14). Wiring only — every rule lives in `invite.ts`.
+ *
+ * The ledger's mutators write the durable store before they mutate memory, so any of them can
+ * throw on a full disk or a permissions change. That escaping would leave the request
+ * unanswered; it is caught here and answered 500, because an unrecordable mint or burn is one
+ * we refuse to make rather than one we make and forget.
+ */
+async function handleInvite(
+  req: IncomingMessage,
+  res: ServerResponse,
+  url: string,
+  opts: RelayerServerOptions,
+): Promise<void> {
+  const invites = opts.invites!
+  const now = (opts.now ?? Date.now)()
+
+  let parsed: unknown
+  try {
+    parsed = await readJsonBody(req)
+  } catch (e) {
+    send(res, 400, { error: String(e) })
+    return
+  }
+  // `JSON.parse('null')` succeeds, and so do `'7'` and `'[]'` — the same shape check `handleQuote`
+  // does, and for the same reason: destructuring any of them yields undefined for every field.
+  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+    send(res, 400, { error: 'body must be a JSON object' })
+    return
+  }
+
+  try {
+    if (INVITE_MINT_PATHS.has(url)) {
+      // Keyed on the connecting address, NEVER on anything the body says. An inviter the caller
+      // names is an allowance the caller chooses, which is not an allowance.
+      const decision = invites.mint(invites.inviterKey(clientIp(req)), now)
+      const body: InviteMintResponse = decision.allow
+        ? {
+            code: decision.code,
+            expiresAt: decision.expiresAt,
+            left: decision.left,
+            nextInHours: decision.nextInHours,
+          }
+        : {
+            // NOT A LOCKED DOOR: the refusal carries the numbers that make it a sentence with a
+            // clock in it, so the surface can say when one returns rather than greying out. The
+            // error text stays true for BOTH refusals — this inviter's window being spent and
+            // the relayer's global daily mint ceiling — because to the person pressing the
+            // button they are the same fact; `reason` carries the distinction for ops.
+            error: 'no invites can be minted right now; the refusal carries when one returns',
+            reason: decision.reason,
+            left: decision.left,
+            nextInHours: decision.nextInHours,
+            notice: decision.notice,
+          }
+      send(res, decision.allow ? 200 : 429, body)
+      return
+    }
+
+    const code = normalizeCode((parsed as { code?: unknown }).code)
+    if (code === null) {
+      // Refused before the ledger sees it and WITHOUT counting a claim attempt: a malformed
+      // string is not a guess at a code, and charging one against the cap would let a broken
+      // client lock itself out of an invite it holds.
+      send(res, 400, { error: 'body must carry a six-character `code` string' })
+      return
+    }
+
+    if (INVITE_CLAIM_PATHS.has(url)) {
+      // `claimant` is the client's idempotency token — random, minted by the claiming browser,
+      // held so a retry of a claim whose response was lost gets the same yes. NOT an identity
+      // and NOT the visitor id: visitor ids are IP-scoped, and behind one NAT the loser of a
+      // double-claim is indistinguishable from the winner by IP. Optional (a claim without one
+      // simply has no replay), but if present it must be sane — a silent coercion here would
+      // burn a code under a token nobody actually holds.
+      const rawClaimant = (parsed as { claimant?: unknown }).claimant
+      if (
+        rawClaimant !== undefined &&
+        (typeof rawClaimant !== 'string' || rawClaimant.length < 8 || rawClaimant.length > 128)
+      ) {
+        send(res, 400, { error: '`claimant`, when present, must be a string of 8 to 128 characters' })
+        return
+      }
+      const visitor = visitorId(clientIp(req), invites.salt, now)
+      const decision = invites.claim(code, visitor, now, rawClaimant)
+      if (decision.allow) {
+        send(res, 200, { claimed: true } satisfies InviteClaimResponse)
+        return
+      }
+      // 409 for the loser of a race — the request was well formed and arrived at a real code
+      // that somebody else won — and 429 for a visitor who has spent their attempts. An unknown
+      // code shares the 409 for tidiness, NOT as an enumeration defence: the body's `reason`
+      // token legitimately distinguishes not-found from already-used (the client's typed
+      // branches depend on it), so anyone reading bodies learns which codes exist either way.
+      // What actually stands between a guesser and the code space is the attempt cap — every
+      // miss here is charged, cap-first, in the ledger.
+      const status = decision.reason === 'invite-too-many-attempts' ? 429 : 409
+      send(res, status, {
+        error: `this invite cannot be claimed (${decision.reason})`,
+        reason: decision.reason,
+        notice: decision.notice,
+      } satisfies InviteClaimResponse & { error: string })
+      return
+    }
+
+    // The status poll is charged the same per-visitor attempt cap as a claim, but ONLY on a
+    // miss — see `InviteLedger.status`. Without that this route would answer "is this code live
+    // and unclaimed" for free and without limit, which is the exact question the claim cap
+    // exists to make expensive.
+    const decision = invites.status(code, visitorId(clientIp(req), invites.salt, now), now)
+    if (!decision.found) {
+      send(res, decision.reason === 'invite-too-many-attempts' ? 429 : 404, {
+        error: `no invite to report on (${decision.reason})`,
+        reason: decision.reason,
+      } satisfies InviteStatusResponse & { error: string })
+      return
+    }
+    send(res, 200, { state: decision.state } satisfies InviteStatusResponse)
+  } catch (e) {
+    console.warn(`relayer: invite ledger write failed: ${String(e)}`)
+    send(res, 500, { error: 'the invite ledger could not be written; refusing to mint or burn' })
+  }
 }
 
 /**
@@ -321,6 +480,7 @@ async function handleSubmit(
   let calls: Call[]
   let details: SubmitDetails | undefined
   let sponsored = false
+  let invite: string | undefined
   try {
     const body = (await readJsonBody(req)) as Partial<SubmitBody>
     if (!Array.isArray(body.calls) || body.calls.length === 0) {
@@ -352,8 +512,42 @@ async function handleSubmit(
       }
       details = { proofFacts: assertProofFacts(body.proofFacts) }
     }
+    if (body.invite !== undefined) {
+      // NEVER A SILENT IGNORE, on any of the three ways this can be wrong. A client that sent a
+      // code and got a 200 has every reason to believe the waiver applied, and the one case
+      // where that belief is expensive is the one where it did not: the invitee's per-visitor
+      // cap was the thing standing in the way, so ignoring the code means refusing them and
+      // telling them it worked.
+      const code = normalizeCode(body.invite)
+      if (code === null) {
+        throw new Error(
+          `refusing invite=${JSON.stringify(body.invite)}: an invite code is six characters ` +
+            'from the invite alphabet',
+        )
+      }
+      if (!sponsored) {
+        throw new Error(
+          'refusing an invite code on a submission that is not sponsored: the only thing a ' +
+            'burned code does is waive the per-visitor SPONSORSHIP cap, so on a plain ' +
+            'submission it would silently mean nothing',
+        )
+      }
+      invite = code
+    }
   } catch (e) {
     send(res, 400, { error: String(e) })
+    return
+  }
+
+  // Only the CONFIG question is answered this early — "does this relayer offer invites at
+  // all" reveals nothing about any code. The code itself is vetted further down, after the
+  // awaits, so the check the burn discipline leans on runs with nothing yielding between it
+  // and the consume.
+  if (invite !== undefined && !opts.invites) {
+    send(res, 400, {
+      error: 'this relayer does not accept invite codes',
+      reason: 'invites-not-offered',
+    })
     return
   }
 
@@ -381,6 +575,43 @@ async function handleSubmit(
   } catch (e) {
     send(res, 403, { error: String(e) })
     return
+  }
+
+  // The invite vet — deliberately HERE, after the approve-ceiling await and the policy gate and
+  // immediately before the budget gate, for two reasons that pull the same direction. First,
+  // ordering: from this check through `budget.spend` to `consume` below, nothing yields, so the
+  // code's state cannot change between being vetted and being consumed — the earlier placement
+  // had the approve-ceiling `await` inside that gap. Second, the vet is METERED
+  // (`vetForSubmit` charges a claim attempt per refusal, cap-first): without that, this endpoint
+  // would answer "is this code live" in typed refusals for free and without limit, walking
+  // around the very cap that makes a six-character bearer code safe. A vetted-and-refused code
+  // costs the guesser an attempt; a valid claimed code costs its holder nothing.
+  //
+  // Refused BEFORE the budget is touched, so a bad code cannot spend the day's budget — and the
+  // code is consumed only AFTER the budget accepts, so a submission refused for a spent daily
+  // budget leaves the invitee's code intact for tomorrow. Both halves matter.
+  if (invite !== undefined && opts.invites) {
+    let check: ReturnType<InviteLedger['vetForSubmit']>
+    try {
+      // The vet PERSISTS on a refusal (the attempt charge is a ledger write), so it can throw
+      // on a full disk — and that must refuse the submission, not escape as a 500 with no story.
+      check = opts.invites.vetForSubmit(
+        invite,
+        visitorId(clientIp(req), opts.invites.salt, (opts.now ?? Date.now)()),
+        (opts.now ?? Date.now)(),
+      )
+    } catch (e) {
+      console.warn(`relayer: invite ledger write failed: ${String(e)}`)
+      send(res, 500, { error: 'the invite ledger could not be written; refusing to sign' })
+      return
+    }
+    if (!check.allow) {
+      send(res, check.reason === 'invite-too-many-attempts' ? 429 : 400, {
+        error: `this invite cannot pay for a registration (${check.reason})`,
+        reason: check.reason,
+      })
+      return
+    }
   }
 
   // The budget gate — or rather, one of two, and which one is the whole of what `sponsored`
@@ -416,7 +647,12 @@ async function handleSubmit(
     const visitor = visitorId(clientIp(req), budget.salt, now)
     let decision: SponsorDecision
     try {
-      decision = budget.spend(visitor, now)
+      // A burned invite waives the PER-VISITOR cap and nothing else. `decideSponsorship` checks
+      // the daily budget first and never waives it, so an invited registration on a day whose
+      // budget is spent degrades into pay-your-own-way exactly like an uninvited one — which is
+      // the difference between a waiver and a bypass, and the reason the invite can be offered
+      // at all without it becoming a promise the wallet cannot keep.
+      decision = budget.spend(visitor, now, { waivePerVisitorCap: invite !== undefined })
     } catch (e) {
       // `spend` writes the durable ledger, so it can fail on a full disk or a permissions
       // change. Letting that escape leaves the request unanswered — the client waits for a
@@ -453,6 +689,39 @@ async function handleSubmit(
               notice: decision.notice,
             },
       )
+      return
+    }
+  }
+
+  // The budget has accepted, so the code has bought what it was for. Marked consumed HERE,
+  // still before `submit`, and for the same reason the spend is: the whole `await` below is a
+  // window in which concurrent requests would otherwise present the same code and each find it
+  // unconsumed. The cost of this order is that a submission which fails at the sequencer still
+  // spends the invite — the same direction of wrongness the budget already accepts, and the
+  // sender can mint another.
+  //
+  // If the WRITE here fails after the budget already spent, the relayer eats a budget unit for
+  // a registration that never happened — its own headroom, never the user's code (the code is
+  // only consumed by a successful write). That direction is deliberate: the reverse order would
+  // make a budget-write failure cost the invitee their invite.
+  if (invite !== undefined && opts.invites) {
+    try {
+      const consumed = opts.invites.consume(invite, (opts.now ?? Date.now)())
+      if (!consumed.allow) {
+        // Unreachable: from `vetForSubmit` above through `budget.spend` to here, nothing
+        // yields, so no concurrent request can consume the code in between. Kept because
+        // "unreachable" is a claim about today's control flow, and the failure it would cover
+        // — signing on a code that was not actually marked — is a free registration handed
+        // out twice.
+        send(res, 400, {
+          error: `this invite cannot pay for a registration (${consumed.reason})`,
+          reason: consumed.reason,
+        })
+        return
+      }
+    } catch (e) {
+      console.warn(`relayer: invite ledger write failed: ${String(e)}`)
+      send(res, 500, { error: 'the invite ledger could not be written; refusing to sign' })
       return
     }
   }
@@ -766,6 +1035,14 @@ export interface RelayerServerOptions {
    */
   sendBudget?: SponsorshipLedger
   /**
+   * The durable INVITE ledger (story 1.14). Absent means this relayer offers no invites: the
+   * three routes are 404 and a code presented on `/submit` is a typed 400 rather than a waiver.
+   *
+   * Its own file, like the send cap's, because an operator clearing a stuck allowance must not
+   * thereby un-burn every code ever claimed.
+   */
+  invites?: InviteLedger
+  /**
    * The address a client should name in a fee-reimbursement `Withdraw` — this relayer's own.
    * Absent means `GET /fee-recipient` refuses; see `handleFeeRecipient`.
    */
@@ -817,6 +1094,19 @@ export function createRelayerServer(options: RelayerServerOptions): Server {
     )
   }
 
+  // An invite ledger with no sponsorship budget behind it is the third silent misconfiguration,
+  // and it is silent in the worst direction: every invite route works, every code burns, and the
+  // waiver those codes buy waives a cap that does not exist — so `handleSubmit`'s budget gate is
+  // skipped entirely and the relayer hands out unbounded registrations while looking configured.
+  // The whole "a waiver is not a bypass" argument is a statement about a budget that is present.
+  if (options.invites && !options.sponsorship) {
+    throw new Error(
+      'an invite ledger was configured without a sponsorship budget. A burned invite waives the ' +
+        'per-visitor sponsorship cap, so without a budget behind it every invited registration ' +
+        'would be unmetered. Pass both, or neither.',
+    )
+  }
+
   // Resolved once, here, so the request path can never hash with an empty salt. An empty salt
   // makes every visitor id a plain hash of the address — the same value on every deployment,
   // so an in-memory key becomes a precomputable one. `main()` always passes the ledger's salt;
@@ -826,6 +1116,20 @@ export function createRelayerServer(options: RelayerServerOptions): Server {
     ...options,
     visitorSalt:
       options.visitorSalt || options.sponsorship?.salt || randomBytes(32).toString('hex'),
+  }
+
+  // READ BACK, not trusted, on the same reasoning as the send-cap notice above: the invite
+  // ledger takes its salt from its own store, and a store opened without being handed the
+  // sponsorship salt mints a fresh one and works perfectly. What it would do is bucket one
+  // address under two different opaque ids — the caps counting one visitor, the invite
+  // allowance counting another — so a per-visitor cap and the `1 more in Nh` promise it
+  // interacts with would be about two different people. Silent, and invisible in every log.
+  if (options.invites && options.invites.salt !== resolved.visitorSalt) {
+    throw new Error(
+      'the invite ledger was opened with a different visitor salt than the budget gates use, so ' +
+        'one address would be counted as two different visitors. Open it with the sponsorship ' +
+        "ledger's salt.",
+    )
   }
 
   return createServer((req, res) => {
@@ -918,6 +1222,79 @@ export interface SponsorshipConfig {
   quoteDailyPerVisitor: number
   /** Daily ceiling on `POST /api/quote` across everyone, for when addresses are cheap. */
   quoteDailyGlobal: number
+  /**
+   * The invite feature, or `undefined` when this relayer does not offer invites.
+   *
+   * OFF UNLESS DELIBERATELY TURNED ON. There is no defensible default for "how many free
+   * registrations may one address hand out to strangers" — that is a giveaway policy, not a
+   * tuning number — so the feature has a master switch rather than a default, and a relayer
+   * nobody configured for invites simply does not have them.
+   */
+  invites: InviteConfig | undefined
+  /** Where the invite ledger lives. Meaningless, and unread, when `invites` is undefined. */
+  inviteStorePath: string
+}
+
+/** The knob whose presence turns invites on. Named once, so the guard and the docs agree. */
+const INVITE_SWITCH = 'RELAYER_INVITE_ALLOWANCE'
+
+/**
+ * The invite surface, resolved from the environment. `undefined` when the feature is off.
+ *
+ * PARTIAL CONFIGURATION IS A STARTUP ERROR, and this is the guard the story asks for. An
+ * operator who sets `RELAYER_INVITE_TTL_HOURS` and nothing else has plainly decided to run
+ * invites; reading the rest from defaults and then quietly not having the feature at all —
+ * because the one variable that switches it on was the one they missed — is the same class of
+ * silent misconfiguration as a send budget carrying the wrong notice. The settings would look
+ * configured, `/invite/mint` would answer 404, and nothing anywhere would say why.
+ */
+export function resolveInviteConfig(env: NodeJS.ProcessEnv = process.env): InviteConfig | undefined {
+  const KNOBS = [
+    INVITE_SWITCH,
+    'RELAYER_INVITE_WINDOW_HOURS',
+    'RELAYER_INVITE_TTL_HOURS',
+    'RELAYER_INVITE_CLAIM_ATTEMPTS',
+    'RELAYER_INVITE_MINT_DAILY',
+    'RELAYER_INVITE_STORE',
+  ]
+  if (!(env[INVITE_SWITCH] || '')) {
+    const orphans = KNOBS.filter((name) => env[name])
+    if (orphans.length) {
+      throw new Error(
+        `${orphans.join(', ')} ${orphans.length === 1 ? 'is' : 'are'} set but ${INVITE_SWITCH} is ` +
+          `not, so the invite feature would be OFF and those settings would have no effect. ` +
+          `Set ${INVITE_SWITCH} to turn invites on, or unset the rest.`,
+      )
+    }
+    return undefined
+  }
+  return {
+    // Adapted from Bluesky's invite allowance rather than derived from anything (UX §9 Q12).
+    // Small, because every one of these is a registration the relayer pays for. The fallback
+    // on this one line is UNREACHABLE — this branch only runs when the switch is set, and
+    // `wholeInt` returns the fallback only for a blank value — so the effective default of the
+    // feature is OFF, never 3; the ceiling is the load-bearing part. It is 1,000 because the
+    // knobs that bound a giveaway need bounds of their own: a fat-fingered extra digit here is
+    // a thousand registrations per address per window.
+    allowance: positiveInt(env, INVITE_SWITCH, 3, 1_000),
+    // 24h is not arbitrary: the copy promises `1 more in {N}h`, and a window measured in
+    // anything else makes that sentence describe a different feature.
+    windowMs: positiveInt(env, 'RELAYER_INVITE_WINDOW_HOURS', 24, 24 * 365) * 3_600_000,
+    // Long enough that a link sent in the evening still works the next day, short enough that
+    // the live population of bearer codes stays small — which is one of the things that makes
+    // six characters sufficient (see invite.ts).
+    ttlMs: positiveInt(env, 'RELAYER_INVITE_TTL_HOURS', 72, 24 * 365) * 3_600_000,
+    // A real invitee claims once. This is sized against guessing, not against use: it is the
+    // rate limit that turns 32^6 from a number into a wall, and it also meters the status
+    // route's misses and `/submit`'s vet. CEILINGED at 10,000 because this knob is documented
+    // as what makes a six-character bearer code safe — a value that unmakes that argument
+    // should have to be typed somewhere more deliberate than an env file.
+    claimAttemptsPerDay: positiveInt(env, 'RELAYER_INVITE_CLAIM_ATTEMPTS', 10, 10_000),
+    // The global ceiling: what EVERY inviter together may mint per rolling day. The per-address
+    // allowance is a fairness bound; this is a solvency-shaped one, because addresses are cheap
+    // (IPv6, a botnet) and each live code slightly weakens the guessing arithmetic.
+    mintDailyGlobal: positiveInt(env, 'RELAYER_INVITE_MINT_DAILY', 50, 100_000),
+  }
 }
 
 /**
@@ -1001,10 +1378,24 @@ function resolveVisitorSalt(env: NodeJS.ProcessEnv): string | undefined {
  * not a balance. One sponsored submission per visitor per day, twenty across everyone.
  */
 export function resolveSponsorshipCaps(env: NodeJS.ProcessEnv = process.env): SponsorshipConfig {
+  const invites = resolveInviteConfig(env)
+  const sponsorDaily = positiveInt(env, 'RELAYER_SPONSOR_DAILY', 20)
+  // `.env.example` states the invariant — "raise the allowance alongside RELAYER_SPONSOR_DAILY,
+  // never past it" — and a stated invariant nothing enforces is one config typo away from being
+  // false. An allowance above the daily budget is a giveaway the treasury cannot honour: every
+  // code past the budget mints fine, claims fine, and then walks into `sponsorship-paused`.
+  if (invites && invites.allowance > sponsorDaily) {
+    throw new Error(
+      `${INVITE_SWITCH}=${invites.allowance} exceeds RELAYER_SPONSOR_DAILY=${sponsorDaily}. ` +
+        `One inviter could then mint more registrations per window than the relayer sponsors ` +
+        `per day, so invites would be minted that can only ever degrade. Raise the daily ` +
+        `budget, or lower the allowance.`,
+    )
+  }
   return {
     caps: {
       perVisitor: positiveInt(env, 'RELAYER_SPONSOR_PER_VISITOR', 1),
-      daily: positiveInt(env, 'RELAYER_SPONSOR_DAILY', 20),
+      daily: sponsorDaily,
     },
     storePath:
       env.RELAYER_SPONSOR_STORE ||
@@ -1046,6 +1437,13 @@ export function resolveSponsorshipCaps(env: NodeJS.ProcessEnv = process.env): Sp
     // attacker a fresh visitor id per request, so without a global ceiling the "cap" is only a
     // speed limit per identity they can mint for free. Same reasoning as the daily budget.
     quoteDailyGlobal: positiveInt(env, 'RELAYER_QUOTE_DAILY_GLOBAL', 1_000),
+    invites,
+    // A THIRD FILE, for the reason the send cap needed a second one: one file holding all three
+    // would make a reset of any of them a reset of all, and here the reset that must never
+    // happen by accident is the one that un-burns every claimed code.
+    inviteStorePath:
+      env.RELAYER_INVITE_STORE ||
+      fileURLToPath(new URL('../../../.relayer/invites.json', import.meta.url)),
   }
 }
 
@@ -1108,6 +1506,41 @@ export function openSendBudgetLedger(
   const record = store.load()
   if (record.salt !== salt) store.save({ ...record, salt })
   return new SponsorshipLedger(config.sendCaps, store, Date.now(), SEND_CAP_NOTICE)
+}
+
+/**
+ * Opens the invite ledger — third file, same machinery, and the budget gates' salt.
+ *
+ * `salt` is passed in rather than letting the store mint its own, exactly as
+ * `openSendBudgetLedger` does. Two salts would bucket one address under two opaque ids, and
+ * `createRelayerServer` reads the result back and refuses to start on a mismatch, because
+ * getting this wrong changes nothing an operator can see.
+ */
+export function openInviteLedger(config: SponsorshipConfig, salt: string): InviteLedger | undefined {
+  if (!config.invites) return undefined
+  const store = new FileInviteStore(config.inviteStorePath)
+  const record = store.load()
+  if (record.salt !== salt) {
+    // A FRESH ledger adopts the budget gates' salt silently — that is first boot, and the store
+    // minted a throwaway. An ESTABLISHED ledger with a different salt is another matter: every
+    // `inviterKey` in it was hashed under the old salt, so adopting the new one would silently
+    // re-key every inviter — all rolling windows reset, all standing attempt counts orphaned —
+    // with nothing in any log. That happens in practice when the SPONSORSHIP store is deleted
+    // or rotated (it mints the shared salt); the honest answer is to stop and make the operator
+    // reset the invite ledger deliberately too, not to quietly forget every allowance.
+    const established = record.invites.length > 0 || Object.keys(record.attempts.counts).length > 0
+    if (established) {
+      throw new Error(
+        `the invite ledger at ${config.inviteStorePath} was written under a different visitor ` +
+          `salt than the budget gates now use (this happens when the sponsorship store was ` +
+          `deleted or rotated). Adopting the new salt would silently reset every inviter's ` +
+          `rolling allowance and orphan every claim-attempt count. If that is what you intend, ` +
+          `move or delete the invite ledger file deliberately and restart.`,
+      )
+    }
+    store.save({ ...record, salt })
+  }
+  return new InviteLedger(config.invites, store)
 }
 
 /**
@@ -1186,6 +1619,7 @@ async function main(): Promise<void> {
   const sponsorConfig = resolveSponsorshipCaps()
   const sponsorship = openSponsorshipLedger(sponsorConfig)
   const sendBudget = openSendBudgetLedger(sponsorConfig, sponsorship.salt)
+  const invites = openInviteLedger(sponsorConfig, sponsorship.salt)
 
   const nodeUrl = await pickLiveRpcHost()
   const account = new Account({
@@ -1216,6 +1650,7 @@ async function main(): Promise<void> {
     authToken: process.env.RELAYER_AUTH_TOKEN || undefined,
     sponsorship,
     sendBudget,
+    invites,
     // Our own address, which is where a send's reimbursement leg has to point. It is already
     // public in every transaction this process submits, so advertising it discloses nothing —
     // what it buys is that rotating this wallet does not need a front-end release.
@@ -1254,6 +1689,15 @@ async function main(): Promise<void> {
     console.log(
       `plain sends: ${sponsorConfig.sendCaps.perVisitor}/visitor · ${sponsorConfig.sendCaps.daily}/day · ` +
         `ledger ${sponsorConfig.sendStorePath} · fee recipient ${address}`,
+    )
+    console.log(
+      sponsorConfig.invites
+        ? `invites: ${sponsorConfig.invites.allowance}/inviter per ` +
+            `${sponsorConfig.invites.windowMs / 3_600_000}h · codes live ` +
+            `${sponsorConfig.invites.ttlMs / 3_600_000}h · ` +
+            `${sponsorConfig.invites.claimAttemptsPerDay} claim attempts/visitor/day · ` +
+            `ledger ${sponsorConfig.inviteStorePath}`
+        : `invites: off (set ${INVITE_SWITCH} to offer them)`,
     )
     console.log(
       `funding: STRK balance ${monitor.health()} · ` +
