@@ -30,7 +30,12 @@ const PLACEHOLDER = 'TODO_DEPLOYED_ADDRESS'
 
 // `scripts` is deliberately not a scan root: this file necessarily contains every
 // string it bans. Do not add it.
-const ROOTS = ['packages', 'apps', 'workers', 'src', 'README.md']
+// `docs/topology.md` is named as a FILE rather than adding `docs/` as a directory: the rest of
+// docs/ is retired Superpowers planning that quotes this very ban list verbatim, so scanning the
+// directory would fail the build on documents that are describing the lint rather than breaking
+// it. The topology doc is the one thing under docs/ that ships (see .gitignore), so it is the one
+// thing under docs/ that has to be held to what the shipped copy is held to.
+const ROOTS = ['packages', 'apps', 'workers', 'src', 'README.md', 'docs/topology.md']
 const EXTS = new Set(['.ts', '.tsx', '.md', '.html'])
 
 // The scoped opt-out, for the one place that must state these claims in order to
@@ -92,11 +97,38 @@ function walk(p) {
   }
 }
 
-// A root that does not exist yet is fine, and that is the only tolerated absence.
-// Nothing wraps the walk itself: a guard that swallows an unexpected error is not a
-// guard, and a `try { walk(r) } catch {}` would silently skip the rest of a root.
+// A DIRECTORY root that does not exist yet is fine — `apps/` and `workers/` land later, and an
+// absent one has nothing to overclaim. A FILE root is the opposite case and must fail loudly:
+// a file is named here because that exact document has to be checked, so its absence means the
+// check quietly stopped happening while the lint kept printing "clean". That is the failure mode
+// this whole script exists to prevent, one level up.
+//
+// Nothing wraps the walk itself: a guard that swallows an unexpected error is not a guard, and
+// a `try { walk(r) } catch {}` would silently skip the rest of a root.
 for (const r of ROOTS) {
-  if (existsSync(r)) walk(r)
+  const namesFile = extname(r) !== ''
+  if (!existsSync(r)) {
+    if (namesFile) {
+      console.error(
+        `${r} is named as a scan root but does not exist. A file root is not optional: it was ` +
+          `listed because that document must be checked for false claims, so a missing one is a ` +
+          `guard that silently stopped running. Restore the file, or remove it from ROOTS.`,
+      )
+      guardFailed = true
+    }
+    continue
+  }
+  // A file root whose extension is not scannable would be walked and silently skipped — the
+  // same fail-open with an extra step.
+  if (namesFile && !EXTS.has(extname(r))) {
+    console.error(
+      `${r} is named as a scan root but its extension is not scanned (EXTS has ` +
+        `${[...EXTS].join(', ')}), so it would be walked and silently ignored.`,
+    )
+    guardFailed = true
+    continue
+  }
+  walk(r)
 }
 
 if (exemptedLineCount) {
