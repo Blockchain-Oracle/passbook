@@ -6,9 +6,11 @@
   "workspaces": ["packages/*"],
   "scripts": {
     "test": "vitest run",
-    "lint": "npm run lint:claims && npm run lint:secrets",
+    "lint": "npm run lint:claims && npm run lint:secrets && npm run lint:topology",
     "lint:claims": "node scripts/lint-claims.mjs",
-    "lint:secrets": "node scripts/lint-secrets.mjs"
+    "lint:secrets": "node scripts/lint-secrets.mjs",
+    "lint:topology": "node scripts/lint-topology.mjs",
+    "render:topology": "node scripts/render-topology.mjs"
   },
   "devDependencies": {
     "typescript": "5.6.3",
