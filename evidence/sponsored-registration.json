@@ -1,0 +1,109 @@
+{
+  "purpose": "story 1.13 / FR-019 — the one banked sponsored registration on mainnet, with its measured cost",
+  "registration": {
+    "transactionHash": "0x4fbbf9aa7992a95d313554bc17b2fff311b35a5974271defc6672f57abfe27d",
+    "block": 13805277,
+    "registeredAddress": "0x2bf7264ae68256b1bd46ddce77efb16589780ae05fdb976c7e56ff20f563533",
+    "identityPublicKey": "0xe58f8878daad978b61b93ea6e16cae29bff6e36d31f2dc1e52f59c7d69b228",
+    "submitter": "0x6e1c309456733fa40d17a560e4802b4ca65464cec172571b8883881bb6a0389",
+    "stages": [
+      "build",
+      "prove",
+      "relay",
+      "confirmed"
+    ]
+  },
+  "cost": {
+    "poolFeeWei": "6000000000000000000",
+    "gasWei": "2594270938553438960",
+    "gasUnit": "FRI",
+    "totalWei": "8594270938553438960",
+    "totalStrk": "8.59427093855343896",
+    "how": "poolFee = get_fee_amount read live at the build stage (the approve leg covers it); gas = the receipt actual_fee the relayer paid; total = what the relayer wallet lost"
+  },
+  "crossCheck": {
+    "relayerBalanceBeforeWei": "12940897572947657568",
+    "relayerBalanceAfterWei": "4346626634394218608",
+    "deltaWei": "8594270938553438960",
+    "deltaMatchesTotal": true
+  },
+  "timing": {
+    "stages": {
+      "build": "2026-08-24T18:55:14.871Z",
+      "prove": "2026-08-24T18:55:15.529Z",
+      "relay": "2026-08-24T18:55:21.407Z",
+      "confirmed": "2026-08-24T18:55:43.214Z"
+    },
+    "proveMs": 5878,
+    "note": "proveMs is the prove-stage wall time: prove stage entry to relay stage entry"
+  },
+  "accountDeployment": {
+    "required": true,
+    "why": "Discovered live in this session: the prove leg authenticates the registering user via the pool's assert_valid_signature (utils.cairo:383-408 at pinned commit 74841caf), whose SRC5 supports_interface probe hard-reverts on an undeployed address. compile_actions as a free view accepts an undeployed sender; proving does not. A sponsored registration can therefore never be a counterfactual account's first transaction.",
+    "fundingTransactionHash": "0x107dc33b817f0bca5bfc908e98e93479fdb1a9f91684891b4842b2e12136035",
+    "fundedWei": "192723675542647524",
+    "deployTransactionHash": "0x46118590a97a709232613b2de05c1f15fe58575e81a16995a940182f9e1f1b8",
+    "deployBlock": 13805248,
+    "deployFeeWei": "54911450842067264",
+    "verifiedClassHash": "0x61dac032f228abef9c6626f995015233097ae253a7f72d68552db02f2971b8f",
+    "dust": "whatever the funded amount left after the deployment fee remains at the throwaway address and is burned with its key when this process exits — the key is never persisted"
+  },
+  "proofOnWire": {
+    "proofFactsCount": 9,
+    "proofChars": 309144,
+    "note": "The broadcast carried BOTH proof_facts and the proof blob. The sequencer requires the pair — \"Proof facts and proof must either both be present or both be absent\" — first verified live by this session's broadcasts, contradicting earlier receipt-sampled observations: receipts and getTransactionByHash do not echo either field back, so an accepted proven transaction reads as proof-less after the fact."
+  },
+  "screeningImmunity": {
+    "confirmed": true,
+    "note": "The fresh address was never screened and the registration still succeeded. The deployed class only verifies a screening attestation when the action span carries a regular-pool deposit; a zero-deposit span takes the no-deposit branch, which asserts the attestation is None (privacy.cairo apply_actions, lines 782-797 at pinned commit 74841caf). Registration-phase screening immunity is therefore confirmed in practice, not inferred."
+  },
+  "funding": {
+    "transactionHash": "0x5bda5aee3044dc5544b2d1f75fcc2871bbd39cccbb481f2cc29d9474c8bb169",
+    "record": "evidence/relayer-funding.json"
+  },
+  "sessionCosts": {
+    "provenance": "throwaway1 and relayerAccountDeployment were written by the banked run itself; throwaway2 and throwaway3 were appended immediately after it, in the same session, from their named receipts — every figure independently verifiable by transaction hash. Sponsorship visitor units (cap raised to 3 for the session): attempt 1 consumed unit 1 (metered before signing, then the relay leg failed on the undeployed relayer account); attempt 2 was refused pay-your-own-way and consumed nothing; attempt 3 consumed unit 2 (signed, then rejected by the sequencer for the missing proof blob); attempt 4 consumed unit 3 and is the banked registration above. Final ledger: 3 of 3 used on 2026-08-24.",
+    "throwaway1": {
+      "why": "cost of discovering the relayer hot key was undeployed — deployed, never registered, key burned with its process",
+      "address": "0x664718e9a08d63e9786f2a8224d509eb76fba7a9064f33bc5893f360cddd0f1",
+      "fundTransactionHash": "0x30a3341ce1436175070d3a107d4bc3bdfd2bb7d2a1f1a2f4cd0f692c83c5edb",
+      "deployTransactionHash": "0x56a0082874ece7ada1ca3c465c3bdf29e55f1a91fcf44e526cba81231a99f86",
+      "fundedWei": "252587504194869888",
+      "deployFeeWei": "53977524554615808",
+      "dustBurnedWei": "198609979640254080"
+    },
+    "throwaway2": {
+      "why": "burned to attempt 2's refusal: attempt 1 had already consumed the loopback visitor's per-visitor sponsorship unit (the relayer meters before signing, deliberately), so the relay leg refused pay-your-own-way; the key died with its process",
+      "address": "0x4b3d08b86d65dc1a2703f62e03f5129bd02a1667bfc707ae1fd70e0777315d5",
+      "fundTransactionHash": "0x7ad9d2983a58760d43a4a652bd6ef3b1f27fd27982971c33a7efa5a3103c31",
+      "deployTransactionHash": "0x314d9b48ac19544772ecdbe87e0830c710b60fa1dbc0eeb77cc1fd564c4ee74",
+      "fundedWei": "189864246781442772",
+      "deployFeeWei": "59128746070570176",
+      "dustBurnedWei": "130735500710872596"
+    },
+    "throwaway3": {
+      "why": "cost of discovering the proof-field wire gap: the sequencer rejected the broadcast (proof_facts without proof), exposing that the reviewed pipeline never carried the proof blob; the key died with its process",
+      "address": "0x28f3c3bbe3e7a6b5e5e5ffe3ddc4344b1aee398808f7bab70a230a12bd509aa",
+      "fundTransactionHash": "0x392f6216c9ba0aa67df1361b9561159ad715702a83770485936e17d5b97b0c1",
+      "deployTransactionHash": "0x33c29d146ce1edbe44ba13439aae7f5f5d872e47f507b1c5a4d049aefd7e7f1",
+      "fundedWei": "190040470826261220",
+      "deployFeeWei": "54156802436543200",
+      "dustBurnedWei": "135883668389718020"
+    },
+    "relayerAccountDeployment": {
+      "why": "the relayer hot key had no account contract; nothing it signs works without one",
+      "transactionHash": "0x12cc3719ca0cf0d905a6e5230f547b88d660087529d2d250141db1ecfaf90c4",
+      "record": "evidence/account-deployment.json"
+    }
+  },
+  "provenance": {
+    "network": "mainnet",
+    "chainId": "0x534e5f4d41494e",
+    "pool": "0x040337b1af3c663e86e333bab5a4b28da8d4652a15a69beee2b677776ffe812a",
+    "poolClassHashAtBank": "0x67dddd89d80fedadc06b6f160798f94800a4a70164e5a24301cd0d6076b554d",
+    "prover": "https://transaction-prover.alpha-mainnet.sw-dev.io",
+    "relayerUrl": "http://127.0.0.1:8787/api/submit",
+    "verifiedAtBlock": 13805234,
+    "createdAt": "2026-08-24T18:55:47.020Z"
+  }
+}

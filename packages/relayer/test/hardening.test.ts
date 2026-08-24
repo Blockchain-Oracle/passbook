@@ -903,15 +903,48 @@ describe('GET /fee-recipient (story 1.16)', () => {
 
 describe('POST /submit carries proofFacts (story 1.12)', () => {
   const FACTS = ['0x1a2b', '3141592653589793']   // hex and decimal: both reach this server
+  // The blob the facts belong to. The sequencer takes the pair or nothing (story 1.13's
+  // first real broadcast), so every proven body below carries both.
+  const BLOB = 'AQICtest-proof-blob'
 
-  it('passes validated facts through to the signer', async () => {
+  it('passes validated facts and their proof blob through to the signer', async () => {
     const submit = vi.fn<SubmitCalls>(async () => '0xok')
     const s = await start({ submit })
     try {
-      const res = await request(s.port, '/submit', { calls: [A_CALL], proofFacts: FACTS })
+      const res = await request(s.port, '/submit', { calls: [A_CALL], proofFacts: FACTS, proof: BLOB })
       expect(res.status).toBe(200)
       expect(res.body.transactionHash).toBe('0xok')
-      expect(submit).toHaveBeenCalledWith([A_CALL], { proofFacts: FACTS })
+      expect(submit).toHaveBeenCalledWith([A_CALL], { proofFacts: FACTS, proof: BLOB })
+    } finally {
+      await s.close()
+    }
+  })
+
+  // The sequencer's both-or-neither rule, mirrored at the free layer: either half alone
+  // would be signed, broadcast, and rejected at this wallet's expense.
+  it('answers 400 for proofFacts without their proof, and for a proof without facts', async () => {
+    const submit = vi.fn<SubmitCalls>(async () => '0xok')
+    const s = await start({ submit })
+    try {
+      const factsAlone = await request(s.port, '/submit', { calls: [A_CALL], proofFacts: FACTS })
+      expect(factsAlone.status).toBe(400)
+      expect(factsAlone.body.error).toMatch(/both or neither/)
+
+      const blobAlone = await request(s.port, '/submit', { calls: [A_CALL], proof: BLOB })
+      expect(blobAlone.status).toBe(400)
+      expect(blobAlone.body.error).toMatch(/both or neither/)
+
+      const emptyBlob = await request(s.port, '/submit', { calls: [A_CALL], proofFacts: FACTS, proof: '' })
+      expect(emptyBlob.status).toBe(400)
+
+      // A blob that is not a string at all — a number survives JSON, so it is a shape a
+      // real caller can produce, and it must be a refusal rather than something signed.
+      const numberBlob = await request(s.port, '/submit', { calls: [A_CALL], proofFacts: FACTS, proof: 123 })
+      expect(numberBlob.status).toBe(400)
+      const numberBlobAlone = await request(s.port, '/submit', { calls: [A_CALL], proof: 123 })
+      expect(numberBlobAlone.status).toBe(400)
+
+      expect(submit).not.toHaveBeenCalled()
     } finally {
       await s.close()
     }
@@ -943,7 +976,9 @@ describe('POST /submit carries proofFacts (story 1.12)', () => {
         'not-an-array',
         [],                        // meant to send some and sent none
       ]) {
-        const res = await request(s.port, '/submit', { calls: [A_CALL], proofFacts })
+        // The blob rides along so the refusal under test stays the FACTS gate, not the
+        // both-or-neither gate one check earlier.
+        const res = await request(s.port, '/submit', { calls: [A_CALL], proofFacts, proof: BLOB })
         expect(res.status, `proofFacts ${JSON.stringify(proofFacts)}`).toBe(400)
         expect(res.body.error).toMatch(/proofFacts/)
       }
@@ -962,7 +997,7 @@ describe('POST /submit carries proofFacts (story 1.12)', () => {
     const bookCall = { contractAddress: messageBook, entrypoint: 'privacy_invoke', calldata: [] }
     const s = await start({ submit, policy: { messageBook } })
     try {
-      const res = await request(s.port, '/submit', { calls: [bookCall], proofFacts: FACTS })
+      const res = await request(s.port, '/submit', { calls: [bookCall], proofFacts: FACTS, proof: BLOB })
       expect(res.status).toBe(400)
       expect(res.body.error).toMatch(/no pool apply_actions/)
       expect(submit).not.toHaveBeenCalled()
@@ -982,9 +1017,9 @@ describe('POST /submit carries proofFacts (story 1.12)', () => {
     )
     const s = await start({ sponsorship, now: () => T0 })
     try {
-      expect((await request(s.port, '/submit', { calls: [A_CALL], proofFacts: [1] })).status)
+      expect((await request(s.port, '/submit', { calls: [A_CALL], proofFacts: [1], proof: BLOB })).status)
         .toBe(400)
-      expect((await request(s.port, '/submit', { calls: [A_CALL], proofFacts: FACTS })).status)
+      expect((await request(s.port, '/submit', { calls: [A_CALL], proofFacts: FACTS, proof: BLOB })).status)
         .toBe(200)
     } finally {
       await s.close()

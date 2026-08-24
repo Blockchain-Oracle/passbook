@@ -32,7 +32,7 @@ function harness(confirm: (hash: string) => Promise<number | null | void>) {
     readBlockNumber: async () => 13_780_000,
     prove: async () => ({
       call: { contractAddress: '0x1', entrypoint: 'apply_actions', calldata: [] },
-      proofFacts: ['0x1'], provingBlockId: 13_779_990,
+      proofFacts: ['0x1'], proof: 'AQICtest-proof-blob', provingBlockId: 13_779_990,
     }),
     submit: async () => ({ status: 200, body: { transactionHash: '0xdeadbeef' } }),
     confirm,

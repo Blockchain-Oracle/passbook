@@ -251,7 +251,7 @@ function pipeline(acquireSubmitLock: () => Promise<() => void>, submits: SubmitB
     prove: async (input): Promise<ProvedRegistration> => {
       // Slow enough that the second call is genuinely in flight while this one holds the lock.
       await yieldTurn()
-      return { call: APPLY_ACTIONS, proofFacts: ['0x11'], provingBlockId: input.provingBlockId }
+      return { call: APPLY_ACTIONS, proofFacts: ['0x11'], proof: 'AQICtest-proof-blob', provingBlockId: input.provingBlockId }
     },
     submit: async (_url, body): Promise<RelayResponse> => {
       submits.push(body)
@@ -333,7 +333,7 @@ describe('two concurrent registrations, one submission (AC2/AC3)', () => {
         readBlockNumber: async () => HEAD,
         prove: async (input) => {
           proved.push(input.accountKey)
-          return { call: APPLY_ACTIONS, proofFacts: ['0x11'], provingBlockId: input.provingBlockId }
+          return { call: APPLY_ACTIONS, proofFacts: ['0x11'], proof: 'AQICtest-proof-blob', provingBlockId: input.provingBlockId }
         },
         submit: async (_url, body) => {
           submits.push(body)

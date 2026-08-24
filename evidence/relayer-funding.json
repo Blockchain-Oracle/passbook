@@ -1,0 +1,20 @@
+{
+  "purpose": "story 1.13 — fund the relayer hot key for the one banked sponsored registration",
+  "from": "0x10fe91ce9947fdfb2b8dbfcb146560176ab3bf5ec15f3fc501170a5880f4b97",
+  "to": "0x6e1c309456733fa40d17a560e4802b4ca65464cec172571b8883881bb6a0389",
+  "amountWei": "13000000000000000000",
+  "transactionHash": "0x5bda5aee3044dc5544b2d1f75fcc2871bbd39cccbb481f2cc29d9474c8bb169",
+  "block": 13800086,
+  "transferGasWei": "56138932768745520",
+  "deployerBalanceBeforeWei": "16485351190080882400",
+  "deployerBalanceAfterWei": "3429212257312136880",
+  "relayerBalanceBeforeWei": "0",
+  "relayerBalanceAfterWei": "13000000000000000000",
+  "livePoolFeeWei": "6000000000000000000",
+  "refusalFloorWei": "12000000000000000000",
+  "network": "mainnet",
+  "chainId": "0x534e5f4d41494e",
+  "sentVia": "https://starknet-rpc.publicnode.com",
+  "executedAt": "2026-08-24T16:30:25.008Z",
+  "note": "Balances-after are live reads at capture time; balances-before are exact arithmetic from the receipt (deployer: after + amount + gas; relayer: after - amount), matching the executing run’s own pre-broadcast reads (16.4854 / 0.0000 STRK). The executing run broadcast this transaction and then crashed on a client-side waitForTransaction API bug before it could write this file; nothing was spent twice."
+}

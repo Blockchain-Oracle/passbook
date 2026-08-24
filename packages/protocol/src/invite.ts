@@ -469,11 +469,16 @@ export function inviteShareText(appName: string, link: string): string {
 /**
  * The row an invitee sees on the cold open: `abu invited you. …`
  *
- * THE COST IS AN OPTIONAL PARAMETER AND THERE IS NO LITERAL ANYWHERE. Story 1.13 banks one real
- * sponsored registration on mainnet and measures what it actually cost; until then this renders
- * without a figure, which is a true sentence rather than a smaller one. Writing a placeholder
- * here — even a plausible one — would create a number somebody has to remember to replace, and
- * the failure mode is shipping a price we invented to a stranger deciding whether to trust us.
+ * THE COST IS AN OPTIONAL PARAMETER AND THERE IS NO LITERAL ANYWHERE. Story 1.13 HAS
+ * banked the real registration (24 Aug 2026): 8.594 STRK measured, recorded with full
+ * provenance in `SPONSORED_REGISTRATION_EVIDENCE` (register.ts) and
+ * `evidence/sponsored-registration.json`. Nothing here renders from it yet, and the
+ * sentence below is now KNOWN-STALE in a way a number cannot fix: the session also
+ * proved a cold-start account is TWO transactions (DEPLOY_ACCOUNT, unsponsored, then
+ * the registration), so "costs one Starknet transaction" is false for the embedded-key
+ * invitee this row addresses. Reworking the copy and its tests — and wiring the cost
+ * from the evidence export — is epic-6's recorded obligation (deferred-work.md); this
+ * comment records the fact so the stale sentence cannot pass for a checked one.
  */
 export function inviteeRow(inviter: string, cost?: string): string {
   const price = cost ? `, about ${cost}` : ''

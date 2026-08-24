@@ -39,6 +39,7 @@ function mockSdk(
     span?: string[]
     call?: { contractAddress: string; entrypoint: string; calldata: string[] }
     proofFacts?: string[]
+    proofData?: string
   } = {},
 ) {
   const buildArgs: unknown[][] = []
@@ -63,7 +64,11 @@ function mockSdk(
     executeWithInvocation: async () => ({
       callAndProof: {
         call: over.call ?? APPLY_ACTIONS,
-        proof: { data: '', output: [], proofFacts: over.proofFacts ?? ['0x11', '0x22'] },
+        proof: {
+          data: over.proofData ?? 'AQICtest-proof-blob',
+          output: [],
+          proofFacts: over.proofFacts ?? ['0x11', '0x22'],
+        },
       },
     }),
   }
@@ -77,11 +82,12 @@ const run = () =>
 beforeEach(() => createPrivateTransfers.mockReset())
 
 describe('proveRegistration wiring (AC2)', () => {
-  it('returns the pool call, the proof facts, and the block it bound to', async () => {
+  it('returns the pool call, the proof facts, the proof blob, and the block it bound to', async () => {
     mockSdk()
     expect(await run()).toEqual({
       call: APPLY_ACTIONS,
       proofFacts: ['0x11', '0x22'],
+      proof: 'AQICtest-proof-blob',
       provingBlockId: BLOCK,
     })
   })
@@ -165,5 +171,14 @@ describe('proveRegistration refuses what it should never prove', () => {
   it('refuses proof facts that are not felts', async () => {
     mockSdk({ proofFacts: ['0x11', 'not-a-felt'] })
     await expect(run()).rejects.toThrow(/not a felt at index 1/)
+  })
+
+  // The sequencer takes proof_facts and proof together or not at all — verified live on
+  // the first real broadcast (story 1.13). A prove that came back without the blob has
+  // not produced a submittable transaction, and the refusal must land here, where the
+  // failure is still `prover-failed` and free, not at a signed, paid-for broadcast.
+  it('refuses a prover response whose proof blob is empty', async () => {
+    mockSdk({ proofData: '' })
+    await expect(run()).rejects.toThrow(/no proof blob alongside its facts/)
   })
 })

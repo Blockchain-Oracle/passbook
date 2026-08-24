@@ -26,6 +26,7 @@ import { MemorySponsorshipStore } from '../../relayer/src/sponsorship-store.js'
 const FEE_WEI = 6_000_000_000_000_000_000n
 const HEAD = 1_000_000
 const PROOF_FACTS = ['0x50524f4f4631', '0xd204f0']
+const PROOF_BLOB = 'AQICsend-bridge-proof-blob'
 const SELF = '0x0123456789abcdef'
 const RECIPIENT = '0x0fedcba987654321'
 const RELAYER_FEE_ADDRESS = `0x${'a'.repeat(63)}1`
@@ -67,7 +68,7 @@ function deps(over: Partial<SendDeps> = {}): SendDeps {
     readChannelCount: async () => 2,
     readFeeRecipient: async () => RELAYER_FEE_ADDRESS,
     prove: async (input) => ({
-      call: APPLY_ACTIONS, proofFacts: PROOF_FACTS, provingBlockId: input.provingBlockId, mintedNoteIds: [],
+      call: APPLY_ACTIONS, proofFacts: PROOF_FACTS, proof: PROOF_BLOB, provingBlockId: input.provingBlockId, mintedNoteIds: [],
     }),
     confirm: async () => 4242,
     confirmNoteMature: async () => true,
@@ -95,7 +96,7 @@ describe('the send relay hop, over real HTTP', () => {
       // The body the browser builds really is one this server accepts — including the absence of
       // the sponsored flag, which routes it to the send cap rather than the sponsorship budget.
       expect(relayer.submit).toHaveBeenCalledTimes(1)
-      expect(relayer.submit.mock.calls[0]![1]).toEqual({ proofFacts: PROOF_FACTS })
+      expect(relayer.submit.mock.calls[0]![1]).toEqual({ proofFacts: PROOF_FACTS, proof: PROOF_BLOB })
     } finally {
       await relayer.close()
     }

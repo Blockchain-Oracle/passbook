@@ -20,17 +20,12 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { Account, RpcProvider, ec, hash } from 'starknet'
 import { ACTIVE_NETWORK, NET, STRK_TOKEN } from '../packages/protocol/src/constants.js'
 import { loadDotEnv } from '../packages/protocol/src/env.js'
+// The class hash lives in account-lib.ts — an import-safe module — precisely so the
+// OTHER session scripts can share it without triggering this file's top-level run.
+import { OZ_ACCOUNT_CLASS_HASH } from './account-lib.js'
 
 // Before any process.env read.
 const envFile = loadDotEnv()
-
-/**
- * The OpenZeppelin account class, declared on SN_MAIN. Both keypairs in `.env` were
- * generated against it, so it is not interchangeable with another account class: change
- * it and the derived address stops matching the funded one.
- */
-const OZ_ACCOUNT_CLASS_HASH =
-  '0x061dac032f228abef9c6626f995015233097ae253a7f72d68552db02f2971b8f'
 
 const OUTPUT_FILE = 'evidence/account-deployment.json'
 

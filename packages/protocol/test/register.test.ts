@@ -47,6 +47,10 @@ const APPLY_ACTIONS: Call = {
   calldata: ['0x1', '0x0'],
 }
 const PROOF_FACTS = ['0x11', '0x22']
+// A stand-in for the prover's ~300KB base64 blob. Content is opaque to the pipeline;
+// what matters is that it rides the wire NEXT TO the facts — the sequencer takes both
+// or neither.
+const PROOF_BLOB = 'AQICtest-proof-blob'
 
 /**
  * Fakes that COUNT. The pipeline's central promise is that a route decided for free
@@ -70,7 +74,7 @@ function harness(over: Partial<RegisterDeps> = {}, inputOver: Partial<RegisterIn
     readBlockNumber: async () => HEAD,
     prove: async (input): Promise<ProvedRegistration> => {
       proveCalls.push(input)
-      return { call: APPLY_ACTIONS, proofFacts: PROOF_FACTS, provingBlockId: input.provingBlockId }
+      return { call: APPLY_ACTIONS, proofFacts: PROOF_FACTS, proof: PROOF_BLOB, provingBlockId: input.provingBlockId }
     },
     submit: async (_url, body): Promise<RelayResponse> => {
       relayCalls.push(body)
@@ -121,12 +125,15 @@ describe('registerSponsored — the happy path (AC2/AC3/AC5)', () => {
     )
   })
 
-  it('posts [approve, apply_actions] with the proof facts alongside', async () => {
+  it('posts [approve, apply_actions] with the proof facts AND the proof blob alongside', async () => {
     const h = harness()
     await h.run()
     expect(h.relayCalls).toHaveLength(1)
     const body = h.relayCalls[0]!
     expect(body.proofFacts).toEqual(PROOF_FACTS)
+    // Both-or-neither is the sequencer's rule: facts without their blob are rejected at
+    // broadcast, after the relayer signed. The body must carry the pair.
+    expect(body.proof).toBe(PROOF_BLOB)
     expect(body.calls.map((c) => c.entrypoint)).toEqual(['approve', 'apply_actions'])
   })
 

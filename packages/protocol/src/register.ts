@@ -166,6 +166,17 @@ export interface ProvedRegistration {
   call: Call
   /** Prover facts; the transaction is rejected without them. */
   proofFacts: string[]
+  /**
+   * The proof blob itself (the prover's `proof` string, ~300KB of base64), which must
+   * ride on the broadcast NEXT TO the facts. The sequencer enforces both-or-neither —
+   * `proof_facts` without `proof` is rejected at `starknet_addInvokeTransaction` with
+   * "Proof facts and proof must either both be present or both be absent" — and this
+   * pipeline learned that from the FIRST real broadcast (story 1.13, 2026-08-24), not
+   * from a receipt: receipts do not echo the proof field back, so sampling accepted
+   * transactions had "shown" that no proof material rides at all. It does; it is just
+   * write-only on the wire.
+   */
+  proof: string
   /** The block the proof is bound to, for the validity-window check before relay. */
   provingBlockId: number
 }
@@ -333,7 +344,26 @@ export async function proveRegistration(input: ProveRegistrationInput): Promise<
     throw new Error(`the prover returned a proof fact that is not a felt at index ${bad}: ${String(proofFacts[bad])}`)
   }
 
-  return { call, proofFacts, provingBlockId: input.provingBlockId }
+  return { call, proofFacts, proof: proofBlobFrom(proof), provingBlockId: input.provingBlockId }
+}
+
+/**
+ * Pulls the proof blob out of a prover response, or throws.
+ *
+ * ONE helper for both prove legs (registration here, `proveSend` in send.ts), and it
+ * runs where the failure is still `prover-failed` and still free: the sequencer rejects
+ * `proof_facts` without their `proof`, so a prove that came back without the blob has
+ * not produced a submittable transaction and must not cost a relay hop to find out.
+ */
+export function proofBlobFrom(proof: unknown): string {
+  const data = (proof as { data?: unknown } | undefined)?.data
+  if (typeof data !== 'string' || data.length === 0) {
+    throw new Error(
+      'the prover returned no proof blob alongside its facts; the sequencer rejects ' +
+        'proof_facts without proof',
+    )
+  }
+  return data
 }
 
 // ── The fee leg (AC2/AC6) ─────────────────────────────────────────────────────────────────
@@ -823,6 +853,10 @@ export async function registerSponsored(
       response = await submit(input.relayerUrl ?? DEFAULT_RELAYER_URL, {
         calls,
         proofFacts: proved.proofFacts,
+        // The blob the facts are the facts OF. The sequencer takes both or neither, so a
+        // body carrying facts alone would be refused at broadcast — after the relayer
+        // signed and paid attention. See ProvedRegistration.proof.
+        proof: proved.proof,
         // A registration IS the sponsorship — it mints nothing, so there is no value in the
         // transaction to reimburse the fee from and the relayer's own STRK pays it. The flag
         // is what keeps this charged to the sponsorship budget once the relayer stopped
@@ -1009,3 +1043,50 @@ export function confirmFromReceipt(receipt: unknown): number | null {
 async function defaultConfirm(transactionHash: string): Promise<number | null> {
   return confirmFromReceipt(await withFallback((p) => p.waitForTransaction(transactionHash)))
 }
+
+/**
+ * What ONE sponsored registration actually cost on mainnet, measured — never invented.
+ *
+ * Banked 24 Aug 2026 by `scripts/bank-sponsored-registration.ts` driving THIS pipeline
+ * against the live pool, prover and relayer (story 1.13 / FR-019); the full record with
+ * balance-delta cross-check is `evidence/sponsored-registration.json`, and every number
+ * here resolves against the transaction hash below. This is the "no hardcoded cost" rule
+ * kept the only way it can be: the literal exists because it was PAID, and it carries the
+ * provenance to prove it. NOTHING RENDERS FROM IT YET: `inviteeRow` (invite.ts) still
+ * takes its optional cost as a caller-supplied string, and wiring it — plus the copy
+ * rework the two-transaction fact forces — is epic-6's recorded obligation
+ * (deferred-work.md), not an accomplished fact.
+ *
+ * TWO TRANSACTIONS, NOT ONE, and the second fact matters as much as the price: the prove
+ * leg authenticates the registering user on-chain (`assert_valid_signature`'s SRC5 probe
+ * of the user address), so the account contract MUST be deployed before registration —
+ * a counterfactual address cannot register, and nothing sponsors the deployment today.
+ * Copy that says "creating an account costs one Starknet transaction" is false for an
+ * embedded-key cold start; render from `accountDeployment` here instead.
+ *
+ * The pool fee is mutable at zero notice and gas moves with the network, so this is a
+ * RECORD of one real registration, not a quote — copy built from it should say "about".
+ */
+export const SPONSORED_REGISTRATION_EVIDENCE = {
+  transactionHash: '0x4fbbf9aa7992a95d313554bc17b2fff311b35a5974271defc6672f57abfe27d',
+  block: 13805277,
+  /** `get_fee_amount` at the build stage, pulled by `collect_fee` from the approve leg. */
+  poolFeeWei: 6_000_000_000_000_000_000n,
+  /** The receipt's `actual_fee` (FRI) the relayer paid to execute the batch. */
+  gasWei: 2_594_270_938_553_438_960n,
+  /** What the submitting wallet lost, exactly — matched by its balance delta. */
+  totalWei: 8_594_270_938_553_438_960n,
+  /** Prove-stage wall time, entry to relay entry, against the live prover over OHTTP. */
+  proveMs: 5_878,
+  /** The deployment the registration could not happen without. Paid separately, by the account. */
+  accountDeployment: {
+    transactionHash: '0x46118590a97a709232613b2de05c1f15fe58575e81a16995a940182f9e1f1b8',
+    block: 13805248,
+    feeWei: 54_911_450_842_067_264n,
+  },
+  screeningImmunity:
+    'confirmed in practice: the never-screened fresh address registered successfully — a ' +
+    'zero-deposit span takes the no-deposit branch, which asserts the attestation is None',
+  measuredAt: '2026-08-24T18:55:47.020Z',
+  record: 'evidence/sponsored-registration.json',
+} as const

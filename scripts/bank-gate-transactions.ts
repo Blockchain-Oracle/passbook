@@ -511,11 +511,13 @@ for (const { group, rows } of ACTION_LIST_EVIDENCE) {
 //      implemented above: read `allowance(sender, pool)` and add the leg when it does
 //      not cover the fee.
 //
-//   c. NO PROOF IS ATTACHED TO THE TRANSACTION. Checked across a registration, two
-//      `InvokeExternal` transactions and a note spend: every one is an ordinary v3
-//      INVOKE with a **2-felt account signature**, and none carries proof material in
-//      its calldata or signature. Whatever SNIP-36 proving happens, it does not change
-//      the shape of what gets broadcast.
+//   c. NO PROOF IS ATTACHED TO THE TRANSACTION — **CORRECTED 24 Aug (story 1.13)**:
+//      this observation was an artifact of HOW it was checked. Receipts and
+//      getTransactionByHash do NOT echo the proof field back, so receipt-sampling can
+//      never see it. The first real broadcast proved the opposite: the sequencer
+//      REQUIRES `proof` alongside `proof_facts` on a v3 INVOKE ("must either both be
+//      present or both be absent") — a ~300KB base64 blob, write-only on the wire.
+//      The 2-felt-signature part of the old observation stands.
 //
 // SETTLED 22 Aug, by estimating the real calls against the live contract. All free.
 //
@@ -535,8 +537,9 @@ for (const { group, rows } of ACTION_LIST_EVIDENCE) {
 //
 //   i. `proofFacts` IS A `UniversalDetails` FIELD that lands in the broadcast as a
 //      top-level `proof_facts` array on the v3 invoke — not in calldata, not in the
-//      signature, not in paymaster_data. That is consistent with the earlier finding
-//      that no proof material appears in a real transaction's calldata or signature.
+//      signature, not in paymaster_data. **Extended 24 Aug (story 1.13):** so is
+//      `proof` — starknet.js 10.5 carries `details.proof` as a top-level `proof` field,
+//      and the sequencer requires the pair together. See the correction at (c).
 //
 // THE ONE REMAINING BLOCKER, and it is a genuine chicken-and-egg:
 //

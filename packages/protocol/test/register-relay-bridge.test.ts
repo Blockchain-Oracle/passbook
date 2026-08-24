@@ -25,6 +25,7 @@ import { MemorySponsorshipStore } from '../../relayer/src/sponsorship-store.js'
 const FEE_WEI = 6_000_000_000_000_000_000n
 const HEAD = 1_000_000
 const PROOF_FACTS = ['0x50524f4f4631', '0xd204f0']
+const PROOF_BLOB = 'AQICbridge-proof-blob'
 const ACCOUNT = { address: '0x0123456789abcdef', signer: {} as never }
 
 const APPLY_ACTIONS: Call = {
@@ -59,7 +60,8 @@ function deps(): RegisterDeps {
     }),
     readBlockNumber: async () => HEAD,
     prove: async (input) => ({
-      call: APPLY_ACTIONS, proofFacts: PROOF_FACTS, provingBlockId: input.provingBlockId,
+      call: APPLY_ACTIONS, proofFacts: PROOF_FACTS, proof: PROOF_BLOB,
+      provingBlockId: input.provingBlockId,
     }),
     confirm: async () => {},
   }
@@ -85,8 +87,9 @@ describe('registerSponsored → relayer, over real HTTP', () => {
       expect(calls.map((c) => c.entrypoint)).toEqual(['approve', 'apply_actions'])
       expect(calls[0]!.contractAddress).toBe(STRK_TOKEN)
       expect(calls[1]).toEqual(APPLY_ACTIONS)
-      // The facts survived JSON, the body schema and the felt gate unchanged.
-      expect(details).toEqual({ proofFacts: PROOF_FACTS })
+      // The facts AND the blob survived JSON, the body schema and the felt gate
+      // unchanged — the sequencer takes the pair or nothing.
+      expect(details).toEqual({ proofFacts: PROOF_FACTS, proof: PROOF_BLOB })
     } finally {
       await relayer.close()
     }
@@ -123,12 +126,64 @@ describe('registerSponsored → relayer, over real HTTP', () => {
         prove: async (input) => ({
           call: APPLY_ACTIONS,
           proofFacts: ['not-a-felt'],
+          proof: PROOF_BLOB,
           provingBlockId: input.provingBlockId,
         }),
       })
       expect(!result.ok && result.failure.kind).toBe('relay-refused')
       expect(!result.ok && result.failure.kind === 'relay-refused' && result.failure.status)
         .toBe(400)
+      expect(relayer.submit).not.toHaveBeenCalled()
+    } finally {
+      await relayer.close()
+    }
+  })
+
+  // A blob at the REAL measured scale — 309,144 characters on the banked mainnet prove
+  // — through the real HTTP hop: JSON serialization, the server's 1MB body cap, and the
+  // details pass-through all at production size rather than at the 20-character stand-in
+  // every other test uses. The cap comment in server.ts cites this measurement; this is
+  // the test that keeps the two from drifting apart silently.
+  it('carries a production-scale proof blob through the body cap intact', async () => {
+    const bigBlob = 'A'.repeat(309_144)
+    const relayer = await startRelayer()
+    try {
+      const result = await run(relayer.url, {
+        prove: async (input) => ({
+          call: APPLY_ACTIONS,
+          proofFacts: PROOF_FACTS,
+          proof: bigBlob,
+          provingBlockId: input.provingBlockId,
+        }),
+      })
+      expect(result.ok).toBe(true)
+      const [, details] = relayer.submit.mock.calls[0]!
+      expect((details as { proof?: string }).proof).toBe(bigBlob)
+    } finally {
+      await relayer.close()
+    }
+  })
+
+  // The server's both-or-neither gate, driven by the real pipeline. Production
+  // `proveRegistration` refuses a blob-less prove itself, so this injects one to prove
+  // the SERVER also refuses it — for free, before anything is signed — rather than
+  // trusting the client-side check alone. The sequencer's rule, mirrored at the 400 layer.
+  it('surfaces facts-without-proof as a free relay-refused 400, never a signed broadcast', async () => {
+    const relayer = await startRelayer()
+    try {
+      const result = await run(relayer.url, {
+        prove: async (input) => ({
+          call: APPLY_ACTIONS,
+          proofFacts: PROOF_FACTS,
+          proof: '',
+          provingBlockId: input.provingBlockId,
+        }),
+      })
+      expect(!result.ok && result.failure.kind).toBe('relay-refused')
+      expect(!result.ok && result.failure.kind === 'relay-refused' && result.failure.status)
+        .toBe(400)
+      expect(!result.ok && result.failure.kind === 'relay-refused' && result.failure.reason)
+        .toMatch(/both or neither/)
       expect(relayer.submit).not.toHaveBeenCalled()
     } finally {
       await relayer.close()

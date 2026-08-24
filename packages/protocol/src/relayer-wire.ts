@@ -89,6 +89,20 @@ export interface SubmitBody {
    */
   proofFacts?: string[]
   /**
+   * The proof blob the facts belong to — the prover's `proof` string (~300KB of base64),
+   * carried whole and unparsed. BOTH-OR-NEITHER with `proofFacts`, and that rule is the
+   * sequencer's before it is ours: `starknet_addInvokeTransaction` rejects a v3 invoke
+   * carrying `proof_facts` without `proof` ("must either both be present or both be
+   * absent" — learned from story 1.13's first real broadcast, 2026-08-24). The server
+   * refuses one-without-the-other at the free layer so the mismatch costs a 400 instead
+   * of a signed, paid-for broadcast rejection.
+   *
+   * Receipts do NOT echo this field back, which is why it was invisible to every
+   * receipt-sampling probe: an accepted proven transaction looks proof-less when read
+   * back. Do not "verify" its presence by fetching transactions.
+   */
+  proof?: string
+  /**
    * Present, and `true`, only on a submission the relayer is being asked to PAY FOR out of its
    * own budget — today exactly one thing: a sponsored registration (story 1.12).
    *

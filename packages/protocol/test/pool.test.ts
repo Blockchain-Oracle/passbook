@@ -36,7 +36,11 @@ describe('the send path"s pool decoders', () => {
   })
 })
 
-describe('pool live reads', { timeout: 30_000 }, () => {
+// 120s, not vitest's default: these hit LIVE public RPC hosts whose latency is a fact
+// about busy infrastructure, not about this code — the tests must fail on real
+// breakage, never on a rate-limited afternoon (observed: ~12s reads stretching past
+// 30s under full-suite load, 2026-08-24).
+describe('pool live reads', { timeout: 120_000 }, () => {
   it('reads a non-zero fee and a sane proof window', async () => {
     const c = await readPoolConstants()
     expect(c.feeWei).toBeGreaterThan(0n)

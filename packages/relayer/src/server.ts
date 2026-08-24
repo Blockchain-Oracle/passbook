@@ -133,8 +133,12 @@ const OPS_WEBHOOK_TIMEOUT_MS = 5_000
 
 const JSON_HEADERS = { 'content-type': 'application/json' }
 
-// A submission is a handful of calls. Anything larger is not one, so stop reading
-// rather than buffering an unbounded body into memory.
+// A submission is a handful of calls PLUS, on a proven one, the proof blob — measured
+// at 308-309K characters of base64 on story 1.13's real mainnet prove, so one megabyte
+// carries it with roughly 3x headroom while still refusing an unbounded body. A future
+// proof that outgrows the cap is refused as a 400 `request body too large` before the
+// allowlist or any budget runs; if that ever fires on a legitimate prove, this number
+// is the thing to raise, knowingly, not the refusal to soften.
 const MAX_BODY_BYTES = 1_000_000
 
 /**
@@ -148,6 +152,14 @@ const MAX_BODY_BYTES = 1_000_000
  */
 export interface SubmitDetails {
   proofFacts?: string[]
+  /**
+   * The proof blob the facts belong to. Present exactly when `proofFacts` is — the
+   * sequencer takes both or neither (story 1.13's first real broadcast proved it), and
+   * `handleSubmit` refuses a body carrying one without the other before anything is
+   * signed. Passed through to starknet.js whole; the sequencer, not this server, is the
+   * party that can judge the proof itself.
+   */
+  proof?: string
 }
 
 /**
@@ -510,7 +522,23 @@ async function handleSubmit(
             'proven pool submission, and on any other batch they are arbitrary felts',
         )
       }
-      details = { proofFacts: assertProofFacts(body.proofFacts) }
+      // BOTH-OR-NEITHER, and the rule is the sequencer's before it is ours: a v3 invoke
+      // carrying proof_facts without proof is rejected at broadcast — AFTER this wallet
+      // signed and the sponsorship budget was consumed. Refusing here makes the same
+      // mismatch a free 400 instead. The blob is checked for shape only (a non-empty
+      // string); judging the proof itself is the sequencer's job, not this server's.
+      if (typeof body.proof !== 'string' || body.proof.length === 0) {
+        throw new Error(
+          'refusing proofFacts without their proof: the sequencer takes both or neither, ' +
+            'so facts alone would be signed, broadcast, and rejected at our expense',
+        )
+      }
+      details = { proofFacts: assertProofFacts(body.proofFacts), proof: body.proof }
+    } else if (body.proof !== undefined) {
+      throw new Error(
+        'refusing a proof without its proofFacts: the sequencer takes both or neither, ' +
+          'and a blob with no facts is not a proven submission',
+      )
     }
     if (body.invite !== undefined) {
       // NEVER A SILENT IGNORE, on any of the three ways this can be wrong. A client that sent a
