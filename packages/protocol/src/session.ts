@@ -6,7 +6,7 @@
 // this file has behaviour of its own — it exists so the boundary below has one place to be
 // stated, and so the three frozen seams have one place to be satisfied from.
 //
-// ── THE STORAGE BOUNDARY. THREE VALUES, AND THE LIST IS CLOSED. ───────────────────────────
+// ── THE STORAGE BOUNDARY. FOUR VALUES, AND THE LIST IS CLOSED. ────────────────────────────
 //
 // MAY be persisted:
 //   1. The root Account Key. It has to survive a reload or the account is orphaned on the next
@@ -16,6 +16,22 @@
 //      only a filename and a plaintext header.
 //   3. The backup cadence record: a ladder index, the last passing verification's timestamp,
 //      and the tri-state status.
+//   4. Invite intents (story 1.14): per invite, the code, the state on the ladder, timestamps,
+//      and — when the sender attached money — the recipient, token and amount they typed.
+//
+//      THE FOURTH ENTRY IS A DELIBERATE ADDITION TO A LIST THAT SAID THREE, so it carries its
+//      argument rather than an assumption that nobody minds. It is here because the alternative
+//      is not "store less", it is "no invite can carry money": there is no escrow and no
+//      relayer-held record by design (FR-060 — relayer-opened channels would serialize globally
+//      on `INDEX_NOT_SEQUENTIAL` and would put the relayer's address on chain as the sender), so
+//      the sender's own app is the only party that holds the intent, and one that does not
+//      survive a reload is a promise forgotten while the invitee is still reading the link.
+//
+//      It clears the exclusion below that it most resembles — decrypted amounts — because it is
+//      not something this app learned about anyone's money. It is what the SENDER TYPED, about
+//      money that has not moved. Nothing in it is decrypted, discovered, or derivable into a
+//      balance; deleting it reveals nothing and costs only the sender's own note-to-self. The
+//      full argument lives at `session-invite-store.ts`, beside the record it describes.
 //
 // MUST NEVER be persisted, and each of these is a specific mistake somebody would otherwise
 // make for a good-sounding reason:
@@ -112,7 +128,22 @@ export {
   sessionCadenceStore,
 } from './session-cadence-store.js'
 
-// 5. The copy. Byte-exact, and imported rather than retyped by whatever renders it.
+// 5. The invite-intent store (story 1.14) — the sender's client-held money intent.
+export {
+  INVITE_INTENTS_RECORD_VERSION,
+  parseStoredInviteIntents,
+  revokeInviteIntent,
+  serializeInviteIntents,
+  sessionInviteIntentStore,
+  withInviteIntent,
+  withInviteIntentState,
+  type InviteIntent,
+  type InviteIntentStore,
+  type RevokeResult,
+  type StoredInviteIntents,
+} from './session-invite-store.js'
+
+// 6. The copy. Byte-exact, and imported rather than retyped by whatever renders it.
 export {
   ACCOUNT_OPEN_IN_ANOTHER_TAB,
   SESSION_STORAGE_UNAVAILABLE,

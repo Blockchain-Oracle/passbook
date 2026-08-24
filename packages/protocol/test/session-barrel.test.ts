@@ -11,7 +11,11 @@ import { forgetAccountKey } from '../src/session-key.js'
 // the names below must at least exist.
 //
 
-describe('the session barrel loads and surfaces the three adapters (G6)', () => {
+// FOUR ADAPTERS SINCE STORY 1.14, not three: the invite-intent store joined the storage tier,
+// the key adapter, the leader lock and the cadence store. The title is kept accurate because it
+// is the only place a reader learns how many seams this barrel is supposed to cover — a stale
+// count here is how a fifth one gets added without anybody noticing the list grew.
+describe('the session barrel loads and surfaces the four adapters (G6)', () => {
   it('is a module that parses and evaluates at all', () => {
     expect(typeof session).toBe('object')
   })
@@ -27,7 +31,21 @@ describe('the session barrel loads and surfaces the three adapters (G6)', () => 
       expect(typeof session[name], name).toBe('function')
     }
     expect(typeof session.REFUSING_SESSION_STORE).toBe('object')
-    expect(Object.values(session.SESSION_KEYS)).toHaveLength(3)
+    expect(Object.values(session.SESSION_KEYS)).toHaveLength(4)
+  })
+
+  it('surfaces the invite-intent store, so epic 6 wires it from the one import', () => {
+    for (const name of [
+      'sessionInviteIntentStore',
+      'parseStoredInviteIntents',
+      'serializeInviteIntents',
+      'revokeInviteIntent',
+      'withInviteIntent',
+      'withInviteIntentState',
+    ] as const) {
+      expect(typeof session[name], name).toBe('function')
+    }
+    expect(session.INVITE_INTENTS_RECORD_VERSION).toBe(1)
   })
 
   it('surfaces the key adapter', () => {

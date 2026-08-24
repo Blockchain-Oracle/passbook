@@ -16,6 +16,7 @@ import {
   RegistrationReverted,
   type ProvedRegistration,
   type RegisterDeps,
+  type RegisterInput,
   type RegistrationStage,
   type RelayResponse,
   type SubmitBody,
@@ -52,7 +53,7 @@ const PROOF_FACTS = ['0x11', '0x22']
  * costs nothing, and the only way to assert that is to be able to say "the prover was
  * called zero times" rather than "the prover probably was not called".
  */
-function harness(over: Partial<RegisterDeps> = {}) {
+function harness(over: Partial<RegisterDeps> = {}, inputOver: Partial<RegisterInput> = {}) {
   const proveCalls: unknown[] = []
   const relayCalls: SubmitBody[] = []
   const stages: RegistrationStage[] = []
@@ -86,7 +87,7 @@ function harness(over: Partial<RegisterDeps> = {}) {
     proveCalls,
     relayCalls,
     stages,
-    run: () => registerSponsored({ accountKey: ACCOUNT_KEY, account }, deps),
+    run: () => registerSponsored({ accountKey: ACCOUNT_KEY, account, ...inputOver }, deps),
   }
 }
 
@@ -134,6 +135,44 @@ describe('registerSponsored — the happy path (AC2/AC3/AC5)', () => {
   // relayer meters only flagged submissions against the sponsorship budget, so a registration
   // that forgot to say so would be charged to the send cap and would never show the
   // pay-your-own-way notice.
+  // ── The invite waiver reaching the wire (story 1.14, FR-014) ────────────────────────────
+  //
+  // THIS IS THE ONLY PLACE A SPONSORED BODY IS BUILT, so without these the invite substrate is
+  // unreachable from the app: the invitee it exists for — a stranger on a NAT-shared mobile
+  // address whose per-visitor cap other strangers already spent — would claim a code and then be
+  // refused `sponsorship-paused` while holding it.
+  it('carries a claimed invite code alongside the sponsored flag', async () => {
+    const h = harness({}, { invite: '7f3a2b' })
+    const result = await h.run()
+    expect(result.ok).toBe(true)
+    expect(h.relayCalls[0]).toMatchObject({ sponsored: true, invite: '7f3a2b' })
+  })
+
+  it('normalises the code before posting it, so the two sides agree on what was claimed', async () => {
+    const h = harness({}, { invite: '  7F3A2B\n' })
+    await h.run()
+    expect(h.relayCalls[0]!.invite).toBe('7f3a2b')
+  })
+
+  it('omits the field entirely when there is no invite — byte-identical to before', async () => {
+    const h = harness()
+    await h.run()
+    expect(h.relayCalls[0]).not.toHaveProperty('invite')
+    expect(JSON.stringify(h.relayCalls[0])).not.toContain('invite')
+  })
+
+  it('refuses a malformed code for FREE, before proving or posting anything', async () => {
+    // A code the relayer would refuse for its shape is one we can refuse without a prover
+    // round-trip. The invitee gets a typed bad-input instead of a 400 after the wait.
+    const h = harness({}, { invite: 'not-a-code' })
+    const result = await h.run()
+    expect(result.ok).toBe(false)
+    expect(!result.ok && result.failure.kind).toBe('bad-input')
+    expect(h.proveCalls).toHaveLength(0)
+    expect(h.relayCalls).toHaveLength(0)
+    expect(result.stages).toEqual([])
+  })
+
   it('flags itself sponsored, which is what charges it to the sponsorship budget', async () => {
     const h = harness()
     await h.run()

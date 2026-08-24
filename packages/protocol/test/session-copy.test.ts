@@ -92,12 +92,20 @@ describe('the stored names are a compatibility contract, not an implementation d
     expect(DEFAULT_LOCK_CHANNEL).toBe('passbook.submit-lock')
   })
 
-  it('and there are still exactly three of them', () => {
-    // A fourth key is a decision the spec reserves, not a line somebody adds.
+  it('the invite intents live at passbook.invite-intents', () => {
+    expect(SESSION_KEYS.inviteIntents).toBe('passbook.invite-intents')
+  })
+
+  it('and there are still exactly four of them', () => {
+    // A new key is a decision the spec reserves, not a line somebody adds. The fourth was added
+    // by story 1.14 with its argument written at `session-invite-store.ts`; a fifth needs one
+    // too. The list is spelled out rather than counted so a RENAME fails here as loudly as an
+    // addition does — a renamed key is a value the next build cannot find.
     expect(Object.values(SESSION_KEYS)).toEqual([
       'passbook.account-key',
       'passbook.backup-ceremony',
       'passbook.backup-cadence',
+      'passbook.invite-intents',
     ])
   })
 })

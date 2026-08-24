@@ -71,6 +71,11 @@ function config(over: Partial<SponsorshipConfig> = {}): SponsorshipConfig {
     fundingIntervalMs: 0,
     quoteDailyPerVisitor: 100,
     quoteDailyGlobal: 1_000,
+    // Invites OFF by default here, matching the environment: the feature has a master switch
+    // rather than a default (server.ts `resolveInviteConfig`), so a config nobody asked for
+    // invites in must not quietly have them. `invite.test.ts` passes its own.
+    invites: undefined,
+    inviteStorePath: tempStorePath(),
     ...over,
   }
 }
@@ -1862,5 +1867,53 @@ describe('POST /api/quote (AC4, story 1.5)', () => {
     } finally {
       await s.close()
     }
+  })
+
+  // ── The invite waiver, at the level of the decision function (story 1.14) ────────────────
+  //
+  // The routes and the wiring are exercised in invite.test.ts. What belongs HERE is the
+  // property the sponsorship gate itself has to hold, because this is the file that owns what
+  // that gate promises: a waiver moves ONE line and cannot move the other.
+  describe('a burned invite waives the per-visitor cap and nothing else', () => {
+    const CAPS = { perVisitor: 1, daily: 3 }
+    const spent = (over: Partial<ReturnType<typeof emptyBudget>> = {}) => ({
+      ...emptyBudget(T0),
+      perVisitor: { v: 1 },
+      ...over,
+    })
+
+    it('waives an exhausted per-visitor cap', () => {
+      expect(decideSponsorship(spent(), CAPS, 'v', T0)).toMatchObject({ reason: 'visitor-cap' })
+      expect(decideSponsorship(spent(), CAPS, 'v', T0, undefined, { waivePerVisitorCap: true }))
+        .toEqual({ allow: true })
+    })
+
+    it('does NOT waive the daily budget — that is the relayer solvency floor', () => {
+      const exhausted = spent({ dailyCount: 3 })
+      expect(decideSponsorship(exhausted, CAPS, 'v', T0, undefined, { waivePerVisitorCap: true }))
+        .toMatchObject({ allow: false, reason: 'daily-budget', notice: BUDGET_EXHAUSTED_NOTICE })
+    })
+
+    it('still RECORDS the waived spend, so an invited registration is not invisible', () => {
+      const ledger = new SponsorshipLedger(CAPS, new MemorySponsorshipStore({
+        salt: A_SALT, budget: spent(), claimed: [],
+      }), T0)
+      expect(ledger.spend('v', T0, { waivePerVisitorCap: true })).toEqual({ allow: true })
+      // Counted: the day moved, and so did this visitor's tally. Waiving a check is not the
+      // same as not counting, and a spend nobody recorded is one the operator cannot find.
+      expect(ledger.spend('v', T0, { waivePerVisitorCap: true })).toEqual({ allow: true })
+      expect(ledger.spend('v', T0, { waivePerVisitorCap: true })).toEqual({ allow: true })
+      // Three waived spends against a daily budget of three: the fourth hits the floor.
+      expect(ledger.spend('v', T0, { waivePerVisitorCap: true })).toMatchObject({ reason: 'daily-budget' })
+    })
+
+    it('leaves every un-waived decision byte-identical to before', () => {
+      // The option is additive: omitting it, and passing it false, must both behave exactly as
+      // the two-argument call always did.
+      for (const options of [undefined, {}, { waivePerVisitorCap: false }]) {
+        expect(decideSponsorship(spent(), CAPS, 'v', T0, undefined, options))
+          .toEqual(decideSponsorship(spent(), CAPS, 'v', T0))
+      }
+    })
   })
 })

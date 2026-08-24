@@ -60,15 +60,36 @@ export function decideSponsorship(
   visitorId: string,
   now: number,
   notice: string = BUDGET_EXHAUSTED_NOTICE,
+  options: SpendOptions = {},
 ): SponsorDecision {
   const s = rolledToDay(state, now)
+  // THE DAILY BUDGET IS CHECKED FIRST AND IS NEVER WAIVED. Its order relative to the waiver
+  // below is the whole of "a waiver is not a bypass": whatever an invite entitles, it cannot
+  // reach past this line, because this is the relayer's solvency floor and not a courtesy.
   if (s.dailyCount >= caps.daily) {
     return { allow: false, reason: 'daily-budget', notice }
   }
-  if ((s.perVisitor[visitorId] ?? 0) >= caps.perVisitor) {
+  if (!options.waivePerVisitorCap && (s.perVisitor[visitorId] ?? 0) >= caps.perVisitor) {
     return { allow: false, reason: 'visitor-cap', notice }
   }
   return { allow: true }
+}
+
+/**
+ * Modifiers on one spend. Today there is exactly one, and it is narrow on purpose.
+ *
+ * `waivePerVisitorCap` is what a burned invite code buys (story 1.14) and it is ALL a burned
+ * code buys. The per-visitor cap is a fairness limit — one free account per address per day —
+ * and it is the one that misfires on a shared address: a stranger on a NAT-shared mobile IP whose
+ * cap other strangers already spent is exactly who an invite is for. The daily budget is a
+ * different kind of number and stays unconditional; see the check above.
+ *
+ * The waived spend is still RECORDED against the visitor, so the invited registration appears in
+ * the counters like every other. Waiving the check is not the same as not counting, and a spend
+ * that goes unrecorded is a spend the operator cannot find afterwards.
+ */
+export interface SpendOptions {
+  waivePerVisitorCap?: boolean
 }
 
 /** Returns the state after recording one sponsored action for `visitorId` at `now`. Pure. */
@@ -123,8 +144,8 @@ export class SponsorshipLedger {
     this.claimed = new Set(loaded.claimed)
   }
 
-  decide(visitorId: string, now: number = Date.now()): SponsorDecision {
-    return decideSponsorship(this.state, this.caps, visitorId, now, this.notice)
+  decide(visitorId: string, now: number = Date.now(), options: SpendOptions = {}): SponsorDecision {
+    return decideSponsorship(this.state, this.caps, visitorId, now, this.notice, options)
   }
 
   /**
@@ -138,8 +159,8 @@ export class SponsorshipLedger {
    * to spend rather than a spend nobody recorded; the exception reaches the caller, who
    * answers 500 rather than signing.
    */
-  spend(visitorId: string, now: number = Date.now()): SponsorDecision {
-    const d = this.decide(visitorId, now)
+  spend(visitorId: string, now: number = Date.now(), options: SpendOptions = {}): SponsorDecision {
+    const d = this.decide(visitorId, now, options)
     if (d.allow) {
       const next = commitSponsorship(this.state, visitorId, now)
       this.store.save({ salt: this.salt, budget: next, claimed: [...this.claimed] })
