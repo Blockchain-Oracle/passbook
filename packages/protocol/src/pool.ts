@@ -121,3 +121,89 @@ export async function getPublicKey(address: string): Promise<bigint> {
   const r = await call('get_public_key', [address])
   return BigInt(r[0])
 }
+
+/**
+ * The StarkWare auditor key every registration escrows a copy of the viewing key to
+ * (`get_auditor_public_key`, a zero-argument view returning one felt — SDK ABI
+ * `dist/internal/abi.js:965`).
+ *
+ * READ LIVE, NEVER PINNED, and the reason is the sentence the product has to be able to
+ * make honestly: a user's key stays encrypted to whichever auditor key was live at THEIR
+ * registration block, because StarkWare can set a new one (`set_auditor_public_key` is on
+ * the same class). A constant baked in here would silently become a claim about a block it
+ * was not read at — which is exactly the field-means-what-it-says rule the Recovery File
+ * header is built around. Empirically it has never rotated; that is an observation, not a
+ * guarantee, and it is not a reason to stop reading it.
+ *
+ * Throws on an unreachable RPC rather than returning a zero. The caller writing this into a
+ * Recovery File header must fail loudly and write no file at all — a header claiming the
+ * auditor key is `0` would be worse than a header that does not exist.
+ */
+export async function getAuditorPublicKey(): Promise<bigint> {
+  return auditorKeyFrom(await call('get_auditor_public_key'))
+}
+
+/**
+ * The one place an auditor-key response is turned into a number, shared by both readers.
+ *
+ * Guards the empty array, which `BigInt(undefined)` turns into a TypeError from inside what
+ * the caller experiences as a chain read — an RPC that answers `{result: []}` (a proxy
+ * rewriting an error into a 200, a node mid-resync) would otherwise surface as a crash rather
+ * than as a failed read. And it applies the SAME zero-guard to both readers: a zero is not an
+ * auditor key, whether it was read at the head or pinned to a block, and neither caller has a
+ * use for one. Duplicating the `r[0]!` assumption in two places is how the two would drift.
+ */
+export function auditorKeyFrom(result: readonly string[], atBlock?: number): bigint {
+  const raw = result?.[0]
+  if (raw === undefined) {
+    throw new Error('the pool returned no value for get_auditor_public_key')
+  }
+  // `BigInt` THROWS a bare SyntaxError on anything that is not numeric, and this is the exact
+  // function whose comment promises to classify the response — an untyped SyntaxError escaping
+  // it is the promise being broken. The realistic source is not a malformed felt: it is a
+  // proxy or captive portal rewriting an RPC error into a 200 with an HTML body, which arrives
+  // here as `"<!DOCTYPE html>"` and would otherwise surface as a parse error from deep inside
+  // a chain read.
+  let key: bigint
+  try {
+    key = BigInt(raw)
+  } catch {
+    throw new Error(
+      `the pool returned a non-numeric auditor key: ${JSON.stringify(String(raw).slice(0, 64))}`,
+    )
+  }
+  if (key === 0n) {
+    const where = atBlock === undefined ? 'at the current head' : `at block ${atBlock}`
+    throw new Error(`the pool reported an auditor key of 0 ${where}`)
+  }
+  return key
+}
+
+/**
+ * The auditor key together with the block it was read AT — the pair a Recovery File header
+ * records (`BackupHeader.auditorKeyAtBackupBlock`).
+ *
+ * Two reads, ONE provider, one `withFallback` attempt, and each of those matters:
+ *
+ *   - Pinned, not head. `getAuditorPublicKey()` answers "right now" against a head that has
+ *     moved by the time the block number is written down. That is fine for a disclosure
+ *     link and not fine for a field named "at backup block", which would then be a field
+ *     holding a different thing than its label says.
+ *   - Same host for both. The two RPC hosts are independently synced and routinely differ
+ *     by a block, so reading the height from one and pinning the call on the other asks a
+ *     node for a block it has not seen yet. Both reads share the provider `withFallback`
+ *     hands in, and a failure retries the PAIR on the next host rather than splicing two
+ *     hosts' views together.
+ */
+export async function readAuditorKeyAtBlock(): Promise<{ blockNumber: number; auditorKey: bigint }> {
+  return withFallback(async (p) => {
+    const blockNumber = await p.getBlockNumber()
+    const r = await p.callContract(
+      { contractAddress: NET.pool, entrypoint: 'get_auditor_public_key', calldata: [] },
+      blockNumber,
+    )
+    // A zero, or nothing at all, is a read that did not land — not an auditor key. Writing
+    // either into a header would produce a file asserting that registrations escrow to nobody.
+    return { blockNumber, auditorKey: auditorKeyFrom(r, blockNumber) }
+  })
+}

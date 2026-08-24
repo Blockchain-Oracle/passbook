@@ -87,7 +87,20 @@ export type RegisterFailure =
   | { kind: 'confirmation-unknown'; transactionHash: string; reason: string }
 
 export type RegisterResult =
-  | { ok: true; stages: RegistrationStage[]; transactionHash: string; feeRow: FeeRow }
+  | {
+      ok: true
+      stages: RegistrationStage[]
+      transactionHash: string
+      feeRow: FeeRow
+      /**
+       * The block the registration landed in, read off the confirm receipt — story 1.8's
+       * Recovery File header re-issue needs it, and this is the only moment it is known
+       * for free. `null` when the receipt carried no usable block number (an injected
+       * confirm, or an RPC whose receipt shape we did not recognise); the re-issue then
+       * simply does not happen, which is the same as not having registered yet.
+       */
+      registrationBlock: number | null
+    }
   | { ok: false; stages: RegistrationStage[]; failure: RegisterFailure }
 
 // ── Who paid, and how much (AC6 — the fee row epic 6 renders) ─────────────────────────────
@@ -550,8 +563,14 @@ export interface RegisterDeps {
   readBlockNumber?: () => Promise<number>
   prove?: (input: ProveRegistrationInput) => Promise<ProvedRegistration>
   submit?: (url: string, body: SubmitBody) => Promise<RelayResponse>
-  /** Resolves once the chain accepts; throws `RegistrationReverted` if the pool rolled back. */
-  confirm?: (transactionHash: string) => Promise<void>
+  /**
+   * Resolves once the chain accepts; throws `RegistrationReverted` if the pool rolled back.
+   *
+   * Returns the block the transaction landed in, when it can be read off the receipt, for
+   * `RegisterResult.registrationBlock`. `void` remains valid — a confirm that only answers
+   * "it landed" is still a correct confirm, and the block is reported as `null`.
+   */
+  confirm?: (transactionHash: string) => Promise<number | null | void>
   /** Injected so the confirm deadline can be exercised without waiting five real minutes. */
   deadlineTimer?: DeadlineTimer
   onStage?: (stage: RegistrationStage) => void
@@ -823,8 +842,9 @@ export async function registerSponsored(
 
     // 6. Confirm. A reverted registration is mapped copy, never a raw pool code — the
     //    pool has no "already registered" error and surfaces it as `NON_ZERO_VALUE`.
+    let confirmedBlock: number | null | void
     try {
-      await withDeadline(confirm(transactionHash), CONFIRM_TIMEOUT_MS, deadlineTimer)
+      confirmedBlock = await withDeadline(confirm(transactionHash), CONFIRM_TIMEOUT_MS, deadlineTimer)
     } catch (e) {
       // Only a RECEIPT that says REVERTED is a revert. A timeout, a dropped socket or an
       // RPC that stopped answering says nothing about the transaction — it may well be
@@ -838,7 +858,17 @@ export async function registerSponsored(
     }
     reach('confirmed')
 
-    return { ok: true, stages, transactionHash, feeRow }
+    return {
+      ok: true,
+      stages,
+      transactionHash,
+      feeRow,
+      // Sanitized, not merely type-narrowed. `confirm` is an injection point, so the number
+      // arriving here is whatever a caller's implementation returned — and the one thing it
+      // feeds is a Recovery File header field that must be true or absent. A NaN, a negative
+      // or a fractional block is not a block, and `null` says so.
+      registrationBlock: sanitizeBlockNumber(confirmedBlock),
+    }
   } finally {
     // A `finally` that throws REPLACES the result — including a success — with an
     // exception, so a lock whose release fails would erase a registration that already
@@ -888,7 +918,47 @@ export function assertNotReverted(receipt: unknown): void {
   }
 }
 
+/** The one rule for what counts as a block number. Anything else is `null`, never a guess. */
+function sanitizeBlockNumber(value: unknown): number | null {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 0 ? value : null
+}
+
+/**
+ * Reads the block number off a receipt, or `null` if it does not carry a usable one.
+ *
+ * Read positionally off a loose shape, for the same reason `assertNotReverted` is: this has
+ * to hold for whatever `waitForTransaction` hands back, including a plain RPC receipt. A
+ * missing or non-integer block is `null` rather than a guess — the one thing this feeds is a
+ * Recovery File header field that must be true or absent.
+ */
+export function readReceiptBlockNumber(receipt: unknown): number | null {
+  const r = (receipt ?? {}) as { block_number?: unknown; blockNumber?: unknown }
+  // Both spellings. The RPC wire format is `block_number`, and that is what a raw receipt
+  // carries — but starknet.js has camelCased receipt fields before, and a caller injecting
+  // `confirm` may well hand back an object built from its own SDK's shape. Reading only the
+  // snake_case spelling turns that into a silent `null`: the registration succeeds, the
+  // Recovery File re-issue never gets its block, and nothing anywhere reports a problem.
+  return sanitizeBlockNumber(r.block_number) ?? sanitizeBlockNumber(r.blockNumber)
+}
+
+/**
+ * The whole of what `defaultConfirm` does with a receipt: refuse a revert, then read the block.
+ *
+ * Extracted so it can be unit-tested against synthetic receipts. Left inline it was the only
+ * production path producing `registrationBlock` and the only one no test ran — a fetch and a
+ * decision fused into one function, where the fetch is the part that needs a chain and the
+ * decision is the part that needs asserting.
+ *
+ * The ORDER is the substance. The block is read only after the revert check, because a
+ * reverted transaction lands in a block like any other, and reporting it would hand the
+ * Recovery File re-issue a registration block for a registration that did not happen.
+ */
+export function confirmFromReceipt(receipt: unknown): number | null {
+  assertNotReverted(receipt)
+  return readReceiptBlockNumber(receipt)
+}
+
 /** Waits for the chain, then checks the receipt. See `assertNotReverted` for why both. */
-async function defaultConfirm(transactionHash: string): Promise<void> {
-  assertNotReverted(await withFallback((p) => p.waitForTransaction(transactionHash)))
+async function defaultConfirm(transactionHash: string): Promise<number | null> {
+  return confirmFromReceipt(await withFallback((p) => p.waitForTransaction(transactionHash)))
 }
