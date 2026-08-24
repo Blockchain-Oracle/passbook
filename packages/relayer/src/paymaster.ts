@@ -30,6 +30,19 @@ export interface FeeAction {
  * The relayer's private key lives only in the server process (server.ts) and is
  * never a field on this object — the browser holds an instance of this class, so
  * `PaymasterConfig` carries two public addresses and deliberately nothing else.
+ *
+ * NOT ON THE REGISTRATION PATH, and that is arithmetic rather than preference (story
+ * 1.12). The withdraw-fee model below reimburses the relayer out of the transaction's
+ * own value: it folds a `Withdraw` into the proven action chain and names us as the
+ * recipient. A sponsored registration is a lone zero-deposit `SetViewingKey` — it mints
+ * no note and moves no value, so there is nothing to withdraw from and the reimbursement
+ * leg has no source. (The pool agrees: a withdraw with no inputs is
+ * `NEGATIVE_INTERMEDIATE_BALANCE`, recorded in message-book.ts's ACTION_LIST_EVIDENCE.)
+ * So registration pays plainly instead — `register.ts` prepends the relayer's own
+ * `STRK.approve(pool, liveFee)` to the batch it submits, which works because
+ * `collect_fee` pulls from `get_caller_address()` and the caller is the relayer. That is
+ * the 1-5 funded-key discipline: bounded approve under a live-fee ceiling, floor-monitored
+ * balance. Do not re-derive this by trying `buildTransaction` on a registration.
  */
 export class RelayerPaymaster {
   constructor(private readonly config: PaymasterConfig) {}
@@ -53,14 +66,17 @@ export class RelayerPaymaster {
    * The URL is relative because the browser holds this instance: it resolves against
    * the app's own origin, which is where the relayer endpoint is served from.
    *
-   * KNOWN GAP — these two halves do not connect yet, and this is the honest record of
-   * it rather than a surprise for whoever wires them. `buildTransaction` above returns
-   * `{ actions, feeAction }`; the server requires `{ calls: Call[] }`. The step that
-   * turns an action list into pool calls does not exist: it needs `compile_actions`
-   * output fed verbatim into `apply_actions`, plus the `STRK.approve(pool, fee)` that
-   * must ride in the same transaction because `collect_fee` pulls from the caller.
-   * Passing a `buildTransaction` result straight into here earns a 400 today. Closing
-   * that is the submission-path work, which is still an open unknown.
+   * KNOWN GAP, narrowed — `buildTransaction` above still returns `{ actions, feeAction }`
+   * and the server still requires a `SubmitBody` (`protocol/src/relayer-wire.ts`, the one
+   * definition of this endpoint's wire contract, shared with the server), so passing one
+   * straight into the other earns a 400 today, exactly as before. What is no longer an
+   * open unknown is HOW
+   * the two connect: `protocol/src/register.ts` does it for the registration path, proving
+   * the action list through the SDK and prepending the `STRK.approve(pool, liveFee)` that
+   * has to ride in the same transaction because `collect_fee` pulls from the caller. It
+   * posts here itself and does not route through `buildTransaction`, for the reason in the
+   * class comment. A value-bearing path that wants the withdraw-fee model is what would
+   * close the rest of this.
    */
   async executeTransaction(payload: unknown): Promise<{ transactionHash: string }> {
     const res = await fetch('/api/submit', {

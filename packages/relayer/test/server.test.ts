@@ -67,7 +67,9 @@ describe('relayer server', () => {
       expect(res.status).toBe(200)
       // The shape paymaster.executeTransaction expects back.
       expect(JSON.parse(res.body)).toEqual({ transactionHash: '0xdeadbeef' })
-      expect(submit).toHaveBeenCalledWith([A_CALL])
+      // No second argument: a body without `proofFacts` carries no transaction details,
+      // so a plain submission signs exactly as it did before that field existed.
+      expect(submit).toHaveBeenCalledWith([A_CALL], undefined)
     } finally {
       await s.close()
     }

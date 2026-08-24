@@ -58,11 +58,14 @@ import { loadDotEnv } from '../../protocol/src/env.js'
 import { withFallback } from '../../protocol/src/rpc.js'
 import { readPoolConstants } from '../../protocol/src/pool.js'
 import {
+  assertProofFacts,
   assertSubmittable,
+  isPoolApplyActions,
   needsApproveCeiling,
   approveCeiling,
   type SubmissionPolicy,
 } from './allowlist.js'
+import type { SubmitBody } from '../../protocol/src/relayer-wire.js'
 import {
   SponsorshipLedger,
   utcDayKey,
@@ -112,11 +115,24 @@ const JSON_HEADERS = { 'content-type': 'application/json' }
 const MAX_BODY_BYTES = 1_000_000
 
 /**
+ * Transaction-level details that are not calls.
+ *
+ * `proofFacts` is what a proven pool submission needs (story 1.12): the prover returns
+ * them alongside the `apply_actions` calldata and the sequencer rejects the transaction
+ * without them. They are V3 transaction fields, not calldata, so they cannot be smuggled
+ * in through `calls` — which is why `/submit` had to grow a second field rather than the
+ * caller finding a way around it.
+ */
+export interface SubmitDetails {
+  proofFacts?: string[]
+}
+
+/**
  * Signs and broadcasts the calls, yielding the transaction hash. Injected rather than
  * reached for directly so the request handling around it can be tested without a real
  * mainnet submission — the one part of this file that cannot be exercised for free.
  */
-export type SubmitCalls = (calls: Call[]) => Promise<string>
+export type SubmitCalls = (calls: Call[], details?: SubmitDetails) => Promise<string>
 
 /** Fails at startup rather than as an opaque signing error on the first request. */
 function required(name: string): string {
@@ -234,13 +250,30 @@ async function handleSubmit(
 
   // A malformed request is the caller's fault (400); a failed submission is ours or
   // the chain's (502). Collapsing both into one status would misdirect every debug.
+  //
+  // `proofFacts` is OPTIONAL and the extension is additive: a `{calls}`-only body — every
+  // MessageBook submission the browser route already sends — behaves exactly as before.
   let calls: Call[]
+  let details: SubmitDetails | undefined
   try {
-    const body = (await readJsonBody(req)) as { calls?: Call[] }
+    const body = (await readJsonBody(req)) as Partial<SubmitBody>
     if (!Array.isArray(body.calls) || body.calls.length === 0) {
       throw new Error('body must carry a non-empty `calls` array')
     }
     calls = body.calls
+    if (body.proofFacts !== undefined) {
+      // Facts belong to a PROVEN POOL SUBMISSION and to nothing else. On a batch with no
+      // `apply_actions` in it there is no proof they could be the facts for, so what they
+      // actually are is caller-chosen felts being signed into our V3 transaction details
+      // — a field the allowlist never sees. Refuse rather than carry them.
+      if (!calls.some(isPoolApplyActions)) {
+        throw new Error(
+          'refusing proofFacts on a batch with no pool apply_actions: facts belong to a ' +
+            'proven pool submission, and on any other batch they are arbitrary felts',
+        )
+      }
+      details = { proofFacts: assertProofFacts(body.proofFacts) }
+    }
   } catch (e) {
     send(res, 400, { error: String(e) })
     return
@@ -315,7 +348,7 @@ async function handleSubmit(
   try {
     // Our address is the one the public record will show against this transaction.
     // That is the entire service being offered; see paymaster.ts.
-    send(res, 200, { transactionHash: await submit(calls) })
+    send(res, 200, { transactionHash: await submit(calls, details) })
   } catch (e) {
     send(res, 502, { error: String(e) })
   }
@@ -978,8 +1011,11 @@ async function main(): Promise<void> {
 
   const messageBook = deployedMessageBook()
   const server = createRelayerServer({
-    submit: async (calls) => {
-      const { transaction_hash } = await account.execute(calls)
+    // `details` is undefined for a plain submission, which is what `execute` already
+    // defaults to — so a `{calls}`-only body goes out byte-identical to before, and a
+    // proven one carries proofFacts into the V3 transaction fields.
+    submit: async (calls, details) => {
+      const { transaction_hash } = await account.execute(calls, details)
       return transaction_hash
     },
     policy: { messageBook },
