@@ -1,7 +1,7 @@
 import { ec, stark } from 'starknet'
 import { NET } from './constants.js'
 import { getPublicKey } from './pool.js'
-import { deriveViewingKey } from './identity.js'
+import { deriveViewingKey, isStarkPrivateKey } from './identity.js'
 import { CLIENT_ACTION } from './message-book.js'
 import { assertActionListValid, type ValidatableAction } from './actions.js'
 
@@ -171,12 +171,14 @@ export function buildRegistrationActions(random?: bigint): RegistrationAction[] 
 /** The variant index the registration action serializes to (Account phase, index 0). */
 export const REGISTRATION_VARIANT = CLIENT_ACTION.SetViewingKey
 
-/** True while `k` is a legal Stark scalar for use as an account key input to registration. */
+/**
+ * True while `k` is a legal Stark scalar for use as an account key input to registration.
+ *
+ * Delegates to `identity.ts`, which owns the one definition of what a Stark private key is —
+ * the shape pattern AND the `(0, ORDER)` range. This was a fourth hand-written copy of that
+ * rule; `createBackup` and `issueBackup` had two more, and a rule written four times is a
+ * rule that will be four different rules by the end of the sprint.
+ */
 export function isRegisterableKey(k: string): boolean {
-  try {
-    const n = BigInt(k)
-    return n > 0n && n < ec.starkCurve.CURVE.n
-  } catch {
-    return false
-  }
+  return isStarkPrivateKey(k)
 }
