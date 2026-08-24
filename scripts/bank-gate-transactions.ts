@@ -482,7 +482,10 @@ if (SENDER) {
 }
 
 console.log('\naction-list rules, established against the deployed pool (free view calls):')
-for (const [shape, verdict] of ACTION_LIST_EVIDENCE) console.log(`  ${shape.padEnd(48)} ${verdict}`)
+for (const { group, rows } of ACTION_LIST_EVIDENCE) {
+  console.log(`\n  ${group}`)
+  for (const [shape, verdict] of rows) console.log(`    ${shape.padEnd(48)} ${verdict}`)
+}
 
 // ---------------------------------------------------------------------------------
 // SUBMISSION — NOT IMPLEMENTED. This is the honest part.

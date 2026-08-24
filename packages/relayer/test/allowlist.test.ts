@@ -2,12 +2,14 @@ import { describe, it, expect } from 'vitest'
 import type { Call } from 'starknet'
 import { NET, STRK_TOKEN } from '../../protocol/src/constants.js'
 import {
+  assertProofFacts,
   assertSubmittable,
   needsApproveCeiling,
   approveCeiling,
   MAX_CALLS_PER_SUBMISSION,
   APPROVE_FEE_MULTIPLE,
   ABSOLUTE_MAX_APPROVE_WEI,
+  MAX_PROOF_FACTS,
 } from '../src/allowlist.js'
 
 const MESSAGE_BOOK = '0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef'
@@ -391,5 +393,86 @@ describe('submission allowlist', () => {
         /not an allowlisted call/,
       )
     })
+  })
+})
+
+describe('proof facts (story 1.12)', () => {
+  it('accepts felts in both encodings that reach this server', () => {
+    // Hex is what a hand-written call carries; the prover and starknet.js both emit
+    // decimal. A hex-only check would refuse every real proof.
+    expect(assertProofFacts(['0x1a2b', '3141592653589793'])).toEqual(['0x1a2b', '3141592653589793'])
+  })
+
+  it('refuses what is not an array', () => {
+    expect(() => assertProofFacts('0x1')).toThrow(/not an array/)
+    expect(() => assertProofFacts(undefined)).toThrow(/not an array/)
+    expect(() => assertProofFacts({ 0: '0x1', length: 1 })).toThrow(/not an array/)
+  })
+
+  it('refuses an empty array rather than reading it as "no facts"', () => {
+    expect(() => assertProofFacts([])).toThrow(/omit the field/)
+  })
+
+  it('refuses values BigInt() would silently coerce, naming the index', () => {
+    // `BigInt(["0x1"])` is 1n and `BigInt(" 0x1 ")` throws only sometimes — either one
+    // would be signed as a number nobody inspected.
+    expect(() => assertProofFacts([['0x1']])).toThrow(/proofFacts\[0\]/)
+    expect(() => assertProofFacts(['0x1', 2])).toThrow(/proofFacts\[1\]/)
+    expect(() => assertProofFacts(['  0x1  '])).toThrow(/not a felt/)
+    expect(() => assertProofFacts(['0xzz'])).toThrow(/not a felt/)
+    expect(() => assertProofFacts([null])).toThrow(/not a felt/)
+  })
+
+  // Shape is not range. FELT admits 78 decimal digits and 64 hex ones, both of which
+  // reach past the field order — and a value above it is reduced mod P on the way into
+  // the transaction hash, so the fact that gets signed is not the one that was checked.
+  it('refuses a value at or above the Stark field prime', () => {
+    const P = (1n << 251n) + 17n * (1n << 192n) + 1n
+    expect(() => assertProofFacts([`0x${P.toString(16)}`])).toThrow(/Stark field prime/)
+    expect(() => assertProofFacts([P.toString()])).toThrow(/Stark field prime/)
+    expect(assertProofFacts([`0x${(P - 1n).toString(16)}`])).toHaveLength(1)
+  })
+
+  // `.map` SKIPS holes, so a sparse array would sail past a per-element check and arrive
+  // at signing as `undefined`. JSON cannot make one; another caller of this export can.
+  it('checks every slot of a sparse array rather than skipping the holes', () => {
+    const sparse = ['0x1', , '0x3'] as unknown[]
+    expect(() => assertProofFacts(sparse)).toThrow(/proofFacts\[1\]/)
+  })
+
+  // The body limit alone is not a bound: a megabyte of `"0x1",` is ~15k felts, every one
+  // of them signed into a transaction this wallet pays the gas for.
+  it('caps the count, generously but really', () => {
+    const many = Array.from({ length: MAX_PROOF_FACTS }, () => '0x1')
+    expect(assertProofFacts(many)).toHaveLength(MAX_PROOF_FACTS)
+    expect(() => assertProofFacts([...many, '0x1'])).toThrow(/the limit is 128/)
+  })
+
+  it('formats its refusal without throwing on a bigint', () => {
+    // JSON.stringify raises TypeError on a bigint; a check whose own error formatting
+    // throws is the failure the server's backstop exists to catch.
+    expect(() => assertProofFacts([1n])).toThrow(/1n is not a felt/)
+  })
+})
+
+// Not a synthetic array. These are the felts the mainnet proving service actually
+// returned for a lone `SetViewingKey` on 24 Aug 2026 (free prove, nothing submitted).
+// Nine felts, all hex, including two ASCII tags — `PROOF1` and `VIRTUAL_SNOS` — which
+// are exactly the kind of value a numeric-only check would have refused.
+const REAL_PROOF_FACTS = [
+  '0x50524f4f4631',
+  '0x5649525455414c5f534e4f53',
+  '0x53f6c9fcfd31d27279ff7d7e422b44623550a732b59fe193354a7316a96daa1',
+  '0x5649525455414c5f534e4f5330',
+  '0xd204f0',
+  '0x7730c4bea7ccf2cead07d7ef79e04b34f775d54cf0c3520eee8b9e0a61dc4b6',
+  '0x5b3bc83b3a47231aa5f15e73309ef7e09e087bd4ace767656fe5d713f6e2d7a',
+  '0x1',
+  '0x2b349694a753ca1e208c7c0e451ad2ef1569c283f3daeb872cb03365debe925',
+]
+
+describe('the real prover output passes the gate it has to pass', () => {
+  it('accepts the facts a live mainnet prove returned', () => {
+    expect(assertProofFacts(REAL_PROOF_FACTS)).toEqual(REAL_PROOF_FACTS)
   })
 })

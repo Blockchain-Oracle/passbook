@@ -24,68 +24,15 @@ import { NET, STRK_TOKEN } from '../../protocol/src/constants.js'
 /** A real submission is one approve plus a pool call. Anything long is not ours. */
 export const MAX_CALLS_PER_SUBMISSION = 8
 
-/**
- * How much more than one fee an approve may authorise. This multiple IS the blast
- * radius, so it is derived rather than picked — do not widen it without redoing this:
- *
- *   - What is actually needed is 1x. `collect_fee` pulls exactly one fee per submission.
- *   - Headroom exists for one reason only: the pool's fee is mutable with ZERO upgrade
- *     delay, so it can change between our read and the execution.
- *   - It is sized against precedent, not imagination. The largest fee change in this
- *     pool's history is 4 -> 6 STRK, or 1.5x. Two covers a repeat of the worst observed
- *     jump, with margin, and nothing beyond it.
- *   - The failure directions are asymmetric, which is what settles the number. Too
- *     tight and the transaction reverts, costing gas. Too loose and a funded wallet
- *     carries standing spend authority. Bias toward the revert.
- *
- * What makes this a ceiling rather than a per-request rate limit: ERC-20 `approve`
- * SETS the allowance, it does not add to it. Separate requests therefore overwrite one
- * another and cannot accumulate.
- *
- * That is true ACROSS requests and false WITHIN one, which is the distinction an earlier
- * version of this comment blurred — and blurring it is what hid a real bug. A single
- * batch of `[approve, apply_actions, approve, apply_actions, …]` re-sets the allowance
- * between pulls, so N approves in one signed transaction cost N times the fee no matter
- * what this multiple says. `assertSubmittable` therefore refuses any batch carrying more
- * than one approve, and that rule is what makes this number mean what it claims.
- */
-export const APPROVE_FEE_MULTIPLE = 2n
-
-/**
- * A hard ceiling that depends on nobody else's number.
- *
- * `APPROVE_FEE_MULTIPLE` bounds us to twice the LIVE fee — but `get_fee_amount()` is set
- * by a pool admin outside this repository, at zero upgrade delay. That is the same
- * mutability the multiple exists to absorb, so on its own the bound reads "twice whatever
- * a third party currently says", which is not a bound at all.
- *
- * 20 STRK, derived — and the first reason is the one most likely to be forgotten by
- * someone later wondering why it is not higher:
- *
- *   - A CAP ONLY MEANS ANYTHING IF IT SITS BELOW THE FUNDED BALANCE. This wallet holds
- *     roughly what the gate work needs — about three fees plus gas, so on the order of
- *     30 STRK. A cap above that can never bind before the balance does, which makes it
- *     decorative. 20 binds first. That is the entire point of having it.
- *   - It is still far above anything observed. The only measured fee is 6 STRK and the
- *     only other known historical value is 4, so the largest real change is 1.5x.
- *     20 permits a 3.3x rise over the measured fee before it binds.
- *   - Above that, refusing loudly beats paying. A fee that high is a protocol event a
- *     human should look at, not something to auto-approve.
- *
- * The effective ceiling is the LOWER of this and the fee-derived bound, so once the fee
- * passes 10 STRK our exposure stops tracking it and reverts begin instead — the correct
- * direction to fail when the number is not ours to trust.
- *
- * If the relayer is ever funded with materially more, revisit this: the first bullet
- * stops holding, and the cap quietly becomes decoration again.
- */
-export const ABSOLUTE_MAX_APPROVE_WEI = 20_000_000_000_000_000_000n
-
-/** The effective ceiling: whichever of the two bounds binds first. */
-export function approveCeiling(liveFeeWei: bigint): bigint {
-  const derived = liveFeeWei * APPROVE_FEE_MULTIPLE
-  return derived < ABSOLUTE_MAX_APPROVE_WEI ? derived : ABSOLUTE_MAX_APPROVE_WEI
-}
+// The approve ceiling lives in `protocol/src/fee-ceiling.ts`, because the client that
+// BUILDS the approve needs the identical formula — if the two drifted, our own gate would
+// refuse every real submission. Moved verbatim; re-exported here so this module's public
+// surface, and every existing import of it, is unchanged.
+export {
+  APPROVE_FEE_MULTIPLE,
+  ABSOLUTE_MAX_APPROVE_WEI,
+  approveCeiling,
+} from '../../protocol/src/fee-ceiling.js'
 
 export interface SubmissionPolicy {
   /** The deployed MessageBook, once evidence/deployment.json exists. */
@@ -167,6 +114,17 @@ function refuse(call: Call): Error {
 
 const U128_CEILING = 1n << 128n
 
+/** The Cairo field order, `2^251 + 17·2^192 + 1`. Every felt is strictly below it. */
+const STARK_PRIME = (1n << 251n) + 17n * (1n << 192n) + 1n
+
+/**
+ * Generous by an order of magnitude and still a bound. The observed mainnet prove returns
+ * nine facts; 128 leaves room for a prover that grows its output without this becoming
+ * the thing that breaks a real submission, while refusing the thousands a body limit alone
+ * would permit.
+ */
+export const MAX_PROOF_FACTS = 128
+
 /**
  * `approve` is permitted only with the pool as spender AND only up to a ceiling drawn
  * from the live fee. The spender check alone is not enough: `approve(pool, MAX_U256)`
@@ -242,6 +200,56 @@ function assertCallAllowed(call: Call, policy: SubmissionPolicy): void {
 }
 
 /**
+ * Validates the prover facts that ride alongside a submission (story 1.12).
+ *
+ * They go into the transaction's V3 details rather than into any call's calldata, so
+ * `assertSubmittable` never sees them — which is exactly why they need their own gate.
+ * They reach `calculateInvokeTransactionHash`, so a value that is not felt-shaped either
+ * throws inside signing or, worse, coerces: `BigInt(["0x1"])` is `1n`, and an array that
+ * stringifies to a number would be signed as one. Shape before value, same as addresses.
+ *
+ * Count is capped as well as shape. The body limit alone is not a bound worth having:
+ * one megabyte of `"0x1",` is roughly fifteen thousand felts, all of them signed into a
+ * transaction this wallet pays the gas for. A real prove returns nine.
+ */
+export function assertProofFacts(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    throw new Error(`refusing proofFacts: ${describe(value)} is not an array`)
+  }
+  if (value.length > MAX_PROOF_FACTS) {
+    throw new Error(
+      `refusing ${value.length} proofFacts: the limit is ${MAX_PROOF_FACTS}, and a real ` +
+        'mainnet prove returns nine',
+    )
+  }
+  // An empty array is not "no facts" — it is a caller who meant to send some and sent
+  // none. Omitting the field is how a submission says it has none, and the two must not
+  // be spelled the same way, or a prover returning nothing looks like a plain submission.
+  if (value.length === 0) {
+    throw new Error('refusing an empty proofFacts array: omit the field entirely instead')
+  }
+  // `Array.from`, not `.map`: `map` SKIPS holes. `JSON.parse` cannot produce a sparse
+  // array, but this function is exported and the next caller may not be the HTTP body
+  // parser — and a hole that skips its own check arrives at signing as `undefined`.
+  return Array.from({ length: value.length }, (_, i) => {
+    const fact = value[i]
+    if (typeof fact !== 'string' || !FELT.test(fact)) {
+      throw new Error(`refusing proofFacts[${i}]: ${describe(fact)} is not a felt`)
+    }
+    // Shape is not range. `FELT` admits 78 decimal digits and 64 hex ones, both of which
+    // reach past the Stark prime, and a value above it is reduced modulo P on the way in
+    // — so the fact that gets signed is not the fact that was inspected. Refuse instead.
+    if (BigInt(fact) >= STARK_PRIME) {
+      throw new Error(
+        `refusing proofFacts[${i}]: ${fact} is not below the Stark field prime, so it ` +
+          'would be silently reduced into a different value than the one checked here',
+      )
+    }
+    return fact
+  })
+}
+
+/**
  * Whether this batch needs the fee-derived ceiling — i.e. whether it contains anything
  * that will reach the approve check. Lets the server skip a live RPC read for batches
  * that have no approve in them, so chain availability is not a precondition for
@@ -260,7 +268,8 @@ function isStrkApprove(call: Call): boolean {
   return matches(call, STRK_TOKEN, 'approve')
 }
 
-function isPoolApplyActions(call: Call): boolean {
+/** Exported so `/submit` can require one before it will carry proofFacts. */
+export function isPoolApplyActions(call: Call): boolean {
   return matches(call, NET.pool, 'apply_actions')
 }
 

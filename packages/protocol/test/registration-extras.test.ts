@@ -1,20 +1,28 @@
 import { describe, it, expect } from 'vitest'
 import {
   verifyClaimedKey, mapRegistrationError, buildRegistrationActions, isRegisterableKey,
-  REGISTRATION_VARIANT,
+  deriveRegisteredPublicKey, REGISTRATION_VARIANT,
 } from '../src/registration.js'
-import { generateIdentity, deriveIdentityPublicKey } from '../src/identity.js'
+import { generateIdentity } from '../src/identity.js'
 
 describe('ForeignKey recovery — verifyClaimedKey (1.7)', () => {
   it('accepts the paste that derives the registered public key', () => {
+    // Round-trips through the VIEWING-key derivation, which is what the chain stores —
+    // not through `generateIdentity`'s account public key, which is what this compared
+    // while it was broken.
+    const { privateKey } = generateIdentity()
+    expect(verifyClaimedKey(privateKey, deriveRegisteredPublicKey(privateKey))).toBe(true)
+  })
+
+  it('rejects the account key\'s own public key, which is not what registration wrote', () => {
     const { privateKey, publicKey } = generateIdentity()
-    expect(verifyClaimedKey(privateKey, BigInt(publicKey))).toBe(true)
+    expect(verifyClaimedKey(privateKey, BigInt(publicKey))).toBe(false)
   })
 
   it('rejects a different key', () => {
-    const a = generateIdentity()
-    const b = generateIdentity()
-    expect(verifyClaimedKey(a.privateKey, BigInt(b.publicKey))).toBe(false)
+    const a = generateIdentity().privateKey
+    const b = generateIdentity().privateKey
+    expect(verifyClaimedKey(a, deriveRegisteredPublicKey(b))).toBe(false)
   })
 
   it('returns false (never throws) on a malformed paste', () => {

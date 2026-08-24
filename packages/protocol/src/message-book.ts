@@ -267,25 +267,57 @@ export function buildGateActionList(input: {
 }
 
 /**
- * Probe results from the deployed mainnet pool, 21 Aug 2026, block ~13654117. Each row
- * is a real `compile_actions` call. Kept in the source because the next person to touch
- * the action list will otherwise re-derive it by spending money.
+ * Probe results from the deployed mainnet pool. Every row is a real `compile_actions`
+ * call — a free view — kept in the source because the next person to touch the action
+ * list will otherwise re-derive it by spending money.
+ *
+ * WHEN EACH GROUP WAS ESTABLISHED, and against what. The first two groups were probed on
+ * 21 Aug 2026 around block 13654117; the sponsored-registration group on 24 Aug 2026 at
+ * block 13763801, when the deployed class hash was still
+ * 0x67dddd89d80fedadc06b6f160798f94800a4a70164e5a24301cd0d6076b554d. The class-hash claim
+ * is scoped to that last run because it is the only one whose hash was recorded at the
+ * time — the older rows were taken against what was then deployed, which is believed to
+ * be the same class but is not evidenced here. The pool is upgradeable at ZERO delay, so
+ * re-run `scripts/probes/registration-compile-actions.ts` rather than trusting any of it
+ * across an upgrade.
  */
 export const ACTION_LIST_EVIDENCE = [
-  ['[InvokeExternal]', 'ERR NO_REPLAY_PROTECTION'],
-  ['[Deposit(STRK,1), InvokeExternal]', 'ERR NO_REPLAY_PROTECTION — kills the 1-wei-note plan'],
-  ['[Withdraw(STRK,1), InvokeExternal]', 'ERR NEGATIVE_INTERMEDIATE_BALANCE'],
-  ['[InvokeExternal, SetViewingKey]', 'ERR ACTIONS_OUT_OF_ORDER'],
-  ['[SetViewingKey, InvokeExternal, InvokeExternal]', 'ERR ACTIONS_OUT_OF_ORDER'],
-  ['[SetViewingKey, InvokeExternal]', 'OK  4 server actions — calldata returned verbatim'],
-  ['[SetViewingKey, InvokeExternal(empty payload)]', 'OK  — pool does NOT catch EMPTY_PAYLOAD'],
-  ['[SetViewingKey, InvokeExternal(bad len prefix)]', 'OK  — pool does NOT catch a wrong prefix'],
-  ['[SetViewingKey, InvokeExternal(mode 3)]', 'OK  — pool does NOT catch UNKNOWN_MODE'],
-  ['-- single-use vs repeatable ------------------', ''],
-  ['[SetViewingKey] on an ALREADY-REGISTERED addr', 'ERR NON_ZERO_VALUE — single-use, proven'],
-  ['[OpenChannel(0), InvokeExternal] unregistered', 'ERR SENDER_NOT_REGISTERED — needs tx 1 first'],
-  ['[SetViewingKey, OpenChannel(0), InvokeExternal]', 'OK  7 server actions'],
-  ['[SetViewingKey, OpenChannel(1), InvokeExternal]', 'ERR INDEX_NOT_SEQUENTIAL — must start at 0'],
-  ['[SetViewingKey, OpenChannel(0), OpenChannel(1)]', 'ERR NON_ZERO_VALUE — one channel per tx'],
-  ['a real mainnet user holds 2 channels', 'so OpenChannel DOES repeat across transactions'],
+  {
+    group: 'action-list shape',
+    rows: [
+      ['[InvokeExternal]', 'ERR NO_REPLAY_PROTECTION'],
+      ['[Deposit(STRK,1), InvokeExternal]', 'ERR NO_REPLAY_PROTECTION — kills the 1-wei-note plan'],
+      ['[Withdraw(STRK,1), InvokeExternal]', 'ERR NEGATIVE_INTERMEDIATE_BALANCE'],
+      ['[InvokeExternal, SetViewingKey]', 'ERR ACTIONS_OUT_OF_ORDER'],
+      ['[SetViewingKey, InvokeExternal, InvokeExternal]', 'ERR ACTIONS_OUT_OF_ORDER'],
+      ['[SetViewingKey, InvokeExternal]', 'OK  4 server actions — calldata returned verbatim'],
+      ['[SetViewingKey, InvokeExternal(empty payload)]', 'OK  — pool does NOT catch EMPTY_PAYLOAD'],
+      ['[SetViewingKey, InvokeExternal(bad len prefix)]', 'OK  — pool does NOT catch a wrong prefix'],
+      ['[SetViewingKey, InvokeExternal(mode 3)]', 'OK  — pool does NOT catch UNKNOWN_MODE'],
+    ],
+  },
+  {
+    group: 'single-use vs repeatable',
+    rows: [
+      ['[SetViewingKey] on an ALREADY-REGISTERED addr', 'ERR NON_ZERO_VALUE — single-use, proven'],
+      ['[OpenChannel(0), InvokeExternal] unregistered', 'ERR SENDER_NOT_REGISTERED — needs tx 1 first'],
+      ['[SetViewingKey, OpenChannel(0), InvokeExternal]', 'OK  7 server actions'],
+      ['[SetViewingKey, OpenChannel(1), InvokeExternal]', 'ERR INDEX_NOT_SEQUENTIAL — must start at 0'],
+      ['[SetViewingKey, OpenChannel(0), OpenChannel(1)]', 'ERR NON_ZERO_VALUE — one channel per tx'],
+      ['a real mainnet user holds 2 channels', 'so OpenChannel DOES repeat across transactions'],
+    ],
+  },
+  {
+    // WHAT IS AND IS NOT HERE. These two rows are `compile_actions` evidence: the pool's
+    // compiler accepts the lone registration and rejects a doubled one. They say nothing
+    // about the relay and confirm legs, because proving that end of the pipeline costs
+    // STRK on mainnet — deliberately deferred to story 1.13's banked-transaction gate,
+    // which is where a paid submission is authorised. Do not read a green row here as
+    // evidence that a registration has ever actually been submitted.
+    group: 'sponsored registration (story 1.12)',
+    rows: [
+      ['[SetViewingKey] alone on an UNREGISTERED addr', 'OK  3 server actions — the sponsored registration compiles'],
+      ['[SetViewingKey, SetViewingKey] in one tx', 'ERR NON_ZERO_VALUE — the write-once slot closes within the tx'],
+    ],
+  },
 ] as const

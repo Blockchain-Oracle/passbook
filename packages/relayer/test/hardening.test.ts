@@ -537,6 +537,97 @@ describe('budget gate on the submit path (AC1, story 1.5)', () => {
   })
 })
 
+describe('POST /submit carries proofFacts (story 1.12)', () => {
+  const FACTS = ['0x1a2b', '3141592653589793']   // hex and decimal: both reach this server
+
+  it('passes validated facts through to the signer', async () => {
+    const submit = vi.fn<SubmitCalls>(async () => '0xok')
+    const s = await start({ submit })
+    try {
+      const res = await request(s.port, '/submit', { calls: [A_CALL], proofFacts: FACTS })
+      expect(res.status).toBe(200)
+      expect(res.body.transactionHash).toBe('0xok')
+      expect(submit).toHaveBeenCalledWith([A_CALL], { proofFacts: FACTS })
+    } finally {
+      await s.close()
+    }
+  })
+
+  // The whole point of an additive extension: every submission the browser route already
+  // makes must keep working, and must go out shaped exactly as it did before.
+  it('leaves a {calls}-only submission untouched — no details at all', async () => {
+    const submit = vi.fn<SubmitCalls>(async () => '0xok')
+    const s = await start({ submit })
+    try {
+      expect((await request(s.port, '/submit', { calls: [A_CALL] })).status).toBe(200)
+      expect(submit).toHaveBeenCalledWith([A_CALL], undefined)
+    } finally {
+      await s.close()
+    }
+  })
+
+  it('answers 400 on facts that are not felts, without signing', async () => {
+    const submit = vi.fn<SubmitCalls>(async () => '0xok')
+    const s = await start({ submit })
+    try {
+      for (const proofFacts of [
+        ['0xzz'],                  // not hex
+        [['0x1']],                 // an array that BigInt() would coerce to 1n
+        [1],                       // a number, not a felt string
+        ['  0x1  '],               // whitespace-padded: short-string encodes instead
+        [null],
+        'not-an-array',
+        [],                        // meant to send some and sent none
+      ]) {
+        const res = await request(s.port, '/submit', { calls: [A_CALL], proofFacts })
+        expect(res.status, `proofFacts ${JSON.stringify(proofFacts)}`).toBe(400)
+        expect(res.body.error).toMatch(/proofFacts/)
+      }
+      expect(submit).not.toHaveBeenCalled()
+    } finally {
+      await s.close()
+    }
+  })
+
+  // Facts belong to a PROVEN POOL SUBMISSION. On a batch with no apply_actions there is
+  // no proof they could belong to, so what they really are is caller-chosen felts being
+  // signed into our V3 details — a field the allowlist never inspects.
+  it('answers 400 for proofFacts on a batch with no pool apply_actions', async () => {
+    const submit = vi.fn<SubmitCalls>(async () => '0xok')
+    const messageBook = '0x' + '5'.repeat(63) + '1'
+    const bookCall = { contractAddress: messageBook, entrypoint: 'privacy_invoke', calldata: [] }
+    const s = await start({ submit, policy: { messageBook } })
+    try {
+      const res = await request(s.port, '/submit', { calls: [bookCall], proofFacts: FACTS })
+      expect(res.status).toBe(400)
+      expect(res.body.error).toMatch(/no pool apply_actions/)
+      expect(submit).not.toHaveBeenCalled()
+
+      // The same batch WITHOUT facts is still perfectly acceptable.
+      expect((await request(s.port, '/submit', { calls: [bookCall] })).status).toBe(200)
+    } finally {
+      await s.close()
+    }
+  })
+
+  // Shape is checked on the way in, before the allowlist and before the budget — a
+  // malformed body is the caller's fault (400) and must not consume a sponsorship.
+  it('does not spend budget on a malformed facts array', async () => {
+    const sponsorship = new SponsorshipLedger(
+      { perVisitor: 1, daily: 10 }, new MemorySponsorshipStore(), T0,
+    )
+    const s = await start({ sponsorship, now: () => T0 })
+    try {
+      expect((await request(s.port, '/submit', { calls: [A_CALL], proofFacts: [1] })).status)
+        .toBe(400)
+      expect((await request(s.port, '/submit', { calls: [A_CALL], proofFacts: FACTS })).status)
+        .toBe(200)
+    } finally {
+      await s.close()
+    }
+  })
+})
+
 describe('funding monitor (FR-053, story 1.5)', () => {
   const STRK = 10n ** 18n
   const fee = STRK * 6n                  // ~6 STRK live fee
