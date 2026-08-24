@@ -123,6 +123,81 @@ export async function getPublicKey(address: string): Promise<bigint> {
 }
 
 /**
+ * How many outgoing channels `address` has already opened.
+ *
+ * THE COUNT IS THE NEXT INDEX. `open_channel` asserts the index it is given equals this number
+ * (`INDEX_NOT_SEQUENTIAL` otherwise — probed live, see ACTION_LIST_EVIDENCE), so a send that
+ * opens a channel has to read this rather than assume zero. `u64` on the wire, one felt.
+ */
+export async function getNumOfChannels(address: string): Promise<number> {
+  return channelCountFrom(await call('get_num_of_channels', [address]))
+}
+
+/**
+ * The one place a channel-count response becomes a number. Exported so the decode is testable
+ * without a chain — every send test injects past the read, so without this the decode itself
+ * would be the one line nothing ever ran.
+ */
+export function channelCountFrom(result: readonly string[]): number {
+  const raw = result?.[0]
+  if (raw === undefined) throw new Error('the pool returned no value for get_num_of_channels')
+  let count: bigint
+  try {
+    count = BigInt(raw)
+  } catch {
+    throw new Error(`the pool returned a non-numeric channel count: ${JSON.stringify(String(raw).slice(0, 64))}`)
+  }
+  // A `u64` fits a felt but not necessarily a JS number. Past 2^53 the value that comes back is
+  // ROUNDED, so the index a new channel would be opened at is not the index the pool holds — and
+  // `INDEX_NOT_SEQUENTIAL` would be the only symptom, on a batch already paid for. Nobody has
+  // 9 quadrillion channels; the point is that a wrong answer here is silent and this one is not.
+  if (count > BigInt(Number.MAX_SAFE_INTEGER)) {
+    throw new Error(
+      `the pool reported ${count} channels, which cannot be represented exactly as a number`,
+    )
+  }
+  return Number(count)
+}
+
+/**
+ * Whether the pool holds a note under `noteId` yet.
+ *
+ * `get_note` returns `(packed_value, token)` and the pool's own existence test throughout
+ * `privacy.cairo` is `packed_value.is_non_zero()` — so that, and not the presence of a reply, is
+ * what this reads. A note that has not landed answers with a zero packed value rather than
+ * failing, so a `false` here means "not yet", never "the read broke": a read that breaks throws.
+ *
+ * THIS IS NOT A MATURITY VIEW, because the deployed class has none. It answers exactly one
+ * question — is the note in pool storage — which is the closest thing to "can it be spent" that
+ * can be asked without inventing a ripening window nobody published.
+ */
+export async function noteExists(noteId: bigint): Promise<boolean> {
+  return notePresentIn(await call('get_note', [`0x${noteId.toString(16)}`]), noteId)
+}
+
+/**
+ * The one place a `get_note` response becomes a yes or a no. Exported for the same reason
+ * `channelCountFrom` is: the send tests all inject past the read.
+ *
+ * A NOTE THAT DOES NOT EXIST ANSWERS, IT DOES NOT REVERT — probed live on the deployed class,
+ * where `get_note` on an invented id returns `["0x0","0x0"]`. That is what makes polling this a
+ * usable maturity signal at all: a revert would be indistinguishable from an RPC failure, and
+ * the watcher would have no way to tell "not yet" from "the read broke".
+ */
+export function notePresentIn(result: readonly string[], noteId: bigint): boolean {
+  const packed = result?.[0]
+  if (packed === undefined) throw new Error(`the pool returned no value for get_note(${noteId})`)
+  try {
+    return BigInt(packed) !== 0n
+  } catch {
+    throw new Error(
+      `the pool returned a non-numeric packed value for get_note(${noteId}): ` +
+        JSON.stringify(String(packed).slice(0, 64)),
+    )
+  }
+}
+
+/**
  * The StarkWare auditor key every registration escrows a copy of the viewing key to
  * (`get_auditor_public_key`, a zero-argument view returning one felt — SDK ABI
  * `dist/internal/abi.js:965`).

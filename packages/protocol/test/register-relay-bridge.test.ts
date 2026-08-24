@@ -19,7 +19,7 @@ import { NET, STRK_TOKEN } from '../src/constants.js'
 import { generateIdentity } from '../src/identity.js'
 import { approveCeiling } from '../../relayer/src/allowlist.js'
 import { createRelayerServer, type SubmitCalls } from '../../relayer/src/server.js'
-import { SponsorshipLedger } from '../../relayer/src/sponsorship.js'
+import { SponsorshipLedger, SEND_CAP_NOTICE } from '../../relayer/src/sponsorship.js'
 import { MemorySponsorshipStore } from '../../relayer/src/sponsorship-store.js'
 
 const FEE_WEI = 6_000_000_000_000_000_000n
@@ -93,10 +93,14 @@ describe('registerSponsored → relayer, over real HTTP', () => {
   })
 
   it('carries a real 403 sponsorship-paused back as pay-your-own-way with the server notice', async () => {
-    // A ledger with nothing left, so the refusal is the server's own, not a stub of it.
+    // A ledger with nothing left, so the refusal is the server's own, not a stub of it. The
+    // send budget rides along because construction refuses a sponsorship budget without one.
     const relayer = await startRelayer({
       sponsorship: new SponsorshipLedger(
         { perVisitor: 0, daily: 0 }, new MemorySponsorshipStore(),
+      ),
+      sendBudget: new SponsorshipLedger(
+        { perVisitor: 3, daily: 20 }, new MemorySponsorshipStore(), Date.now(), SEND_CAP_NOTICE,
       ),
     })
     try {
