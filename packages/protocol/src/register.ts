@@ -451,7 +451,7 @@ export interface DeadlineTimer {
   clearTimeout(handle: unknown): void
 }
 
-const REAL_TIMER: DeadlineTimer = {
+export const REAL_TIMER: DeadlineTimer = {
   setTimeout: (fn, ms) => setTimeout(fn, ms),
   clearTimeout: (h) => clearTimeout(h as ReturnType<typeof setTimeout>),
 }
@@ -788,6 +788,12 @@ export async function registerSponsored(
       response = await submit(input.relayerUrl ?? DEFAULT_RELAYER_URL, {
         calls,
         proofFacts: proved.proofFacts,
+        // A registration IS the sponsorship — it mints nothing, so there is no value in the
+        // transaction to reimburse the fee from and the relayer's own STRK pays it. The flag
+        // is what keeps this charged to the sponsorship budget once the relayer stopped
+        // treating every submission as one (story 1.16); without it a registration would be
+        // metered against the plain-send cap and would never see the pay-your-own-way notice.
+        sponsored: true,
       })
     } catch (e) {
       // A refusal before delivery is free to retry; anything else may already be signed.

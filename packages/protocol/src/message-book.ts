@@ -320,4 +320,33 @@ export const ACTION_LIST_EVIDENCE = [
       ['[SetViewingKey, SetViewingKey] in one tx', 'ERR NON_ZERO_VALUE — the write-once slot closes within the tx'],
     ],
   },
+  {
+    // Probed 24 Aug 2026 at block 13789403, class hash still
+    // 0x67dddd89d80fedadc06b6f160798f94800a4a70164e5a24301cd0d6076b554d. Re-run
+    // `scripts/probes/send-compile-actions.ts` rather than trusting any of it across an upgrade.
+    //
+    // WHAT THESE ROWS DO AND DO NOT SAY. Every one is a free `compile_actions` view, so they are
+    // evidence about what the pool's COMPILER accepts and nothing more — no send has been paid
+    // for or submitted. Where a row sources value from a `Deposit` it is standing in for the
+    // `UseNote` a funded sender would use: the probe address holds no notes, so a real UseNote
+    // stops at NOTE_NOT_FOUND (its own row below) before the rule under test is reached. The
+    // balance rules the pool applies are the same either way — `deposit` and `use_note` both
+    // call `add_balance` (privacy.cairo:493, :618).
+    group: 'send: transfer / withdraw with a relayer fee leg (story 1.16)',
+    rows: [
+      ['[SVK, OpenChannel(0), OpenSubchannel(0), Deposit(3), CreateEncNote(3)]', 'OK  12 server actions — the send shape compiles'],
+      ['… Deposit(3), CreateEncNote(1), Withdraw(1→self), Withdraw(1→relayer)', 'OK  16 server actions — THE DOUBLE-WITHDRAW FEE FOLD COMPILES'],
+      ['… Deposit(3), CreateEncNote(1), Withdraw(2→relayer)', 'OK  14 server actions — a fee leg may name a third party'],
+      ['… Deposit(3), CreateEncNote(1) — outputs short of inputs', 'ERR FINAL_BALANCE_MUST_BE_ZERO — surplus is as fatal as shortfall'],
+      ['… Deposit(1), CreateEncNote(2) — overspend', 'ERR NEGATIVE_INTERMEDIATE_BALANCE'],
+      ['… Deposit(3), CreateEncNote(0) — zero-amount note', 'ERR FINAL_BALANCE_MUST_BE_ZERO — a zero note banks nothing'],
+      ['[Deposit(1), Withdraw(1)] — balanced, NO invoke, no write-once action', 'ERR NO_REPLAY_PROTECTION — the rule is NOT invoke-gated'],
+      ['[SVK, OpenChannel(0), Deposit(1), Withdraw(1)] — companion added', 'OK  10 server actions — one write-once action is enough'],
+      ['[SVK, OpenChannel(1)] — a first channel at a non-zero index', 'ERR INDEX_NOT_SEQUENTIAL — the index IS the live channel count'],
+      ['[SVK, OpenChannel(0 → an UNREGISTERED recipient)]', 'ERR RECIPIENT_NOT_REGISTERED — what the send pre-flight routes on'],
+      ['… OpenSubchannel(0), UseNote — a note this sender does not hold', 'ERR NOTE_NOT_FOUND — the compiler reads real note storage'],
+      ['… OpenSubchannel(0), OpenSubchannel(1) — same token twice in one tx', 'ERR NON_ZERO_VALUE — one subchannel per token per tx'],
+      ['[OpenChannel(0), …] with no SetViewingKey on an unregistered sender', 'ERR SENDER_NOT_REGISTERED'],
+    ],
+  },
 ] as const

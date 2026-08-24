@@ -1,13 +1,13 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import http from 'node:http'
 import type { AddressInfo } from 'node:net'
-import { mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { NET } from '../../protocol/src/constants.js'
 import {
   decideSponsorship, commitSponsorship, emptyBudget, rolledToDay, utcDayKey,
-  SponsorshipLedger, BUDGET_EXHAUSTED_NOTICE,
+  SponsorshipLedger, BUDGET_EXHAUSTED_NOTICE, SEND_CAP_NOTICE,
 } from '../src/sponsorship.js'
 import {
   FileSponsorshipStore, MemorySponsorshipStore, emptyLedger, isAcceptableSalt,
@@ -24,7 +24,7 @@ import {
 } from '../src/quote-proxy.js'
 import {
   createRelayerServer, resolveSponsorshipCaps, visitorId, createQuoteCounter,
-  openSponsorshipLedger, u256FromFelts, makeOpsPager,
+  openSponsorshipLedger, openSendBudgetLedger, u256FromFelts, makeOpsPager,
   type RelayerServerOptions, type SubmitCalls, type SponsorshipConfig,
 } from '../src/server.js'
 
@@ -64,6 +64,8 @@ function config(over: Partial<SponsorshipConfig> = {}): SponsorshipConfig {
   return {
     caps: CAPS,
     storePath: tempStorePath(),
+    sendCaps: CAPS,
+    sendStorePath: tempStorePath(),
     opsWebhook: undefined,
     salt: undefined,
     fundingIntervalMs: 0,
@@ -74,9 +76,22 @@ function config(over: Partial<SponsorshipConfig> = {}): SponsorshipConfig {
 }
 
 async function start(extra: Partial<RelayerServerOptions> = {}) {
+  // A real relayer always has BOTH budgets — `createRelayerServer` refuses to start with only
+  // the sponsorship one, because that would leave every plain submission unmetered. Tests that
+  // are about the sponsorship gate should not have to say so, so the harness supplies a send
+  // budget generous enough never to be the thing that bound. A test that cares about the send
+  // cap passes its own and this default steps aside.
+  const needsSendBudget = extra.sponsorship !== undefined && extra.sendBudget === undefined
   const server = createRelayerServer({
     submit: async () => '0xok',
     resolveApproveCeiling: async () => 0n,
+    ...(needsSendBudget
+      ? {
+          sendBudget: new SponsorshipLedger(
+            { perVisitor: 10_000, daily: 10_000 }, new MemorySponsorshipStore(), T0, SEND_CAP_NOTICE,
+          ),
+        }
+      : {}),
     ...extra,
   })
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
@@ -107,6 +122,25 @@ function request(
     })
     req.on('error', reject)
     req.end(typeof body === 'string' ? body : JSON.stringify(body))
+  })
+}
+
+/** The GET sibling of `request`, for the one endpoint that reads rather than submits. */
+function get(port: number, path: string, headers: Record<string, string> = {}) {
+  return new Promise<{ status: number; body: any }>((resolve, reject) => {
+    const req = http.request({ host: '127.0.0.1', port, path, method: 'GET', headers }, (res) => {
+      let data = ''
+      res.on('data', (c) => (data += c))
+      res.on('end', () => {
+        try {
+          resolve({ status: res.statusCode ?? 0, body: data ? JSON.parse(data) : null })
+        } catch (e) {
+          reject(new Error(`expected JSON from ${path}, got ${JSON.stringify(data)}: ${String(e)}`))
+        }
+      })
+    })
+    req.on('error', reject)
+    req.end()
   })
 }
 
@@ -357,6 +391,44 @@ describe('sponsorship config resolution', () => {
     expect(c.quoteDailyPerVisitor).toBe(7)
   })
 
+  describe('the send cap (story 1.16)', () => {
+    it('defaults to 3 per visitor, 20 a day, on its own ledger file', () => {
+      const c = resolveSponsorshipCaps({})
+      expect(c.sendCaps).toEqual({ perVisitor: 3, daily: 20 })
+      expect(c.sendStorePath).toMatch(/send-budget\.json$/)
+      // A SEPARATE FILE: one ledger holding both would make a reset of either a reset of both.
+      expect(c.sendStorePath).not.toBe(c.storePath)
+    })
+
+    it('honours explicit send caps and store path', () => {
+      const c = resolveSponsorshipCaps({
+        RELAYER_SEND_PER_VISITOR: '11',
+        RELAYER_SEND_DAILY: '222',
+        RELAYER_SEND_STORE: '/tmp/sends.json',
+      })
+      expect(c.sendCaps).toEqual({ perVisitor: 11, daily: 222 })
+      expect(c.sendStorePath).toBe('/tmp/sends.json')
+    })
+
+    it('leaves the sponsorship budget alone when only the send cap is set', () => {
+      const c = resolveSponsorshipCaps({ RELAYER_SEND_DAILY: '222' })
+      expect(c.caps).toEqual({ perVisitor: 1, daily: 20 })
+    })
+
+    it.each(['lots', '0', '-5', '2.5', '1e3', '0x10', ' 5 '])(
+      'refuses a send cap of %s rather than substituting the default',
+      (v) => {
+        expect(() => resolveSponsorshipCaps({ RELAYER_SEND_DAILY: v })).toThrow(/integer/)
+        expect(() => resolveSponsorshipCaps({ RELAYER_SEND_PER_VISITOR: v })).toThrow(/integer/)
+      },
+    )
+
+    it('treats a blank as unset, as every other setting does', () => {
+      expect(resolveSponsorshipCaps({ RELAYER_SEND_DAILY: '' }).sendCaps.daily).toBe(20)
+      expect(resolveSponsorshipCaps({ RELAYER_SEND_STORE: '' }).sendStorePath).toMatch(/send-budget\.json$/)
+    })
+  })
+
   // Number() reads '1e3' as 1000 and '0x10' as 16, so an operator could set one and get the
   // other. Only plain digits pass.
   it.each(['lots', '0', '-5', '2.5', '1e3', '0x10', ' 5 '])(
@@ -453,6 +525,12 @@ describe('sponsorship config resolution', () => {
   })
 })
 
+// Every request in here carries `sponsored: true`, and that is the story-1.16 correction rather
+// than a detail of the harness: the sponsorship budget now meters only submissions that ask the
+// relayer to PAY, which since 1.16 means registrations and nothing else. A body without the flag
+// is a plain submission and is metered by the send cap — see the suite below this one.
+const SPONSORED = { calls: [A_CALL], sponsored: true }
+
 describe('budget gate on the submit path (AC1, story 1.5)', () => {
   it('refuses past the cap with a legible 403 carrying the reason and the notice', async () => {
     const submit = vi.fn<SubmitCalls>(async () => '0xok')
@@ -461,9 +539,9 @@ describe('budget gate on the submit path (AC1, story 1.5)', () => {
     )
     const s = await start({ submit, sponsorship, now: () => T0 })
     try {
-      expect((await request(s.port, '/submit', { calls: [A_CALL] })).status).toBe(200)
+      expect((await request(s.port, '/submit', SPONSORED)).status).toBe(200)
 
-      const refused = await request(s.port, '/submit', { calls: [A_CALL] })
+      const refused = await request(s.port, '/submit', SPONSORED)
       expect(refused.status).toBe(403)
       expect(refused.body.reason).toBe('sponsorship-paused')
       expect(refused.body.notice).toBe(BUDGET_EXHAUSTED_NOTICE)
@@ -483,8 +561,8 @@ describe('budget gate on the submit path (AC1, story 1.5)', () => {
     )
     const s = await start({ sponsorship, now: () => T0 })
     try {
-      await request(s.port, '/submit', { calls: [A_CALL] })
-      const refused = await request(s.port, '/submit', { calls: [A_CALL] })
+      await request(s.port, '/submit', SPONSORED)
+      const refused = await request(s.port, '/submit', SPONSORED)
       expect(refused.status).toBe(403)
       expect(refused.body.reason).toBe('sponsorship-paused')
       expect(JSON.stringify(refused.body)).not.toMatch(/daily-budget|visitor-cap/)
@@ -500,10 +578,10 @@ describe('budget gate on the submit path (AC1, story 1.5)', () => {
     )
     const s = await start({ sponsorship, now: () => clock })
     try {
-      expect((await request(s.port, '/submit', { calls: [A_CALL] })).status).toBe(200)
-      expect((await request(s.port, '/submit', { calls: [A_CALL] })).status).toBe(403)
+      expect((await request(s.port, '/submit', SPONSORED)).status).toBe(200)
+      expect((await request(s.port, '/submit', SPONSORED)).status).toBe(403)
       clock = NEXT_DAY
-      expect((await request(s.port, '/submit', { calls: [A_CALL] })).status).toBe(200)
+      expect((await request(s.port, '/submit', SPONSORED)).status).toBe(200)
     } finally {
       await s.close()
     }
@@ -517,7 +595,7 @@ describe('budget gate on the submit path (AC1, story 1.5)', () => {
     store.failing = true
     const s = await start({ submit, sponsorship, now: () => T0 })
     try {
-      const res = await request(s.port, '/submit', { calls: [A_CALL] })
+      const res = await request(s.port, '/submit', SPONSORED)
       expect(res.status).toBe(500)
       expect(res.body.error).toMatch(/ledger could not be written/)
       expect(submit).not.toHaveBeenCalled()
@@ -529,8 +607,289 @@ describe('budget gate on the submit path (AC1, story 1.5)', () => {
   it('leaves the submit path alone when no budget is configured', async () => {
     const s = await start({})
     try {
+      expect((await request(s.port, '/submit', SPONSORED)).status).toBe(200)
+      expect((await request(s.port, '/submit', SPONSORED)).status).toBe(200)
+    } finally {
+      await s.close()
+    }
+  })
+})
+
+// The 403 that used to greet every non-registration submission (story 1.16). The premise it
+// rested on — "every accepted submission IS a sponsorship" — is false for a send, which
+// reimburses its own fee out of the proven action chain.
+describe('the send cap is not the sponsorship budget (story 1.16)', () => {
+  const SEND = { calls: [A_CALL] }
+
+  it('never charges the registration budget for a plain send, or shows its copy', async () => {
+    const submit = vi.fn<SubmitCalls>(async () => '0xok')
+    const sponsorship = new SponsorshipLedger(
+      { perVisitor: 1, daily: 1 }, new MemorySponsorshipStore(), T0,
+    )
+    const sendBudget = new SponsorshipLedger(
+      { perVisitor: 50, daily: 50 }, new MemorySponsorshipStore(), T0, SEND_CAP_NOTICE,
+    )
+    const s = await start({ submit, sponsorship, sendBudget, now: () => T0 })
+    try {
+      // Five sends against a sponsorship budget of exactly one.
+      for (let i = 0; i < 5; i++) {
+        const res = await request(s.port, '/submit', SEND)
+        expect(res.status, `send ${i}`).toBe(200)
+      }
+      expect(submit).toHaveBeenCalledTimes(5)
+      // The one free registration is still there afterwards, untouched.
+      expect((await request(s.port, '/submit', SPONSORED)).status).toBe(200)
+      expect((await request(s.port, '/submit', SPONSORED)).status).toBe(403)
+    } finally {
+      await s.close()
+    }
+  })
+
+  it('refuses past the send cap with its own reason and its own notice', async () => {
+    const submit = vi.fn<SubmitCalls>(async () => '0xok')
+    const sendBudget = new SponsorshipLedger(
+      { perVisitor: 1, daily: 10 }, new MemorySponsorshipStore(), T0, SEND_CAP_NOTICE,
+    )
+    const s = await start({ submit, sendBudget, now: () => T0 })
+    try {
+      expect((await request(s.port, '/submit', SEND)).status).toBe(200)
+      const refused = await request(s.port, '/submit', SEND)
+      expect(refused.status).toBe(403)
+      expect(refused.body.reason).toBe('send-cap-reached')
+      // Byte-exact, and written out rather than compared to the constant it came from: this
+      // sentence promises a reset time and an alternative, and both are claims.
+      expect(refused.body.notice).toBe(
+        'Relayed sends are paused until 00:00 UTC. ' +
+          'You can still submit this send from your own Starknet wallet.',
+      )
+      // Not one word about registrations, which is the point of the second notice existing.
+      expect(JSON.stringify(refused.body)).not.toMatch(/registration|account/i)
+      expect(submit).toHaveBeenCalledTimes(1)
+    } finally {
+      await s.close()
+    }
+  })
+
+  it('never charges the send cap for a sponsored registration', async () => {
+    const sendBudget = new SponsorshipLedger(
+      { perVisitor: 1, daily: 1 }, new MemorySponsorshipStore(), T0, SEND_CAP_NOTICE,
+    )
+    const sponsorship = new SponsorshipLedger(
+      { perVisitor: 10, daily: 10 }, new MemorySponsorshipStore(), T0,
+    )
+    const s = await start({ sponsorship, sendBudget, now: () => T0 })
+    try {
+      for (let i = 0; i < 3; i++) {
+        expect((await request(s.port, '/submit', SPONSORED)).status, `registration ${i}`).toBe(200)
+      }
+      // The single send this visitor is allowed is still available.
+      expect((await request(s.port, '/submit', SEND)).status).toBe(200)
+      expect((await request(s.port, '/submit', SEND)).status).toBe(403)
+    } finally {
+      await s.close()
+    }
+  })
+
+  it('refuses a sponsored flag that is not exactly true, without signing', async () => {
+    const submit = vi.fn<SubmitCalls>(async () => '0xok')
+    const s = await start({ submit })
+    try {
+      for (const sponsoredValue of [false, 'true', 1, null, {}]) {
+        const res = await request(s.port, '/submit', { calls: [A_CALL], sponsored: sponsoredValue })
+        expect(res.status, `sponsored ${JSON.stringify(sponsoredValue)}`).toBe(400)
+        expect(res.body.error).toMatch(/sponsored/)
+      }
+      expect(submit).not.toHaveBeenCalled()
+    } finally {
+      await s.close()
+    }
+  })
+
+  // The whole point of an additive extension: a body the browser already sends must keep
+  // working, and must reach the signer shaped exactly as it did before.
+  it('leaves a {calls}-only submission byte-identical at the signer', async () => {
+    const submit = vi.fn<SubmitCalls>(async () => '0xok')
+    const s = await start({ submit })
+    try {
       expect((await request(s.port, '/submit', { calls: [A_CALL] })).status).toBe(200)
-      expect((await request(s.port, '/submit', { calls: [A_CALL] })).status).toBe(200)
+      expect(submit).toHaveBeenCalledWith([A_CALL], undefined)
+    } finally {
+      await s.close()
+    }
+  })
+
+  it('does not forward the sponsored flag to the signer — it is a routing hint, not calldata', async () => {
+    const submit = vi.fn<SubmitCalls>(async () => '0xok')
+    const s = await start({ submit })
+    try {
+      expect((await request(s.port, '/submit', SPONSORED)).status).toBe(200)
+      expect(submit).toHaveBeenCalledWith([A_CALL], undefined)
+    } finally {
+      await s.close()
+    }
+  })
+
+  it('answers 500 without signing when the SEND ledger cannot be written', async () => {
+    const submit = vi.fn<SubmitCalls>(async () => '0xok')
+    const store = new BreakableStore()
+    const sendBudget = new SponsorshipLedger({ perVisitor: 5, daily: 5 }, store, T0, SEND_CAP_NOTICE)
+    store.failing = true
+    const s = await start({ submit, sendBudget, now: () => T0 })
+    try {
+      const res = await request(s.port, '/submit', SEND)
+      expect(res.status).toBe(500)
+      expect(res.body.error).toMatch(/send ledger could not be written/)
+      expect(submit).not.toHaveBeenCalled()
+    } finally {
+      await s.close()
+    }
+  })
+})
+
+// `openSendBudgetLedger` is what `main()` actually calls, and the suite above hand-builds its
+// ledgers — so a `sendStorePath → storePath` slip, or a forgotten notice, would pass every test
+// there while shipping a relayer whose two budgets share one file.
+describe('openSendBudgetLedger, against real files (story 1.16)', () => {
+  it('writes its own file, never the sponsorship one', () => {
+    const conf = config()
+    const sponsorship = openSponsorshipLedger(conf)
+    const sendBudget = openSendBudgetLedger(conf, sponsorship.salt)
+
+    sendBudget.spend('visitor-a', T0)
+    expect(existsSync(conf.sendStorePath)).toBe(true)
+    const sent = JSON.parse(readFileSync(conf.sendStorePath, 'utf8'))
+    expect(sent.budget.dailyCount).toBe(1)
+    // The sponsorship ledger is untouched — it has not even been written yet.
+    if (existsSync(conf.storePath)) {
+      expect(JSON.parse(readFileSync(conf.storePath, 'utf8')).budget.dailyCount).toBe(0)
+    }
+    expect(conf.sendStorePath).not.toBe(conf.storePath)
+  })
+
+  it('carries the sponsorship salt, so both gates bucket a visitor the same way', () => {
+    const conf = config()
+    const sponsorship = openSponsorshipLedger(conf)
+    const sendBudget = openSendBudgetLedger(conf, sponsorship.salt)
+    expect(sendBudget.salt).toBe(sponsorship.salt)
+    expect(visitorId('1.2.3.4', sendBudget.salt, T0)).toBe(visitorId('1.2.3.4', sponsorship.salt, T0))
+  })
+
+  it('refuses with the SEND notice, not the registration one', () => {
+    const conf = config({ sendCaps: { perVisitor: 1, daily: 5 } })
+    const sendBudget = openSendBudgetLedger(conf, A_SALT)
+    expect(sendBudget.notice).toBe(SEND_CAP_NOTICE)
+    sendBudget.spend('v', T0)
+    const refused = sendBudget.spend('v', T0)
+    expect(refused.allow).toBe(false)
+    expect(refused.allow === false && refused.notice).toBe(SEND_CAP_NOTICE)
+  })
+
+  it('applies its own caps, independent of the sponsorship ones', () => {
+    const conf = config({ caps: { perVisitor: 9, daily: 9 }, sendCaps: { perVisitor: 1, daily: 1 } })
+    const sendBudget = openSendBudgetLedger(conf, A_SALT)
+    expect(sendBudget.spend('v', T0).allow).toBe(true)
+    expect(sendBudget.spend('v', T0).allow).toBe(false)
+  })
+})
+
+// Both mistakes are otherwise SILENT: the server starts, serves, and is wrong in a way only a
+// user would notice. Construction-time, so `handleSubmit`'s gate order is untouched.
+describe('the server refuses to start half-configured (story 1.16)', () => {
+  const base = { submit: async () => '0xok', resolveApproveCeiling: async () => 0n }
+
+  it('refuses a sponsorship budget with no send budget beside it', () => {
+    const sponsorship = new SponsorshipLedger(CAPS, new MemorySponsorshipStore(), T0)
+    expect(() => createRelayerServer({ ...base, sponsorship })).toThrow(/without a send budget/)
+  })
+
+  it('refuses a send budget built with the registration notice', () => {
+    const sponsorship = new SponsorshipLedger(CAPS, new MemorySponsorshipStore(), T0)
+    // The default notice — the exact slip that would answer a refused send with copy about
+    // account creation.
+    const sendBudget = new SponsorshipLedger(CAPS, new MemorySponsorshipStore(), T0)
+    expect(() => createRelayerServer({ ...base, sponsorship, sendBudget }))
+      .toThrow(/without SEND_CAP_NOTICE/)
+  })
+
+  it('accepts both budgets configured correctly, and neither configured at all', () => {
+    const sponsorship = new SponsorshipLedger(CAPS, new MemorySponsorshipStore(), T0)
+    const sendBudget = new SponsorshipLedger(CAPS, new MemorySponsorshipStore(), T0, SEND_CAP_NOTICE)
+    expect(() => createRelayerServer({ ...base, sponsorship, sendBudget })).not.toThrow()
+    expect(() => createRelayerServer(base)).not.toThrow()
+    // A send budget alone is fine: plain submissions are metered, and nothing claims to sponsor.
+    expect(() => createRelayerServer({ ...base, sendBudget })).not.toThrow()
+  })
+})
+
+describe('GET /fee-recipient (story 1.16)', () => {
+  const RELAYER = `0x${'a'.repeat(63)}1`
+
+  it('advertises the address a reimbursement leg must name', async () => {
+    const s = await start({ feeRecipient: RELAYER })
+    try {
+      const res = await get(s.port, '/api/fee-recipient')
+      expect(res.status).toBe(200)
+      expect(res.body.feeRecipient).toBe(RELAYER)
+    } finally {
+      await s.close()
+    }
+  })
+
+  it('answers on both spellings, as /submit does', async () => {
+    const s = await start({ feeRecipient: RELAYER })
+    try {
+      expect((await get(s.port, '/fee-recipient')).status).toBe(200)
+    } finally {
+      await s.close()
+    }
+  })
+
+  // No default, because there is no sensible one: a real withdraw is about to name this.
+  it('refuses rather than guessing when no recipient is configured', async () => {
+    const s = await start({})
+    try {
+      const res = await get(s.port, '/api/fee-recipient')
+      expect(res.status).toBe(503)
+      expect(res.body.feeRecipient).toBeUndefined()
+    } finally {
+      await s.close()
+    }
+  })
+
+  it('refuses to advertise a zero or malformed recipient — a burn, from its own mouth', async () => {
+    for (const bad of ['0x0', '0', 'not-an-address']) {
+      const s = await start({ feeRecipient: bad })
+      try {
+        const res = await get(s.port, '/api/fee-recipient')
+        expect(res.status).toBe(503)
+        expect(res.body.feeRecipient).toBeUndefined()
+        expect(res.body.error).toMatch(/refuses to advertise|not a usable address/)
+      } finally {
+        await s.close()
+      }
+    }
+  })
+
+  // Behind the same door as everything else. Only the content-type lock is skipped, because a
+  // GET has no body to declare a type for.
+  it('is still behind the auth token and the origin allowlist', async () => {
+    const s = await start({ feeRecipient: RELAYER, authToken: 'shh', allowedOrigins: new Set(['https://ok.example']) })
+    try {
+      expect((await get(s.port, '/api/fee-recipient')).status).toBe(401)
+      expect((await get(s.port, '/api/fee-recipient', { 'x-relayer-auth': 'shh' })).status).toBe(200)
+      expect(
+        (await get(s.port, '/api/fee-recipient', { 'x-relayer-auth': 'shh', origin: 'https://evil.example' })).status,
+      ).toBe(403)
+    } finally {
+      await s.close()
+    }
+  })
+
+  it('does not answer a POST, and /submit does not answer a GET', async () => {
+    const s = await start({ feeRecipient: RELAYER })
+    try {
+      expect((await request(s.port, '/api/fee-recipient', {})).status).toBe(404)
+      expect((await get(s.port, '/submit')).status).toBe(404)
     } finally {
       await s.close()
     }
@@ -1051,6 +1410,23 @@ describe('ops pager (AC3, story 1.5)', () => {
 })
 
 describe('relayer-down refusal on the submit path (AC3, story 1.5)', () => {
+  // The client branches on `reason` for every other non-200 on this endpoint, so the 503 has to
+  // carry one too — `send.ts` reads it to decide whether to offer self-submission (story 1.16).
+  // `state` stays alongside it: it is a shipped field, and removing it to tidy a name would
+  // break a client for nothing.
+  it('carries the same token in `reason` as in `state`, so one field routes every refusal', async () => {
+    const s = await start({ relayerState: () => 'relayer-down' })
+    try {
+      const res = await request(s.port, '/submit', { calls: [A_CALL] })
+      expect(res.status).toBe(503)
+      expect(res.body.reason).toBe('relayer-down')
+      expect(res.body.state).toBe('relayer-down')
+      expect(res.body.notice).toBe(RELAYER_DOWN_NOTICE)
+    } finally {
+      await s.close()
+    }
+  })
+
   it('refuses with the relayer-down state and never mentions the funding detail', async () => {
     const submit = vi.fn<SubmitCalls>(async () => '0xok')
     const s = await start({ submit, relayerState: () => 'relayer-down' })

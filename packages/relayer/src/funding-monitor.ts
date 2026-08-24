@@ -101,17 +101,11 @@ export function shouldPageOps(h: FundingHealth): boolean {
   return h !== 'healthy'
 }
 
-/**
- * The one string a user sees when the relayer cannot submit, whatever the reason.
- *
- * Written to sit in the `PoolHealth` family's voice (pool.ts:15-20): say what happened, in
- * a sentence, and say what still works. Ops learns the cause from the page; the user learns
- * only that this route is closed and the other one is open. The relayer's balance never
- * appears here — a number would leak our funding state and read as our bug (FR-053).
- */
-export const RELAYER_DOWN_NOTICE =
-  'The relayer is not submitting right now. ' +
-  'You can still submit from a funded Starknet wallet.'
+// The one string a user sees when the relayer cannot submit, whatever the reason. Defined in
+// `protocol/src/relayer-wire.ts` alongside the response field it travels in — the browser renders
+// it verbatim, so it belongs to the wire contract rather than to this module. Re-exported here so
+// every existing importer, and this file's own comments about it, are unchanged.
+export { RELAYER_DOWN_NOTICE } from '../../protocol/src/relayer-wire.js'
 
 /** `unknown` until the first read lands — see the note in `check()` about why it is not a fault. */
 export type MonitorHealth = FundingHealth | 'unknown'

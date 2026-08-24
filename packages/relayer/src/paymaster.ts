@@ -66,17 +66,25 @@ export class RelayerPaymaster {
    * The URL is relative because the browser holds this instance: it resolves against
    * the app's own origin, which is where the relayer endpoint is served from.
    *
-   * KNOWN GAP, narrowed — `buildTransaction` above still returns `{ actions, feeAction }`
-   * and the server still requires a `SubmitBody` (`protocol/src/relayer-wire.ts`, the one
-   * definition of this endpoint's wire contract, shared with the server), so passing one
-   * straight into the other earns a 400 today, exactly as before. What is no longer an
-   * open unknown is HOW
-   * the two connect: `protocol/src/register.ts` does it for the registration path, proving
-   * the action list through the SDK and prepending the `STRK.approve(pool, liveFee)` that
-   * has to ride in the same transaction because `collect_fee` pulls from the caller. It
-   * posts here itself and does not route through `buildTransaction`, for the reason in the
-   * class comment. A value-bearing path that wants the withdraw-fee model is what would
-   * close the rest of this.
+   * THE GAP IS CLOSED, and this class is not where it closed. `buildTransaction` above still
+   * returns `{ actions, feeAction }` while the server requires a `SubmitBody`
+   * (`protocol/src/relayer-wire.ts`), so passing one straight into the other still earns a 400
+   * — but that is now a dead shape rather than an unfinished one, because the two real paths
+   * both bypass it:
+   *
+   *   - REGISTRATION pays plainly (`protocol/src/register.ts`), for the arithmetic reason in the
+   *     class comment: a lone `SetViewingKey` moves no value, so there is nothing to withdraw
+   *     from and no reimbursement leg is possible.
+   *   - A SEND uses the withdraw-fee model this class describes (`protocol/src/send.ts`, story
+   *     1.16), and the reason it does not run through here is structural: the reimbursement
+   *     `Withdraw` has to be inside the action list BEFORE the prover binds it, so only the
+   *     client — the one holding the notes and calling the prover — can fold it in. The
+   *     relayer's whole contribution is telling the client where to send it, which is the
+   *     `GET /fee-recipient` endpoint in server.ts, not a method here. The relayer cannot
+   *     verify the leg afterwards either (`apply_actions` calldata is deliberately uninspected),
+   *     so its exposure to a batch that folded in no leg is bounded by the send cap instead.
+   *
+   * Do not re-derive either of those by trying `buildTransaction` on a real flow.
    */
   async executeTransaction(payload: unknown): Promise<{ transactionHash: string }> {
     const res = await fetch('/api/submit', {

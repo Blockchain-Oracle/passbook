@@ -5,10 +5,16 @@
 
 import type { PersistedLedger, SponsorshipStore } from './sponsorship-store.js'
 
+// The notice a spent send cap answers with. Defined in `protocol/src/relayer-wire.ts` alongside
+// the field it travels in — the browser renders it verbatim, so it is part of the wire contract
+// rather than a string this package owns. Re-exported here so existing importers are unchanged.
+export { SEND_CAP_NOTICE } from '../../protocol/src/relayer-wire.js'
+
 /** Shown when the daily budget is spent — the flow still offers the self-funded path (FR-012). */
 export const BUDGET_EXHAUSTED_NOTICE =
   'Sponsored registrations are paused until 00:00 UTC. ' +
   'You can still create an account from a funded Starknet wallet.'
+
 
 export interface BudgetCaps {
   perVisitor: number   // max sponsored actions for one visitor id
@@ -40,14 +46,27 @@ export function rolledToDay(state: BudgetState, now: number): BudgetState {
   return day === state.utcDay ? state : emptyBudget(now)
 }
 
-/** Pure decision — does NOT mutate. `commitSponsorship` applies the effect. */
-export function decideSponsorship(state: BudgetState, caps: BudgetCaps, visitorId: string, now: number): SponsorDecision {
+/**
+ * Pure decision — does NOT mutate. `commitSponsorship` applies the effect.
+ *
+ * `notice` is a parameter because the same counting machinery meters two different things now:
+ * the sponsorship budget and the send cap (story 1.16). It defaults to the registration copy, so
+ * every existing caller behaves exactly as before; what it prevents is a send being refused with
+ * a sentence about account creation.
+ */
+export function decideSponsorship(
+  state: BudgetState,
+  caps: BudgetCaps,
+  visitorId: string,
+  now: number,
+  notice: string = BUDGET_EXHAUSTED_NOTICE,
+): SponsorDecision {
   const s = rolledToDay(state, now)
   if (s.dailyCount >= caps.daily) {
-    return { allow: false, reason: 'daily-budget', notice: BUDGET_EXHAUSTED_NOTICE }
+    return { allow: false, reason: 'daily-budget', notice }
   }
   if ((s.perVisitor[visitorId] ?? 0) >= caps.perVisitor) {
-    return { allow: false, reason: 'visitor-cap', notice: BUDGET_EXHAUSTED_NOTICE }
+    return { allow: false, reason: 'visitor-cap', notice }
   }
   return { allow: true }
 }
@@ -86,6 +105,15 @@ export class SponsorshipLedger {
     private readonly caps: BudgetCaps,
     private readonly store: SponsorshipStore,
     now: number = Date.now(),
+    /**
+     * The copy a refusal carries. Defaults to the registration notice, so a ledger constructed
+     * the way 1.5 constructs one is byte-identical to before. The send cap passes its own.
+     *
+     * PUBLIC, so a caller can check which one it got. Forgetting this argument on a send budget
+     * is silent — the ledger works perfectly and answers every refusal with copy about account
+     * registration — so `createRelayerServer` reads it back and refuses to start on a mismatch.
+     */
+    readonly notice: string = BUDGET_EXHAUSTED_NOTICE,
   ) {
     const loaded = store.load()
     this.salt = loaded.salt
@@ -96,7 +124,7 @@ export class SponsorshipLedger {
   }
 
   decide(visitorId: string, now: number = Date.now()): SponsorDecision {
-    return decideSponsorship(this.state, this.caps, visitorId, now)
+    return decideSponsorship(this.state, this.caps, visitorId, now, this.notice)
   }
 
   /**

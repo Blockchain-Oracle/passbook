@@ -67,6 +67,7 @@ import {
 } from './allowlist.js'
 import type { SubmitBody } from '../../protocol/src/relayer-wire.js'
 import {
+  SEND_CAP_NOTICE,
   SponsorshipLedger,
   utcDayKey,
   type BudgetCaps,
@@ -93,6 +94,10 @@ const SUBMIT_PATHS = new Set(['/submit', '/api/submit'])
 
 // The third-party proxy (FR-029). Both spellings for the same reason as SUBMIT_PATHS.
 const QUOTE_PATHS = new Set(['/quote', '/api/quote'])
+
+// Where a client asks which address a fee reimbursement should name (story 1.16). Both
+// spellings for the same reason as SUBMIT_PATHS.
+const FEE_RECIPIENT_PATHS = new Set(['/fee-recipient', '/api/fee-recipient'])
 
 // An upstream that will not answer in this long is an upstream the caller has already
 // given up on, and a request left hanging is a socket the relayer keeps paying for.
@@ -187,7 +192,8 @@ async function handle(req: IncomingMessage, res: ServerResponse, opts: RelayerSe
 
   const url = req.url ?? ''
   const isSubmit = SUBMIT_PATHS.has(url)
-  if (req.method !== 'POST' || !(isSubmit || QUOTE_PATHS.has(url))) {
+  const isFeeRecipient = req.method === 'GET' && FEE_RECIPIENT_PATHS.has(url)
+  if (!isFeeRecipient && (req.method !== 'POST' || !(isSubmit || QUOTE_PATHS.has(url)))) {
     send(res, 404, { error: 'not found' })
     return
   }
@@ -199,8 +205,16 @@ async function handle(req: IncomingMessage, res: ServerResponse, opts: RelayerSe
   // A cross-origin <form> can only send text/plain, urlencoded or multipart — none of
   // them this — and it cannot set a header to fake it. Anything that CAN set
   // application/json cross-origin is preflighted, and we answer no CORS headers at all.
+  //
+  // SKIPPED FOR THE FEE-RECIPIENT GET, and only because there is nothing for it to do there:
+  // this is a CSRF control, it works by being a content-type a cross-origin form cannot send,
+  // and a GET has no body to declare a type for. Requiring one would make the endpoint
+  // unreachable from a plain fetch while buying nothing — the request writes nothing, signs
+  // nothing and returns an address that is already public in every transaction we submit. The
+  // Origin and auth gates below still apply to it, so it is behind the same door as everything
+  // else; it is only this one lock that does not fit the shape of a GET.
   const contentType = (req.headers['content-type'] ?? '').split(';')[0]!.trim().toLowerCase()
-  if (contentType !== 'application/json') {
+  if (!isFeeRecipient && contentType !== 'application/json') {
     send(res, 415, { error: 'content-type must be application/json' })
     return
   }
@@ -225,7 +239,53 @@ async function handle(req: IncomingMessage, res: ServerResponse, opts: RelayerSe
   // host's egress and lends its address to whoever reaches it — an unauthenticated proxy is
   // a free anonymity service pointed at two APIs, and the first thing to notice would be a
   // rate limit we did not cause. Same door, same lock.
+  if (isFeeRecipient) {
+    handleFeeRecipient(res, opts)
+    return
+  }
   await (isSubmit ? handleSubmit(req, res, opts) : handleQuote(req, res, opts))
+}
+
+/**
+ * `GET /api/fee-recipient` — the address a reimbursement `Withdraw` must name (story 1.16).
+ *
+ * The relayer cannot fold the fee leg itself. The proof binds the action list, so the leg has to
+ * be in the list before the prover sees it, and only the client is on that side of the prove.
+ * What the relayer CAN do is say where the money should go — which is this, and which is why it
+ * is a read rather than a step in the submission.
+ *
+ * ABSENT MEANS REFUSE, not "use the default". There is no sensible default for an address that a
+ * real, irreversible withdraw is about to name; a relayer that has not been told its own payout
+ * address should stop clients building a leg to nowhere rather than let them guess.
+ */
+function handleFeeRecipient(res: ServerResponse, opts: RelayerServerOptions): void {
+  const { feeRecipient } = opts
+  if (!feeRecipient) {
+    send(res, 503, {
+      error:
+        'this relayer does not advertise a fee recipient, so a reimbursement leg cannot be ' +
+        'addressed; submissions that pay their own way are unaffected',
+    })
+    return
+  }
+  // The client refuses a zero or malformed address too, but a misconfigured operator should
+  // hear it from their own server, not from a user's failed send: what this advertises goes
+  // into a proven, irreversible `Withdraw`, and "0" is a perfectly well-formed felt.
+  let felt: bigint | null = null
+  try {
+    felt = BigInt(feeRecipient.trim())
+  } catch {
+    felt = null
+  }
+  if (felt === null || felt === 0n) {
+    send(res, 503, {
+      error:
+        'this relayer is configured with a fee recipient that is not a usable address, so it ' +
+        'refuses to advertise it; a reimbursement sent to it would be burned',
+    })
+    return
+  }
+  send(res, 200, { feeRecipient })
 }
 
 async function handleSubmit(
@@ -243,6 +303,11 @@ async function handleSubmit(
     send(res, 503, {
       error: 'the relayer is not accepting submissions right now',
       state: 'relayer-down',
+      // The same token in `reason`, which is the field every other refusal on this endpoint
+      // branches on. `state` is 1.5's spelling and stays: it is a shipped wire field and
+      // removing it would break a client to tidy a name. A client should be able to read one
+      // field to route every non-200, rather than knowing which status uses which key.
+      reason: 'relayer-down',
       notice: RELAYER_DOWN_NOTICE,
     })
     return
@@ -255,12 +320,25 @@ async function handleSubmit(
   // MessageBook submission the browser route already sends — behaves exactly as before.
   let calls: Call[]
   let details: SubmitDetails | undefined
+  let sponsored = false
   try {
     const body = (await readJsonBody(req)) as Partial<SubmitBody>
     if (!Array.isArray(body.calls) || body.calls.length === 0) {
       throw new Error('body must carry a non-empty `calls` array')
     }
     calls = body.calls
+    if (body.sponsored !== undefined) {
+      // Exactly `true`, or nothing. Reading this by truthiness would make `sponsored: false`
+      // and `sponsored: "no"` land in opposite branches from each other and from the reader's
+      // expectation — a flag that decides which budget is charged has to mean one thing.
+      if (body.sponsored !== true) {
+        throw new Error(
+          `refusing sponsored=${JSON.stringify(body.sponsored)}: the only accepted value is true, ` +
+            'and a submission that is not sponsored omits the field entirely',
+        )
+      }
+      sponsored = true
+    }
     if (body.proofFacts !== undefined) {
       // Facts belong to a PROVEN POOL SUBMISSION and to nothing else. On a batch with no
       // `apply_actions` in it there is no proof they could be the facts for, so what they
@@ -305,42 +383,76 @@ async function handleSubmit(
     return
   }
 
-  // The budget gate. Everything this server signs is paid for out of one funded key, so
-  // every accepted submission IS a sponsorship — there is no separate sponsored path to
-  // gate. The allowlist bounds what may be signed and the ceiling bounds one approve;
-  // neither bounds how MANY, which is what a budget is for.
+  // The budget gate — or rather, one of two, and which one is the whole of what `sponsored`
+  // decides.
   //
-  // The spend is recorded BEFORE submit(), and that ordering is deliberate. Recording it
-  // afterwards would leave the whole await window open for every concurrent request to
-  // pass the same check — the classic way a cap of twenty pays for two hundred. The cost
-  // of the other order is that a submission which fails at the sequencer still consumes a
-  // unit of budget; that is the direction to be wrong in, because the failure mode is a
-  // visitor waiting until 00:00 UTC rather than an operator waiting for a refund.
-  if (opts.sponsorship) {
+  // THIS SERVER USED TO TREAT EVERY ACCEPTED SUBMISSION AS A SPONSORSHIP, on the reasoning that
+  // it signs everything out of one funded key. That was true while the only thing it signed was
+  // a registration, and story 1.16 falsified it: a send folds a `Withdraw` naming this relayer
+  // into its own proven action chain, so the POOL FEE comes back out of the user's notes.
+  //
+  // NOT "nothing is given away" — the execution gas is still ours. A send reimburses the fee and
+  // nothing else, so every relayed send costs this wallet the gas for the transaction, every
+  // time. That is a real per-submission cost, it is simply a much smaller one than a whole
+  // sponsored fee. Both branches are therefore metered, and for the same underlying reason: the
+  // allowlist bounds WHAT may be signed and the ceiling bounds one approve, but neither bounds
+  // how MANY.
+  //
+  // What the split buys is that a busy day of sends cannot spend the day's free registrations —
+  // the one thing this product actually gives cold visitors — and cannot refuse them with copy
+  // about account creation. The send cap additionally bounds the relayer's exposure to a batch
+  // whose reimbursement leg is missing: `apply_actions` calldata is deliberately uninspected, so
+  // nothing here can check for it (allowlist.ts:179-182).
+  //
+  // The spend is recorded BEFORE submit() on both branches, and that ordering is deliberate.
+  // Recording it afterwards would leave the whole await window open for every concurrent request
+  // to pass the same check — the classic way a cap of twenty pays for two hundred. The cost of
+  // the other order is that a submission which fails at the sequencer still consumes a unit;
+  // that is the direction to be wrong in, because the failure mode is a visitor waiting until
+  // 00:00 UTC rather than an operator waiting for a refund.
+  const budget = sponsored ? opts.sponsorship : opts.sendBudget
+  if (budget) {
     const now = (opts.now ?? Date.now)()
-    const visitor = visitorId(clientIp(req), opts.sponsorship.salt, now)
+    const visitor = visitorId(clientIp(req), budget.salt, now)
     let decision: SponsorDecision
     try {
-      decision = opts.sponsorship.spend(visitor, now)
+      decision = budget.spend(visitor, now)
     } catch (e) {
       // `spend` writes the durable ledger, so it can fail on a full disk or a permissions
       // change. Letting that escape leaves the request unanswered — the client waits for a
       // socket that never closes — and it must NOT fall through to signing: an unrecordable
       // spend is one we refuse to make. 500 because it is our fault, not the caller's.
-      console.warn(`relayer: sponsorship ledger write failed: ${String(e)}`)
-      send(res, 500, { error: 'the sponsorship ledger could not be written; refusing to sign' })
+      console.warn(`relayer: ${sponsored ? 'sponsorship' : 'send'} ledger write failed: ${String(e)}`)
+      send(res, 500, {
+        error: `the ${sponsored ? 'sponsorship' : 'send'} ledger could not be written; refusing to sign`,
+      })
       return
     }
     if (!decision.allow) {
       // Ops gets the cap that actually bound; the caller does not. Which of the two ran
       // out is a fact about the relayer's day, and "the global budget is gone" tells a
       // stranger what everyone else has been doing.
-      console.warn(`relayer: sponsorship refused (${decision.reason}) for visitor ${visitor.slice(0, 8)}…`)
-      send(res, 403, {
-        error: 'sponsored submissions are paused',
-        reason: 'sponsorship-paused',
-        notice: decision.notice,
-      })
+      console.warn(
+        `relayer: ${sponsored ? 'sponsorship' : 'send'} refused (${decision.reason}) for visitor ${visitor.slice(0, 8)}…`,
+      )
+      send(
+        res,
+        403,
+        sponsored
+          ? {
+              error: 'sponsored submissions are paused',
+              reason: 'sponsorship-paused',
+              notice: decision.notice,
+            }
+          : {
+              // A DISTINCT reason token, so a client can tell "your free account is on hold"
+              // from "relay this yourself" without parsing prose — and so a send can never
+              // render the registration notice by accident.
+              error: 'relayed sends are paused',
+              reason: 'send-cap-reached',
+              notice: decision.notice,
+            },
+      )
       return
     }
   }
@@ -641,10 +753,23 @@ export interface RelayerServerOptions {
    */
   authToken?: string
   /**
-   * The durable budget. Absent means no budget gate, which is what the tests about
+   * The durable SPONSORSHIP budget — what the relayer gives away. Charged only by a submission
+   * that flags itself `sponsored`. Absent means no budget gate, which is what the tests about
    * everything else want; `main()` always supplies one.
    */
   sponsorship?: SponsorshipLedger
+  /**
+   * The durable cap on PLAIN submissions — the ones that reimburse their own fee. Its own
+   * ledger, so a busy day of sends cannot spend the free registrations and vice versa; the same
+   * class, because the counting, the day boundary and the durability rules are identical and a
+   * second implementation of them would be a second set of bugs.
+   */
+  sendBudget?: SponsorshipLedger
+  /**
+   * The address a client should name in a fee-reimbursement `Withdraw` — this relayer's own.
+   * Absent means `GET /fee-recipient` refuses; see `handleFeeRecipient`.
+   */
+  feeRecipient?: string
   /** Clock for both day-scoped gates. Injected so a test can stand on either side of 00:00 UTC. */
   now?: () => number
   /**
@@ -669,6 +794,29 @@ export interface RelayerServerOptions {
 }
 
 export function createRelayerServer(options: RelayerServerOptions): Server {
+  // TWO CONSTRUCTION-TIME GUARDS, both for mistakes that are otherwise completely silent — the
+  // server starts, serves, and is wrong in a way only a user would notice.
+  //
+  // A budget without its sibling is the dangerous one. `sponsorship` present and `sendBudget`
+  // absent means every plain submission — every send — passes unmetered, while registrations
+  // stay capped: the gate looks configured and the expensive half of it is off. Refusing at
+  // construction rather than at the gate keeps `handleSubmit`'s order untouched.
+  if (options.sponsorship && !options.sendBudget) {
+    throw new Error(
+      'a sponsorship budget was configured without a send budget, which would leave every ' +
+        'plain submission unmetered while registrations stay capped. Pass both, or neither.',
+    )
+  }
+  // And a send budget carrying the registration notice would refuse sends with copy about
+  // account creation — the exact thing the second ledger exists to prevent. The argument is
+  // optional and easy to omit, so it is read back here instead of trusted.
+  if (options.sendBudget && options.sendBudget.notice !== SEND_CAP_NOTICE) {
+    throw new Error(
+      'the send budget was built without SEND_CAP_NOTICE, so a refused send would be shown copy ' +
+        'about sponsored registrations. Construct it with the send notice.',
+    )
+  }
+
   // Resolved once, here, so the request path can never hash with an empty salt. An empty salt
   // makes every visitor id a plain hash of the address — the same value on every deployment,
   // so an in-memory key becomes a precomputable one. `main()` always passes the ledger's salt;
@@ -757,6 +905,9 @@ export interface SponsorshipConfig {
   caps: BudgetCaps
   /** Where the durable ledger lives. Named, so an operator can find, inspect and reset it. */
   storePath: string
+  /** The cap on plain, self-reimbursing submissions. Its own numbers and its own ledger file. */
+  sendCaps: BudgetCaps
+  sendStorePath: string
   /** Where a funding page goes. Unset means it goes to the log, under a greppable name. */
   opsWebhook: string | undefined
   /** Overrides the salt the store minted. Unset is the normal case and the better one. */
@@ -858,6 +1009,28 @@ export function resolveSponsorshipCaps(env: NodeJS.ProcessEnv = process.env): Sp
     storePath:
       env.RELAYER_SPONSOR_STORE ||
       fileURLToPath(new URL('../../../.relayer/sponsorship.json', import.meta.url)),
+    // MORE PER VISITOR than the sponsorship cap, the same ceiling per day, and the difference is
+    // what the two are measuring. A sponsored registration is a whole fee given away, so one per
+    // visitor is a spending limit. A send reimburses its fee and leaves us only the execution
+    // gas, so three per visitor costs far less than three registrations would — it is sized for
+    // a session that sends more than once, not against a balance.
+    //
+    // The daily ceiling matches the sponsorship one deliberately, so neither gate is the
+    // surprising one. What it bounds is the RATE at which an unreimbursed batch could drain the
+    // wallet if a client lied about the leg it folded in (the relayer cannot check:
+    // `apply_actions` calldata is deliberately uninspected). What bounds the LOSS is the wallet
+    // balance and the funding monitor's refusal floor, which closes the door at two live fees
+    // whatever this number says.
+    sendCaps: {
+      perVisitor: positiveInt(env, 'RELAYER_SEND_PER_VISITOR', 3),
+      daily: positiveInt(env, 'RELAYER_SEND_DAILY', 20),
+    },
+    // A SEPARATE FILE, not a second section of the same one. One ledger holding both would make
+    // a reset of either a reset of both, and an operator clearing a stuck send counter would
+    // silently hand out a fresh day of free registrations.
+    sendStorePath:
+      env.RELAYER_SEND_STORE ||
+      fileURLToPath(new URL('../../../.relayer/send-budget.json', import.meta.url)),
     opsWebhook: env.RELAYER_OPS_WEBHOOK || undefined,
     salt: resolveVisitorSalt(env),
     // Non-negative, unlike the caps: 0 is a meaningful setting here (poll never, keep the
@@ -917,6 +1090,24 @@ export function openSponsorshipLedger(config: SponsorshipConfig): SponsorshipLed
     if (record.salt !== config.salt) store.save({ ...record, salt: config.salt })
   }
   return new SponsorshipLedger(config.caps, store)
+}
+
+/**
+ * Opens the plain-submission cap's ledger — same machinery, second file, its own notice.
+ *
+ * `sponsorship.salt` is passed through rather than letting this file mint its own, so both gates
+ * bucket the same visitor under the same id. Two salts would mean two different opaque ids for
+ * one address, which is not more private (the relayer sees the address either way) and does make
+ * the two counters impossible to read together when an operator is trying to understand a day.
+ */
+export function openSendBudgetLedger(
+  config: SponsorshipConfig,
+  salt: string,
+): SponsorshipLedger {
+  const store = new FileSponsorshipStore(config.sendStorePath)
+  const record = store.load()
+  if (record.salt !== salt) store.save({ ...record, salt })
+  return new SponsorshipLedger(config.sendCaps, store, Date.now(), SEND_CAP_NOTICE)
 }
 
 /**
@@ -994,6 +1185,7 @@ async function main(): Promise<void> {
   // discover on the first submission — by then the budget is already unaccounted for.
   const sponsorConfig = resolveSponsorshipCaps()
   const sponsorship = openSponsorshipLedger(sponsorConfig)
+  const sendBudget = openSendBudgetLedger(sponsorConfig, sponsorship.salt)
 
   const nodeUrl = await pickLiveRpcHost()
   const account = new Account({
@@ -1023,6 +1215,11 @@ async function main(): Promise<void> {
     allowedOrigins,
     authToken: process.env.RELAYER_AUTH_TOKEN || undefined,
     sponsorship,
+    sendBudget,
+    // Our own address, which is where a send's reimbursement leg has to point. It is already
+    // public in every transaction this process submits, so advertising it discloses nothing —
+    // what it buys is that rotating this wallet does not need a front-end release.
+    feeRecipient: address,
     visitorSalt: sponsorship.salt,
     quoteCounter: createQuoteCounter(
       sponsorConfig.quoteDailyPerVisitor,
@@ -1053,6 +1250,10 @@ async function main(): Promise<void> {
     console.log(
       `sponsorship: ${sponsorConfig.caps.perVisitor}/visitor · ${sponsorConfig.caps.daily}/day · ` +
         `ledger ${sponsorConfig.storePath}`,
+    )
+    console.log(
+      `plain sends: ${sponsorConfig.sendCaps.perVisitor}/visitor · ${sponsorConfig.sendCaps.daily}/day · ` +
+        `ledger ${sponsorConfig.sendStorePath} · fee recipient ${address}`,
     )
     console.log(
       `funding: STRK balance ${monitor.health()} · ` +

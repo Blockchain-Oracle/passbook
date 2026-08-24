@@ -128,6 +128,17 @@ describe('registerSponsored — the happy path (AC2/AC3/AC5)', () => {
     expect(body.proofFacts).toEqual(PROOF_FACTS)
     expect(body.calls.map((c) => c.entrypoint)).toEqual(['approve', 'apply_actions'])
   })
+
+  // A registration mints nothing, so there is no value in the transaction to reimburse the fee
+  // from and the relayer's own STRK pays it — which is what the flag says. Since story 1.16 the
+  // relayer meters only flagged submissions against the sponsorship budget, so a registration
+  // that forgot to say so would be charged to the send cap and would never show the
+  // pay-your-own-way notice.
+  it('flags itself sponsored, which is what charges it to the sponsorship budget', async () => {
+    const h = harness()
+    await h.run()
+    expect(h.relayCalls[0]!.sponsored).toBe(true)
+  })
 })
 
 describe('registerSponsored — the free gate spends nothing (AC4)', () => {
