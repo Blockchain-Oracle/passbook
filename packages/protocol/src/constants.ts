@@ -42,6 +42,7 @@ export const NETWORKS = {
   sepolia: {
     chainId: '0x534e5f5345504f4c4941', // SN_SEPOLIA
     pool: '',
+    poolClassHash: '',
     rpc: ['https://starknet-sepolia-rpc.publicnode.com'],
     prover: 'https://transaction-prover.alpha-sepolia.sw-dev.io',
     discovery: '',
