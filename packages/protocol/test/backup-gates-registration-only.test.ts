@@ -77,6 +77,87 @@ function exemptModuleFor(path: string): string | undefined {
 }
 
 /**
+ * The ONE type a module may take from `backup-cadence` without consulting backup state.
+ *
+ * `ShieldedBalancePresence` is a three-member string union, and `backup-cadence.ts` declares it
+ * precisely so that it can be threaded IN as a parameter (`advanceOnVerified`,
+ * `shouldNagForBackup`, `backupNagCopy`) rather than read out of a store. Story 1.9 ships the
+ * PRODUCER of that value — the discovery walk decides `present`/`absent`/`unknown` — so the
+ * dependency runs the opposite way from the one this file polices: data flows towards the
+ * cadence, and no decision flows back.
+ *
+ * The failure mode this whole rule exists to stop is a browse, receive or read surface calling
+ * a fail-closed predicate and refusing to render for the users who least deserve it. Importing
+ * a type alias cannot do that. It is erased at compile time, so there is no runtime edge at
+ * all, and there is nothing on the other end of it to call.
+ */
+const PRESENCE_TYPE = 'ShieldedBalancePresence'
+
+/**
+ * The static `backup-cadence` import statements in `text`, as matched substrings.
+ *
+ * The binding clause is matched as one of the three shapes it can legally take — a braced list,
+ * a namespace, or a default — rather than as "anything up to `from`". This package's source
+ * omits semicolons, so a lazy `[^;]*?` would run from the first import in the file all the way
+ * down to this one, swallowing every statement between them. `[^}]*` cannot cross a closing
+ * brace, so each match here is exactly one statement.
+ */
+function staticCadenceImports(text: string): RegExpMatchArray[] {
+  return [
+    ...text.matchAll(
+      /\bimport\s+(type\s+)?(\{[^}]*\}|\*\s+as\s+\w+|\w+)\s+from\s*['"][^'"]*backup-cadence(?:\.[jt]s)?['"]/g,
+    ),
+  ]
+}
+
+/** True when a binding list names nothing but the presence type, in either erased spelling. */
+function bindingsAreOnlyPresenceType(clause: string, statementIsTypeOnly: boolean): boolean {
+  const named = clause.match(/^\{([^}]*)\}$/)
+  if (!named) return false // namespace or default: reaches everything the module exports
+  const bindings = named[1]!
+    .split(',')
+    .map((binding) => binding.trim())
+    .filter(Boolean)
+  if (bindings.length === 0) return false
+  return bindings.every((binding) => {
+    // BOTH ERASED SPELLINGS COUNT. `import type { X }` and `import { type X }` compile to the
+    // same nothing, and rejecting the inline modifier would only teach the next author to
+    // reach for the statement form without understanding why — or, worse, to drop `type`.
+    const inlineType = binding.startsWith('type ')
+    const name = inlineType ? binding.slice('type '.length).trim() : binding
+    return name === PRESENCE_TYPE && (statementIsTypeOnly || inlineType)
+  })
+}
+
+/**
+ * True when this file's ONLY reach into `backup-cadence` is an erased import of that one type.
+ *
+ * PROPERTY-BASED RATHER THAN A FILENAME LIST, because the property is what makes it safe: any
+ * file may name the presence type, and no file may reach anything else.
+ *
+ * THE SECOND HALF IS THE LOAD-BEARING HALF. A clean static type import must not buy a file
+ * amnesty from the rest of the rule — `importsModule` is the only matcher here that sees
+ * dynamic `import()` and `require()`, and those are precisely the forms this file's own header
+ * calls out as most needing to be caught. So the matched static statements are stripped and the
+ * REMAINDER is re-checked: one clean type import plus a lazy `await import('./backup-cadence.js')`
+ * further down leaves a hit on the remainder and the file is an offender again.
+ */
+function importsOnlyPresenceType(text: string): boolean {
+  const statements = staticCadenceImports(text)
+  if (statements.length === 0) return false
+
+  const allErased = statements.every(([, typeKeyword, clause]) =>
+    bindingsAreOnlyPresenceType(clause!, typeKeyword !== undefined),
+  )
+  if (!allErased) return false
+
+  // Strip exactly what was matched, then ask the real rule about what is left.
+  let remainder = text
+  for (const match of statements) remainder = remainder.replace(match[0], '')
+  return !importsModule(remainder, 'backup-cadence')
+}
+
+/**
  * The three import forms, as ONE function, used by every rule below.
  *
  * Static `from '…'`, dynamic `import('…')`, and `require('…')`. A rule that only knew about
@@ -165,10 +246,60 @@ describe('backup gates registration only (AC1)', () => {
       const text = readFileSync(file, 'utf8')
       for (const mod of STATE_MODULES) {
         if (exemptModuleFor(file) === mod) continue
+        // Story 1.9's producers take the presence TYPE and nothing else. See PRESENCE_TYPE.
+        if (mod === 'backup-cadence' && importsOnlyPresenceType(text)) continue
         if (importsModule(text, mod)) offenders.push(`${file} imports ${mod}`)
       }
     }
     expect(offenders).toEqual([])
+  })
+
+  it('the presence-type exemption is exactly as narrow as it claims to be', () => {
+    // The exemption is the only way a non-state module may name `backup-cadence`, so it has to
+    // be pinned. Widening it is how "one erased type alias" becomes "the cadence store".
+    const allowed = [
+      `import type { ShieldedBalancePresence } from './backup-cadence.js'`,
+      `import type {ShieldedBalancePresence} from "../src/backup-cadence.js"`,
+      // The inline modifier is erased just as completely as the statement form.
+      `import { type ShieldedBalancePresence } from './backup-cadence.js'`,
+      `import {type ShieldedBalancePresence} from "./backup-cadence.js"`,
+    ]
+    for (const line of allowed) expect(importsOnlyPresenceType(line), line).toBe(true)
+
+    const refused = [
+      // Not type-only: a value import creates a real runtime edge to the state module.
+      `import { ShieldedBalancePresence } from './backup-cadence.js'`,
+      // A second binding, which is how a predicate rides in beside the type.
+      `import type { ShieldedBalancePresence, CadenceState } from './backup-cadence.js'`,
+      `import type { BackupStatus } from './backup-cadence.js'`,
+      // An inline-typed presence beside a VALUE binding is still a runtime edge.
+      `import { type ShieldedBalancePresence, readBackupCadence } from './backup-cadence.js'`,
+      // Namespace and default forms reach everything the module exports.
+      `import * as cadence from './backup-cadence.js'`,
+      `import cadence from './backup-cadence.js'`,
+      // One clean import does not license a second dirty one in the same file.
+      `import type { ShieldedBalancePresence } from './backup-cadence.js'\n` +
+        `import { readBackupCadence } from './backup-cadence.js'`,
+      // THE BYPASS THIS RULE EXISTS TO CLOSE. A clean static type import must not buy amnesty
+      // from the dynamic forms — `importsModule` is the only matcher that sees these, and a
+      // lazy import inside a balance tile is the line this file's header names as worst.
+      `import type { ShieldedBalancePresence } from './backup-cadence.js'\n` +
+        `const cadence = await import('./backup-cadence.js')`,
+      `import type { ShieldedBalancePresence } from './backup-cadence.js'\n` +
+        `const cadence = require('./backup-cadence.js')`,
+      // An empty binding list names nothing and is not the exemption.
+      `import type {} from './backup-cadence.js'`,
+      // A file with no such import is not exempt — it is simply not an offender.
+      `import { NET } from './constants.js'`,
+    ]
+    for (const line of refused) expect(importsOnlyPresenceType(line), line).toBe(false)
+  })
+
+  it('story 1.9\'s producers are the files actually using the exemption', () => {
+    // Anchored, like every other list here: if these stop importing the type, the exemption is
+    // dead code protecting nothing and should go rather than sit there looking load-bearing.
+    const users = files.filter((f) => importsOnlyPresenceType(readFileSync(f, 'utf8')))
+    expect(users.map((f) => f.split('/').pop()).sort()).toEqual(['balances.ts', 'discovery.ts'])
   })
 
   /**

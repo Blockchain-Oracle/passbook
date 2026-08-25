@@ -1,0 +1,148 @@
+import { describe, it, expect } from 'vitest'
+import { readFileSync } from 'node:fs'
+import * as copy from '../src/activity-copy.js'
+
+// Byte-exact, `toBe`, one assertion per sentence — the `backup-copy.test.ts` contract. These
+// are the sentences that tell a user what can be seen, what a file can do, and whether an empty
+// screen means "nothing here" or "we could not look", which is the last place paraphrase belongs.
+describe('the book\'s copy ships byte-exact (AC5)', () => {
+  it('the standing line claims only what is true, and names who sees more', () => {
+    expect(copy.SURFACES_STANDING_LINE).toBe(
+      'Your six surfaces are unlinkable to other users — this view is assembled in your browser, ' +
+        'not stored on-chain. The auditor and the relayer see more.',
+    )
+    // The amendment is the point. The banned original claimed nobody could join the surfaces
+    // up, which is false on a protocol with escrowed viewing keys and a relayer in the path.
+    expect(copy.SURFACES_STANDING_LINE).toContain('to other users')
+    expect(copy.SURFACES_STANDING_LINE).toMatch(/auditor and the relayer see more/)
+    expect(copy.SURFACES_STANDING_LINE).not.toMatch(/nobody can|no one can|cannot be linked/i)
+  })
+
+  it('discovery honesty states what the RPC host observes', () => {
+    expect(copy.DISCOVERY_RPC_HOST_SEES).toBe(
+      'Your viewing key stays in this browser. The Starknet node answering these reads sees which ' +
+        'parts of the pool this browser asks for, and the network address asking.',
+    )
+    expect(copy.DISCOVERY_NO_KEY_HANDOVER).toBe(
+      'Nothing here hands your viewing key to a service to read your notes for you.',
+    )
+    // It must not overclaim in the other direction either — the host does see something.
+    expect(copy.DISCOVERY_RPC_HOST_SEES).toMatch(/sees which/)
+  })
+
+  it('the three balance states never share a sentence', () => {
+    expect(copy.BOOK_EMPTY).toBe('No notes yet. Anything sent to you shows up here.')
+    expect(copy.BOOK_NOT_REGISTERED).toBe(
+      "This account isn't registered on the pool yet, so nothing can have been sent to it.",
+    )
+    expect(copy.BOOK_UNKNOWN).toBe(
+      "We couldn't finish reading your notes, so this isn't your balance — it's what we could reach. " +
+        'Try again in a moment.',
+    )
+    // The fail-closed rule as copy: an outage must never read as an empty account.
+    expect(copy.BOOK_UNKNOWN).not.toBe(copy.BOOK_EMPTY)
+    expect(copy.BOOK_UNKNOWN).not.toMatch(/no notes|empty|nothing here/i)
+  })
+
+  it('the block stamp says "about", because the walk cannot be pinned', () => {
+    expect(copy.asOfBlock(13_818_013)).toBe('as of about block 13818013')
+    // Takes the number rather than carrying one — no hardcoded runtime values anywhere.
+    expect(copy.asOfBlock(1)).toBe('as of about block 1')
+  })
+
+  it('the dust line explains the notation rather than apologising for it', () => {
+    expect(copy.DUST_EXACT_VALUE).toBe(
+      'Shown to the last unit — this balance is smaller than the display rounds to.',
+    )
+  })
+
+  it('the feed sentences', () => {
+    expect(copy.PERSONAL_FEED_EMPTY).toBe(
+      'Nothing of yours in this range yet. Showing everything the pool did instead.',
+    )
+    expect(copy.FEED_RANGE_INCOMPLETE).toBe(
+      'This is a window, not your whole history — there are older entries past the range loaded here.',
+    )
+    expect(copy.FEE_UNREADABLE).toBe("We couldn't read what this transaction was charged.")
+    expect(copy.AMOUNT_NOT_OURS_TO_READ).toBe(
+      'Encrypted to its owner. The amount is not in the public record.',
+    )
+  })
+
+  it('the export disclosure is the verbatim sentence, exactly', () => {
+    // Non-negotiable, and the reason the feature exists: on this protocol the key that reads an
+    // account is the key that spends it, so a file is the only safe thing to hand anybody.
+    expect(copy.EXPORT_KEY_DISCLOSURE).toBe(
+      'Your Account Key can also spend, so never hand it over. Hand over this file instead.',
+    )
+    expect(copy.EXPORT_FILE_SCOPE).toBe(
+      'This file lists activity only. It carries no key, and nothing in it can move money.',
+    )
+    expect(copy.EXPORT_IN_BROWSER).toBe('This file was built in your browser. Nothing was uploaded.')
+  })
+
+  it('the export range lines take their numbers rather than carrying them', () => {
+    expect(copy.exportRangeLine(13_000_000, 13_800_000)).toBe('Covers blocks 13000000 to 13800000.')
+    expect(copy.EXPORT_RANGE_INCOMPLETE).toBe(
+      'The range above stopped at a page limit, so older entries exist that are not in this file.',
+    )
+  })
+
+  it('no sentence implies an observer credential exists', () => {
+    // There is no spend-safe key on this protocol, so no sentence may imply one is being
+    // shared, and no padlock language may suggest a capability the pool does not have.
+    for (const [name, value] of Object.entries(copy)) {
+      if (typeof value !== 'string') continue
+      expect(value, name).not.toMatch(/padlock|🔒|read access|share a key|observer link/i)
+    }
+  })
+
+  it('no two sentences are the same string', () => {
+    const values = Object.values(copy).filter((v): v is string => typeof v === 'string')
+    expect(values.length).toBeGreaterThanOrEqual(12)
+    expect(new Set(values).size).toBe(values.length)
+  })
+})
+
+describe('the claims-lint trap (AC5)', () => {
+  // Reproduced from the script rather than retyped, so this test cannot drift from the lint it
+  // defends — and so this file does not itself contain the banned strings as literals.
+  const FORBIDDEN = (() => {
+    const src = readFileSync('scripts/lint-claims.mjs', 'utf8')
+    const block = src.match(/const FORBIDDEN = \[([\s\S]*?)\]/)![1]!
+    return [...block.matchAll(/'([^']+)'/g)].map((m) => m[1]!)
+  })()
+
+  it('reads the real banned list out of the lint script', () => {
+    expect(FORBIDDEN).toHaveLength(10)
+  })
+
+  it('every sentence in the book is clean', () => {
+    for (const [name, value] of Object.entries(copy)) {
+      if (typeof value !== 'string') continue
+      for (const phrase of FORBIDDEN) {
+        expect(value.toLowerCase(), `${name} contains "${phrase}"`).not.toContain(phrase)
+      }
+    }
+  })
+
+  it('every source file this story adds is clean, comments included', () => {
+    // The lint is line-based over whole files, so a comment explaining the trap trips it as
+    // easily as a shipped sentence does. THREE of the banned strings are the hyphenated
+    // capability words a visibility matrix and an export disclosure reach for first, which is
+    // why this list has to include every file of the story rather than just the copy module.
+    for (const path of [
+      'packages/protocol/src/activity-copy.ts',
+      'packages/protocol/src/activity.ts',
+      'packages/protocol/src/balances.ts',
+      'packages/protocol/src/discovery.ts',
+      'packages/protocol/src/export.ts',
+      'packages/protocol/src/pool-events.ts',
+    ]) {
+      const text = readFileSync(path, 'utf8').toLowerCase()
+      for (const phrase of FORBIDDEN) {
+        expect(text, `${path} contains "${phrase}"`).not.toContain(phrase)
+      }
+    }
+  })
+})
