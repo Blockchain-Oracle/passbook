@@ -478,10 +478,13 @@ describe('a browser consumer (moduleResolution: bundler)', () => {
 describe('a real Vite build resolver, which is the one epic 6 actually ships against', () => {
   // `moduleResolution: bundler` is tsc's MODEL of a bundler, not a bundler. The app is a Vite
   // app, so the boundary has to hold in Vite's resolver specifically — and Vite's condition
-  // defaults are its own, not TypeScript's. Resolved through Vite's real plugin container with
-  // `ssr: false`, which is the client build's condition set.
+  // defaults are its own, not TypeScript's. Resolved through Vite's real plugin container under
+  // BOTH condition sets: `ssr: false` is the client build's (`module, browser, development,
+  // import`) and `ssr: true` the node one (`module, node, development, import`). The boundary is
+  // a claim about the DIFFERENCE between them, so neither side on its own can prove it.
   let server: { pluginContainer: { resolveId: (id: string, importer: string, opts: { ssr: boolean }) => Promise<{ id: string } | null> }; close: () => Promise<void> }
   const answers = new Map<string, string>()
+  const nodeAnswers = new Map<string, string>()
 
   beforeAll(async () => {
     const { createServer } = await import('vite')
@@ -493,12 +496,17 @@ describe('a real Vite build resolver, which is the one epic 6 actually ships aga
     })) as unknown as typeof server
     // An importer inside the repo, so resolution walks the same node_modules a real app would.
     const importer = join(REPO_ROOT, 'apps/web/main.ts')
-    for (const id of ['@strk20/protocol/constants', '@strk20/protocol/env', '@strk20/protocol']) {
-      try {
-        const r = await server.pluginContainer.resolveId(id, importer, { ssr: false })
-        answers.set(id, r ? r.id : 'UNRESOLVED')
-      } catch (e) {
-        answers.set(id, `THREW ${(e as Error).message}`)
+    for (const [ssr, into] of [
+      [false, answers],
+      [true, nodeAnswers],
+    ] as const) {
+      for (const id of ['@strk20/protocol/constants', '@strk20/protocol/env', '@strk20/protocol']) {
+        try {
+          const r = await server.pluginContainer.resolveId(id, importer, { ssr })
+          into.set(id, r ? r.id : 'UNRESOLVED')
+        } catch (e) {
+          into.set(id, `THREW ${(e as Error).message}`)
+        }
       }
     }
   })
@@ -511,17 +519,53 @@ describe('a real Vite build resolver, which is the one epic 6 actually ships aga
     expect(answers.get('@strk20/protocol/constants')).toMatch(/packages\/protocol\/src\/constants\.ts$/)
   })
 
+  // Anchored on the mechanism, not on any one resolver's sentence. An earlier version of this
+  // matched Vite 5's exact wording and claimed that was resilient to Vite "reformatting the
+  // surrounding sentence" — it was not, because the sentence is not what changed. Vite 8 is
+  // rolldown, so condition resolution runs through oxc_resolver (Rust) and words the refusal
+  // completely differently; no flag restores the old text. What survives a resolver swap is the
+  // mechanism: a refusal naming the subpath it refused and the condition set it tried.
+  const expectRefusedNaming = (
+    from: Map<string, string>,
+    specifier: string,
+    subpath: string,
+    condition: string,
+  ) => {
+    const answer = from.get(specifier)
+    expect(answer).toBeDefined()
+    // It was refused at all, rather than quietly resolving to a module.
+    expect(answer).toContain('THREW')
+    // It names the subpath it refused...
+    expect(answer).toContain(`"${subpath}"`)
+    // ...and names the condition set it tried, which is the REASON for the refusal. Tied to the
+    // word `conditions` and bounded to inside the list, so neither half can be satisfied by an
+    // unrelated stretch of the message — a repo path, say.
+    expect(answer).toMatch(new RegExp(`conditions?\\b[^\\]]*\\b${condition}\\b`))
+    expect(answer).toMatch(/conditions?\b[^\]]*\bimport\b/)
+  }
+
   it('refuses env with the condition error — the boundary holds in the real bundler', () => {
-    // The exact message the spec's I/O matrix names. Matched on its distinctive phrase so this
-    // stays readable if Vite reformats the surrounding sentence.
-    expect(answers.get('@strk20/protocol/env')).toContain('No known conditions for "./env"')
+    expectRefusedNaming(answers, '@strk20/protocol/env', './env', 'browser')
     // Same run, opposite answer: the wildcard is live here, so the refusal is the gate rather
     // than Vite failing to see the package at all.
     expect(answers.get('@strk20/protocol/constants')).not.toContain('THREW')
   })
 
-  it('refuses the root import', () => {
-    expect(answers.get('@strk20/protocol')).toContain('Missing "." specifier')
+  it('and env DOES resolve under node conditions — this is a boundary, not a wall', () => {
+    // The positive half of the mechanism the refusal above only shows one side of. Without this,
+    // every other assertion here would still pass if `./env` were dropped from the exports map
+    // outright, or made unreachable under every condition — a broken package, not the node-only
+    // boundary 6-0 designed. This is the assertion that says the node door is open.
+    expect(nodeAnswers.get('@strk20/protocol/env')).toMatch(/packages\/protocol\/src\/env\.ts$/)
+  })
+
+  it('refuses the root import — under node conditions too, so it is absent and not merely node-only', () => {
+    expectRefusedNaming(answers, '@strk20/protocol', '.', 'browser')
+    // oxc words "there is no `.` export at all" and "`.` exists but is node-only" identically,
+    // so the client refusal alone cannot tell them apart — adding a node-only root entry would
+    // sail through. The node side is what distinguishes them: a node-only root would RESOLVE
+    // here, exactly as `./env` does one test up. There is no root entry, so it must refuse.
+    expectRefusedNaming(nodeAnswers, '@strk20/protocol', '.', 'node')
   })
 })
 
