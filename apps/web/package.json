@@ -1,0 +1,25 @@
+{
+  "name": "@strk20/web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --configLoader native",
+    "//build": "Deliberately absent. `npm run build -w apps/web` is the door most deploy platforms take by default, and a bare `vite build` bypasses EVERY gate in this repository: the warning contract, the eager-bundle budget, the SDK-marker scan and the browser evaluation that is the only thing proving the artifact is not dead on arrival. Use `npm run build:web` from the repo root. `build:raw` below is the unguarded escape hatch — named so nothing reaches it by accident.",
+    "build:raw": "vite build --configLoader native",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@strk20/protocol": "*",
+    "@tanstack/react-router": "1.170.32",
+    "react": "19.2.8",
+    "react-dom": "19.2.8"
+  },
+  "devDependencies": {
+    "@tanstack/router-core": "1.171.27",
+    "@tanstack/router-plugin": "1.168.35",
+    "@types/react": "19.2.18",
+    "@types/react-dom": "19.2.5",
+    "@vitejs/plugin-react": "6.1.0"
+  }
+}

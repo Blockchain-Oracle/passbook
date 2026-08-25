@@ -14,6 +14,8 @@
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { join, extname } from 'node:path'
 
+import { findActiveNetworkDeclarations } from './active-network.mjs'
+
 // Spec §11. These are false on this protocol: the viewing private key is escrowed
 // on-chain to a StarkWare auditor with no rotation and no opt-out, amounts in every
 // open-note leg are public, and the same key that reads notes also signs spends.
@@ -145,10 +147,27 @@ if (exemptedLineCount) {
 // Entrants in this event have scored ZERO on real work by leaving testnet addresses
 // in a mainnet array. Having a second network configured at all raises that risk, so
 // this guard is what makes the toggle safe to have. Make it impossible, not unlikely.
+//
+// The matcher is IMPORTED, not written here. Until story 6-1 this line held its own copy, and the
+// copy was unanchored: `/ACTIVE_NETWORK:\s*NetworkName\s*=\s*'(\w+)'/` read the first occurrence
+// anywhere in the file, so a commented-out `'mainnet'` decoy above a live `'sepolia'` declaration
+// made this script print "network guard: mainnet" and exit 0 on a sepolia tree. A gate that reports
+// the opposite of the truth is worse than no gate, because it is trusted — which is the thing this
+// whole file exists to prevent, one level up.
+//
+// It is imported rather than fixed in place because there were FOUR copies of this pattern and the
+// drift between them produced a second, separate bug. See `scripts/active-network.mjs`.
+//
 const constants = readFileSync('packages/protocol/src/constants.ts', 'utf8')
-const active = constants.match(/ACTIVE_NETWORK:\s*NetworkName\s*=\s*'(\w+)'/)?.[1]
-if (active !== 'mainnet') {
-  console.error(`ACTIVE_NETWORK is "${active}" — production must ship on mainnet.`)
+const declarations = findActiveNetworkDeclarations(constants)
+if (declarations.length !== 1) {
+  console.error(
+    `packages/protocol/src/constants.ts has ${declarations.length} live ACTIVE_NETWORK ` +
+      `declarations, expected exactly 1 — this guard cannot say which network would ship.`,
+  )
+  guardFailed = true
+} else if (declarations[0].network !== 'mainnet') {
+  console.error(`ACTIVE_NETWORK is "${declarations[0].network}" — production must ship on mainnet.`)
   guardFailed = true
 }
 
