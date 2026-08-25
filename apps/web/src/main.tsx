@@ -10,6 +10,11 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { RouterProvider, createRouter } from '@tanstack/react-router'
 
+// The app's only stylesheet entry point. It pulls in the framework, the generated token sheet and
+// the typeface; nothing else in the app may import CSS. It costs zero eager JS bytes — the build's
+// budget counts `.js` only, and the bundler emits CSS as its own asset.
+import './index.css'
+
 //
 // `constants` is the ONLY `@strk20/protocol` subpath this file may import, and that is a load-order
 // decision, not an oversight. `send`, `register` and `discovery` are what pull `starknet` and the

@@ -16,24 +16,29 @@
     "build:web": "node scripts/build-web.mjs",
     "smoke:sdk": "node scripts/smoke-sdk-build.mjs",
     "verify:mainnet-guard": "node scripts/verify-mainnet-guard.mjs",
-    "lint": "npm run lint:claims && npm run lint:secrets && npm run lint:topology",
+    "lint": "npm run lint:claims && npm run lint:secrets && npm run lint:topology && npm run lint:tokens",
     "lint:claims": "node scripts/lint-claims.mjs",
     "lint:secrets": "node scripts/lint-secrets.mjs",
     "lint:topology": "node scripts/lint-topology.mjs",
-    "render:topology": "node scripts/render-topology.mjs"
+    "lint:tokens": "node scripts/lint-tokens.mjs",
+    "render:topology": "node scripts/render-topology.mjs",
+    "render:tokens": "node scripts/render-design-tokens.mjs",
+    "//tokens:verbatim": "Deliberately NOT in the `lint` chain. It compares tokens.yaml against the UX design authority, which is gitignored working material — CI has never seen it and cannot. Run this locally whenever the design document changes; it REFUSES with exit 2 rather than passing when the authority is absent.",
+    "tokens:verbatim": "node scripts/check-tokens-verbatim.mjs"
   },
   "devDependencies": {
-    "typescript": "5.6.3",
-    "vitest": "4.1.11",
-    "vite": "8.2.2",
-    "tsx": "4.23.12",
     "@types/node": "24.13.3",
-    "playwright-core": "1.62.1"
+    "playwright-core": "1.62.1",
+    "tsx": "4.23.12",
+    "typescript": "5.6.3",
+    "vite": "8.2.2",
+    "vitest": "4.1.11",
+    "yaml": "2.9.0"
   },
   "dependencies": {
-    "starknet": "10.5.0",
     "@starknet-io/types-js": "0.10.3",
-    "@starkware-libs/starknet-privacy-sdk": "file:vendor/starkware-libs-starknet-privacy-sdk-0.14.3-rc.2.tgz"
+    "@starkware-libs/starknet-privacy-sdk": "file:vendor/starkware-libs-starknet-privacy-sdk-0.14.3-rc.2.tgz",
+    "starknet": "10.5.0"
   },
   "allowScripts": {
     "fsevents@2.3.3": true,

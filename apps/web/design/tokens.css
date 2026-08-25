@@ -1,0 +1,266 @@
+/*
+ * GENERATED FILE — DO NOT EDIT.
+ *
+ * source: apps/web/design/tokens.yaml  sha256 eb68b487531f153ca1408e8641bff850c5f04284ee01e9290ff7f4fce3d3f32b
+ *
+ * Regenerate with `npm run render:tokens`. `npm run lint` re-renders and fails when this file
+ * and the yaml disagree, so a hand-edit here is caught rather than shipped. tokens.yaml is the
+ * verbatim frontmatter of the UX design authority; `npm run tokens:verbatim` proves that
+ * locally. The banner carries the SOURCE HASH and no timestamp, so regenerating an unchanged
+ * sheet produces a byte-identical file and the gate stays about drift.
+ */
+
+@custom-variant dark {
+  @media (prefers-color-scheme: dark) {
+    &:where(:root:not([data-theme="light"]), :root:not([data-theme="light"]) *) { @slot; }
+  }
+  &:where(:root[data-theme="dark"], :root[data-theme="dark"] *) { @slot; }
+}
+
+@theme static {
+  /* Close the default vocabulary. 21 namespaces, ~419 keys, of which 288 are colours.
+     After this an off-sheet utility generates NO RULE — `bg-red-500` is absent rather than
+     empty. `bg-white`, `bg-black` and `text-white` die with it: any white or black this app
+     needs is a named token. What survives the wipe is closed by scripts/lint-tokens.mjs. */
+  --color-*: initial;  --spacing: initial;  --spacing-*: initial;
+  --font-*: initial;  --font-weight-*: initial;  --text-*: initial;
+  --tracking-*: initial;  --leading-*: initial;  --breakpoint-*: initial;
+  --container-*: initial;  --radius-*: initial;  --shadow-*: initial;
+  --inset-shadow-*: initial;  --drop-shadow-*: initial;  --text-shadow-*: initial;
+  --ease-*: initial;  --animate-*: initial;  --blur-*: initial;
+  --perspective-*: initial;  --aspect-*: initial;  --default-*: initial;
+
+  /* colours — 31 light values; the dark sheets below redeclare all 31 */
+  --color-ground: #FCFAF6;
+  --color-raised: #FFFDF9;
+  --color-raisedHovered: #FBF7F0;
+  --color-inset: #F4F0E8;
+  --color-insetHovered: #EFEAE0;
+  --color-surface3: rgba(33,26,18,0.08);
+  --color-surface3Hovered: rgba(33,26,18,0.10);
+  --color-surface3Solid: #EDE9E2;
+  --color-surface4: rgba(255,253,249,0.64);
+  --color-scrim: rgba(20,17,13,0.60);
+  --color-neutral1: #211A12;
+  --color-neutral1Hovered: rgba(33,26,18,0.83);
+  --color-neutral2: rgba(33,26,18,0.63);
+  --color-neutral2Hovered: rgba(33,26,18,0.83);
+  --color-neutral3: rgba(33,26,18,0.35);
+  --color-neutral3Hovered: rgba(33,26,18,0.55);
+  --color-accent1: #8C2F1E;
+  --color-accent1Hovered: #75281A;
+  --color-accent2: rgba(140,47,30,0.08);
+  --color-accent2Hovered: rgba(140,47,30,0.12);
+  --color-accent2Solid: #F6EDE7;
+  --color-accent3: #211A12;
+  --color-settled: #2E6B35;
+  --color-settledHovered: #245A2B;
+  --color-settledTint: rgba(64,168,80,0.07);
+  --color-exposed: #7A5A00;
+  --color-exposedHovered: #614700;
+  --color-exposedTint: rgba(224,178,32,0.10);
+  --color-irreversible: #A32318;
+  --color-irreversibleHovered: #8A1D13;
+  --color-irreversibleTint: rgba(226,55,40,0.06);
+
+  /* typeface */
+  --font-sans: 'IBM Plex Sans Variable', 'Inter', system-ui, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Monaco, 'Cascadia Mono', 'Segoe UI Mono', 'Roboto Mono', 'Courier New', monospace;
+  --font-weight-book: 485;
+  --font-weight-medium: 535;
+
+  /* type scale — a compound key emits size, leading, tracking and weight in ONE utility */
+  --text-heading1: 52px;
+  --text-heading1--line-height: 56px;
+  --text-heading1--letter-spacing: -0.02em;
+  --text-heading2: 36px;
+  --text-heading2--line-height: 40px;
+  --text-heading2--letter-spacing: -0.01em;
+  --text-heading3: 24px;
+  --text-heading3--line-height: 28px;
+  --text-heading3--letter-spacing: -0.005em;
+  --text-subheading1: 18px;
+  --text-subheading1--line-height: 24px;
+  --text-subheading2: 16px;
+  --text-subheading2--line-height: 24px;
+  --text-body1: 18px;
+  --text-body1--line-height: 24px;
+  --text-body2: 16px;
+  --text-body2--line-height: 24px;
+  --text-body3: 14px;
+  --text-body3--line-height: 20px;
+  --text-body4: 12px;
+  --text-body4--line-height: 16px;
+  --text-mono: 12px;
+  --text-mono--line-height: 16px;
+  --text-buttonLabel1: 18px;
+  --text-buttonLabel1--line-height: 24px;
+  --text-buttonLabel1--font-weight: 535;
+  --text-buttonLabel2: 16px;
+  --text-buttonLabel2--line-height: 24px;
+  --text-buttonLabel2--font-weight: 535;
+  --text-buttonLabel3: 14px;
+  --text-buttonLabel3--line-height: 20px;
+  --text-buttonLabel3--font-weight: 535;
+  --text-buttonLabel4: 12px;
+  --text-buttonLabel4--line-height: 16px;
+  --text-buttonLabel4--font-weight: 535;
+
+  /* radii */
+  --radius-none: 0px;
+  --radius-badge: 6px;
+  --radius-small: 8px;
+  --radius-control: 12px;
+  --radius-card: 16px;
+  --radius-large: 20px;
+  --radius-xl: 24px;
+  --radius-hero: 32px;
+  --radius-pill: 9999px;
+
+  /* breakpoints — all eight, because the wipe above removed Tailwind's five defaults too */
+  --breakpoint-2xs: 360px;
+  --breakpoint-xs: 380px;
+  --breakpoint-popover: 450px;
+  --breakpoint-sm: 640px;
+  --breakpoint-md: 768px;
+  --breakpoint-lg: 1024px;
+  --breakpoint-xl: 1280px;
+  --breakpoint-2xl: 1536px;
+
+  /* spacing — NAMED steps, never numeric */
+  /* `--spacing` and `--spacing-*` are wiped above and the steps are named `s<N>`, so `p-4`
+     generates nothing at all. With the numeric form it would compile to 4px — four times off
+     every human and codegen prior, lint-clean and invisible to the eye. A loud no-op beats a
+     quiet 4x error. Fraction modifiers do not work on named steps (`p-s4/2` → no rule),
+     which is the point: no hidden half-step vocabulary. */
+  --spacing-s0: 0px;
+  --spacing-s1: 1px;
+  --spacing-s2: 2px;
+  --spacing-s4: 4px;
+  --spacing-s6: 6px;
+  --spacing-s8: 8px;
+  --spacing-s12: 12px;
+  --spacing-s16: 16px;
+  --spacing-s18: 18px;
+  --spacing-s20: 20px;
+  --spacing-s24: 24px;
+  --spacing-s28: 28px;
+  --spacing-s32: 32px;
+  --spacing-s36: 36px;
+  --spacing-s40: 40px;
+  --spacing-s48: 48px;
+  --spacing-s60: 60px;
+
+  /* motion — plain @theme keys, var()-referenced and theme-reactive; zero @utility rules */
+  --transition-duration-simple: 80ms;
+  --transition-duration-fastExit: 80ms;
+  --transition-duration-fast: 100ms;
+  --transition-duration-fastExitHeavy: 100ms;
+  --transition-duration-fastHeavy: 120ms;
+  --transition-duration-stiff: 150ms;
+  --transition-duration-quicker: 180ms;
+  --transition-duration-quick: 200ms;
+  --transition-duration-quickLong: 300ms;
+  --transition-duration-lazy: 500ms;
+  --transition-duration-attention: 1200ms;
+  --transition-delay-stagger: 40ms;
+  --ease-simple: ease-in-out;
+  --ease-snap: cubic-bezier(0.17,0.67,0.45,1);
+  --ease-glide: cubic-bezier(0.25,0.46,0.45,0.94);
+  --ease-settle: cubic-bezier(0.25,0.1,0.25,1);
+  --ease-attention: cubic-bezier(0.17,0.17,0,1);
+
+  /* shadows — whole-value indirection; the literal fallback is load-bearing, not belt-and-braces */
+  --shadow-short: var(--sh-short, 0 1px 6px 2px rgba(33,26,18,0.03), 0 1px 2px 0 rgba(33,26,18,0.02));
+  --shadow-medium: var(--sh-medium, 0 6px 12px -3px rgba(33,26,18,0.04), 0 2px 5px -2px rgba(33,26,18,0.03));
+  --shadow-large: var(--sh-large, 0 10px 20px -5px rgba(33,26,18,0.05), 0 4px 12px -3px rgba(33,26,18,0.04));
+}
+
+/* Unlayered from here down — see the cascade-layer law in render-design-tokens.mjs. */
+:root {
+  /* `color-scheme` is the only thing that flips native scrollbars, form controls and the
+     default canvas. No colour token does it, and nothing else will. */
+  color-scheme: light;
+  --sh-short: 0 1px 6px 2px rgba(33,26,18,0.03), 0 1px 2px 0 rgba(33,26,18,0.02);
+  --sh-medium: 0 6px 12px -3px rgba(33,26,18,0.04), 0 2px 5px -2px rgba(33,26,18,0.03);
+  --sh-large: 0 10px 20px -5px rgba(33,26,18,0.05), 0 4px 12px -3px rgba(33,26,18,0.04);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --color-ground: #14110D;
+    --color-raised: #1C1813;
+    --color-raisedHovered: #221D16;
+    --color-inset: #221E17;
+    --color-insetHovered: #282318;
+    --color-surface3: rgba(245,238,228,0.12);
+    --color-surface3Hovered: rgba(245,238,228,0.16);
+    --color-surface3Solid: #332D24;
+    --color-surface4: rgba(245,238,228,0.20);
+    --color-scrim: rgba(0,0,0,0.60);
+    --color-neutral1: #F5EEE4;
+    --color-neutral1Hovered: rgba(245,238,228,0.85);
+    --color-neutral2: rgba(245,238,228,0.65);
+    --color-neutral2Hovered: rgba(245,238,228,0.85);
+    --color-neutral3: rgba(245,238,228,0.38);
+    --color-neutral3Hovered: rgba(245,238,228,0.58);
+    --color-accent1: #E87B60;
+    --color-accent1Hovered: #EE8F77;
+    --color-accent2: rgba(232,123,96,0.12);
+    --color-accent2Hovered: rgba(232,123,96,0.16);
+    --color-accent2Solid: #2D1E17;
+    --color-accent3: #F5EEE4;
+    --color-settled: #6FBF77;
+    --color-settledHovered: #82CC89;
+    --color-settledTint: rgba(111,191,119,0.12);
+    --color-exposed: #E3B341;
+    --color-exposedHovered: #F0C452;
+    --color-exposedTint: rgba(227,179,65,0.10);
+    --color-irreversible: #FF5E4F;
+    --color-irreversibleHovered: #FF6858;
+    --color-irreversibleTint: rgba(255,94,79,0.12);
+    --sh-short: 0 1px 3px 0 rgba(0,0,0,0.12), 0 1px 2px 0 rgba(0,0,0,0.24);
+    --sh-medium: 0 10px 15px -3px rgba(0,0,0,0.54), 0 4px 6px -2px rgba(0,0,0,0.40);
+    --sh-large: 0 16px 24px -6px rgba(0,0,0,0.60), 0 8px 12px -4px rgba(0,0,0,0.48);
+  }
+}
+
+/* Byte-identical to the block above, for the user who pinned dark against a light OS. */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --color-ground: #14110D;
+  --color-raised: #1C1813;
+  --color-raisedHovered: #221D16;
+  --color-inset: #221E17;
+  --color-insetHovered: #282318;
+  --color-surface3: rgba(245,238,228,0.12);
+  --color-surface3Hovered: rgba(245,238,228,0.16);
+  --color-surface3Solid: #332D24;
+  --color-surface4: rgba(245,238,228,0.20);
+  --color-scrim: rgba(0,0,0,0.60);
+  --color-neutral1: #F5EEE4;
+  --color-neutral1Hovered: rgba(245,238,228,0.85);
+  --color-neutral2: rgba(245,238,228,0.65);
+  --color-neutral2Hovered: rgba(245,238,228,0.85);
+  --color-neutral3: rgba(245,238,228,0.38);
+  --color-neutral3Hovered: rgba(245,238,228,0.58);
+  --color-accent1: #E87B60;
+  --color-accent1Hovered: #EE8F77;
+  --color-accent2: rgba(232,123,96,0.12);
+  --color-accent2Hovered: rgba(232,123,96,0.16);
+  --color-accent2Solid: #2D1E17;
+  --color-accent3: #F5EEE4;
+  --color-settled: #6FBF77;
+  --color-settledHovered: #82CC89;
+  --color-settledTint: rgba(111,191,119,0.12);
+  --color-exposed: #E3B341;
+  --color-exposedHovered: #F0C452;
+  --color-exposedTint: rgba(227,179,65,0.10);
+  --color-irreversible: #FF5E4F;
+  --color-irreversibleHovered: #FF6858;
+  --color-irreversibleTint: rgba(255,94,79,0.12);
+  --sh-short: 0 1px 3px 0 rgba(0,0,0,0.12), 0 1px 2px 0 rgba(0,0,0,0.24);
+  --sh-medium: 0 10px 15px -3px rgba(0,0,0,0.54), 0 4px 6px -2px rgba(0,0,0,0.40);
+  --sh-large: 0 16px 24px -6px rgba(0,0,0,0.60), 0 8px 12px -4px rgba(0,0,0,0.48);
+}

@@ -1,0 +1,89 @@
+/*
+ * The app's only hand-owned stylesheet.
+ *
+ * Everything with a design VALUE in it lives in `../design/tokens.css`, which is generated from
+ * `../design/tokens.yaml` — the verbatim frontmatter of the UX design authority. This file wires
+ * that sheet into the build and defines the two base primitives that express a token rather than
+ * carrying one. If you are about to add a colour, length, duration or weight here, it belongs in
+ * the design authority instead: `npm run lint` will say so.
+ *
+ * Import order is load-bearing. `tailwindcss` first (it defines `@theme`, `@custom-variant` and the
+ * layer order the token sheet plugs into), then the token sheet, then the typeface.
+ */
+@import 'tailwindcss';
+@import '../design/tokens.css';
+
+/*
+ * The typeface, imported from fontsource's own entry point rather than hand-rolled.
+ *
+ * That file declares `font-weight: 100 700` — the face's TRUE variable axis. This matters more than
+ * it looks: a narrowed `@font-face` descriptor (`font-weight: 400`, or any range that does not span
+ * the axis) silently flattens every weight to one, with no error anywhere and no visual clue beyond
+ * "the design looks a bit flat". `scripts/font-metrics.test.mjs` measures 485 against 535 in a real
+ * browser so that failure cannot ship. Six subsets are declared; `unicode-range` means a latin page
+ * downloads exactly one 45,712 B file.
+ */
+@import '@fontsource-variable/ibm-plex-sans/wght.css';
+
+@layer base {
+  /*
+   * One global block, per the design authority. `text-wrap: pretty` on body and `balance` on
+   * headings are its call, not a preference. The base size is `body2` (16/24) — the authority's
+   * body step at the browser's own default size, so nothing on the page inherits an off-sheet size.
+   */
+  html {
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    background-color: var(--color-ground);
+    color: var(--color-neutral1);
+    font-size: var(--text-body2);
+    line-height: var(--text-body2--line-height);
+    font-weight: var(--font-weight-book);
+    text-wrap: pretty;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    text-wrap: balance;
+  }
+
+  /*
+   * The one permitted texture (design authority §1.2): graph paper, native to warm paper. Opt-in —
+   * it is a class rather than a body rule because "film grain vs dotted grid vs nothing" is still
+   * listed as an open taste call, and shipping it app-wide would settle that by default.
+   *
+   * INK SUBSTITUTION, stated rather than buried: the authority specifies "neutral2 at 0.25 alpha"
+   * and there is no such token. Minting one here would need either `/25` (banned — it mints
+   * off-sheet colours and its var() form is chosen at runtime) or a raw `color-mix`, so this uses
+   * `--color-neutral3`, the faintest ink token on the sheet, which is theme-following and exact.
+   * A one-line `dottedGrid` ink in the design authority's frontmatter makes it precise.
+   */
+  .dotted-grid {
+    background-image: radial-gradient(var(--color-neutral3) 0.5px, transparent 0);
+    background-size: var(--spacing-s12) var(--spacing-s12);
+  }
+
+  /*
+   * The base numeric primitive. On the shipped face this is a measured 0.000px no-op — Plex has no
+   * `tnum` feature and needs none, its digits are 600/1000em at every axis position.
+   *
+   * It is NOT dead CSS, and the reason is not the one previously written here. `--font-sans` ends
+   * `…, 'Inter', system-ui, sans-serif`, and Inter is NOT bundled: that entry resolves only for a
+   * reader who happens to have Inter installed locally, so the fallback this app actually ships is
+   * `system-ui`. System faces set proportional figures by default, which is exactly where
+   * `tabular-nums` does real work — so if the webfont is slow, blocked or fails, this line is the
+   * only thing keeping a money column from shifting under its own digits.
+   *
+   * `scripts/font-metrics.test.mjs` measures that on the real fallback rather than asserting it.
+   * NEVER delete this as dead CSS.
+   */
+  .numeric {
+    font-variant-numeric: tabular-nums;
+  }
+}

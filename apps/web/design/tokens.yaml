@@ -1,0 +1,198 @@
+# Passbook design tokens — LEDGER direction (D27 authoritative for hue; context/08 authoritative for structure)
+colors:
+  light:
+    ground: "#FCFAF6"            # D27 — page background, warm paper
+    raised: "#FFFDF9"            # D27 — cards, sheets, modals
+    raisedHovered: "#FBF7F0"     # [ADAPTED] derived, one fill step toward ground
+    inset: "#F4F0E8"             # D27 — wells, inputs at rest, code areas
+    insetHovered: "#EFEAE0"      # [ADAPTED]
+    surface3: "rgba(33,26,18,0.08)"        # [ADAPTED] ink-alpha, borders + nested fills
+    surface3Hovered: "rgba(33,26,18,0.10)" # [ADAPTED]
+    surface3Solid: "#EDE9E2"     # [ADAPTED] composite of surface3 over raised
+    surface4: "rgba(255,253,249,0.64)"     # [ADAPTED] translucent overlay layer
+    scrim: "rgba(20,17,13,0.60)" # [ADAPTED] rendered at 0.5 opacity → ~30% warm black
+    neutral1: "#211A12"          # D27 Ink — confirmed & private; never #000
+    neutral1Hovered: "rgba(33,26,18,0.83)"
+    neutral2: "rgba(33,26,18,0.63)"        # context, disclosure copy, fiat equivalents
+    neutral2Hovered: "rgba(33,26,18,0.83)" # hover promotes secondary text
+    # [RATIFIED Abu 2026-08-25] neutral3 measures 2.12–2.18:1 on light surfaces — it does NOT meet
+    # AA, and it cannot be made to: the alpha that reaches 4.5 (0.63) composites byte-identically to
+    # neutral2, collapsing the ladder to two levels. Ruling: keep three levels and stop carrying the
+    # third one on colour. "Not yet real" is encoded by `notYetReal` below; neutral3 is a SECONDARY
+    # cue, never the only signal, and never the sole carrier of meaning on a text run.
+    neutral3: "rgba(33,26,18,0.35)"        # not yet real: immature notes, timestamps, indicative
+    neutral3Hovered: "rgba(33,26,18,0.55)"
+    accent1: "#8C2F1E"           # D27 oxblood
+    accent1Hovered: "#75281A"    # [ADAPTED]
+    accent2: "rgba(140,47,30,0.08)"
+    accent2Hovered: "rgba(140,47,30,0.12)"
+    accent2Solid: "#F6EDE7"      # [ADAPTED] composite
+    accent3: "#211A12"           # ink alias — most CTAs are ink, not brand
+    settled: "#2E6B35"           # D27 — success / spendable / settled
+    settledHovered: "#245A2B"    # [ADAPTED]
+    settledTint: "rgba(64,168,80,0.07)"    # [ADAPTED] brighter-base tint trick [UNI]
+    exposed: "#7A5A00"           # D27 — warning / "this reveals"
+    exposedHovered: "#614700"    # [ADAPTED]
+    exposedTint: "rgba(224,178,32,0.10)"   # [ADAPTED]
+    irreversible: "#A32318"      # D27 — critical / deanonymizing / unrecoverable
+    irreversibleHovered: "#8A1D13"         # [ADAPTED]
+    irreversibleTint: "rgba(226,55,40,0.06)" # [ADAPTED]
+  dark:
+    ground: "#14110D"            # D27
+    raised: "#1C1813"            # D27
+    raisedHovered: "#221D16"     # [ADAPTED]
+    inset: "#221E17"             # D27
+    insetHovered: "#282318"      # [ADAPTED]
+    surface3: "rgba(245,238,228,0.12)"     # [ADAPTED]
+    surface3Hovered: "rgba(245,238,228,0.16)"
+    surface3Solid: "#332D24"     # [ADAPTED] composite
+    surface4: "rgba(245,238,228,0.20)"     # [ADAPTED]
+    scrim: "rgba(0,0,0,0.60)"
+    neutral1: "#F5EEE4"          # D27 Ink (dark)
+    neutral1Hovered: "rgba(245,238,228,0.85)"
+    neutral2: "rgba(245,238,228,0.65)"
+    neutral2Hovered: "rgba(245,238,228,0.85)"
+    neutral3: "rgba(245,238,228,0.38)"
+    neutral3Hovered: "rgba(245,238,228,0.58)"
+    accent1: "#E87B60"           # D27 — accent FLIPS per mode (overrides 08 §2.4; see Don'ts)
+    accent1Hovered: "#EE8F77"    # [ADAPTED]
+    accent2: "rgba(232,123,96,0.12)"
+    accent2Hovered: "rgba(232,123,96,0.16)"
+    accent2Solid: "#2D1E17"      # [ADAPTED] composite
+    accent3: "#F5EEE4"           # ink alias
+    settled: "#6FBF77"           # [RATIFIED Abu 2026-08-25] measured 6.09–8.42:1 on all six dark surfaces
+    settledHovered: "#82CC89"    # [RATIFIED Abu 2026-08-25]
+    settledTint: "rgba(111,191,119,0.12)"  # [RATIFIED Abu 2026-08-25]
+    exposed: "#E3B341"           # [RATIFIED Abu 2026-08-25] measured 7.00–9.67:1
+    exposedHovered: "#F0C452"    # [RATIFIED Abu 2026-08-25]
+    exposedTint: "rgba(227,179,65,0.10)"   # [RATIFIED Abu 2026-08-25]
+    # CORRECTED then ratified: the proposed #FF5449 measured 4.29:1 on surface3Solid — under the
+    # 4.5 floor, and precisely where Failed/Blocked render. #FF5E4F clears all six (worst 4.52:1)
+    # at dE00 1.68 from the proposal, i.e. the same decision nudged until it passes.
+    irreversible: "#FF5E4F"      # [RATIFIED Abu 2026-08-25] was #FF5449 [PROPOSAL]
+    irreversibleHovered: "#FF6858"         # [RATIFIED Abu 2026-08-25] was #FF6A5F
+    irreversibleTint: "rgba(255,94,79,0.12)" # [RATIFIED Abu 2026-08-25] was rgba(255,84,73,0.12)
+typography:
+  # [RATIFIED Abu 2026-08-25] IBM Plex Sans, delivered as @fontsource-variable/ibm-plex-sans@5.3.0.
+  # Measured in Chromium at 24px against the shipped woff2: 485 and 535 are both live axis positions
+  # (specimen advances 197.578px / 199.125px), and the digit advance is INVARIANT across them —
+  # a money column cannot shift when a value changes weight.
+  family: "IBM Plex Sans"
+  familyFallback: "Inter"        # one-line swap; Inter's "490/540" is measurably identical to 485/535
+  mono: "ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Monaco, 'Cascadia Mono', 'Segoe UI Mono', 'Roboto Mono', 'Courier New', monospace"  # [UNI] kept — Plex Mono priced but not adopted
+  weights: [485, 535]            # variable-axis positions [UNI]. Plex's axis CLAMPS above 700:
+                                 # a wght token >700 is silently ignored, so the lint forbids one.
+  # Plex ships NO tnum feature and needs none: its digits are 600/1000em at EVERY weight,
+  # unconditionally. `font-variant-numeric: tabular-nums` measures a 0.000px no-op here and stays on
+  # the numeric primitive only as insurance for the Inter fallback. The consequence, accepted with
+  # the ruling: prose can never opt OUT to proportional numerals. Every number sets tabular, always.
+  numerals: tabular
+  scale:
+    heading1: "52/56 -0.02em"    # exists in scale; in-app max is heading2 (08 §7.2)
+    heading2: "36/40 -0.01em"
+    heading3: "24/28 -0.005em"
+    subheading1: "18/24"
+    subheading2: "16/24"
+    body1: "18/24"
+    body2: "16/24"
+    body3: "14/20"
+    body4: "12/16"
+    mono: "12/16"
+    buttonLabel1: "18/24 @535"
+    buttonLabel2: "16/24 @535"
+    buttonLabel3: "14/20 @535"
+    buttonLabel4: "12/16 @535"
+rounded:
+  none: 0
+  badge: 6
+  small: 8
+  control: 12       # small controls, text inputs, icon chips
+  card: 16          # every card, sheet, modal, re-consent row
+  large: 20         # large controls, amount-input container
+  xl: 24
+  hero: 32
+  pill: 9999        # pills, grab handles, skeleton bars
+spacing:
+  scale: [0, 1, 2, 4, 6, 8, 12, 16, 18, 20, 24, 28, 32, 36, 40, 48, 60]
+  padding: [6, 8, 12, 16, 20, 24, 36]
+  gap: [4, 8, 12, 16, 20, 24, 32, 36]
+  hairlineOnly: [1, 2]
+  breakpoints: [360, 380, 450, 640, 768, 1024, 1280, 1536]
+components:
+  button:
+    small:  { px: 12, py: 8,  radius: 12, gap: 8 }
+    medium: { px: 16, py: 12, radius: 16, gap: 8 }
+    large:  { px: 20, py: 16, radius: 20, gap: 12 }   # primary pipeline actions
+    primaryFill: accent3        # ink, not brand
+    focus: "1px solid outline, 2px offset, variant's Hovered token; scale 0.98×0.905"
+    hitSlop: "runtime to 44/48px minimums"
+  modal:
+    maxWidth: 420
+    width: "calc(100vw - 32px)"
+    maxHeight: "calc(100vh - 32px)"
+    radius: 16
+    border: "1px surface3"
+    padding: "24px 16px (px24 py16)"
+    sheetBelow: 640             # same children tree, top corners r16, handle 32×4 pill neutral3
+    popoverSheetBelow: 450
+  input:
+    radius: 12
+    padding: "16/12"
+    restFill: inset
+    focusFill: raised           # focus inverts the container + 1px surface3 border
+  card:
+    fill: raised
+    radius: 16
+    border: "1px surface3"
+    padding: 16
+    shadow: short
+  chip:
+    radius: 6
+    border: "1px status solid"
+    fill: "status tint"
+    label: "always full text contrast, never the status color"
+  activityRow: { radius: 16, py: 8, gap: 12, icon: 40 }
+  chatBubble: { radius: 18, padding: "8/12", runGap: "6→1px", facingCorner: 4 }  # [SIG]
+# [RATIFIED Abu 2026-08-25] "not yet real" is carried by structure, not by grey alone.
+notYetReal:
+  encoding: dotted-underline    # 1px dotted, currentColor at 0.45 — survives greyscale and CVD
+  colorCue: neutral3            # secondary only; a run may never rely on the grey by itself
+  appliesTo: [immature notes, block counts, timestamps, indicative values, quoted-not-final amounts]
+
+# Motion. Eleven durations over FIVE distinct curves. The source text wrote "same" for a curve
+# repeated from the line above — resolved verbatim here, because "same" emitted into CSS is an
+# invalid value that browsers drop silently, leaving the transition at its default ease.
+# Curve names are 6-2's call, recorded here so component code never writes a bezier.
+easings:
+  simple:    "ease-in-out"
+  snap:      "cubic-bezier(0.17,0.67,0.45,1)"        # chrome: enters/exits, sheets, buttons
+  glide:     "cubic-bezier(0.25,0.46,0.45,0.94)"     # content: crossfades, slot swaps
+  settle:    "cubic-bezier(0.25,0.1,0.25,1)"         # scrims and long overlays
+  attention: "cubic-bezier(0.17,0.17,0,1)"           # [SIG] the one 1.2s cue
+motion:
+  simple:        { duration: 80,   easing: simple }
+  fastExit:      { duration: 80,   easing: snap }
+  fast:          { duration: 100,  easing: snap }
+  fastExitHeavy: { duration: 100,  easing: snap }
+  fastHeavy:     { duration: 120,  easing: snap }
+  stiff:         { duration: 150,  easing: snap }
+  quicker:       { duration: 180,  easing: glide }
+  quick:         { duration: 200,  easing: glide }
+  quickLong:     { duration: 300,  easing: glide }
+  lazy:          { duration: 500,  easing: settle }
+  attention:     { duration: 1200, easing: attention }   # [SIG]
+  stagger: 40
+  properties: "transform + opacity only; never color, never layout height"
+
+# Lifted verbatim from §5 prose (lines 294–301), which was the only place they existed. The
+# generator needs them in the frontmatter, and dark is NOT a tint of light here — dark shadows do
+# 4–12x more work because #1C1813 on #14110D is too weak to read as elevation on its own.
+shadows:
+  light:
+    short:  "0 1px 6px 2px rgba(33,26,18,0.03), 0 1px 2px 0 rgba(33,26,18,0.02)"
+    medium: "0 6px 12px -3px rgba(33,26,18,0.04), 0 2px 5px -2px rgba(33,26,18,0.03)"
+    large:  "0 10px 20px -5px rgba(33,26,18,0.05), 0 4px 12px -3px rgba(33,26,18,0.04)"
+  dark:
+    short:  "0 1px 3px 0 rgba(0,0,0,0.12), 0 1px 2px 0 rgba(0,0,0,0.24)"
+    medium: "0 10px 15px -3px rgba(0,0,0,0.54), 0 4px 6px -2px rgba(0,0,0,0.40)"
+    large:  "0 16px 24px -6px rgba(0,0,0,0.60), 0 8px 12px -4px rgba(0,0,0,0.48)"
