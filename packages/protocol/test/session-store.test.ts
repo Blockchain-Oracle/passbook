@@ -102,16 +102,33 @@ describe('the localStorage feature probe is a round trip, never a typeof (G1)', 
   })
 
   it("REJECTS Node's localStorage stub, which is the exact false positive typeof produces", () => {
-    // This is not hypothetical: this suite runs on Node, where `localStorage` is an object
+    // This is not hypothetical. On a Node that exposes Web Storage, `localStorage` is an object
     // (so `typeof localStorage === 'object'` passes) whose `setItem` is undefined. A presence
     // check hands back a store that throws a TypeError on the first write — which is the write
     // that saves a freshly generated account key.
-    const stub = (globalThis as { localStorage?: unknown }).localStorage
-    expect(typeof stub).toBe('object')
-    expect(typeof (stub as { setItem?: unknown })?.setItem).toBe('undefined')
+    //
+    // The stub is INSTALLED here, never read off the host. Whether a given Node supplies one is a
+    // version fact (25 unflagged Web Storage; 24 keeps it behind --experimental-webstorage), so
+    // branching on the host would run this — the load-bearing case — only where the host happens
+    // to cooperate. On the pinned major it never does: `probeLocalStorage()` would instead take
+    // the no-storage early return, a path `probeLocalStorage(null)` already covers below, and a
+    // probe that trusted the global without round-tripping would sail through unnoticed. Owning
+    // the stub makes this fact hold identically on every Node.
+    const original = Object.getOwnPropertyDescriptor(globalThis, 'localStorage')
+    Object.defineProperty(globalThis, 'localStorage', { configurable: true, value: {} })
+    try {
+      // The double really is the shape a presence check waves through: an object, no `setItem`.
+      const stub = (globalThis as { localStorage?: unknown }).localStorage
+      expect(typeof stub).toBe('object')
+      expect(typeof (stub as { setItem?: unknown })?.setItem).toBe('undefined')
 
-    expect(probeLocalStorage().ok).toBe(false)
-    expect(localStorageSessionStore()).toBeNull()
+      // And the probe rejects it anyway, because it round trips instead of sniffing.
+      expect(probeLocalStorage().ok).toBe(false)
+      expect(localStorageSessionStore()).toBeNull()
+    } finally {
+      if (original) Object.defineProperty(globalThis, 'localStorage', original)
+      else delete (globalThis as { localStorage?: unknown }).localStorage
+    }
   })
 
   it('rejects a storage whose writes throw — Safari private mode, and a full quota', () => {
