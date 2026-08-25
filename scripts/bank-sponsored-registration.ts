@@ -40,6 +40,7 @@ import { setTimeout as sleep } from 'node:timers/promises'
 import { Account, CallData, RpcProvider, cairo, hash } from 'starknet'
 import { ACTIVE_NETWORK, NET, STRK_TOKEN } from '../packages/protocol/src/constants.js'
 import { loadDotEnvVerbose } from '../packages/protocol/src/env.js'
+import { actualFeeWei } from '../packages/protocol/src/activity.js'
 import { generateIdentity } from '../packages/protocol/src/identity.js'
 import { readPoolConstants } from '../packages/protocol/src/pool.js'
 import {
@@ -71,15 +72,22 @@ function abort(message: string): never {
   process.exit(1)
 }
 
-/** Reads `actual_fee` off a receipt in either RPC shape: `{amount, unit}` or a bare felt. */
-function actualFeeWei(receipt: unknown): { amount: bigint; unit: string } {
-  const fee = (receipt as { actual_fee?: unknown })?.actual_fee
-  if (typeof fee === 'string') return { amount: BigInt(fee), unit: '(bare felt)' }
-  const shaped = fee as { amount?: string; unit?: string } | undefined
-  if (shaped?.amount === undefined) {
-    throw new Error(`the receipt carries no readable actual_fee: ${JSON.stringify(fee)}`)
+/**
+ * The receipt's `actual_fee`, or a hard stop.
+ *
+ * The PARSER is `activity.ts`'s — shared, unit-tested against both RPC shapes and a junk table,
+ * rather than a second private copy here where nothing could run it. The POLICY is this
+ * script's and stays here: evidence may not carry a fee this process could not read, so an
+ * `unknown` aborts. `activity.ts` returns `unknown` instead of throwing because it renders a
+ * page of history where one odd receipt must cost one row its fee field; a banking run has
+ * exactly one receipt and no such thing as a partially-known cost.
+ */
+function bankedFee(receipt: unknown): { amount: bigint; unit: string } {
+  const fee = actualFeeWei(receipt)
+  if (fee.state === 'unknown') {
+    abort(`the receipt carries no readable actual_fee (${fee.reason}) — refusing to bank a cost`)
   }
-  return { amount: BigInt(shaped.amount), unit: shaped.unit ?? '(no unit)' }
+  return { amount: fee.amountWei, unit: fee.unit }
 }
 
 // ---------------------------------------------------------------------------------
@@ -479,7 +487,7 @@ try {
 // record above already holds the hash if any of them throws.
 // ---------------------------------------------------------------------------------
 
-const gas = actualFeeWei(capturedReceipt)
+const gas = bankedFee(capturedReceipt)
 const poolFeeWei = result.feeRow.feeWei
 const totalWei = poolFeeWei + gas.amount
 
