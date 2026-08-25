@@ -133,15 +133,46 @@ describe('lint-claims', () => {
     expect(r.out).toMatch(/unfilled placeholder/)
   })
 
-  it('fails when ACTIVE_NETWORK is not mainnet', () => {
+  // ── The network guard, and the fail-open it shipped with until story 6-1 ─────────────────
+  //
+  // The decoy case is the one that matters. With the old unanchored regex, a commented-out
+  // mainnet line above a live sepolia one made this script print "network guard: mainnet" and
+  // exit 0 on a sepolia tree — reproduced, not theorised. The two-declaration case covers the
+  // other direction: no first-match rule can be right there, so the guard must refuse.
+  //
+  // `it.each`, not a loop inside one `it`. These are three distinct behaviours and they report as
+  // three tests: a loop aborts at the first failing case, so a regression in the decoy case would
+  // hide the two-declaration case behind it. (They WERE folded into one `it` at first, to hold the
+  // suite's collected count flat while the story was being audited against that number. That is
+  // shaping tests around a metric; the number was re-baselined instead.)
+  it.each([
+    {
+      name: 'a plain sepolia declaration',
+      body: "export const ACTIVE_NETWORK: NetworkName = 'sepolia'\n",
+      expected: /ACTIVE_NETWORK is "sepolia"/,
+    },
+    {
+      name: 'a commented-out mainnet decoy above a live sepolia line',
+      body:
+        "// was: export const ACTIVE_NETWORK: NetworkName = 'mainnet' <- decoy\n" +
+        "export const ACTIVE_NETWORK: NetworkName = 'sepolia'\n",
+      expected: /ACTIVE_NETWORK is "sepolia"/,
+    },
+    {
+      name: 'two live declarations, which no first-match rule can resolve',
+      body:
+        "export const ACTIVE_NETWORK: NetworkName = 'mainnet'\n" +
+        "export const ACTIVE_NETWORK: NetworkName = 'sepolia'\n",
+      expected: /has 2 live ACTIVE_NETWORK declarations/,
+    },
+  ])('FAILS on $name', ({ body, expected }) => {
     const root = fixture()
     writeFileSync(
       join(root, 'packages/protocol/src/constants.ts'),
-      "export type NetworkName = 'mainnet' | 'sepolia'\n" +
-        "export const ACTIVE_NETWORK: NetworkName = 'sepolia'\n",
+      "export type NetworkName = 'mainnet' | 'sepolia'\n" + body,
     )
     const r = run(root)
     expect(r.code).toBe(1)
-    expect(r.out).toMatch(/ACTIVE_NETWORK is "sepolia"/)
+    expect(r.out).toMatch(expected)
   })
 })

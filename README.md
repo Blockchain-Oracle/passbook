@@ -87,6 +87,36 @@ npm run lint:claims     # the claims and network guard, described below
 cd contracts && scarb build && snforge test && cd ..
 ```
 
+### The web app, and the one install step `npm ci` does not do
+
+The gates that build the app evaluate the built bundle in a real headless browser, because a
+bundle that exits 0 and then dies at load is the specific failure they exist to catch. Playwright
+ships no browser binaries and runs no postinstall hook, so **`npm ci` alone does not give you
+one** — install it once per machine:
+
+```bash
+npx playwright-core install chromium-headless-shell
+```
+
+Then:
+
+```bash
+npm run typecheck            # root + apps/web; the root config alone does not cover the app
+npm run build:web            # builds, holds the warning contract, evaluates every route
+npm run smoke:sdk            # React + router + protocol + privacy SDK in one evaluated bundle
+npm run verify:mainnet-guard # flips the tree off mainnet and back, proving the guard both ways
+```
+
+`npm run build:web` from the repository root is the only supported way to build the app. There is
+deliberately no `build` script in `apps/web/package.json`: a bare `vite build` skips the warning
+contract, the eager-bundle budget and the browser evaluation, and produces an artifact nothing has
+checked.
+
+`verify:mainnet-guard` rewrites `packages/protocol/src/constants.ts` in your working tree for a few
+seconds. Do not run it alongside other work in the same checkout. If it is killed with `SIGKILL`
+mid-run it leaves a `.guard-verify-backup` sidecar; the next run finds it, restores from it, and
+says so.
+
 Two probes read mainnet. `evidence/` is the audit trail for every number this project asserts,
 and only a probe that actually measured something is allowed to write into it:
 

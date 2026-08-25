@@ -6,10 +6,16 @@
     "node": "^24.0.0"
   },
   "workspaces": [
-    "packages/*"
+    "packages/*",
+    "apps/*",
+    "workers/*"
   ],
   "scripts": {
     "test": "vitest run",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p apps/web",
+    "build:web": "node scripts/build-web.mjs",
+    "smoke:sdk": "node scripts/smoke-sdk-build.mjs",
+    "verify:mainnet-guard": "node scripts/verify-mainnet-guard.mjs",
     "lint": "npm run lint:claims && npm run lint:secrets && npm run lint:topology",
     "lint:claims": "node scripts/lint-claims.mjs",
     "lint:secrets": "node scripts/lint-secrets.mjs",
@@ -21,7 +27,8 @@
     "vitest": "4.1.11",
     "vite": "8.2.2",
     "tsx": "4.23.12",
-    "@types/node": "24.13.3"
+    "@types/node": "24.13.3",
+    "playwright-core": "1.62.1"
   },
   "dependencies": {
     "starknet": "10.5.0",

@@ -1,5 +1,12 @@
 node_modules/
 dist/
+# The SDK smoke's build outputs. They sit beside `dist/` rather than inside it because the app
+# build empties its own outDir, and a smoke artifact that the next `npm run build:web` deletes is
+# one nobody can inspect after a failure. NOT covered by the `dist/` rule above — that matches the
+# directory name exactly.
+dist-smoke/
+dist-smoke-negative/
+dist-smoke-canary/
 .env
 .env.*
 !.env.example
@@ -13,6 +20,16 @@ _bmad-output/
 .superpowers/
 ev.json
 .DS_Store
+
+# `scripts/verify-mainnet-guard.mjs`'s on-disk sidecar. It exists for the ~2 seconds that script
+# holds `packages/protocol/src/constants.ts` flipped to sepolia, and it is the ONLY layer that
+# survives a SIGKILL — the next run finds it, restores from it, and says so. If you are reading
+# this because the file is sitting in your tree, a previous verify run was killed mid-flip: just
+# run `npm run verify:mainnet-guard` again and it will heal itself before doing anything else.
+#
+# The glob also covers `.lock` (the pid of a live run, so two runs cannot flip the file underneath
+# each other) and `.displaced` (the copy the self-heal set aside rather than silently overwrite).
+.guard-verify-backup*
 
 # The relayer's durable sponsorship ledger. Runtime state of one deployment, and it holds
 # the salt that keys its hashed visitor ids — see packages/relayer/src/sponsorship-store.ts.
