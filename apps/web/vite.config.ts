@@ -13,6 +13,7 @@ import { fileURLToPath } from 'node:url'
 
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import tailwindcss from '@tailwindcss/vite'
 import { tanstackRouter } from '@tanstack/router-plugin/vite'
 
 //
@@ -100,6 +101,11 @@ export default defineConfig((configEnv) => {
       // Codegen must run before the React transform sees the route files.
       tanstackRouter({ target: 'react', autoCodeSplitting: true }),
       react(),
+      // The stylesheet compiler. Order against the two above is irrelevant — it owns CSS files and
+      // they own route/JSX files. Its scan root is the nearest package.json to `src/index.css`,
+      // i.e. `apps/web`: a class written in `packages/*` generates NO rule and renders unstyled
+      // with a green build, which is why every component lives under `apps/web/src`.
+      tailwindcss(),
     ],
     resolve: {
       alias: {

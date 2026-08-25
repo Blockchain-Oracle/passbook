@@ -19,6 +19,8 @@ import { fileURLToPath } from 'node:url'
 import { build, createLogger, preview } from 'vite'
 import { chromium } from 'playwright-core'
 
+import { designProbe, designProblems, expectedGrounds } from './assert-design-shipped.mjs'
+
 export const REPO_ROOT = resolve(fileURLToPath(import.meta.url), '../..')
 export const WEB_ROOT = join(REPO_ROOT, 'apps/web')
 
@@ -281,7 +283,7 @@ export function walkFiles(dir) {
  *
  * @returns {Promise<{errors: string[], consoleErrors: string[], published: unknown}>}
  */
-export async function evaluate({ root, outDir, globalName, paths = ['/'], label = 'evaluate' }) {
+export async function evaluate({ root, outDir, globalName, paths = ['/'], label = 'evaluate', probe }) {
   if (!existsSync(outDir)) throw new Error(`[${label}] nothing to evaluate: ${outDir} does not exist`)
   assertBrowserAvailable(label)
 
@@ -305,6 +307,7 @@ export async function evaluate({ root, outDir, globalName, paths = ['/'], label 
   const visited = []
   const rendered = {}
   let published
+  let probed
   try {
     //
     // EVERY ROUTE, not just `/`. Loading only the index is a hole with teeth: making the `/settings`
@@ -360,13 +363,19 @@ export async function evaluate({ root, outDir, globalName, paths = ['/'], label 
           .then(() => page.evaluate((name) => window[name], globalName))
           .catch(() => undefined)
       }
+
+      // Read what the browser COMPUTED, on the first route only. `waitUntil: 'load'` has already
+      // fired, so a linked stylesheet is applied by now; an absent one is absent for good.
+      if (probe && probed === undefined) {
+        probed = await page.evaluate(probe).catch(() => undefined)
+      }
     }
   } finally {
     await browser.close()
     await server.close()
   }
 
-  return { errors, consoleErrors, published, visited, rendered }
+  return { errors, consoleErrors, published, visited, rendered, probed }
 }
 
 /**
@@ -528,12 +537,13 @@ async function main() {
   // nothing visits passes every other gate in this file.
   const paths = routePathsFromGeneratedTree(join(WEB_ROOT, 'src/routeTree.gen.ts'))
 
-  const { errors, consoleErrors, published, visited, rendered } = await evaluate({
+  const { errors, consoleErrors, published, visited, rendered, probed } = await evaluate({
     root: WEB_ROOT,
     outDir,
     globalName: '__PASSBOOK__',
     paths,
     label: 'build:web',
+    probe: designProbe,
   })
 
   assertEvaluatedClean({
@@ -562,6 +572,28 @@ async function main() {
     `[build:web] evaluated clean on ${visited.length} route(s) [${visited.join(', ')}] — ` +
       `window.__PASSBOOK__ = ${JSON.stringify(published)}`,
   )
+
+  //
+  // THE DESIGN SYSTEM IS IN THE ARTIFACT AND PAINTS. Every other gate above passes with the
+  // stylesheet import deleted and no CSS in `dist/` at all — see assert-design-shipped.mjs.
+  //
+  const cssAssets = walkFiles(outDir)
+    .filter((f) => f.endsWith('.css'))
+    .map((f) => f.slice(REPO_ROOT.length + 1))
+  const designFailures = designProblems({
+    cssAssets,
+    probed,
+    expected: expectedGrounds(join(WEB_ROOT, 'design/tokens.yaml')),
+  })
+  if (designFailures.length) {
+    throw new Error(`[build:web] the design system did not ship:\n  - ${designFailures.join('\n  - ')}`)
+  }
+  console.log(
+    `[build:web] design system shipped — ${cssAssets.length} stylesheet(s), body paints ` +
+      `${probed.light.background} light / ${probed.dark.background} dark, color-scheme flips, ` +
+      `shadows re-theme`,
+  )
+
   console.log('[build:web] OK')
 }
 
