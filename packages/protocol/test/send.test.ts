@@ -942,15 +942,45 @@ describe('assertSendSpan refuses anything the plan did not ask for', () => {
     expect(() => assertSendSpan(span(...poisoned), planned)).toThrow(/action 0 is Deposit/)
   })
 
-  it('refuses an invoke-phase action outright — a send never carries one', () => {
-    // Hand-built, because InvokeExternal has no fixed width to build from.
-    const poisoned = [3n, BigInt(CLIENT_ACTION.UseNote), 0n, 0n, 0n, BigInt(CLIENT_ACTION.CreateEncNote), 0n, 0n, 0n, 0n, 0n, 0n, BigInt(CLIENT_ACTION.InvokeExternal), 0n, 0n]
-    const withInvoke = [
+  //
+  // THE INVOKE RULE CHANGED, AND THESE THREE ARE THE NEW CONTRACT.
+  //
+  // This used to assert that an invoke was refused outright, on the rule that "a send never carries
+  // one". A SWAP DOES — it is withdraw → invoke(executor) → note back, in one transaction — so the
+  // guard now MEASURES an invoke instead of refusing it, by reading its length prefix.
+  //
+  // What must not weaken is the refusal of an invoke the plan did not ask for, and of one whose
+  // calldata is not the length the plan described. Both are below, plus the case that is now
+  // legal, because a guard that only rejects proves nothing about what it lets through.
+  //
+  // Hand-built spans: `span()` can only build fixed-width actions.
+  //
+  it('accepts an invoke whose width matches the plan — a swap carries one', () => {
+    // [count, UseNote x4, CreateEncNote x7, InvokeExternal(contract, calldata_len=0) x3] = 15
+    const withInvoke = [3n, BigInt(CLIENT_ACTION.UseNote), 0n, 0n, 0n, BigInt(CLIENT_ACTION.CreateEncNote), 0n, 0n, 0n, 0n, 0n, 0n, BigInt(CLIENT_ACTION.InvokeExternal), 0n, 0n]
+    const planned = [
       anyOf(CLIENT_ACTION.UseNote),
       anyOf(CLIENT_ACTION.CreateEncNote),
-      { variant: CLIENT_ACTION.InvokeExternal, fields: [] },
+      // The plan carries every felt: the contract address and the length prefix. That is what
+      // makes a variable-width action checkable at all.
+      { variant: CLIENT_ACTION.InvokeExternal, fields: [null, 0n] },
     ]
-    expect(() => assertSendSpan(poisoned, withInvoke)).toThrow(/no fixed felt width/)
+    expect(() => assertSendSpan(withInvoke, planned)).not.toThrow()
+  })
+
+  it('refuses an invoke carrying MORE calldata than the plan described', () => {
+    // The compiler lengthening an invoke between the plan and the proof is the swap-shaped version
+    // of a rewritten Withdraw recipient: same action, same position, different instructions.
+    const longer = [1n, BigInt(CLIENT_ACTION.InvokeExternal), 0n, 2n, 0xdeadn, 0xbeefn]
+    const planned = [{ variant: CLIENT_ACTION.InvokeExternal, fields: [null, 0n] }]
+    expect(() => assertSendSpan(longer, planned)).toThrow(/occupying 5 felt\(s\)/)
+  })
+
+  it('refuses an invoke nobody planned, by sequence as before', () => {
+    const poisoned = [1n, BigInt(CLIENT_ACTION.InvokeExternal), 0n, 0n]
+    expect(() => assertSendSpan(poisoned, [anyOf(CLIENT_ACTION.UseNote)])).toThrow(
+      /action 0 is InvokeExternal/,
+    )
   })
 
   it('refuses felts nobody looked at, even when every variant matched', () => {
@@ -1041,11 +1071,31 @@ describe('assertChannelIndices', () => {
     expect(() => assertChannelIndices(span(anyOf(CLIENT_ACTION.UseNote)), 7)).not.toThrow()
   })
 
-  // In `proveSend` this is unreachable, because `assertSendSpan` refuses an invoke first. Called
-  // standalone it used to return quietly, which is a silent pass on a span it cannot walk.
-  it('throws rather than passing quietly on a variant it cannot measure', () => {
-    const withInvoke = [1n, BigInt(CLIENT_ACTION.InvokeExternal), 0n, 0n]
-    expect(() => assertChannelIndices(withInvoke, 0)).toThrow(/no fixed felt width/)
+  //
+  // It used to throw here, because an invoke had no width it could walk. Now it reads the length
+  // prefix and keeps its place — which is what a swap span needs, since the invoke sits at the END
+  // and everything before it still has to be validated.
+  //
+  it('walks past an invoke and still checks the channels around it', () => {
+    // [count=2, OpenChannel(index 2) x5, InvokeExternal(contract, calldata_len=0) x3] = 9
+    const withInvoke = [2n, BigInt(CLIENT_ACTION.OpenChannel), 0n, 2n, 0n, 0n, BigInt(CLIENT_ACTION.InvokeExternal), 0n, 0n]
+    expect(() => assertChannelIndices(withInvoke, 2)).not.toThrow()
+    // And the channel rule still bites through the same walk.
+    const wrongIndex = [...withInvoke]
+    wrongIndex[3] = 7n
+    expect(() => assertChannelIndices(wrongIndex, 2)).toThrow(/INDEX_NOT_SEQUENTIAL/)
+  })
+
+  it('throws on a length prefix that would walk it off the end', () => {
+    // The cursor's position for every later action depends on this number, so a corrupt one is not
+    // a silent skip — it is every subsequent action read from the wrong offset.
+    const lying = [1n, BigInt(CLIENT_ACTION.InvokeExternal), 0n, 999n]
+    expect(() => assertChannelIndices(lying, 0)).toThrow(/length prefix/)
+  })
+
+  it('still throws on a variant it genuinely cannot measure', () => {
+    const unknown = [1n, 99n, 0n, 0n]
+    expect(() => assertChannelIndices(unknown, 0)).toThrow(/no fixed felt width/)
   })
 })
 

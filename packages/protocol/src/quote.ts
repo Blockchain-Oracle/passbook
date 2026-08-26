@@ -209,6 +209,127 @@ export function minimumOut(buyAmount: bigint, slippageBps: Bps = DEFAULT_SLIPPAG
   return floor
 }
 
+//
+// ── BUILDING THE CALLS ────────────────────────────────────────────────────────────────────
+//
+// `/swap/v3/build` with `private: true` returns the two calls the swap is made of — `approve` on
+// the sell token, then `multi_route_swap` on the AVNU Exchange — plus the ADDRESS OF THE EXECUTOR
+// that is expected to make them.
+//
+// THE EXECUTOR IS RETURNED, NOT CONFIGURED, and that is the single most important thing in this
+// file. Measured live: `0x426dcd1ab5fa2f852f138d07cb37708b00a4db999677fe2d0c9a440702dbe5e`, which
+// is AVNU's own deployed privacy helper. Pinning it as a constant here would be a copy of a value
+// the venue controls, and the day they migrate the copy becomes a swap that withdraws real funds to
+// an address that no longer does anything with them.
+//
+// ── WHY THIS SHAPE FITS THE POOL EXACTLY ──────────────────────────────────────────────────
+//
+// The pool's `InvokeExternal` action calls `privacy_invoke(buy_token, calls, note_id)` on a named
+// contract. `calls` is a `Span<Call>` — which is what came back. So the sandwich is: withdraw the
+// sell token TO the executor, create an empty open note for the buy token, and hand the executor
+// these calls plus that note's id. It fills the note with the output.
+//
+
+/** One call, in the shape both the venue and `starknet.js` use. */
+export interface SwapCall {
+  readonly contractAddress: string
+  readonly entrypoint: string
+  readonly calldata: readonly string[]
+}
+
+export interface SwapPlan {
+  /** The contract that will perform the swap. FROM THE VENUE — never a constant. */
+  readonly executorAddress: string
+  /** `approve`, then `multi_route_swap`. Passed to the executor verbatim. */
+  readonly calls: readonly SwapCall[]
+}
+
+export type BuildResult =
+  | { readonly state: 'built'; readonly plan: SwapPlan }
+  | { readonly state: 'failed'; readonly because: string }
+
+export interface BuildOptions {
+  /** Test seam, and the proxy seam. */
+  postJson?: (url: string, body: unknown) => Promise<unknown>
+}
+
+/** The URL a build request goes to. Exported so a relayer proxy builds the identical one. */
+export const BUILD_URL = `${AVNU_BASE}/swap/v3/build`
+
+async function postJsonDefault(url: string, body: unknown): Promise<unknown> {
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', accept: 'application/json' },
+    body: JSON.stringify(body),
+  })
+  if (!response.ok) throw new Error(`build endpoint answered ${response.status}`)
+  return response.json()
+}
+
+function shapeCall(raw: unknown): SwapCall | null {
+  const call = raw as Record<string, unknown>
+  const contractAddress = call?.contractAddress
+  const entrypoint = call?.entrypoint
+  const calldata = call?.calldata
+  if (typeof contractAddress !== 'string' || contractAddress === '') return null
+  if (typeof entrypoint !== 'string' || entrypoint === '') return null
+  if (!Array.isArray(calldata) || !calldata.every((felt) => typeof felt === 'string')) return null
+  return { contractAddress, entrypoint, calldata: calldata as string[] }
+}
+
+/**
+ * Turn a quote into the calls that perform it.
+ *
+ * `slippage` IS A FRACTION HERE, NOT BASIS POINTS — the venue's own convention, and the exact place
+ * a factor-of-a-hundred error would be invisible: 0.01 is one percent, and `1` would be a hundred.
+ * The conversion happens in one place, here, so no caller ever holds both units.
+ *
+ * NEVER THROWS. A build that fails is a swap that does not happen, not a screen that falls over.
+ */
+export async function buildSwap(
+  quoteId: string,
+  slippageBps: Bps = DEFAULT_SLIPPAGE_BPS,
+  options: BuildOptions = {},
+): Promise<BuildResult> {
+  if (!Number.isInteger(slippageBps) || slippageBps < 0 || slippageBps >= 10_000) {
+    return { state: 'failed', because: 'The slippage setting is not a usable value.' }
+  }
+
+  const postJson = options.postJson ?? postJsonDefault
+
+  let payload: unknown
+  try {
+    payload = await postJson(BUILD_URL, {
+      quoteId,
+      // Fraction, per the venue. `100 bps` becomes `0.01`.
+      slippage: slippageBps / 10_000,
+      // The flag that routes through the executor the privacy pool can call.
+      private: true,
+    })
+  } catch {
+    return { state: 'failed', because: 'The route could not be prepared. Nothing was submitted.' }
+  }
+
+  const body = payload as { executorAddress?: unknown; calls?: unknown }
+  const executorAddress = body?.executorAddress
+
+  // NO EXECUTOR, NO SWAP. Falling back to a remembered address would send funds to a contract the
+  // venue did not name for this route.
+  if (typeof executorAddress !== 'string' || executorAddress === '') {
+    return { state: 'failed', because: 'The route came back without an executor, so it was refused.' }
+  }
+
+  const calls = Array.isArray(body.calls) ? body.calls.map(shapeCall) : null
+  if (!calls || calls.length === 0 || calls.some((call) => call === null)) {
+    return { state: 'failed', because: 'The route came back malformed, so it was refused.' }
+  }
+
+  return {
+    state: 'built',
+    plan: { executorAddress, calls: calls as SwapCall[] },
+  }
+}
+
 /**
  * How far the venue's own USD marks disagree, as a fraction. `null` when it did not price both.
  *
