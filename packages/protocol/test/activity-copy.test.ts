@@ -133,15 +133,70 @@ describe('the claims-lint trap (AC5)', () => {
     for (const path of [
       'packages/protocol/src/activity-copy.ts',
       'packages/protocol/src/activity.ts',
+      'packages/protocol/src/activity-entry.ts',
       'packages/protocol/src/balances.ts',
       'packages/protocol/src/discovery.ts',
       'packages/protocol/src/export.ts',
       'packages/protocol/src/pool-events.ts',
+      'packages/protocol/src/transaction.ts',
+      // Story 6.6's surfaces. THE APP FILES BELONG IN THIS SWEEP TOO, and their absence would have
+      // been the hole: three of the ten banned phrases are the hyphenated capability words a feed
+      // header and a receipt reach for first, and a sentence typed straight into a component is
+      // exactly the one no copy-module test can see.
+      'packages/protocol/src/activity-store.ts',
+      'apps/web/src/components/ActivityFeed.tsx',
+      'apps/web/src/components/ActivityRow.tsx',
+      'apps/web/src/routes/activity.$id.tsx',
+      'apps/web/src/routes/wallet.tsx',
     ]) {
       const text = readFileSync(path, 'utf8').toLowerCase()
       for (const phrase of FORBIDDEN) {
         expect(text, `${path} contains "${phrase}"`).not.toContain(phrase)
       }
     }
+  })
+})
+
+// Story 6.6's four authored sentences. The feed's own copy, byte-exact for the same reason as
+// everything above it: these are the strings that say whether an empty list is empty or unread,
+// what a 1-wei row is doing there, and that a submitted transaction has not been lost.
+describe("the feed's copy ships byte-exact (story 6.6)", () => {
+  it('unread and empty are two sentences, and never the same one', () => {
+    expect(copy.ACTIVITY_EMPTY_NOTHING).toBe(
+      'No activity yet. Actions you take appear here as they confirm.',
+    )
+    expect(copy.FEED_UNREAD).toBe("The pool hasn't been read yet — this list is unread, not empty.")
+    // THE DISTINCTION IS THE WHOLE POINT OF THE `initialized` FLAG. "No activity yet" is a claim
+    // about the chain; before a read has run we have not looked, and a user shown that sentence
+    // during an outage has been told their history is gone.
+    expect(copy.FEED_UNREAD).not.toBe(copy.ACTIVITY_EMPTY_NOTHING)
+    expect(copy.FEED_UNREAD).toMatch(/unread, not empty/)
+  })
+
+  it('the system note is told as structure, never as anomaly', () => {
+    expect(copy.SYSTEM_NOTE_LABEL).toBe(
+      'System note — the pool requires one per message-only transaction.',
+    )
+    // "Requires" is load-bearing: the row exists because the protocol demands it, not because
+    // something went wrong. A row a user cannot account for is a row they assume is a leak.
+    expect(copy.SYSTEM_NOTE_LABEL).toMatch(/requires/)
+  })
+
+  it('a submitted transaction that has not appeared says so, in two parts', () => {
+    expect(copy.NOT_YET_INDEXED).toBe('Submitted, not yet indexed')
+    expect(copy.CHECK_ON_VOYAGER).toBe('check on Voyager')
+    // Parts, because the second half is a link. One flat string would make a component find the
+    // anchor text inside the sentence again — the re-parsing `noResultsSentence` avoids.
+    expect(copy.NOT_YET_INDEXED).not.toContain(copy.CHECK_ON_VOYAGER)
+  })
+
+  it('the filter states which way it is set, not what pressing it would do', () => {
+    expect(copy.SYSTEM_NOTES_SHOWN).toBe('System notes: shown')
+    expect(copy.SYSTEM_NOTES_HIDDEN).toBe('System notes: hidden')
+    // §5 requires "visible filter state". A label naming its action leaves the state to be
+    // inferred from styling, and an invisible filter state is how a reader decides rows went
+    // missing. Neither string is an imperative.
+    expect(copy.SYSTEM_NOTES_SHOWN).not.toMatch(/^(show|hide)\b/i)
+    expect(copy.SYSTEM_NOTES_HIDDEN).not.toMatch(/^(show|hide)\b/i)
   })
 })

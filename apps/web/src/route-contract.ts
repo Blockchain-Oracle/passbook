@@ -28,7 +28,9 @@
 import type { RegisteredRouter } from '@tanstack/react-router'
 import type { RoutePaths } from '@tanstack/router-core'
 
-import type { ClassifiedPath } from './shell/modes'
+import type { ActivitySurface } from '@strk20/protocol/transaction'
+
+import type { ClassifiedPath, Mode } from './shell/modes'
 import type { routeTree } from './routeTree.gen'
 
 /** Fails to compile unless T is exactly `true`. TS2344 is the noise this guard makes. */
@@ -86,6 +88,28 @@ export type EveryClassifiedPathIsARoute = Assert<Ext<ClassifiedPath, Paths>>
 // Add a line here when a route is added; a route deleted on purpose fails here first, which is the
 // point.
 //
+//
+// ---- the six surfaces are the six modes -----------------------------------------------------
+//
+// `@strk20/protocol/transaction` declares `ActivitySurface` — which surface originated a
+// transaction — and it has to be the same six as the router's modes. The list is duplicated rather
+// than imported because the protocol package must not reach the router's types, and a duplicated
+// list is a list that drifts. These two assertions are what make the duplication safe, and they
+// live here for the reason the route coupling above does: this file is where cross-artifact
+// agreement is asserted rather than hoped for.
+//
+// TYPE-ONLY, so this costs nothing at runtime and adds no edge to any bundle. Both directions,
+// because each catches a different mistake: a seventh mode with no surface means the feed cannot
+// attribute a transaction that surface produces, and a surface with no mode is a row that would
+// link to a route that does not exist.
+//
+
+/** Every mode a user can act from can be recorded as the origin of a transaction. */
+export type EveryModeIsASurface = Assert<Ext<Mode, ActivitySurface>>
+
+/** And every surface the record can name is a mode of this app. */
+export type EverySurfaceIsAMode = Assert<Ext<ActivitySurface, Mode>>
+
 export type HasIndexRoute = Assert<Ext<'/', Paths>>
 export type HasSettingsRoute = Assert<Ext<'/settings', Paths>>
 export type HasWalletRoute = Assert<Ext<'/wallet', Paths>>

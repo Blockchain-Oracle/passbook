@@ -1,5 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
 
+import { ActivityFeed } from '../components/ActivityFeed'
 import { Surface } from '../shell/Surface'
 
 export const Route = createFileRoute('/wallet')({
@@ -21,14 +22,30 @@ export const Route = createFileRoute('/wallet')({
   component: Wallet,
 })
 
+//
+// THE NAMESAKE OBLIGATION, PARTLY DISCHARGED.
+//
+// "A product named Passbook must render the book" — balance and history are the substrate, not a
+// dashboard afterthought. The history half lands here. The balance half is the Wallet epic's,
+// because a shielded balance needs the discovery walk and the walk needs the privacy SDK, which
+// this bundle may not contain.
+//
+// The feed below is genuinely unread rather than empty, and says so. Nothing in this epic reads a
+// chain: `activity-store.ts` explains what wires it and why it is one call.
+//
 function Wallet() {
   return (
     <Surface routeId={Route.fullPath}>
       <h1 className="text-heading3">Wallet</h1>
+      {/*
+        NO SPRINT VOCABULARY IN A USER STRING. This said "Balances arrive with the discovery story"
+        — "the discovery story" is a sprint artifact, and a sentence a reader has no way to parse is
+        worse than no sentence. The fact worth stating is what this browser has and has not read.
+      */}
       <p className="text-body3 text-neutral2">
-        Balances and recent activity will be shown here. The wallet surface is built in a later
-        story; this shell is what every surface stands on.
+        Your shielded balance isn&apos;t read yet. The record is below.
       </p>
+      <ActivityFeed />
     </Surface>
   )
 }

@@ -66,3 +66,44 @@ export function isDustAt(wei: bigint, decimals: number, displayDecimals = DEFAUL
   if (displayDecimals >= decimals) return false
   return wei < 10n ** BigInt(decimals - displayDecimals)
 }
+
+/**
+ * Looks a token's decimals up by FELT VALUE, never by string equality.
+ *
+ * The same address has many spellings. `constants.ts` writes `STRK_TOKEN` padded to 64 hex
+ * digits, the discovery walk emits the unpadded form its `AddressMap` keys normalize to, and a
+ * caller supplying their own map will use whichever they had. String-keyed lookup silently
+ * misses across any two of those — and a miss here is not a crash, it is a `null` verdict that
+ * reads as "we cannot say whether this is dust" for a token whose decimals we know perfectly
+ * well. Comparing `BigInt(a) === BigInt(b)` is the `send.ts` `same()` precedent, and it makes
+ * every spelling of an address the same address.
+ *
+ * A malformed key in a caller-supplied map is skipped rather than thrown on: the map is
+ * decoration for a balance, and one bad entry must not take the balance down with it.
+ *
+ * IT LIVES HERE RATHER THAN BESIDE THE WALK (moved in story 6.6, `balances.ts` re-exports it) for
+ * the reason this whole module exists: it is pure string-and-bigint arithmetic with no chain edge,
+ * and a browser that indexes `KNOWN_TOKEN_DECIMALS` directly instead — because the felt-aware
+ * version was unreachable — gets `undefined` for every address that arrives spelled differently
+ * from the constant. That failure is silent and falls through to the unverified-scale path, which
+ * renders a real balance in raw units.
+ */
+export function lookupDecimals(
+  table: Readonly<Record<string, number>>,
+  token: string,
+): number | null {
+  let wanted: bigint
+  try {
+    wanted = BigInt(token)
+  } catch {
+    return null
+  }
+  for (const [key, decimals] of Object.entries(table)) {
+    try {
+      if (BigInt(key) === wanted) return decimals
+    } catch {
+      continue
+    }
+  }
+  return null
+}

@@ -22,6 +22,7 @@ function sheet(overrides: Record<string, string> = {}) {
   const decls: Record<string, string> = {
     stepRowMinHeight: 'min-height: var(--spacing-s40);',
     stepRowHeight: 'height: var(--spacing-s40);',
+    ringName: 'animation-name: pb-ring-spin;',
     ringEasing: 'animation-timing-function: var(--ease-linear);',
     ringDuration: 'animation-duration: var(--transition-duration-ring);',
     ringIterations: 'animation-iteration-count: infinite;',
@@ -45,7 +46,8 @@ function sheet(overrides: Record<string, string> = {}) {
       --ease-snap: cubic-bezier(0.17,0.67,0.45,1);
     }
     .step-row { ${decls.stepRowMinHeight} ${decls.stepRowHeight} }
-    .step-ring { ${decls.ringEasing} ${decls.ringDuration} ${decls.ringIterations} }
+    @keyframes pb-ring-spin { to { transform: rotate(360deg) } }
+    .step-ring { ${decls.ringName} ${decls.ringEasing} ${decls.ringDuration} ${decls.ringIterations} }
     .step-connector { ${decls.connector} ${decls.connectorHeight} }
     .reconsent-row { ${decls.reconsent} }
     .pipeline-row { ${decls.pipeline} }
@@ -73,6 +75,18 @@ describe('PLANTED DELETIONS all go red', () => {
 
   it('the ring loses its timing function', () => {
     expect(verdict({ ringEasing: '' }).join(' ')).toContain('linear')
+  })
+
+  it('the ring loses its animation-name', () => {
+    // Added with story 6.6: the hole one property over from the duration check. The ring stops
+    // turning while the curve, the duration and the iteration count all still read correctly.
+    expect(verdict({ ringName: '' }).join(' ')).toContain('no animation-name')
+  })
+
+  it('the ring names a keyframes block that does not exist', () => {
+    expect(verdict({ ringName: 'animation-name: pb-ring-spin-v2;' }).join(' ')).toContain(
+      '@keyframes pb-ring-spin-v2',
+    )
   })
 
   it('the ring stops iterating', () => {

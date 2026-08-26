@@ -97,6 +97,10 @@ export function readDesign({ css, html }) {
       // The progress machine's constant row and the ring's honesty — see `progressProblems`.
       stepRowMinHeight: lengthPx(css, ruleBody(css, '.step-row'), 'min-height'),
       stepRowHeight: lengthPx(css, ruleBody(css, '.step-row'), 'height'),
+      // Every `@keyframes` block the sheet defines. An `animation-name` that names one of these is
+      // an animation; one that names anything else is a rule the browser accepts and drops.
+      keyframeNames: [...css.matchAll(/@keyframes\s+([\w-]+)/g)].map((m) => m[1]),
+      stepRingAnimationName: prop(ruleBody(css, '.step-ring'), 'animation-name'),
       stepRingEasing: resolved(css, ruleBody(css, '.step-ring'), 'animation-timing-function'),
       stepRingDuration: resolved(css, ruleBody(css, '.step-ring'), 'animation-duration'),
       stepRingIterations: prop(ruleBody(css, '.step-ring'), 'animation-iteration-count'),
@@ -110,6 +114,63 @@ export function readDesign({ css, html }) {
         css.match(/prefers-reduced-motion[^{]*\{[\s\S]*?\.step-ring\s*\{([^}]*)\}/)?.[1] ?? '',
       reconsentMinHeight: lengthPx(css, ruleBody(css, '.reconsent-row'), 'min-height'),
       pipelineRowMinHeight: lengthPx(css, ruleBody(css, '.pipeline-row'), 'min-height'),
+      // The activity feed's slot swap and its two rings — see `activityProblems`.
+      activityRightMinWidth: lengthPx(css, ruleBody(css, '.activity-right'), 'min-width'),
+      // The selected tab, read through the attribute the COMPONENT LIBRARY emits. Its own contract
+      // (`tabs/tab/TabsTabDataAttributes.d.ts`) is `data-active`; there is no `data-selected`, and
+      // the plausible guess produces a rule that selects nothing while compiling perfectly.
+      activityTabActiveFill: resolved(
+        css,
+        ruleBody(css, '.activity-tab[data-active]'),
+        'background-color',
+      ),
+      activityTabActiveWeight: prop(ruleBody(css, '.activity-tab[data-active]'), 'font-weight'),
+      activityStaticRingBorderPx: lengthPx(css, ruleBody(css, '.activity-ring-static'), 'border'),
+      // BOTH SPELLINGS. `animation-name: pb-ring-spin` and `animation: pb-ring-spin 750ms linear`
+      // do the same thing, and a check that reads only the longhand passes a spinning "static" ring
+      // written the other way.
+      activityStaticRingAnimation: [
+        prop(ruleBody(css, '.activity-ring-static'), 'animation-name'),
+        prop(ruleBody(css, '.activity-ring-static'), 'animation'),
+      ]
+        .filter(Boolean)
+        .join(' '),
+      attentionAnimationName: prop(
+        ruleBody(css, '.attention-highlight .option-row-inner'),
+        'animation-name',
+      ),
+      // What the cue actually animates. §4.8's claim is "background only — the row must not move",
+      // and that is the one assertion of the seven this gate makes about the highlight that cannot
+      // be read off the rule: it is inside the keyframes.
+      attentionKeyframeBody: keyframeBody(
+        css,
+        prop(ruleBody(css, '.attention-highlight .option-row-inner'), 'animation-name'),
+      ),
+      // The colour the cue actually reaches, resolved through its token. See `activityProblems` —
+      // this is the "is it visible" question 6.5's review found nothing had been asked.
+      attentionPeakColor: peakBackground(
+        css,
+        keyframeBody(
+          css,
+          prop(ruleBody(css, '.attention-highlight .option-row-inner'), 'animation-name'),
+        ),
+      ),
+      attentionIterations: prop(
+        ruleBody(css, '.attention-highlight .option-row-inner'),
+        'animation-iteration-count',
+      ),
+      attentionDuration: resolved(
+        css,
+        ruleBody(css, '.attention-highlight .option-row-inner'),
+        'animation-duration',
+      ),
+      // Anchored on the query text for the same reason `ringReducedMotion` is: `ruleBody` returns
+      // the FIRST match, so without the anchor the base rule and the override are indistinguishable
+      // and whichever the emitter happens to put first is what gets measured.
+      attentionReducedMotion:
+        css.match(
+          /prefers-reduced-motion[^{]*\{[\s\S]*?\.attention-highlight\s+\.option-row-inner\s*\{([^}]*)\}/,
+        )?.[1] ?? '',
     },
   }
 }
@@ -123,6 +184,37 @@ export function readDesign({ css, html }) {
  * `.amount-balance` from matching `.amount-balance[data-shown]`, which declares `opacity: 1` and
  * would report the reserved `opacity: 0` as present when it is the very thing that got deleted.
  */
+/**
+ * Everything inside one `@keyframes` block.
+ *
+ * The inner alternation is what handles the one level of nesting keyframes have — percentage
+ * selectors with their own braces — which a plain `[^}]*` would stop at the first of.
+ */
+function keyframeBody(css, name) {
+  if (!name) return ''
+  const escaped = String(name).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const hit = css.match(new RegExp(`@keyframes\\s+${escaped}\\s*\\{((?:[^{}]|\\{[^{}]*\\})*)\\}`))
+  return hit ? hit[1] : ''
+}
+
+/**
+ * The strongest background colour a keyframes block reaches, resolved through one `var()` hop.
+ *
+ * "Strongest" is the one that is not transparent: an attention cue runs from nothing to something
+ * and back, so the value worth measuring is the something. Returns `''` when the block declares no
+ * background at all, which callers treat as a failure.
+ */
+function peakBackground(css, body) {
+  const values = [...String(body || '').matchAll(/background-color\s*:\s*([^;}]+)/g)].map((m) => m[1].trim())
+  for (const raw of values) {
+    const hit = raw.match(/var\((--[\w-]+)\)/)
+    const value = hit ? String(decl(css, hit[1])).trim() : raw
+    // `#0000` is what the minifier writes for `transparent`; both mean the resting end of the cue.
+    if (value && value !== 'transparent' && !/^#0{4,8}$/i.test(value)) return value
+  }
+  return ''
+}
+
 function ruleBody(css, selector) {
   const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
   const hit = css.match(new RegExp(`(?:^|[,{};])\\s*${escaped}\\s*\\{([^}]*)\\}`))
@@ -463,6 +555,15 @@ export function progressProblems({ read }) {
     )
   }
 
+  //
+  // AND IT MUST NAME AN ANIMATION THAT EXISTS. The hole one property over from the two checks
+  // above: delete `animation-name`, or rename the `@keyframes` block without renaming the
+  // reference, and the ring stops turning while the curve, the duration and the iteration count
+  // all still read correctly. Same failure the duration check describes — "a ring that never turns
+  // and no error anywhere" — reached by a different route.
+  //
+  problems.push(...animationProblems(r, '.step-ring', r.stepRingAnimationName))
+
   if (!/infinite/.test(r.stepRingIterations || '')) {
     problems.push(
       '`.step-ring` does not iterate infinitely. A ring that stops after one turn looks like a ' +
@@ -530,6 +631,224 @@ export function progressProblems({ read }) {
           'pushing what is underneath it down the page.',
       )
     }
+  }
+
+  return problems
+}
+
+/**
+ * An `animation-name` that names a `@keyframes` block the sheet actually defines.
+ *
+ * SHARED BY BOTH RINGS AND THE HIGHLIGHT, because the hole is identical in all three and was open
+ * in two of them: a rule can declare a correct curve, a real duration and the right iteration count
+ * while naming an animation that does not exist. The browser accepts it, plays nothing, and every
+ * other assertion still reads green.
+ *
+ * @param {object} r      the `reserved` block
+ * @param {string} label  the selector, for the message
+ * @param {string} name   the declared `animation-name`
+ */
+function animationProblems(r, label, name) {
+  const declared = String(name || '').trim()
+  if (!declared || declared === 'none') {
+    return [
+      `\`${label}\` declares ${declared === 'none' ? '`animation-name: none`' : 'no animation-name'}. ` +
+        'The duration and the iteration count describe an animation that is not running — every ' +
+        'other check on this rule still passes and nothing moves.',
+    ]
+  }
+  if (!(r.keyframeNames || []).includes(declared)) {
+    return [
+      `\`${label}\` names the animation \`${declared}\`, and the stylesheet defines no ` +
+        `\`@keyframes ${declared}\`. Renaming the keyframes block without renaming the reference ` +
+        'is silent: the browser drops the rule and plays nothing.',
+    ]
+  }
+  return []
+}
+
+/**
+ * The activity feed's construction rules, resolved to numbers (story 6.6).
+ *
+ * A FOURTH VERDICT, for the reason `progressProblems` is a third one: "the token sheet shipped",
+ * "the value spine reserves its space", "the progress machine cannot reflow or overclaim" and "the
+ * feed's slot swaps rather than appears" are four separate findings, and a caller that merges them
+ * learns only that something is wrong.
+ *
+ * @param {object} o
+ * @param {object|null} o.read  what `readDesign()` returned
+ * @returns {string[]} problems, empty when the feed is built the way §2.3/§4.8 require
+ */
+export function activityProblems({ read }) {
+  const problems = []
+  if (!read) return ['the emitted stylesheet could not be read, so no activity rule was verified']
+
+  const r = read.reserved ?? {}
+
+  //
+  // THE RIGHT EDGE IS A SLOT, WHICH MEANS IT IS RESERVED.
+  //
+  // §4.8: "pending/confirmed is a slot-swap at the right edge (timestamp ↔ spinner ↔ static ring)".
+  // A block label, a 24px ring and an inline Retry are three different widths; without a floor the
+  // row's title re-wraps every time the state changes, and a list the user is reading reflows under
+  // them. Same number as `.step-right`, because it is the same reserve for the same reason.
+  //
+  const SLOT_MIN_PX = 60
+
+  if (r.activityRightMinWidth === null || r.activityRightMinWidth < SLOT_MIN_PX) {
+    problems.push(
+      `\`.activity-right\` reserves ${r.activityRightMinWidth === null ? 'no readable min-width' : `${r.activityRightMinWidth}px`}, ` +
+        `and it must reserve at least ${SLOT_MIN_PX}px. Without it the right edge is not a slot at ` +
+        'all — the block label, the ring and the inline Retry are three different widths, and the ' +
+        'row re-wraps every time the state changes.',
+    )
+  }
+
+  //
+  // THE SELECTED TAB HAS TO LOOK SELECTED, AND THE ATTRIBUTE HAS TO BE THE ONE THE LIBRARY EMITS.
+  //
+  // `data-selected` is the obvious guess and it is wrong — the component library's contract is
+  // `data-active` — so the naive rule compiles, ships, and matches nothing, leaving both tabs
+  // identical. Reading the rule BY THAT SELECTOR is what makes this a check rather than a hope: a
+  // sheet written against the guess has no `.activity-tab[data-active]` rule at all and both
+  // declarations below come back empty.
+  //
+  // TWO CHANNELS ASSERTED, because a tab distinguished by fill alone vanishes in greyscale and
+  // these accents are eight-percent washes — the same measured failure that made the progress
+  // ring invisible in 6.5.
+  //
+  if (!r.activityTabActiveFill || /^transparent$|^none$/.test(r.activityTabActiveFill.trim())) {
+    problems.push(
+      `the selected activity tab resolves its background to ${r.activityTabActiveFill ? JSON.stringify(r.activityTabActiveFill) : '(nothing)'}. ` +
+        'Either the rule is missing or it is keyed on `data-selected`, which the component library ' +
+        'does not emit — its attribute is `data-active`, and the wrong one is valid CSS that ' +
+        'selects nothing and leaves both tabs looking the same.',
+    )
+  }
+
+  if (!/\S/.test(r.activityTabActiveWeight || '')) {
+    problems.push(
+      'the selected activity tab declares no font-weight. Fill alone is one channel, and a ' +
+        'reader in greyscale or with the eight-percent accent washes cannot see which tab they ' +
+        'are on from a tint.',
+    )
+  }
+
+  //
+  // THE MATURING RING MUST NOT TURN, AND THIS IS THE EXACT INVERSE OF THE `.step-ring` CHECK.
+  //
+  // §4.8 specifies the queued/maturing marker as a STATIC ring: "a still ring means the clock runs,
+  // nothing is stuck". The spinner in the progress machine exists precisely because we cannot
+  // observe a hosted prover's progress — and nothing is being observed while a note ages, so a
+  // turning ring here claims a watch that is not happening. The likely regression is somebody
+  // reusing `.step-ring` or adding an `animation-name` because a still circle looked unfinished.
+  //
+  if (/\S/.test(r.activityStaticRingAnimation || '') && !/^none\b/.test(r.activityStaticRingAnimation)) {
+    problems.push(
+      `\`.activity-ring-static\` declares \`animation-name: ${r.activityStaticRingAnimation}\`, and it ` +
+        'must declare none at all. A turning ring on a maturing note says we are watching a ' +
+        'computation; nothing is being watched while a note ages, which is why §4.8 specifies a ' +
+        'still one.',
+    )
+  }
+
+  //
+  // AND IT HAS TO BE VISIBLE TO BE A RING. The 6.4 lesson, applied before it can be repeated: a
+  // border checked for its wording rather than its effect. A ring with no readable border width is
+  // an empty 24px box, and every check above it still passes.
+  //
+  if (r.activityStaticRingBorderPx === null || r.activityStaticRingBorderPx <= 0) {
+    problems.push(
+      `\`.activity-ring-static\` has a border of ${r.activityStaticRingBorderPx === null ? 'no readable width' : `${r.activityStaticRingBorderPx}px`}. ` +
+        'The ring is nothing but its border — at zero width the maturing state renders an empty ' +
+        'box, which reads as a row that failed to load rather than one that is waiting.',
+    )
+  }
+
+  //
+  // ONCE. NOT INFINITE, NOT ABSENT.
+  //
+  // §4.8: a matured row "plays the 1.2s attention highlight once — never a toast". An omitted
+  // iteration count is `1` by CSS default and would pass a presence check while telling a reader
+  // nothing; `infinite` is a row that pulses forever, which is the toast this product bans wearing
+  // a different shape. The declaration must be there AND it must be exactly one.
+  //
+  // The same hole the two rings have, on the one cue whose absence is hardest to notice: nobody
+  // misses a highlight they have never seen play.
+  problems.push(...animationProblems(r, 'the attention highlight', r.attentionAnimationName))
+
+  if (!/^1(?![\d.])/.test((r.attentionIterations || '').trim())) {
+    problems.push(
+      `the attention highlight declares \`animation-iteration-count: ${r.attentionIterations || '(nothing)'}\`, ` +
+        'and §4.8 allows exactly one play. A repeating highlight on a settled row is the toast this ' +
+        'product does not ship, and an absent declaration means nobody decided.',
+    )
+  }
+
+  //
+  // AND IT MAY NOT MOVE THE ROW. The seventh §4.8 claim, and the only one that lives inside the
+  // keyframes rather than on the rule: a highlight is a background cue, and a row that jumps is a
+  // reflow in the list the reader is in the middle of reading. `transform` is the one that looks
+  // harmless — it does not reflow the page, but it does move the row under the eye, which is the
+  // thing being forbidden.
+  //
+  const moves = ['transform', 'translate', 'margin', 'padding', 'width', 'height', 'inset', 'top', 'left']
+    .filter((p) => new RegExp(`(?:^|[;{\\s])${p}\\s*:`).test(r.attentionKeyframeBody || ''))
+  if (moves.length) {
+    problems.push(
+      `the attention highlight's keyframes animate ${moves.join(', ')}. §4.8 makes it a background ` +
+        'cue on purpose — a row that moves is a reflow in a list somebody is reading, at the exact ' +
+        'moment it is trying to draw their eye to one entry.',
+    )
+  }
+
+  //
+  // AND IT HAS TO BE VISIBLE. This is the question 6.5's review found nobody had asked: its gate
+  // proved the ring's curve was linear, its duration real and its iteration infinite, over a
+  // spinner painted in an eight-percent tint that composited to a three-value RGB delta and read as
+  // a static circle. "A gate can only check what it was pointed at."
+  //
+  // So the cue's peak colour is resolved through its token and held to a floor. `transparent` at
+  // both ends of an animation is a cue that plays and shows nothing; a token that resolves to
+  // nothing is the same failure by another route; and a wash under five percent is the exact
+  // mistake that shipped last time.
+  //
+  const peak = String(r.attentionPeakColor || '').trim()
+  const alpha = peak.match(/rgba?\([^)]*?,\s*([\d.]+)\s*\)/)
+  if (!peak) {
+    problems.push(
+      'the attention highlight animates no background colour that is not transparent. A cue that ' +
+        'runs from nothing to nothing plays for 1.2 seconds and shows the reader nothing at all, ' +
+        'while the duration, the curve and the iteration count all read correctly.',
+    )
+  } else if (alpha && Number(alpha[1]) < 0.05) {
+    problems.push(
+      `the attention highlight peaks at ${peak}, whose alpha is under 5%. That is the 6.5 defect: ` +
+        'a tint that low composites to a few RGB values and is a cue nobody can see, proved honest ' +
+        'by every other check on this rule.',
+    )
+  }
+
+  const attentionMs = timeMs(r.attentionDuration)
+  if (attentionMs === null || attentionMs <= 0) {
+    problems.push(
+      `the attention highlight resolves its duration to ${r.attentionDuration ? JSON.stringify(r.attentionDuration) : '(nothing)'}. ` +
+        'It must resolve to a positive time from the motion sheet — an unresolved var() leaves the ' +
+        'animation at the UA default of 0s, which is a cue that never plays and no error anywhere.',
+    )
+  }
+
+  //
+  // REDUCED MOTION, BY NAME. The blanket `*` rule is specificity 0,0,0 and this selector is 0,2,0,
+  // so the base rule's own `animation-name` wins unless something overrides it explicitly. That is
+  // 6.5's recorded finding; asserting it here is what stops it being rediscovered a third time.
+  //
+  if (!/animation-name\s*:\s*none/.test(r.attentionReducedMotion || '')) {
+    problems.push(
+      'the `prefers-reduced-motion` block does not stop the attention highlight. A class selector ' +
+        'outranks the universal one, so without a named override a 1.2s colour pulse still plays ' +
+        'for a reader who asked the OS to stop motion.',
+    )
   }
 
   return problems
