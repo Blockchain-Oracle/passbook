@@ -109,6 +109,52 @@
   }
 
   /*
+   * ---- the loading sweep ------------------------------------------------------------------
+   *
+   * A MOVING MASK, NOT AN OPACITY PULSE, and the difference is the whole reason this is authored
+   * CSS rather than a `animate-pulse` utility. A pulse dims the box and then brightens it, which
+   * reads as something blinking at you; a mask sweep reads as light passing over a surface that is
+   * already there. Uniswap's `Shine.web.tsx` uses exactly this and the geometry below is theirs.
+   *
+   * It masks WHATEVER IS INSIDE IT, which is what lets one class serve every loading state in the
+   * app — wrap the real layout and the skeleton is the right shape by construction.
+   *
+   * `-webkit-` prefixed AND unprefixed: the unprefixed `mask-*` properties are the standard and are
+   * what Firefox implements, the prefixed ones are what Safari still needs. Shipping only one loses
+   * an entire browser engine, silently — the content is still visible, it simply never shimmers.
+   */
+  .shimmer {
+    -webkit-mask-image: linear-gradient(
+      -75deg,
+      rgba(0, 0, 0, 0.5) 30%,
+      #000 50%,
+      rgba(0, 0, 0, 0.5) 70%
+    );
+    mask-image: linear-gradient(-75deg, rgba(0, 0, 0, 0.5) 30%, #000 50%, rgba(0, 0, 0, 0.5) 70%);
+    -webkit-mask-size: 200%;
+    mask-size: 200%;
+    animation-name: pb-shimmer;
+    animation-duration: var(--transition-duration-lazy);
+    animation-timing-function: var(--ease-linear);
+    animation-iteration-count: infinite;
+  }
+
+  /*
+   * `linear`, for `.step-ring`'s reason: an eased sweep reads as progress events on a fetch whose
+   * rate we cannot see. A loading shimmer must not imply it knows how far along it is.
+   */
+  @keyframes pb-shimmer {
+    from {
+      -webkit-mask-position: 150%;
+      mask-position: 150%;
+    }
+    to {
+      -webkit-mask-position: -50%;
+      mask-position: -50%;
+    }
+  }
+
+  /*
    * ---- the shell -------------------------------------------------------------------------------
    *
    * WHY THESE ARE AUTHORED CSS AND NOT UTILITIES, stated once for all three. Measured against the
@@ -1873,6 +1919,21 @@
     .odometer-track {
       animation-name: none;
       transform: none;
+    }
+
+    /*
+     * The loading sweep stops, and the mask is REMOVED rather than merely frozen.
+     *
+     * `animation-name: none` alone leaves the mask at its resting position, which dims one edge of
+     * every skeleton permanently — a placeholder that looks like it has a shadow on it. Clearing
+     * the mask is what makes the still state a plain grey bar. Same shape as `.odometer-track`'s
+     * pairing directly above, for the same reason: stopping motion and undoing its side effect are
+     * two different jobs.
+     */
+    .shimmer {
+      animation-name: none;
+      -webkit-mask-image: none;
+      mask-image: none;
     }
   }
 }
