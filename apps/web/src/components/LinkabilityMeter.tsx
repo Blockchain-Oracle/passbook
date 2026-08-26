@@ -40,19 +40,62 @@ export interface LinkabilityMeterProps {
   /** Rendered only when supplied — the never-a-no-op rule, by signature. */
   onWaitForDeposits?: () => void
   onSplitAmount?: () => void
+  /**
+   * `row` collapses the meter to a single detail line, for a form that is not yet an action.
+   *
+   * ── WHY THIS EXISTS, AND IT IS A LAYOUT FACT RATHER THAN A PREFERENCE ────────────────────
+   *
+   * The full meter is a count, a sentence AND a 320px picture. On an idle swap form that is more
+   * vertical space than the form itself, and the picture ends up rendered twice on one screen when
+   * the waiting steps below it draw the same field — which is what it looked like.
+   *
+   * The picture earns its space at the moment of ACTION (the review step) and during the WAIT,
+   * which is exactly where `C08:229` puts it. On the form it is a line: the count, the verdict, and
+   * nothing else.
+   */
+  variant?: 'full' | 'row'
 }
 
 export function LinkabilityMeter({
   meter,
   onWaitForDeposits,
   onSplitAmount,
+  variant = 'full',
 }: LinkabilityMeterProps) {
   if (meter.state === 'unmeasurable') {
+    // The row form says the one thing that matters — we could not measure — and does not spend
+    // three lines saying it on a form where nothing is being decided yet.
+    if (variant === 'row') {
+      return (
+        <div className="flex items-baseline justify-between gap-s12 px-s4">
+          <span className="text-body4 text-neutral2">Anonymity set</span>
+          <span className="text-body4 text-neutral2">{meter.because}</span>
+        </div>
+      )
+    }
     return (
       <section className="linkability-meter" aria-label="Anonymity set">
         <p className="meter-sentence text-body3">{meter.because}</p>
         <p className="meter-provenance text-body4 text-neutral2">{UNMEASURABLE_CONSEQUENCE}</p>
       </section>
+    )
+  }
+
+  if (variant === 'row') {
+    return (
+      <div
+        className="flex items-baseline justify-between gap-s12 px-s4"
+        // Same channel as the panel, so a Tier 1 reading tints this line the way it tints the CTA.
+        data-severity={meter.severity === null ? undefined : getPrivacyColor(meter.severity)}
+      >
+        <span className="text-body4 text-neutral2">Anonymity set</span>
+        <span className="meter-row-value numeric text-body4">
+          {/* The COUNT and the denominator, which is the meter's whole grammar in one line. The
+              odometer is deliberately absent here: it is rationed to two numbers in the app and
+              spending a roll on a line nobody is watching wastes the one place it means something. */}
+          {`${meter.candidates} possible sources`}
+        </span>
+      </div>
     )
   }
 

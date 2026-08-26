@@ -1,8 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { useCallback, useMemo, useState, useSyncExternalStore } from 'react'
 
-import { SEND_STAGES } from '@strk20/protocol/pipeline-stage'
-import { stepsFor } from '@strk20/protocol/progress'
 import { meterFor } from '@strk20/protocol/linkability'
 import { maxSeverity } from '@strk20/protocol/privacy'
 import { parseAmountInput, toPlainText } from '@strk20/protocol/amount'
@@ -12,9 +10,9 @@ import type { TokenInfo } from '@strk20/protocol/token-list'
 import { BlockedButton } from '../components/BlockedButton'
 import { CurrencyPanel } from '../components/CurrencyPanel'
 import { LinkabilityMeter } from '../components/LinkabilityMeter'
-import { NoteField } from '../components/NoteField'
-import { ProgressMachine } from '../components/ProgressMachine'
 import { SwapDirectionButton } from '../components/SwapDirectionButton'
+import { SwapReview } from '../components/SwapReview'
+import { SwapSettings } from '../components/SwapSettings'
 import { TokenSelector } from '../components/TokenSelector'
 import { Text } from '../components/ui/Text'
 import { currentBlocker, getHealth, subscribeHealth } from '../shell/pool-health'
@@ -22,10 +20,6 @@ import { useCrowd } from '../shell/use-crowd'
 import { useQuote } from '../shell/use-quote'
 import { useTokenList } from '../shell/use-token-list'
 import { Surface } from '../shell/Surface'
-
-// Computed once at module scope: the rows are a pure function of the stage list, and nothing on
-// this surface can change them until a swap can actually start.
-const PREVIEW_STEPS = stepsFor({ stages: SEND_STAGES, reached: [] })
 
 export const Route = createFileRoute('/swap')({
   component: Swap,
@@ -65,6 +59,8 @@ function Swap() {
   const [buyToken, setBuyToken] = useState<TokenInfo | null>(null)
   const [sellAmount, setSellAmount] = useState('')
   const [picker, setPicker] = useState<PickerSide>(null)
+  const [slippageBps, setSlippageBps] = useState(DEFAULT_SLIPPAGE_BPS)
+  const [reviewing, setReviewing] = useState(false)
 
   // The list is volume-ordered, so the first entry is the deepest market. Defaulting the sell side
   // to it means the form is usable on arrival instead of asking for two decisions before anything
@@ -72,12 +68,21 @@ function Swap() {
   // decision, and pre-filling it would put a pair on screen nobody chose.
   const defaultedSell = sellToken ?? tokens[0] ?? null
 
+  //
+  // THE AMOUNT SURVIVES THE FLIP, and the first version of this got it wrong.
+  //
+  // It cleared the field, reasoning that a figure typed as one asset should not be restated as
+  // another. That reasoning is about the UNIT and the unit is not what a person is holding in their
+  // head — the SIZE is. Someone typing 100 and flipping means "now quote me the other direction for
+  // about that much", and clearing it makes them type it again to find out.
+  //
+  // Uniswap keeps it, and keeping it is also self-correcting: the quote re-runs against the new
+  // pair immediately, so a size that means nothing on the new side is visible as a price within the
+  // same second rather than hidden behind an empty field.
+  //
   const flip = useCallback(() => {
     setSellToken(buyToken)
     setBuyToken(defaultedSell)
-    // The typed figure belonged to the old sell side. Carrying it across would silently restate an
-    // amount of one asset as an amount of another.
-    setSellAmount('')
   }, [buyToken, defaultedSell])
 
   // The typed field, through the protocol's own parser — which owns the comma separator, the
@@ -102,9 +107,24 @@ function Swap() {
 
   const impact = quoted ? priceImpact(quoted) : null
 
+  //
+  // ONE RATE, COMPUTED ONCE. It was inline in the JSX and read by two places, which is two chances
+  // for the review to disagree with the form it came from.
+  //
+  // `(buyAmount x 10^sellDecimals) / sellAmount` in bigint: scale the numerator by the SELL token's
+  // decimals first so the division still has the precision to survive, then render with the BUY
+  // token's. Dividing first throws away every digit that matters on a small quote.
+  //
+  const rateLabel = useMemo(() => {
+    if (!quoted || !buyToken || !defaultedSell || quoted.sellAmount <= 0n) return '—'
+    const perOne =
+      (quoted.buyAmount * 10n ** BigInt(defaultedSell.decimals)) / quoted.sellAmount
+    return `1 ${defaultedSell.symbol} = ${toPlainText(perOne, buyToken.decimals)} ${buyToken.symbol}`
+  }, [quoted, buyToken, defaultedSell])
+
   // The floor the swap must clear. Computed here so the review step and the eventual transaction
   // read the same number, and so a zero can never reach a call — `minimumOut` throws on one.
-  const minOut = quoted ? minimumOut(quoted.buyAmount, DEFAULT_SLIPPAGE_BPS) : null
+  const minOut = quoted ? minimumOut(quoted.buyAmount, slippageBps) : null
 
   const meter = useMemo(
     () =>
@@ -130,7 +150,16 @@ function Swap() {
   // more literal and less useful: the form's own states would never reach the button they are
   // supposed to be reported on, and the user would learn nothing about what they typed.
   //
-  const blocker =
+  //
+  // REVIEW IS REACHABLE, EXECUTION IS NOT — and the two blockers are separate on purpose.
+  //
+  // Everything up to and including the review step is real: the price, the floor, the route, the
+  // crowd. So the CTA opens the review as soon as there is a quote to review. The step that does
+  // not exist yet is the SUBMISSION, and its reason belongs on the button inside the review, next
+  // to the thing it would actually do — not three screens earlier, where it would hide every other
+  // state behind itself.
+  //
+  const reviewBlocker =
     currentBlocker(health) ??
     (tokensLoading ? 'Loading assets' : null) ??
     (tokens.length === 0 ? 'Asset list unavailable' : null) ??
@@ -141,16 +170,20 @@ function Swap() {
     (quote.loading && !quote.stale ? 'Finding the best price' : null) ??
     (quote.result?.state === 'unavailable' ? quote.result.because : null) ??
     (quote.result?.state === 'no-route' ? 'No route for this pair' : null) ??
-    'Swap is not built yet'
+    (quoted === null ? 'Enter an amount' : null)
 
   return (
     <Surface routeId={Route.fullPath}>
       {/* The 480px column Uniswap uses for every value form. `mx-auto` so it centres on a desktop
           and `w-full` so it fills a phone. */}
       <div className="mx-auto flex w-full max-w-[480px] flex-col gap-s8">
-        <Text variant="heading3" as="h1">
-          Swap
-        </Text>
+        {/* Title left, settings right — Uniswap's header row, and the place a gear is looked for. */}
+        <div className="flex items-center justify-between gap-s12">
+          <Text variant="heading3" as="h1">
+            Swap
+          </Text>
+          <SwapSettings slippageBps={slippageBps} onSlippageChange={setSlippageBps} />
+        </div>
 
         {/* The two panels, welded: 2px apart with their facing corners squared, so they read as one
             control with a seam rather than two stacked cards. */}
@@ -187,15 +220,7 @@ function Swap() {
 
         {quoted ? (
           <QuoteDetails
-            rate={`1 ${defaultedSell?.symbol ?? ''} = ${
-              buyToken && quoted.sellAmount > 0n
-                ? toPlainText(
-                    (quoted.buyAmount * 10n ** BigInt(defaultedSell?.decimals ?? 0)) /
-                      quoted.sellAmount,
-                    buyToken.decimals,
-                  )
-                : '—'
-            } ${buyToken?.symbol ?? ''}`}
+            rate={rateLabel}
             impact={impact}
             minOut={
               minOut !== null && buyToken
@@ -206,41 +231,48 @@ function Swap() {
           />
         ) : null}
 
-        {/* The meter above the thumb, where the consequence is read before the action is taken. */}
-        <LinkabilityMeter meter={meter} />
+        {/*
+          THE METER AS A ROW, not as the full panel.
+
+          The full meter is a count, a sentence and a 320px picture — more vertical space than the
+          form above it, and the page ended up drawing that same picture TWICE, once here and once
+          over the waiting steps. On a form where nothing has been committed to, the honest content
+          is one line: how big the crowd is.
+
+          The picture earns its space where `C08:229` puts it — at the moment of action and during
+          the wait — which is the review step below.
+        */}
+        <LinkabilityMeter meter={meter} variant="row" />
 
         <BlockedButton
-          blocker={blocker}
+          blocker={reviewBlocker}
           action="Review swap"
-          // Unreachable while the chain always ends in a blocker, and it stays here rather than
-          // becoming a `throw`: the day the last link comes off, this is the seam the real handler
-          // goes into, and an empty function is a clearer marker of that than a crash would be.
-          onPress={() => {}}
+          onPress={() => setReviewing(true)}
           severity={meterSeverity}
         />
 
-        {/*
-          THE MACHINE, AT `preview`, AND THAT IS AN HONEST RENDER RATHER THAN A FIXTURE.
-
-          `preview` MEANS "not yet real" — the status the design gives a step whose icon is withheld
-          because the future has not happened. A swap pipeline that has not started is genuinely in
-          that state for all five steps, so this shows the user the real shape of the wait they are
-          about to take on. Handing it fabricated `reached` stages to make the ring spin would be the
-          fixture-as-truth the anti-demo gate exists to stop.
-        */}
-        <ProgressMachine
-          steps={PREVIEW_STEPS}
-          label="Swap progress"
-          field={
-            meter.state === 'measured' ? (
-              <NoteField
-                field={meter.field}
-                label={`${meter.candidates} possible sources, including yours`}
-              />
-            ) : undefined
-          }
-        />
       </div>
+
+      {defaultedSell && buyToken && quoted ? (
+        <SwapReview
+          open={reviewing}
+          onOpenChange={setReviewing}
+          sellToken={defaultedSell}
+          buyToken={buyToken}
+          sellDisplay={toPlainText(quoted.sellAmount, defaultedSell.decimals)}
+          buyDisplay={buyDisplay}
+          rate={rateLabel}
+          impactPercent={impact === null ? null : impact * 100}
+          minimumReceived={
+            minOut !== null ? `${toPlainText(minOut, buyToken.decimals)} ${buyToken.symbol}` : null
+          }
+          route={quoted.routes.map((r) => r.name).join(' · ') || null}
+          meter={meter}
+          // No `onConfirm`: the submission path is the next piece of work. The review is otherwise
+          // entirely real, and its button says which part is not.
+          blocker="Submitting is not wired up yet"
+        />
+      ) : null}
 
       <TokenSelector
         open={picker !== null}

@@ -48,8 +48,13 @@ export interface CurrencyPanelProps {
   onSelectToken: () => void
   /** e.g. `"Balance: 12.40"`. Rendered bottom-left at 12px, or a reserved blank. */
   balanceLabel?: string | null
-  /** Pressing it should fill the field. Rendered only when supplied — never a no-op. */
-  onMax?: () => void
+  /**
+   * Fill the field with a fraction of the balance. `1` is Max.
+   *
+   * Rendered only when supplied — a preset row with nothing behind it is the never-a-no-op rule
+   * broken in the place a user is most likely to press first.
+   */
+  onPreset?: (fraction: number) => void
   /** Corner radius pairing, so two panels can be welded into one card. */
   corners?: 'all' | 'top' | 'bottom'
   /** Turns the figure red — an insufficient balance, not a validation error. */
@@ -67,7 +72,7 @@ export function CurrencyPanel({
   token,
   onSelectToken,
   balanceLabel = null,
-  onMax,
+  onPreset,
   corners = 'all',
   invalid = false,
   className,
@@ -148,18 +153,49 @@ export function CurrencyPanel({
         <Text variant="body4" className="text-neutral2">
           {balanceLabel ?? ' '}
         </Text>
-        {onMax ? (
-          <button
-            type="button"
-            onClick={onMax}
-            className="focus-ring rounded-badge px-s6 text-buttonLabel4 text-accent1 hover:bg-accent2"
-          >
-            Max
-          </button>
-        ) : null}
+        {onPreset ? <PresetRow onPreset={onPreset} /> : null}
       </div>
 
       {children}
+    </div>
+  )
+}
+
+/**
+ * 25 / 50 / 75 / Max.
+ *
+ * `100` renders as "Max" rather than "100%" — Uniswap's, and it is the right word: a percentage of
+ * a balance is arithmetic, but the last one is an intention.
+ *
+ * Always visible rather than hover-revealed. Uniswap hides these until the panel is hovered, which
+ * is fine on a desktop-first product and wrong here: a hover-only control does not exist on a
+ * phone, and this is the fastest way to fill a money field.
+ */
+const PRESETS: ReadonlyArray<{ fraction: number; label: string }> = [
+  { fraction: 0.25, label: '25%' },
+  { fraction: 0.5, label: '50%' },
+  { fraction: 0.75, label: '75%' },
+  { fraction: 1, label: 'Max' },
+]
+
+function PresetRow({ onPreset }: { onPreset: (fraction: number) => void }) {
+  return (
+    <div className="flex shrink-0 gap-s4">
+      {PRESETS.map((preset) => (
+        <button
+          key={preset.label}
+          type="button"
+          onClick={() => onPreset(preset.fraction)}
+          className={cn(
+            'focus-ring rounded-badge border border-solid border-surface3 px-s6 py-s2',
+            'text-buttonLabel4 text-neutral2',
+            'transition-colors duration-[var(--transition-duration-simple)]',
+            'hover:bg-raised hover:text-neutral1',
+          )}
+        >
+          {preset.label}
+        </button>
+      ))}
     </div>
   )
 }

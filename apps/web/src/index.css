@@ -1720,6 +1720,25 @@
   }
 
   /*
+   * The collapsed form's value, on a detail row rather than in the panel.
+   *
+   * Same severity channel as the panel above it, because a Tier 1 reading has to tint this line the
+   * way it tints the CTA — a privacy verdict that is loud in one place and silent in another is two
+   * different claims about the same measurement.
+   */
+  .meter-row-value {
+    color: var(--color-neutral1);
+  }
+
+  [data-severity='exposed'] .meter-row-value {
+    color: var(--color-exposed);
+  }
+
+  [data-severity='irreversible'] .meter-row-value {
+    color: var(--color-irreversible);
+  }
+
+  /*
    * ── The odometer ───────────────────────────────────────────────────────────────────────
    *
    * Rationed to two numbers in the whole app (DESIGN:242): anonymity-set size and the block
