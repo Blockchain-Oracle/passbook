@@ -43,6 +43,8 @@ import {
   disclosureProblems,
   expectedDisclosure,
   expectedGrounds,
+  expectedOdometer,
+  linkabilityProblems,
   progressProblems,
   readDesign,
   reservedHeightProblems,
@@ -792,6 +794,32 @@ async function main() {
       'shapes on the qualified states, both CTA severity levels painted, and ' +
       '`.cta[aria-disabled]` still after the LAST `.cta[data-severity]` so the blocked downgrade ' +
       'keeps winning',
+  )
+
+  //
+  // THE METER IS A COUNT, A SENTENCE AND A PICTURE (story 6.7b). A sixth verdict, kept separate for
+  // `reservedHeightProblems`' reason: the fifth asks whether the panel is furniture, this one asks
+  // whether the digit machine moves the way DESIGN:242 says and whether the picture stays silent
+  // about progress it cannot see. One verdict answering both would hide both.
+  //
+  // The recipe comes from the authority for the same reason it does above — the two numbers the
+  // design owns live in tokens.yaml and this is what holds the shipped sheet to them.
+  const linkabilityFailures = linkabilityProblems({
+    read,
+    expected: expectedOdometer(join(WEB_ROOT, 'design/tokens.yaml')),
+  })
+  if (linkabilityFailures.length) {
+    throw new Error(
+      `[build:web] the linkability meter is not built to §7.6:\n  - ${linkabilityFailures.join('\n  - ')}`,
+    )
+  }
+  console.log(
+    '[build:web] linkability meter holds its shape — digit roll and stagger both resolved against ' +
+      'tokens.yaml itself, the stagger actually multiplied by the per-digit ordinal rather than ' +
+      'declared and ignored, tabular figures, reduced motion stopping the roll BY NAME and ' +
+      'resetting the transform so no digit can rest mid-roll, the note field declaring no ' +
+      'animation in either spelling while still having a real rule to declare it in, and three ' +
+      'tier colours that are distinct from each other AND identical to the panel’s',
   )
 
   //

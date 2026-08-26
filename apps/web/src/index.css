@@ -1614,6 +1614,189 @@
   }
 
   /*
+   * ── The linkability meter ──────────────────────────────────────────────────────────────
+   *
+   * Three parts in one column: a count, a sentence, and a picture (DESIGN §7.6). Same container
+   * recipe as the disclosure panel it sits beside, because they are the same kind of object — a
+   * statement about consequence, at the moment of action — and giving them two shapes would say
+   * they were two kinds of thing.
+   *
+   * `data-severity` colours the HEADLINE only. Every other line is forced back to neutral2, which
+   * is the ruling 6-7a's review recorded after a `high` panel rendered a column of irreversible-red
+   * arrows down the side of four grey sentences: the coloured claim is the words that make it, not
+   * the punctuation around them.
+   */
+  .linkability-meter {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-s12);
+    padding: var(--spacing-s12);
+    border-radius: var(--radius-card);
+    background-color: var(--color-inset);
+    color: var(--color-neutral2);
+  }
+
+  .linkability-meter[data-severity='exposed'] .meter-sentence {
+    color: var(--color-exposed);
+  }
+
+  .linkability-meter[data-severity='irreversible'] .meter-sentence {
+    color: var(--color-irreversible);
+  }
+
+  /* No verdict, no colour to spend. Named so the neutral case is a rule rather than an absence. */
+  .linkability-meter[data-severity='neutral'] .meter-sentence {
+    color: var(--color-neutral1);
+  }
+
+  .meter-count {
+    display: flex;
+    align-items: baseline;
+    gap: var(--spacing-s8);
+    flex-wrap: wrap;
+  }
+
+  .meter-sentence {
+    color: var(--color-neutral1);
+  }
+
+  /* Forced, never inherited: the axis lines explain the claim and never make one of their own. */
+  .meter-line {
+    color: var(--color-neutral2);
+  }
+
+  .meter-caret {
+    color: var(--color-neutral2);
+  }
+
+  .meter-provenance {
+    color: var(--color-neutral2);
+  }
+
+  /*
+   * ── The odometer ───────────────────────────────────────────────────────────────────────
+   *
+   * Rationed to two numbers in the whole app (DESIGN:242): anonymity-set size and the block
+   * counter. `--odometer-stagger` is the ONE place the 40ms lives in this stylesheet, and
+   * `assert-design-shipped.mjs` resolves it against `tokens.yaml`'s `components.odometer`. The
+   * per-digit duration reuses `--transition-duration-quicker`, which is already 180ms.
+   *
+   * `--roll-step` arrives per digit from `rollPlan`'s ordinal, so the delay is a multiplication
+   * here rather than a number retyped into a component.
+   */
+  .odometer {
+    --odometer-stagger: 40ms;
+    display: inline-flex;
+    font-variant-numeric: tabular-nums;
+    font-size: var(--text-body1);
+    line-height: var(--text-body1--line-height);
+    color: var(--color-neutral1);
+  }
+
+  .odometer-digit {
+    /* A FIXED ADVANCE PER GLYPH, so nothing jitters as digits change width mid-roll
+       (EXPERIENCE:138, "measured per-glyph widths so nothing jitters"). */
+    display: inline-block;
+    inline-size: 0.62em;
+    text-align: center;
+  }
+
+  .odometer-digit[data-rolling] {
+    /* The window the track travels behind. Two glyphs tall, one glyph visible. */
+    block-size: var(--text-body1--line-height);
+    overflow: hidden;
+    vertical-align: bottom;
+  }
+
+  .odometer-track {
+    display: flex;
+    flex-direction: column;
+    animation-name: pb-digit-roll;
+    animation-duration: var(--transition-duration-quicker);
+    animation-timing-function: var(--ease-glide);
+    animation-fill-mode: forwards;
+    animation-delay: calc(var(--odometer-stagger) * var(--roll-step, 0));
+  }
+
+  .odometer-track > span {
+    block-size: var(--text-body1--line-height);
+    line-height: var(--text-body1--line-height);
+  }
+
+  /* Falling rolls the other way: the same keyframes, played in reverse (DESIGN:242, sign). */
+  .odometer-digit[data-direction='down'] .odometer-track {
+    animation-direction: reverse;
+  }
+
+  @keyframes pb-digit-roll {
+    from {
+      transform: translateY(0);
+    }
+    to {
+      transform: translateY(-50%);
+    }
+  }
+
+  /*
+   * ── The note field ─────────────────────────────────────────────────────────────────────
+   *
+   * One node per candidate, yours at the centre (DESIGN:423). DECLARES NO ANIMATION, in either
+   * spelling, and the build gate proves it: C08:229 imagines nodes lighting up "during prove",
+   * which would be motion standing for progress on a computation we do not own — the same thing
+   * the `linear` ruling on `.step-ring` refuses for the spinner beside it.
+   *
+   * Square by construction so the phyllotaxis stays circular at every width.
+   */
+  .note-field {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-s8);
+  }
+
+  .note-field-canvas {
+    inline-size: 100%;
+    aspect-ratio: 1;
+    /* A ceiling, so the picture stays a diagram on a desktop rather than becoming wallpaper. */
+    max-inline-size: 320px;
+    align-self: center;
+    border-radius: var(--radius-card);
+    background-color: var(--color-inset);
+  }
+
+  .note-field-note {
+    color: var(--color-neutral2);
+  }
+
+  /*
+   * ── The named alternatives ─────────────────────────────────────────────────────────────
+   *
+   * A control only when a caller supplied the action behind it (`Disclosure.tsx:88`'s rule). The
+   * stated form is a SENTENCE and is styled as one — it must not look pressable, because the whole
+   * reason it is not a button is that nothing would happen.
+   */
+  .meter-alternatives {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--spacing-s8);
+    list-style: none;
+  }
+
+  .meter-alternative {
+    min-block-size: var(--spacing-s40);
+    padding: var(--spacing-s8) var(--spacing-s12);
+    border: var(--spacing-s1) solid var(--color-surface3);
+    border-radius: var(--radius-card);
+    background-color: var(--color-raised);
+    color: var(--color-neutral1);
+  }
+
+  .meter-alternative-stated {
+    display: inline-block;
+    padding: var(--spacing-s8) var(--spacing-s0);
+    color: var(--color-neutral2);
+  }
+
+  /*
    * REDUCED MOTION IS HONOURED HERE BECAUSE THERE IS NOWHERE ELSE. This app ships no animation
    * library — the popup layer animates through the component library's own `data-*` attributes —
    * so the CSS media query is the whole mechanism rather than a layer that looks compliant while a
@@ -1674,6 +1857,22 @@
      */
     .attention-highlight .option-row-inner {
       animation-name: none;
+    }
+
+    /*
+     * The digit roll STOPS and the figure stands still. Named here for the same specificity reason
+     * as the two above — the blanket `*` rule is 0,0,0 and `.odometer-track`'s own `animation-name`
+     * beats it — and because a rolling number is travel, which is the plainest thing a reader means
+     * when they ask the OS to stop motion.
+     *
+     * `transform: none` is the load-bearing half, exactly as it is for `.cta:active`: killing the
+     * animation while leaving the track translated would freeze the digit MID-ROLL, showing half of
+     * one glyph and half of another. `Odometer.tsx` also refuses to build the track at all under
+     * reduced motion, so this is the second of the two spellings EXPERIENCE:138 asks for.
+     */
+    .odometer-track {
+      animation-name: none;
+      transform: none;
     }
   }
 }

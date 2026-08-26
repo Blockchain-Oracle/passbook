@@ -12,11 +12,17 @@ import type { Valued } from '@strk20/protocol/amount'
 import { SEND_STAGES } from '@strk20/protocol/pipeline-stage'
 import { stepsFor } from '@strk20/protocol/progress'
 
+import { meterFor } from '@strk20/protocol/linkability'
+import { maxSeverity } from '@strk20/protocol/privacy'
+
 import { AmountInput, useAmountField } from '../components/AmountInput'
 import { BlockedButton } from '../components/BlockedButton'
+import { LinkabilityMeter } from '../components/LinkabilityMeter'
+import { NoteField } from '../components/NoteField'
 import { OptionList } from '../components/OptionList'
 import { ProgressMachine } from '../components/ProgressMachine'
 import { currentBlocker, getHealth, subscribeHealth } from '../shell/pool-health'
+import { useCrowd } from '../shell/use-crowd'
 import { Surface } from '../shell/Surface'
 
 // Computed once at module scope: the rows are a pure function of the stage list, and nothing on
@@ -130,6 +136,19 @@ function Swap() {
   // Ahead of the field's own states because it outranks them: entering a valid amount does not
   // become possible when the pool comes back, it becomes RELEVANT again.
   //
+  // AD-14's bounded read, in its own chunk. Unmeasurable until it returns, which is true.
+  const crowd = useCrowd()
+  const meter = useMemo(
+    () => meterFor({ reading: crowd, amountWei: field.wei, decimals: STRK_DECIMALS }),
+    [crowd, field.wei],
+  )
+
+  // `none` when there is no verdict to carry, so `ctaSeverity` emits no attribute at all rather
+  // than a colour standing for a measurement nobody has.
+  const meterSeverity = maxSeverity(
+    meter.state === 'measured' && meter.severity !== null ? [meter.severity] : [],
+  )
+
   const blocker =
     currentBlocker(health) ??
     field.problem ??
@@ -178,6 +197,20 @@ function Swap() {
         </div>
       ) : null}
 
+      {/*
+        THE METER, ON A REAL READING, AND THAT IS THE SAME DISCIPLINE AS THE MACHINE BELOW.
+
+        `useCrowd` performs AD-14's bounded, client-side read and hands back what it found. There is
+        no `PREVIEW_CROWD` fixture, for the reason the progress machine has no fabricated stages: a
+        made-up count is a made-up privacy MEASUREMENT, which is worse than a made-up step. Until
+        the read returns — and on any pool where it finds nothing — the meter renders its
+        unmeasurable state, which is what is actually true.
+
+        No `onWaitForDeposits` and no `onSplitAmount`, so both alternatives render as words. Neither
+        action exists, and `Split the amount`'s mechanics are an explicit GAP (EXPERIENCE:800).
+      */}
+      <LinkabilityMeter meter={meter} />
+
       <BlockedButton
         blocker={blocker}
         action="Review swap"
@@ -185,6 +218,10 @@ function Swap() {
         // becoming a `throw`: the day the last link comes off, this is the seam the real handler
         // goes into, and an empty function is a clearer marker of that than a crash would be.
         onPress={() => {}}
+        // THE METER'S VERDICT REACHES THE THUMB. `maxSeverity` rather than the meter's level alone,
+        // so the day this surface also mounts a disclosure panel the louder of the two wins through
+        // the one ladder instead of two channels racing.
+        severity={meterSeverity}
       />
 
       {/*
@@ -196,7 +233,26 @@ function Swap() {
         wait they are about to take on. Handing it fabricated `reached` stages to make the ring
         spin would be the fixture-as-truth the anti-demo gate exists to stop.
       */}
-      <ProgressMachine steps={PREVIEW_STEPS} label="Swap progress" />
+      {/*
+        THE SAME PICTURE, ABOVE THE WAIT (C08:229, DESIGN:423).
+
+        Not a second drawing kept in sync with the meter's — literally the same component, mounted
+        twice, which is what makes "the same picture" a fact a grep can check rather than a promise.
+        Rendered only when there is a crowd to draw: a field with nothing measured behind it would
+        be decoration standing where a measurement belongs.
+      */}
+      <ProgressMachine
+        steps={PREVIEW_STEPS}
+        label="Swap progress"
+        field={
+          meter.state === 'measured' ? (
+            <NoteField
+              field={meter.field}
+              label={`${meter.candidates} possible sources, including yours`}
+            />
+          ) : undefined
+        }
+      />
     </Surface>
   )
 }
