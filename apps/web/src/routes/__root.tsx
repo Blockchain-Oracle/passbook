@@ -24,9 +24,13 @@ function RootLayout() {
           {ACTIVE_NETWORK} · {NET.chainId}
         </p>
       </header>
-      <main>
+      {/* A plain wrapper, NOT a <main>. Each leaf renders its own <main data-route-id="…"> as the
+          route-identity marker the build gate asserts, and a <main> here would nest one inside the
+          other — invalid, and exactly the kind of structure a later `querySelector('main')` reads
+          the wrong half of. */}
+      <div>
         <Outlet />
-      </main>
+      </div>
     </>
   )
 }

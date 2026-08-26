@@ -6,6 +6,11 @@ export const Route = createFileRoute('/settings')({
   component: Settings,
 })
 
+// See `index.tsx` for what `data-route-id` is and why the gate refuses to pass without it.
 function Settings() {
-  return <p>Nothing here yet.</p>
+  return (
+    <main data-route-id="/settings">
+      <p>Nothing here yet.</p>
+    </main>
+  )
 }
