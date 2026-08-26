@@ -60,42 +60,38 @@ Being precise about this is cheaper than being caught.
 
 | Component | State |
 |---|---|
-| `packages/protocol` | Live pool reads with RPC fallback, local identity generation with encrypted backup, registration pre-flight with the `ForeignKey` collision guard, send/withdraw planning, indexer-free discovery. Tested. |
-| `packages/relayer` | Paymaster and submission server. **Proven on mainnet** — it submitted the sponsored registration below. |
-| `contracts/MessageBook` | **Deployed to mainnet** at `0x3105b6a327ba11f5464335f480046348a4052be2c12df726f37633d50ae35bc`; class hash verified on-chain at block 13,673,080. |
-| Sponsored registration | **Banked on mainnet** — tx `0x4fbbf9aa7992a95d313554bc17b2fff311b35a5974271defc6672f57abfe27d`, block 13,805,277. Cost 8.594 STRK (6 pool fee + 2.594 gas). |
+| `packages/protocol` | Live pool reads with RPC fallback, local identity generation with encrypted backup, registration pre-flight with the `ForeignKey` collision guard. Tested. |
+| `packages/relayer` | Paymaster and submission server. Written and tested; **not yet proven on mainnet.** |
+| `contracts/MessageBook` | Cairo contract, builds and passes its tests. **Not yet deployed.** |
 | Mainnet gate transactions | **Not yet banked.** |
-| Web app | `apps/web` — shell, routing and the design system. No value surface is wired to the pool yet. |
+| Web app | Does not exist in this repository yet. |
 
-Every number above is reproducible from `evidence/`, which is the audit trail for anything this
-project asserts.
-
-What that registration does and does not prove. It proves the sponsorship mechanism works end to
-end on mainnet: the transaction was submitted and paid for by the relayer's address, not the
-registering one, so the registering address never appears as the submitter and never spends. It
-does not prove more than that, and this repository will not say it does — the pool sees your
-transaction, not your notes, and the section at the end of this file lists every party who can
-still see what.
+Because the relayer is unproven on mainnet, this app does not yet claim that your address is
+hidden from the public record. It will make that claim on the day the mechanism demonstrably
+works, and not before. Until then the honest sentence is the one it ships with: the pool sees
+your transaction, not your notes.
 
 ---
 
 ## Running it
 
 Requires Node 24 (see `.nvmrc`), plus `scarb` 2.8.2 and `snforge` 0.31.0 for the contract.
+pnpm is the package manager — `corepack enable` provisions the pinned version.
 
 ```bash
 nvm use
-npm install
+corepack enable
+pnpm install
 
-npm test                # TypeScript suite
-npm run lint:claims     # the claims and network guard, described below
+pnpm test                # TypeScript suite
+pnpm run lint:claims     # the claims and network guard, described below
 
 cd contracts && scarb build && snforge test && cd ..
 ```
 
 ### The web app
 
-No browser install, no extra setup step — `npm ci` gives you everything the gates need.
+No browser install, no extra setup step — `pnpm install` gives you everything the gates need.
 
 The build wrapper exists because "`vite build` exited 0" is not evidence the app works: with the
 privacy SDK's `/testing` alias missing, the build exits 0, writes a 684 kB bundle, and the page
@@ -103,16 +99,16 @@ dies at load with `ReferenceError: Buffer is not defined`. The wrapper catches t
 the artifact** — scanning the emitted chunks for the Node-only module names that put it there,
 holding the generated route tree against the route files on disk, and reading the emitted
 stylesheet to prove the design system shipped and re-themes. Earlier versions loaded the bundle in
-headless Chromium to learn the same things; that cost a 130 MB binary and a postinstall step
-`npm ci` does not perform, in exchange for information already written in the output.
+headless Chromium to learn the same things; that cost a 130 MB binary and a postinstall step no
+install performs, in exchange for information already written in the output.
 
 ```bash
-npm run typecheck            # root + apps/web; the root config alone does not cover the app
-npm run build:web            # builds, holds the warning contract, reads the artifact
-npm run verify:mainnet-guard # flips the tree off mainnet and back, proving the guard both ways
+pnpm run typecheck            # root + apps/web; the root config alone does not cover the app
+pnpm run build:web            # builds, holds the warning contract, reads the artifact
+pnpm run verify:mainnet-guard # flips the tree off mainnet and back, proving the guard both ways
 ```
 
-`npm run build:web` from the repository root is the only supported way to build the app. There is
+`pnpm run build:web` from the repository root is the only supported way to build the app. There is
 deliberately no `build` script in `apps/web/package.json`: a bare `vite build` skips the warning
 contract, the eager-bundle budget and the artifact reads, and produces something nothing has
 checked.
@@ -122,15 +118,12 @@ seconds. Do not run it alongside other work in the same checkout. If it is kille
 mid-run it leaves a `.guard-verify-backup` sidecar; the next run finds it, restores from it, and
 says so.
 
-`evidence/` is the audit trail for every number this project asserts, and only a run that actually
-measured something is allowed to write into it. The probe scripts that produced those files have
-been retired now that their results are banked — re-deriving a measured fact is not verification,
-it is spending 6 STRK to reprint a receipt. `scripts/ops/` keeps the one-shot mainnet operations
-for reference.
+`evidence/` is the audit trail for every number this project asserts, and only a probe that
+actually measured something is allowed to write into it.
 
-One number is deliberately missing everywhere, including from this README: **proof wall-time.** It
-has never been measured by anyone on this protocol, so no duration is quoted anywhere rather than
-a plausible-looking guess being quoted once and then cited forever.
+Proof wall-time has never been measured by anyone on this protocol, and a probe that reported
+zeros would put a false number into the audit trail. That is why no duration appears anywhere in
+this repository, including in this README.
 
 ### Running the relayer, and the one setting you must not skip
 
@@ -173,7 +166,7 @@ are reading this later, re-run the probe rather than trusting that line.
 
 ### The claims guard
 
-`npm run lint:claims` fails the build on a list of privacy claims that are false on this
+`pnpm run lint:claims` fails the build on a list of privacy claims that are false on this
 protocol, on an `ACTIVE_NETWORK` that is not mainnet, on a `strk20.json` entry that is not a
 bare string, and on any declared contract that is not one we deployed and recorded in
 `evidence/`. It also fails while any mainnet address in this README is still unfilled — which
@@ -194,7 +187,7 @@ Network is `SN_MAIN`. Every filled row here is independently checkable with one 
 | `MessageBook` (ours) | `0x3105b6a327ba11f5464335f480046348a4052be2c12df726f37633d50ae35bc` |
 | `MessageBook` class hash | `0x52c432b3751ef6e61aa742e6b04a75bd929f2c85e1f2e632df812d424e4460f` |
 
-The two unfilled rows are why `npm run lint:claims` currently exits non-zero. They are filled
+The two unfilled rows are why `pnpm run lint:claims` currently exits non-zero. They are filled
 from the deployment record the moment the contract is deployed, and the lint is what guarantees
 this file cannot be submitted with a guess in them.
 
