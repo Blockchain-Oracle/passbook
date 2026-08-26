@@ -870,16 +870,71 @@ function variantWidth(variant: number): number {
 }
 
 /**
+ * The width of the action starting at `at`, READ OUT OF THE SPAN rather than looked up.
+ *
+ * ── WHY A SECOND WIDTH FUNCTION EXISTS AT ALL ─────────────────────────────────────────────
+ *
+ * Every action the send pipeline used to carry has a fixed width, so a table was enough and
+ * anything absent from it was refused — correctly, because a send never carried an invoke.
+ *
+ * A SWAP DOES. `InvokeExternal` is `[variant, contract_address, calldata_len, ...calldata]`, whose
+ * width depends on a value inside itself. That is not a hole in the table that a new row could
+ * fill; it is a different kind of measurement, and it needs the span in hand.
+ *
+ * ── THE TABLE IS STILL THE AUTHORITY FOR EVERYTHING ELSE ──────────────────────────────────
+ *
+ * Fixed variants still go through `variantWidth`, so an unknown variant is still refused rather
+ * than guessed at, and a serde change to any existing action still fails loudly. The only variant
+ * this adds is the one whose length prefix is self-describing.
+ */
+function actionWidthAt(span: readonly bigint[], at: number): number {
+  const variant = Number(span[at]!)
+  if (variant !== CLIENT_ACTION.InvokeExternal) return variantWidth(variant)
+
+  // `[variant, contract_address, calldata_len, ...calldata]` — the prefix is at `at + 2`.
+  const declared = span[at + 2]
+  if (declared === undefined) {
+    throw new Error(
+      'refusing a compiled span whose InvokeExternal ends before its calldata length: there is ' +
+        'nothing to measure the rest of the action against',
+    )
+  }
+  // A hostile or corrupt length would otherwise walk the cursor past the end of the span, or into
+  // a negative index, and every subsequent action would be read from the wrong offset.
+  if (declared < 0n || declared > BigInt(span.length)) {
+    throw new Error(
+      `refusing a compiled InvokeExternal declaring ${declared} calldata felt(s) in a span of ` +
+        `${span.length}: the length prefix is what the rest of the walk depends on`,
+    )
+  }
+  return 3 + Number(declared)
+}
+
+/**
  * The felts these actions must occupy in a compiled span, the leading count felt included.
  *
  * `assertSendSpan` walks the span with the same `variantWidth`, so there is one width
  * implementation rather than two that could disagree about what a serde change means.
  */
 export function expectedSpanFelts(actions: readonly (ExpectedSendAction | number)[]): number {
-  return actions.reduce<number>(
-    (n, a) => n + variantWidth(typeof a === 'number' ? a : a.variant),
-    1,
-  )
+  return actions.reduce<number>((n, a) => n + plannedWidth(a), 1)
+}
+
+/**
+ * The width one PLANNED action will occupy.
+ *
+ * For a fixed variant this is the table. For `InvokeExternal` the plan itself carries every felt —
+ * contract address, length prefix and calldata — so its width is self-describing, and that is what
+ * makes a variable-width action checkable at all: the plan states the length, and the span is held
+ * to it.
+ *
+ * A bare variant number cannot describe an invoke (there are no fields to count), so that combination
+ * is refused rather than assumed.
+ */
+function plannedWidth(action: ExpectedSendAction | number): number {
+  if (typeof action === 'number') return variantWidth(action)
+  if (action.variant !== CLIENT_ACTION.InvokeExternal) return variantWidth(action.variant)
+  return action.fields.length + 1
 }
 
 /**
@@ -933,7 +988,17 @@ export function assertSendSpan(
           `planned to have ${describeVariant(plannedAction.variant)} there`,
       )
     }
-    const width = variantWidth(variant)
+    // Measured out of the span for a variable-width action, looked up for every other. The two are
+    // then required to AGREE with what the plan described — which is what stops a compiler from
+    // lengthening an invoke's calldata between the plan and the proof.
+    const width = actionWidthAt(span, at)
+    const planned = plannedWidth(plannedAction)
+    if (width !== planned) {
+      throw new Error(
+        `refusing a compiled ${describeVariant(variant)} at action ${i} occupying ${width} felt(s): ` +
+          `the send was planned with ${planned}`,
+      )
+    }
     if (plannedAction.fields.length !== width - 1) {
       // A plan that describes a different number of fields than the ABI has is a bug in this
       // module, not in the compiler — say so rather than silently checking a prefix.
@@ -1183,11 +1248,10 @@ export function assertChannelIndices(span: readonly bigint[], channelCount: numb
       }
       expected += 1n
     }
-    // THROWS on a variant with no fixed width rather than returning. In `proveSend` this is
-    // unreachable — `assertSendSpan` has already refused anything unmeasurable — but this
-    // function is exported, and a standalone caller that hit an invoke variant would otherwise
-    // get a silent pass on a span this cannot actually walk.
-    at += variantWidth(variant)
+    // Walks a variable-width invoke by reading its length prefix, and still THROWS on a variant
+    // it cannot measure at all. This function is exported, so a standalone caller must not get a
+    // silent pass on a span the walk has lost its place in.
+    at += actionWidthAt(span, at)
   }
 }
 
