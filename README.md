@@ -87,22 +87,22 @@ npm run lint:claims     # the claims and network guard, described below
 cd contracts && scarb build && snforge test && cd ..
 ```
 
-### The web app, and the one install step `npm ci` does not do
+### The web app
 
-The gates that build the app evaluate the built bundle in a real headless browser, because a
-bundle that exits 0 and then dies at load is the specific failure they exist to catch. Playwright
-ships no browser binaries and runs no postinstall hook, so **`npm ci` alone does not give you
-one** — install it once per machine:
+No browser install, no extra setup step — `npm ci` gives you everything the gates need.
 
-```bash
-npx playwright-core install chromium-headless-shell
-```
-
-Then:
+The build wrapper exists because "`vite build` exited 0" is not evidence the app works: with the
+privacy SDK's `/testing` alias missing, the build exits 0, writes a 684 kB bundle, and the page
+dies at load with `ReferenceError: Buffer is not defined`. The wrapper catches that by **reading
+the artifact** — scanning the emitted chunks for the Node-only module names that put it there,
+holding the generated route tree against the route files on disk, and reading the emitted
+stylesheet to prove the design system shipped and re-themes. Earlier versions loaded the bundle in
+headless Chromium to learn the same things; that cost a 130 MB binary and a postinstall step
+`npm ci` does not perform, in exchange for information already written in the output.
 
 ```bash
 npm run typecheck            # root + apps/web; the root config alone does not cover the app
-npm run build:web            # builds, holds the warning contract, evaluates every route
+npm run build:web            # builds, holds the warning contract, reads the artifact
 npm run smoke:sdk            # React + router + protocol + privacy SDK in one evaluated bundle
 npm run verify:mainnet-guard # flips the tree off mainnet and back, proving the guard both ways
 ```

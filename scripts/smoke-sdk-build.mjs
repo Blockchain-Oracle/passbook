@@ -1,6 +1,6 @@
 //
 // The committed COMBINED-graph smoke: proof that React 19 + TanStack Router + `@strk20/protocol` +
-// the privacy SDK bundle together, reach a browser, and evaluate there — and that the node-only
+// the privacy SDK bundle together into a browser-safe artifact — and that the node-only
 // surface still cannot.
 //
 // This gate lives here rather than in `build:web` because the app deliberately does NOT import the
@@ -32,10 +32,7 @@ import { build } from 'vite'
 
 import {
   WEB_ROOT,
-  assertEvaluatedClean,
   buildGated,
-  evaluate,
-  evaluationSummary,
   routePathsFromGeneratedTree,
   walkFiles,
 } from './build-web.mjs'
@@ -211,82 +208,30 @@ async function positive() {
   }
   console.log(`[smoke:sdk] chunk clean — 0 occurrences of ${FORBIDDEN_IN_CHUNK.length} banned names`)
 
-  // ---- and then the part that actually proves it -----------------------------------------------
-  const {
-    errors,
-    consoleErrors,
-    published,
-    visited,
-    rendered: renderedByPath,
-    markers,
-  } = await evaluate({
-    root: SMOKE_ROOT,
-    outDir: OUT_DIR,
-    globalName: '__SMOKE__',
-    // The smoke mounts the app's real route tree, so it visits the app's real routes. A component
-    // that throws only on /settings is invisible to a gate that only ever loads /. The second
-    // argument is left to its default — `apps/web/src/routes`, the directory beside the tree — so
-    // the route-count cross-check runs here too rather than being skipped on a one-argument call.
-    paths: routePathsFromGeneratedTree(join(WEB_ROOT, 'src/routeTree.gen.ts')),
-    label: 'smoke:sdk',
-  })
   //
-  // `markers` is threaded, and that is not tidiness. Omitting it would leave this build mounting
-  // the app's REAL route tree while the route-identity assertion quietly did not run — the gate
-  // reporting green on the one code path where the app's own surfaces are what got evaluated.
+  // ---- what used to be an evaluation, and what replaced it --------------------------------------
   //
-  assertEvaluatedClean({
-    label: 'smoke:sdk',
-    errors,
-    consoleErrors,
-    published,
-    globalName: '__SMOKE__',
-    visited,
-    rendered: renderedByPath,
-    markers,
-  })
-
-  const notFunctions = ['planSend', 'proveRegistration', 'registerSponsored', 'discoverWallet', 'poolContractFor'].filter(
-    (name) => published[name] !== 'function',
-  )
-  if (notFunctions.length) {
-    throw new Error(
-      `[smoke:sdk] the bundle evaluated, but ${notFunctions.join(', ')} did not resolve to a ` +
-        `function: ${JSON.stringify(published)}. A name that resolves to \`undefined\` in the ` +
-        `browser is exactly the [IMPORT_IS_UNDEFINED] failure mode, arriving by another route.`,
-    )
-  }
-  if (published.network !== 'mainnet') {
-    throw new Error(`[smoke:sdk] evaluated bundle reports network=${JSON.stringify(published.network)}`)
-  }
-
+  // This block used to serve the bundle to headless chromium, read `window.__SMOKE__`, and assert
+  // that `planSend`/`proveRegistration`/… resolved to functions and that React had committed DOM.
+  // Removed 2026-08-26 (Abu's ruling: read the artifact, do not drive a browser).
   //
-  // The React half of the combined graph, asserted rather than assumed. "It mounted without
-  // throwing" is the weak version — an empty container throws nothing either. `__root.tsx` renders
-  // `{ACTIVE_NETWORK} · {NET.chainId}`, so requiring that text in the committed DOM proves the whole
-  // chain in one assertion: the router resolved a route, React committed it, and what it printed
-  // came out of `@strk20/protocol` inside a bundle that also carries the SDK.
+  // The load-bearing half of it did not need a browser and never did. The failure it names —
+  // "a name that resolves to `undefined` in the browser" — is the `[IMPORT_IS_UNDEFINED]` warning,
+  // and `buildGated` above already treats that warning as FATAL rather than allowlisting it. That
+  // is a stricter check reached earlier: it fails at build time and names the export, where the
+  // evaluation could only report a member of `window.__SMOKE__` that came back the wrong type.
   //
-  // Compared against the values the MODULE published, not against a literal copied into this file.
-  // A hardcoded 'mainnet' here would keep passing after the two drifted apart, which is the one
-  // thing this assertion exists to catch.
+  // What did leave: proof that React committed DOM in a real engine. That is a rendering question,
+  // it is loud when it breaks, and Abu tests the surfaces himself.
   //
-  const rendered = String(published.rendered ?? '')
-  const missing = [published.network, published.chainId].filter((v) => !rendered.includes(String(v)))
-  if (missing.length) {
-    throw new Error(
-      `[smoke:sdk] the bundle evaluated but React never committed the expected DOM. The rendered ` +
-        `text is missing ${missing.map((v) => JSON.stringify(v)).join(' and ')}; got ` +
-        `${JSON.stringify(rendered)}. Either the router failed to resolve a route or the mount ` +
-        `rendered nothing — neither of which surfaces as a page error.`,
-    )
-  }
-  console.log(`[smoke:sdk] React committed DOM — ${JSON.stringify(rendered)}`)
+  // The route tree is still cross-checked — `routePathsFromGeneratedTree` holds the generated union
+  // against the route files on disk and throws on a shortfall, which is what kept a silently-shrunk
+  // route list from passing. It just no longer needs a page load to do it.
+  //
+  const routes = routePathsFromGeneratedTree(join(WEB_ROOT, 'src/routeTree.gen.ts'))
+  console.log(`[smoke:sdk] route tree whole — ${routes.length} route(s)`)
 
   const total = emitted.reduce((n, f) => n + readFileSync(f).byteLength, 0)
-  console.log(
-    `[smoke:sdk] evaluated clean on ${evaluationSummary(visited, markers)} — ${JSON.stringify(published)}`,
-  )
   console.log(`[smoke:sdk] emitted ${emitted.length} chunk(s), ${(total / 1024).toFixed(2)} kB raw`)
 }
 
