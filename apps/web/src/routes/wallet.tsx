@@ -1,5 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import type { BookState, ShieldedBalance, TokenBalance } from '@strk20/protocol/balances'
 import { toPlainText } from '@strk20/protocol/amount'
 
@@ -11,6 +11,7 @@ import { Skeleton, SkeletonBox } from '../components/ui/Skeleton'
 import { Text } from '../components/ui/Text'
 import { ResponsiveDialog } from '../shell/ResponsiveDialog'
 import { readAccountStatus, type AccountStatus } from '../shell/account-status'
+import { deployAccount } from '../shell/submit'
 import { useBalance } from '../shell/use-balance'
 import { findToken, useTokenList } from '../shell/use-token-list'
 import { useSession, shortenFelt } from '../shell/session'
@@ -55,6 +56,10 @@ function Wallet() {
   // Plain JSON-RPC, no SDK — so the ladder can say where the account stands before the crypto
   // graph has finished loading.
   const [accountStatus, setAccountStatus] = useState<AccountStatus | null>(null)
+  const [statusNonce, setStatusNonce] = useState(0)
+  const [deploying, setDeploying] = useState(false)
+  const [deployProblem, setDeployProblem] = useState<string | null>(null)
+
   useEffect(() => {
     if (!ready) return
     let live = true
@@ -64,7 +69,22 @@ function Wallet() {
     return () => {
       live = false
     }
-  }, [ready?.address])
+  }, [ready?.address, statusNonce])
+
+  const onDeploy = useCallback(async () => {
+    if (!ready) return
+    setDeploying(true)
+    setDeployProblem(null)
+    const result = await deployAccount(ready.accountKey, ready.address)
+    setDeploying(false)
+    if (!result.ok) {
+      setDeployProblem(result.because)
+      return
+    }
+    // Re-read rather than assuming the rung moved. `deployAccount` already confirmed the class is
+    // on chain, but the ladder's job is to report what it reads.
+    setStatusNonce((n) => n + 1)
+  }, [ready])
 
   return (
     <Surface routeId={Route.fullPath}>
@@ -105,7 +125,14 @@ function Wallet() {
               preference. Naming the rung is what turns "something went wrong" into "here is the
               one thing to do next".
             */}
-            {ready && accountStatus ? <AccountLadder status={accountStatus} /> : null}
+            {ready && accountStatus ? (
+              <AccountLadder
+                status={accountStatus}
+                onDeploy={onDeploy}
+                deploying={deploying}
+                problem={deployProblem}
+              />
+            ) : null}
           </>
         )}
 
