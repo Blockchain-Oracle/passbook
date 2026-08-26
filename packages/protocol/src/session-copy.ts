@@ -8,7 +8,7 @@
 // `register.ts`, and rendered by a component epic 6 has not written yet. Three hops, and at
 // every one of them a hand-typed copy would be a sentence that drifts.
 //
-// THE LINT TRAP APPLIES HERE TOO. `scripts/lint-claims.mjs` fails the build on ten bare
+// THE SAME COPY RULE APPLIES HERE TOO. Ten bare claim substrings are forbidden in user-facing copy —
 // substrings, in comments as well as in strings, because it is line-based over the whole
 // file. Nothing here may quote one to explain it — see `backup-copy.ts`'s header, which
 // states the rule in the one place it is safe to state.

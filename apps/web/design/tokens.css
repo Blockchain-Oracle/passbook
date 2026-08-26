@@ -3,7 +3,7 @@
  *
  * source: apps/web/design/tokens.yaml  sha256 eb68b487531f153ca1408e8641bff850c5f04284ee01e9290ff7f4fce3d3f32b
  *
- * Regenerate with `pnpm run render:tokens`. `pnpm run lint` re-renders and fails when this file
+ * Regenerate with `pnpm run render:tokens` after editing tokens.yaml, and commit the result.
  * and the yaml disagree, so a hand-edit here is caught rather than shipped. tokens.yaml is the
  * verbatim frontmatter of the UX design authority.
  * locally. The banner carries the SOURCE HASH and no timestamp, so regenerating an unchanged

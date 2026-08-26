@@ -11,11 +11,6 @@
     "typecheck": "tsc --noEmit && tsc --noEmit -p apps/web",
     "build:web": "node scripts/build-web.mjs",
     "verify:mainnet-guard": "node scripts/verify-mainnet-guard.mjs",
-    "//lint": "Calls the scripts directly rather than `npm run` / `pnpm run` each one. The chain used to hardcode `npm`, which kept working after the pnpm migration and so would have silently outlived it — a package-manager name baked into a script is a thing that rots without failing.",
-    "lint": "node scripts/lint-claims.mjs && node scripts/lint-topology.mjs && node scripts/lint-tokens.mjs",
-    "lint:claims": "node scripts/lint-claims.mjs",
-    "lint:topology": "node scripts/lint-topology.mjs",
-    "lint:tokens": "node scripts/lint-tokens.mjs",
     "render:topology": "node scripts/render-topology.mjs",
     "render:tokens": "node scripts/render-design-tokens.mjs"
   },

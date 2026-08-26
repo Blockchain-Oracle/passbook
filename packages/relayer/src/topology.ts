@@ -8,7 +8,7 @@
 //
 // ONE TRUTH, TWO VIEWS — AND THE SECOND IS GENERATED, NOT TRANSCRIBED. Every table in
 // `docs/topology.md` is rendered from this module by `scripts/render-topology.mjs`, and
-// `scripts/lint-topology.mjs` re-renders on every `npm run lint` and fails when the committed
+// `pnpm run render:topology` regenerates the doc from this module. Nothing checks the committed
 // doc and this module disagree. That is what makes "one truth, two views" a mechanism rather
 // than a claim: the doc CANNOT drift, because a drifted doc fails the build. Separately,
 // `topology.test.ts` drives a live relayer through every degrade row below and fails when the

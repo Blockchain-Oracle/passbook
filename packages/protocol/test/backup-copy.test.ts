@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
 import * as copy from '../src/backup-copy.js'
+import { FORBIDDEN_CLAIMS } from '../src/forbidden-claims.js'
 
 // Byte-exact, `toBe`, one assertion per sentence. `toContain` or a regex would let a
 // re-typed sentence drift a word at a time — and these are the sentences that tell a user
@@ -85,16 +86,13 @@ describe('backup copy ships byte-exact (AC6)', () => {
 })
 
 describe('the claims-lint trap (AC6)', () => {
-  // `scripts/lint-claims.mjs` fails the build on ten bare substrings, case-insensitively.
-  // Reproduced from the script rather than retyped, so this test cannot drift from the lint
-  // it is defending — and so this file does not itself contain the banned strings as literals.
-  const FORBIDDEN = (() => {
-    const src = readFileSync('scripts/lint-claims.mjs', 'utf8')
-    const block = src.match(/const FORBIDDEN = \[([\s\S]*?)\]/)![1]!
-    return [...block.matchAll(/'([^']+)'/g)].map((m) => m[1]!)
-  })()
+  // IMPORTED, not retyped and no longer scraped. The list used to be regex-lifted out of
+  // `scripts/lint-claims.mjs`; that script was removed 2026-08-26 and the list moved to
+  // `src/forbidden-claims.ts`, which is where product knowledge belongs. A plain import cannot
+  // silently stop testing the way a scrape of somebody else's source could.
+  const FORBIDDEN = FORBIDDEN_CLAIMS
 
-  it('reads the real banned list out of the lint script', () => {
+  it('holds the copy to all ten refused claims', () => {
     expect(FORBIDDEN).toHaveLength(10)
   })
 

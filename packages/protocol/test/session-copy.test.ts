@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs'
 import * as copy from '../src/session-copy.js'
 import { DEFAULT_LOCK_CHANNEL, SUBMIT_LOCK_ALREADY_HELD } from '../src/session-lock.js'
 import { SESSION_KEYS } from '../src/session-store.js'
+import { FORBIDDEN_CLAIMS } from '../src/forbidden-claims.js'
 
 // Byte-exact, `toBe`, one assertion per sentence — the convention `backup-copy.test.ts`
 // establishes. The non-leader sentence in particular travels three hops before a user reads
@@ -111,29 +112,13 @@ describe('the stored names are a compatibility contract, not an implementation d
 })
 
 describe('the claims-lint trap applies to the session tier too', () => {
-  // Read out of the lint script rather than retyped, so this test cannot drift from the lint
-  // it defends — and so this file does not itself carry the banned strings as literals.
-  //
-  // MATCH-OR-THROW, not `!`. A bare non-null assertion on a scrape of somebody else's source is
-  // the one way this test can silently stop testing: the lint script is reformatted, the regex
-  // stops matching, and the assertion crashes with `Cannot read property 1 of null` — or worse,
-  // matches something empty and passes over an empty list. The count assertion below is the
-  // backstop; this is the message that says what actually went wrong.
-  const FORBIDDEN = (() => {
-    const path = new URL('../../../scripts/lint-claims.mjs', import.meta.url)
-    const src = readFileSync(path, 'utf8')
-    const block = /const FORBIDDEN = \[([\s\S]*?)\]/.exec(src)
-    if (!block?.[1]) {
-      throw new Error(`could not find the FORBIDDEN list in ${path.pathname}: the lint script's shape changed`)
-    }
-    const phrases = [...block[1].matchAll(/'([^']+)'/g)].map((m) => m[1] ?? '')
-    if (phrases.length === 0 || phrases.some((p) => !p)) {
-      throw new Error(`the FORBIDDEN list scraped as ${JSON.stringify(phrases)}, which cannot be right`)
-    }
-    return phrases
-  })()
+  // IMPORTED, not retyped and no longer scraped. The list used to be regex-lifted out of
+  // `scripts/lint-claims.mjs`; that script was removed 2026-08-26 and the list moved to
+  // `src/forbidden-claims.ts`, which is where product knowledge belongs. A plain import cannot
+  // silently stop testing the way a scrape of somebody else's source could.
+  const FORBIDDEN = FORBIDDEN_CLAIMS
 
-  it('reads the real banned list out of the lint script', () => {
+  it('holds the copy to all ten refused claims', () => {
     expect(FORBIDDEN).toHaveLength(10)
   })
 
