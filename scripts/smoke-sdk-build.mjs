@@ -35,6 +35,7 @@ import {
   assertEvaluatedClean,
   buildGated,
   evaluate,
+  evaluationSummary,
   routePathsFromGeneratedTree,
   walkFiles,
 } from './build-web.mjs'
@@ -211,22 +212,38 @@ async function positive() {
   console.log(`[smoke:sdk] chunk clean — 0 occurrences of ${FORBIDDEN_IN_CHUNK.length} banned names`)
 
   // ---- and then the part that actually proves it -----------------------------------------------
-  const { errors, consoleErrors, published, visited, rendered: renderedByPath } = await evaluate({
+  const {
+    errors,
+    consoleErrors,
+    published,
+    visited,
+    rendered: renderedByPath,
+    markers,
+  } = await evaluate({
     root: SMOKE_ROOT,
     outDir: OUT_DIR,
     globalName: '__SMOKE__',
     // The smoke mounts the app's real route tree, so it visits the app's real routes. A component
-    // that throws only on /settings is invisible to a gate that only ever loads /.
+    // that throws only on /settings is invisible to a gate that only ever loads /. The second
+    // argument is left to its default — `apps/web/src/routes`, the directory beside the tree — so
+    // the route-count cross-check runs here too rather than being skipped on a one-argument call.
     paths: routePathsFromGeneratedTree(join(WEB_ROOT, 'src/routeTree.gen.ts')),
     label: 'smoke:sdk',
   })
+  //
+  // `markers` is threaded, and that is not tidiness. Omitting it would leave this build mounting
+  // the app's REAL route tree while the route-identity assertion quietly did not run — the gate
+  // reporting green on the one code path where the app's own surfaces are what got evaluated.
+  //
   assertEvaluatedClean({
     label: 'smoke:sdk',
     errors,
     consoleErrors,
     published,
     globalName: '__SMOKE__',
+    visited,
     rendered: renderedByPath,
+    markers,
   })
 
   const notFunctions = ['planSend', 'proveRegistration', 'registerSponsored', 'discoverWallet', 'poolContractFor'].filter(
@@ -268,8 +285,7 @@ async function positive() {
 
   const total = emitted.reduce((n, f) => n + readFileSync(f).byteLength, 0)
   console.log(
-    `[smoke:sdk] evaluated clean on ${visited.length} route(s) [${visited.join(', ')}] — ` +
-      `${JSON.stringify(published)}`,
+    `[smoke:sdk] evaluated clean on ${evaluationSummary(visited, markers)} — ${JSON.stringify(published)}`,
   )
   console.log(`[smoke:sdk] emitted ${emitted.length} chunk(s), ${(total / 1024).toFixed(2)} kB raw`)
 }
