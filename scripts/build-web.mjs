@@ -30,8 +30,6 @@
 // silent and not invisible — it is the first thing anyone opening the page sees, and Abu tests the
 // surfaces himself.
 //
-// Also usable as a library: `scripts/smoke-sdk-build.mjs` imports `buildGated` and `classify` so
-// the SDK smoke is held to the same warning contract as the app.
 //
 import { existsSync, readdirSync, readFileSync, realpathSync, statSync } from 'node:fs'
 import { basename, dirname, join, resolve } from 'node:path'
@@ -350,9 +348,7 @@ export function routeLeafFiles(routesDir) {
  * evaluated. It exits 1 or it is decoration: a warning here would be read past.
  *
  * `routesDir` defaults to the `routes/` directory beside the generated tree, which is where the
- * plugin puts it. The default is load-bearing rather than a convenience: `smoke-sdk-build.mjs`
- * calls this with one argument, and a required second parameter would turn that call into
- * `readdirSync(undefined)`.
+ * plugin puts it.
  */
 export function routePathsFromGeneratedTree(
   generatedTreePath,
@@ -443,7 +439,7 @@ const APP_MAX_EAGER_BYTES = 560_000
 // for "is `/wallet` eager": moving a surface out of the entry and into its own chunk moves bytes
 // between files and changes the total by a rounding error. Delete `codeSplitGroupings: []` from
 // `routes/wallet.tsx` and the cold open silently becomes a second round trip while `build:web`,
-// `smoke:sdk` and the whole suite stay green.
+// and the whole suite stay green.
 //
 // `/wallet` is where `/` redirects, so it is on the critical path of every first visit.
 //
@@ -538,8 +534,8 @@ export function eagerRouteProblems({
 //
 // Names that can only be in a browser bundle because a Node-only module got in.
 //
-// Measured, not guessed — `smoke-sdk-build.mjs` counts each of these in a good build versus the
-// same build with the SDK's `/testing` alias removed, and keeps only the ones that actually move:
+// Measured, not guessed — each was counted in a good build versus the same build with the SDK's
+// `/testing` alias removed, and only the ones that actually move are kept:
 //
 //     starknet-devnet   0 -> 5     Devnet          0 -> 20    spawnInstalled  0 -> 1
 //     api.github.com    0 -> 1     fileURLToPath   0 -> 1
@@ -639,7 +635,6 @@ async function main() {
     // ~700 kB graph has landed in the root chunk — so a nonzero count here is a real regression on
     // the load-order rule, and the gate will say so rather than shrug.
     //
-    // The combined graph's warning contract lives in `smoke:sdk`, which expects exactly 1.
     //
     expectAllowlistedWarnings: 0,
     label: 'build:web',
@@ -669,10 +664,9 @@ async function main() {
   // from a Node module is the cheaper way, and it names the offender instead of reporting a
   // symptom.
   //
-  // The list is `smoke-sdk-build.mjs`'s, which measured each entry moving 0 -> N between a good
-  // build and the same build with the alias removed. `Buffer` is NOT in it: the string appears in
-  // healthy third-party code often enough to false-fail. `fileURLToPath` is the load-bearing one —
-  // it is the node-only path helper whose presence means a node module got in.
+  // `Buffer` is deliberately NOT in the list: the string appears in healthy third-party code often
+  // enough to false-fail. `fileURLToPath` is the load-bearing one — it is the node-only path helper
+  // whose presence means a node module got in.
   //
   assertNoNodeOnlyModules(outDir)
 

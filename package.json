@@ -13,7 +13,6 @@
     "test": "vitest run",
     "typecheck": "tsc --noEmit && tsc --noEmit -p apps/web",
     "build:web": "node scripts/build-web.mjs",
-    "smoke:sdk": "node scripts/smoke-sdk-build.mjs",
     "verify:mainnet-guard": "node scripts/verify-mainnet-guard.mjs",
     "lint": "npm run lint:claims && npm run lint:topology && npm run lint:tokens",
     "lint:claims": "node scripts/lint-claims.mjs",

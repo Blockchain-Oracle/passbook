@@ -23,7 +23,7 @@ import './index.css'
 // the other five surfaces lazy) exists to prevent.
 //
 // The combined graph — React + router + protocol + SDK in one wrapped, evaluated build — is proved
-// and permanently regression-gated by `apps/web/smoke/entry.ts` via `npm run smoke:sdk`. It is not
+// and covered by `build:web`'s node-only-module scan once a surface imports it. It is not
 // this file's job, and doing it here would be undone by the next story.
 //
 import { ACTIVE_NETWORK, NET } from '@strk20/protocol/constants'
