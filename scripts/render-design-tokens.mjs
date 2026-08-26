@@ -510,7 +510,7 @@ export function render(yamlSource) {
     ' *',
     ` * source: apps/web/design/tokens.yaml  sha256 ${sha}`,
     ' *',
-    ' * Regenerate with `npm run render:tokens`. `npm run lint` re-renders and fails when this file',
+    ' * Regenerate with `pnpm run render:tokens`. `pnpm run lint` re-renders and fails when this file',
     ' * and the yaml disagree, so a hand-edit here is caught rather than shipped. tokens.yaml is the',
     " * verbatim frontmatter of the UX design authority.",
     ' * locally. The banner carries the SOURCE HASH and no timestamp, so regenerating an unchanged',
@@ -612,7 +612,7 @@ export function staleMessage({ firstDiffLine, hashOnly }) {
     : `first difference at line ${firstDiffLine}`
   return (
     `\`apps/web/design/tokens.css\` is STALE: it does not match what tokens.yaml renders to ` +
-    `(${where}). Run \`npm run render:tokens\` and commit the result. Do not hand-edit tokens.css; ` +
+    `(${where}). Run \`pnpm run render:tokens\` and commit the result. Do not hand-edit tokens.css; ` +
     `edit tokens.yaml — it is the verbatim frontmatter of the UX DESIGN.md.`
   )
 }

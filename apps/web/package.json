@@ -5,14 +5,14 @@
   "type": "module",
   "scripts": {
     "dev": "vite --configLoader native",
-    "//build": "Deliberately absent. `npm run build -w apps/web` is the door most deploy platforms take by default, and a bare `vite build` bypasses EVERY gate in this repository: the warning contract, the eager-bundle budget, the SDK-marker scan and the browser evaluation that is the only thing proving the artifact is not dead on arrival. Use `npm run build:web` from the repo root. `build:raw` below is the unguarded escape hatch — named so nothing reaches it by accident.",
+    "//build": "Deliberately absent. `pnpm run build --filter @strk20/web` (and npm's `-w` equivalent) is the door most deploy platforms take by default, and a bare `vite build` bypasses EVERY gate in this repository: the warning contract, the eager-bundle budget, the SDK-marker scan and the browser evaluation that is the only thing proving the artifact is not dead on arrival. Use `npm run build:web` from the repo root. `build:raw` below is the unguarded escape hatch — named so nothing reaches it by accident.",
     "build:raw": "vite build --configLoader native",
     "preview": "vite preview"
   },
   "dependencies": {
     "@base-ui/react": "1.7.0",
     "@fontsource-variable/ibm-plex-sans": "5.3.0",
-    "@strk20/protocol": "*",
+    "@strk20/protocol": "workspace:*",
     "@tanstack/react-router": "1.170.32",
     "react": "19.2.8",
     "react-dom": "19.2.8"

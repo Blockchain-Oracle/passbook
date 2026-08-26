@@ -1,20 +1,18 @@
 {
   "name": "strk20-app",
   "private": true,
+  "packageManager": "pnpm@11.24.0",
   "type": "module",
   "engines": {
     "node": "^24.0.0"
   },
-  "workspaces": [
-    "packages/*",
-    "apps/*"
-  ],
   "scripts": {
     "test": "vitest run",
     "typecheck": "tsc --noEmit && tsc --noEmit -p apps/web",
     "build:web": "node scripts/build-web.mjs",
     "verify:mainnet-guard": "node scripts/verify-mainnet-guard.mjs",
-    "lint": "npm run lint:claims && npm run lint:topology && npm run lint:tokens",
+    "//lint": "Calls the scripts directly rather than `npm run` / `pnpm run` each one. The chain used to hardcode `npm`, which kept working after the pnpm migration and so would have silently outlived it — a package-manager name baked into a script is a thing that rots without failing.",
+    "lint": "node scripts/lint-claims.mjs && node scripts/lint-topology.mjs && node scripts/lint-tokens.mjs",
     "lint:claims": "node scripts/lint-claims.mjs",
     "lint:topology": "node scripts/lint-topology.mjs",
     "lint:tokens": "node scripts/lint-tokens.mjs",
@@ -30,12 +28,9 @@
     "yaml": "2.9.0"
   },
   "dependencies": {
+    "@strk20/protocol": "workspace:*",
     "@starknet-io/types-js": "0.10.3",
     "@starkware-libs/starknet-privacy-sdk": "file:vendor/starkware-libs-starknet-privacy-sdk-0.14.3-rc.2.tgz",
     "starknet": "10.5.0"
-  },
-  "allowScripts": {
-    "fsevents@2.3.3": true,
-    "esbuild@0.28.2": true
   }
 }
