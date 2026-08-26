@@ -46,6 +46,27 @@
     text-wrap: pretty;
   }
 
+  /*
+   * CLEARANCE FOR THE STICKY HEADER, on the scroll container that owns the scrolling.
+   *
+   * Without it the browser scrolls a keyboard-focused element or an anchor target flush to the top
+   * of the viewport — which is UNDERNEATH the header, so the thing the user just moved to is the one
+   * thing they cannot see.
+   *
+   * ONE VALUE, SIZED TO THE WORST CASE, and that is a trade rather than a fit. The header wraps, so
+   * its height is a function of the viewport: measured 165px at 320 and 375, 97px at 640, 57px at
+   * 1280. A per-breakpoint value would need a media query, and a media query needs a literal length
+   * — the sheet publishes its breakpoints to the utility layer only, and `@media (min-width: var(…))`
+   * is not a thing — so the honest choices were "cover the tallest header everywhere" or "under-clear
+   * on phones". Over-clearing costs empty space above a target on a wide screen; under-clearing hides
+   * the target, so this covers 165 and `scripts/shell-harness.test.mjs` asserts it still does at both
+   * ends. Measuring the header into a custom property is JS, and belongs to the adaptive-chrome
+   * story with the rest of the dynamic header.
+   */
+  html {
+    scroll-padding-top: calc(3 * var(--spacing-s60));
+  }
+
   h1,
   h2,
   h3,
@@ -85,5 +106,116 @@
    */
   .numeric {
     font-variant-numeric: tabular-nums;
+  }
+
+  /*
+   * ---- the shell -------------------------------------------------------------------------------
+   *
+   * WHY THESE ARE AUTHORED CSS AND NOT UTILITIES, stated once for all three. Measured against the
+   * shipped gate: `z-10`, `h-dvh`, `border-2` and every `data-*` / `aria-*` state variant compile
+   * fine and are REJECTED by `scripts/lint-tokens.mjs` — the variant mechanism the router's active
+   * link is expressed through is categorically banned there, and the design authority's focus-ring
+   * utilities (`outline-solid`, `focus-visible:outline-1`, `focus-visible:outline-offset-2`) are
+   * rejected 3-for-3. Written here in `var()`s they lint clean, they carry no design value of their
+   * own, and their names are picked up automatically by `appBaseClasses()` so the utilities that sit
+   * beside them in a `className` still pass.
+   *
+   * Every one of them must keep a BARE `.name {` rule. That regex is what registers the class name
+   * with the lint; a class that exists only as `.name[data-x]` or `.name:hover` registers nothing
+   * and every use of it becomes a lint finding.
+   *
+   * No z-index anywhere: the token sheet has no such namespace (`z-10` compiles and is rejected,
+   * `z-s10` generates nothing at all), so stacking is paint order — and paint order is NOT on the
+   * header's side. Among positioned boxes at `z-index: auto` the LATER one in the document paints on
+   * top, and the header is the first thing in the body. It wins today for one reason only: nothing
+   * else in the app is positioned, so there is no later sibling to lose to.
+   *
+   * What breaks it: the first `position: fixed/absolute/sticky` element added after the header in
+   * document order — a bottom bar, a toast, a popover mounted at the end of `<body>` — will paint
+   * OVER a sticky header with no warning and no error. That is the point at which a `layers:` block
+   * in the design authority stops being deferrable; it is recorded as follow-up work, not solved
+   * here by guessing a number.
+   */
+
+  /*
+   * One header, wrapping. Six nav items plus the brand do not fit on one 320px line and are not
+   * meant to — `flex-wrap` lets the row become two or three rows of legible 14px labels rather than
+   * a horizontal scroll or an ellipsis. The bottom tab bar, the safe-area inset and the compact/
+   * expanded scroll behaviour are the deferred adaptive-chrome story; none of them is here.
+   */
+  .app-header {
+    position: sticky;
+    top: var(--spacing-s0);
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--spacing-s8) var(--spacing-s16);
+    padding: var(--spacing-s12) var(--spacing-s16);
+    background-color: var(--color-raised);
+    border-bottom: var(--spacing-s1) solid var(--color-surface3);
+  }
+
+  .nav-item {
+    display: inline-flex;
+    align-items: center;
+    padding: var(--spacing-s6) var(--spacing-s8);
+    border-radius: var(--radius-badge);
+    color: var(--color-neutral2);
+    font-size: var(--text-buttonLabel3);
+    line-height: var(--text-buttonLabel3--line-height);
+    font-weight: var(--font-weight-medium);
+    text-decoration: none;
+    transition-property: color, background-color;
+    transition-duration: var(--transition-duration-fast);
+    transition-timing-function: var(--ease-snap);
+  }
+
+  .nav-item:hover {
+    color: var(--color-neutral1);
+    background-color: var(--color-insetHovered);
+  }
+
+  /*
+   * The active mode. `data-status="active"` and `aria-current="page"` are both set by the router on
+   * the matching link with no configuration — this styles the first, and the second is what is
+   * announced. Never a class computed in JS: two sources for one state drift.
+   */
+  .nav-item[data-status='active'] {
+    color: var(--color-neutral1);
+    background-color: var(--color-inset);
+  }
+
+  /*
+   * HOVERING THE MODE YOU ARE ALREADY IN — decided here rather than by source order.
+   *
+   * `.nav-item:hover` and `.nav-item[data-status='active']` have IDENTICAL specificity (0,2,0), so
+   * without this rule whichever is written last wins and reordering the file silently changes the
+   * behaviour. Written last, `:hover` would erase the active fill on hover, which is the one moment
+   * the user is least sure where they are; written last, the active rule swallows the hover and the
+   * current tab feels dead under the cursor.
+   *
+   * The ruling: the active fill stays, and hover lightens it — the link is still a link and still
+   * responds, without ever stopping looking like the current mode. Specificity (0,3,0) means this is
+   * true no matter where any of the three rules ends up.
+   */
+  .nav-item[data-status='active']:hover {
+    background-color: var(--color-insetHovered);
+  }
+
+  /*
+   * ONE class composing all four outline properties, because the utilities that would express it are
+   * off-sheet. The bare rule sets width, colour and offset and leaves the style at `none`; focus
+   * alone turns it on. Keyboard-only by construction — `:focus-visible`, never `:focus`, so a mouse
+   * click does not leave a ring behind.
+   */
+  .focus-ring {
+    outline-width: var(--spacing-s2);
+    outline-style: none;
+    outline-color: var(--color-accent1);
+    outline-offset: var(--spacing-s2);
+  }
+
+  .focus-ring:focus-visible {
+    outline-style: solid;
   }
 }

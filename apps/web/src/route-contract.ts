@@ -28,6 +28,7 @@
 import type { RegisteredRouter } from '@tanstack/react-router'
 import type { RoutePaths } from '@tanstack/router-core'
 
+import type { ClassifiedPath } from './shell/modes'
 import type { routeTree } from './routeTree.gen'
 
 /** Fails to compile unless T is exactly `true`. TS2344 is the noise this guard makes. */
@@ -54,9 +55,44 @@ export type RouteTreeIsNotAny = Assert<Not<IsAny<typeof routeTree>>>
 export type RoutePathsAreNotWidened = Assert<Not<Ext<string, Paths>>>
 
 //
-// Per-path pins. These catch the case the two assertions above cannot see: a tree that is
-// well-typed and narrow but STALE, generated before a route existed. Add a line here when 6-3 adds
-// a route; a route that is deleted on purpose fails here first, which is the point.
+// ---- routes are modes: the coupling, in both directions ------------------------------------------
+//
+// `shell/modes.ts` says which routes are the six modes and which are ancillary. On its own that is
+// half a contract — it can only be wrong about modes. These two assertions close the other half, and
+// all three artifacts ship together or none of the coupling is sound.
+//
+// Direction (i), in modes.ts: a mode with no route is TS1360 on the `satisfies`.
+// Direction (ii), here: a ROUTE that no mode and no ancillary entry names. Measured: a residue
+// `/nfts` route built at exit 0 and reported "evaluated clean on 14 route(s)" — the build is exactly
+// the wrong place to notice a route nobody decided on. This is TS2344 instead.
+//
+// DEGRADATION-SAFE, which is the whole reason it is written this way round. Under a widened tree
+// `Paths` is `string`, `string extends ClassifiedPath` is false, and this goes RED. The failure mode
+// of a vacuous guard is silence; this one gets louder.
+//
+
+/** Every route the tree declares is either one of the six modes or a named ancillary page. */
+export type EveryRouteIsClassified = Assert<Ext<Paths, ClassifiedPath>>
+
+/** And nothing in that vocabulary names a route that does not exist. */
+export type EveryClassifiedPathIsARoute = Assert<Ext<ClassifiedPath, Paths>>
+
+//
+// Per-path pins. These catch the case the assertions above cannot see: a tree that is well-typed and
+// narrow but STALE, generated before a route existed. `EveryClassifiedPathIsARoute` covers the same
+// ground for classified paths as a union — these name them one at a time, so a stale tree fails with
+// the missing route in the diagnostic rather than with "this union is not assignable to that one".
+//
+// Add a line here when a route is added; a route deleted on purpose fails here first, which is the
+// point.
 //
 export type HasIndexRoute = Assert<Ext<'/', Paths>>
 export type HasSettingsRoute = Assert<Ext<'/settings', Paths>>
+export type HasWalletRoute = Assert<Ext<'/wallet', Paths>>
+export type HasChatRoute = Assert<Ext<'/chat', Paths>>
+export type HasSwapRoute = Assert<Ext<'/swap', Paths>>
+export type HasBridgeRoute = Assert<Ext<'/bridge', Paths>>
+export type HasMarketsRoute = Assert<Ext<'/markets', Paths>>
+export type HasLaunchRoute = Assert<Ext<'/launch', Paths>>
+export type HasActivityRoute = Assert<Ext<'/activity/$id', Paths>>
+export type HasPayRoute = Assert<Ext<'/pay/$address', Paths>>

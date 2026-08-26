@@ -10,11 +10,39 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as BridgeRouteImport } from './routes/bridge'
+import { Route as ChatRouteImport } from './routes/chat'
+import { Route as LaunchRouteImport } from './routes/launch'
+import { Route as MarketsRouteImport } from './routes/markets'
 import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as SwapRouteImport } from './routes/swap'
+import { Route as WalletRouteImport } from './routes/wallet'
+import { Route as ActivityIdRouteImport } from './routes/activity.$id'
+import { Route as PayAddressRouteImport } from './routes/pay.$address'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BridgeRoute = BridgeRouteImport.update({
+  id: '/bridge',
+  path: '/bridge',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ChatRoute = ChatRouteImport.update({
+  id: '/chat',
+  path: '/chat',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LaunchRoute = LaunchRouteImport.update({
+  id: '/launch',
+  path: '/launch',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MarketsRoute = MarketsRouteImport.update({
+  id: '/markets',
+  path: '/markets',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SettingsRoute = SettingsRouteImport.update({
@@ -22,31 +50,114 @@ const SettingsRoute = SettingsRouteImport.update({
   path: '/settings',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SwapRoute = SwapRouteImport.update({
+  id: '/swap',
+  path: '/swap',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const WalletRoute = WalletRouteImport.update({
+  id: '/wallet',
+  path: '/wallet',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ActivityIdRoute = ActivityIdRouteImport.update({
+  id: '/activity/$id',
+  path: '/activity/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PayAddressRoute = PayAddressRouteImport.update({
+  id: '/pay/$address',
+  path: '/pay/$address',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/bridge': typeof BridgeRoute
+  '/chat': typeof ChatRoute
+  '/launch': typeof LaunchRoute
+  '/markets': typeof MarketsRoute
   '/settings': typeof SettingsRoute
+  '/swap': typeof SwapRoute
+  '/wallet': typeof WalletRoute
+  '/activity/$id': typeof ActivityIdRoute
+  '/pay/$address': typeof PayAddressRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/bridge': typeof BridgeRoute
+  '/chat': typeof ChatRoute
+  '/launch': typeof LaunchRoute
+  '/markets': typeof MarketsRoute
   '/settings': typeof SettingsRoute
+  '/swap': typeof SwapRoute
+  '/wallet': typeof WalletRoute
+  '/activity/$id': typeof ActivityIdRoute
+  '/pay/$address': typeof PayAddressRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/bridge': typeof BridgeRoute
+  '/chat': typeof ChatRoute
+  '/launch': typeof LaunchRoute
+  '/markets': typeof MarketsRoute
   '/settings': typeof SettingsRoute
+  '/swap': typeof SwapRoute
+  '/wallet': typeof WalletRoute
+  '/activity/$id': typeof ActivityIdRoute
+  '/pay/$address': typeof PayAddressRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/settings'
+  fullPaths:
+    | '/'
+    | '/bridge'
+    | '/chat'
+    | '/launch'
+    | '/markets'
+    | '/settings'
+    | '/swap'
+    | '/wallet'
+    | '/activity/$id'
+    | '/pay/$address'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/settings'
-  id: '__root__' | '/' | '/settings'
+  to:
+    | '/'
+    | '/bridge'
+    | '/chat'
+    | '/launch'
+    | '/markets'
+    | '/settings'
+    | '/swap'
+    | '/wallet'
+    | '/activity/$id'
+    | '/pay/$address'
+  id:
+    | '__root__'
+    | '/'
+    | '/bridge'
+    | '/chat'
+    | '/launch'
+    | '/markets'
+    | '/settings'
+    | '/swap'
+    | '/wallet'
+    | '/activity/$id'
+    | '/pay/$address'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  BridgeRoute: typeof BridgeRoute
+  ChatRoute: typeof ChatRoute
+  LaunchRoute: typeof LaunchRoute
+  MarketsRoute: typeof MarketsRoute
   SettingsRoute: typeof SettingsRoute
+  SwapRoute: typeof SwapRoute
+  WalletRoute: typeof WalletRoute
+  ActivityIdRoute: typeof ActivityIdRoute
+  PayAddressRoute: typeof PayAddressRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -58,6 +169,34 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/bridge': {
+      id: '/bridge'
+      path: '/bridge'
+      fullPath: '/bridge'
+      preLoaderRoute: typeof BridgeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/chat': {
+      id: '/chat'
+      path: '/chat'
+      fullPath: '/chat'
+      preLoaderRoute: typeof ChatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/launch': {
+      id: '/launch'
+      path: '/launch'
+      fullPath: '/launch'
+      preLoaderRoute: typeof LaunchRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/markets': {
+      id: '/markets'
+      path: '/markets'
+      fullPath: '/markets'
+      preLoaderRoute: typeof MarketsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/settings': {
       id: '/settings'
       path: '/settings'
@@ -65,12 +204,48 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/swap': {
+      id: '/swap'
+      path: '/swap'
+      fullPath: '/swap'
+      preLoaderRoute: typeof SwapRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/wallet': {
+      id: '/wallet'
+      path: '/wallet'
+      fullPath: '/wallet'
+      preLoaderRoute: typeof WalletRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/activity/$id': {
+      id: '/activity/$id'
+      path: '/activity/$id'
+      fullPath: '/activity/$id'
+      preLoaderRoute: typeof ActivityIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/pay/$address': {
+      id: '/pay/$address'
+      path: '/pay/$address'
+      fullPath: '/pay/$address'
+      preLoaderRoute: typeof PayAddressRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  BridgeRoute: BridgeRoute,
+  ChatRoute: ChatRoute,
+  LaunchRoute: LaunchRoute,
+  MarketsRoute: MarketsRoute,
   SettingsRoute: SettingsRoute,
+  SwapRoute: SwapRoute,
+  WalletRoute: WalletRoute,
+  ActivityIdRoute: ActivityIdRoute,
+  PayAddressRoute: PayAddressRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

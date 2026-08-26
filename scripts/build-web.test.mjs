@@ -36,11 +36,20 @@ import { dirname, join } from 'node:path'
 
 import { chromium } from 'playwright-core'
 
+// The router's OWN path interpolation, not a re-description of it. It is what turns a `$param`
+// route back into a URL, and the encoding it applies is the whole reason a surface may not emit
+// `location.pathname`. Resolved from the root `node_modules` the workspace hoists it into — the same
+// way `tailwind-probe.mjs` reaches `tailwindcss`.
+import { interpolatePath } from '@tanstack/router-core'
+
 import {
   assertBrowserAvailable,
   assertEvaluatedClean,
   BROWSER_INSTALL_COMMAND,
+  eagerRouteProblems,
+  entryChunkFromHtml,
   evaluate,
+  EXPECTED_REDIRECTS,
   routeLeafFiles,
   routePathsFromGeneratedTree,
 } from './build-web.mjs'
@@ -390,15 +399,23 @@ describe('the route-count cross-check', () => {
 
 // ---- R15a / P2: the marker assertion --------------------------------------------------------------
 
+//
+// TWO SURFACES THAT RENDER THEMSELVES — and deliberately NOT `/`.
+//
+// `/` stopped being a neutral fixture path the moment 6-3 landed: it redirects to `/wallet`, that
+// redirect is DECLARED in this module's `EXPECTED_REDIRECTS`, and `assertEvaluatedClean` defaults to
+// it. A "healthy" fixture where `/` renders `/` therefore asserts that the app's cold open is
+// broken. The redirect gets its own cases below, where it is the subject rather than a side effect.
+//
 const HEALTHY = {
   label: 'test',
   errors: [],
   consoleErrors: [],
   published: { network: 'mainnet' },
   globalName: '__X__',
-  visited: ['/', '/settings'],
-  rendered: { '/': 'Passbook', '/settings': 'Settings' },
-  markers: { '/': ['/'], '/settings': ['/settings'] },
+  visited: ['/wallet', '/settings'],
+  rendered: { '/wallet': 'Wallet', '/settings': 'Settings' },
+  markers: { '/wallet': ['/wallet'], '/settings': ['/settings'] },
 }
 
 /** The copy a surface's OWN `errorComponent` renders. Note what is not in it. */
@@ -443,8 +460,8 @@ describe('assertEvaluatedClean: which surface actually rendered (R15a, P2)', () 
     expect(() =>
       assertEvaluatedClean({
         ...HEALTHY,
-        rendered: { '/': 'Passbook', '/settings': OWN_ERROR_COPY },
-        markers: { '/': ['/'], '/settings': ['/settings'] },
+        rendered: { '/wallet': 'Passbook', '/settings': OWN_ERROR_COPY },
+        markers: { '/wallet': ['/wallet'], '/settings': ['/settings'] },
       }),
     ).not.toThrow()
   })
@@ -462,21 +479,31 @@ describe('assertEvaluatedClean: which surface actually rendered (R15a, P2)', () 
   })
 
   it('accepts a declared redirect, and only a declared one', () => {
+    const redirecting = {
+      ...HEALTHY,
+      visited: ['/', '/settings'],
+      rendered: { '/': 'Wallet', '/settings': 'Settings' },
+      markers: { '/': ['/wallet'], '/settings': ['/settings'] },
+    }
     const expectedRedirects = { '/': '/wallet' }
-    expect(() =>
-      assertEvaluatedClean({
-        ...HEALTHY,
-        rendered: { '/': 'Wallet', '/settings': 'Settings' },
-        markers: { '/': ['/wallet'], '/settings': ['/settings'] },
-        expectedRedirects,
-      }),
-    ).not.toThrow()
+
+    expect(() => assertEvaluatedClean({ ...redirecting, expectedRedirects })).not.toThrow()
 
     // Declared, so the redirect is the expectation — a `/` that renders `/` has stopped redirecting
     // and the gate says so rather than shrugging at a prefix match.
     expect(() =>
-      assertEvaluatedClean({ ...HEALTHY, expectedRedirects }),
+      assertEvaluatedClean({
+        ...redirecting,
+        markers: { '/': ['/'], '/settings': ['/settings'] },
+        expectedRedirects,
+      }),
     ).toThrow(/route \/ rendered '\/' — a DIFFERENT route's surface \(expected '\/wallet'\)/)
+
+    // And UNDECLARED, the same page is a different route's surface — which is the failure the map
+    // exists to distinguish a real redirect from.
+    expect(() =>
+      assertEvaluatedClean({ ...redirecting, expectedRedirects: {} }),
+    ).toThrow(/route \/ rendered '\/wallet' — a DIFFERENT route's surface \(expected '\/'\)/)
   })
 
   it('names an empty identity as an empty identity, not as another route', () => {
@@ -534,6 +561,183 @@ describe('assertEvaluatedClean: which surface actually rendered (R15a, P2)', () 
   })
 })
 
+// ---- 6-3: the shipped redirect ---------------------------------------------------------------------
+
+/** The cold open, as `evaluate()` reports it: `/` was visited and `/wallet`'s surface came back. */
+const COLD_OPEN = {
+  ...HEALTHY,
+  visited: ['/', '/settings'],
+  rendered: { '/': 'Wallet', '/settings': 'Settings' },
+  markers: { '/': ['/wallet'], '/settings': ['/settings'] },
+}
+
+describe('the declared cold open: `/` renders `/wallet`', () => {
+  it('is the module default, which is what makes it ONE line for both gates', () => {
+    // `main()` in build-web.mjs and `smoke-sdk-build.mjs` both call `assertEvaluatedClean` without
+    // an `expectedRedirects` argument, so both inherit this object. Asserting the export is
+    // asserting what those two gates believe.
+    expect(EXPECTED_REDIRECTS).toEqual({ '/': '/wallet' })
+  })
+
+  it('accepts the cold open with no expectedRedirects argument at all', () => {
+    expect(() => assertEvaluatedClean(COLD_OPEN)).not.toThrow()
+  })
+
+  it('fails the same call the moment `/` stops redirecting', () => {
+    // The regression this guards is not exotic: delete `beforeLoad` from `routes/index.tsx` and the
+    // app still builds, still evaluates, and opens on a route with no product on it.
+    expect(() =>
+      assertEvaluatedClean({ ...COLD_OPEN, markers: { ...COLD_OPEN.markers, '/': ['/'] } }),
+    ).toThrow(/route \/ rendered '\/' — a DIFFERENT route's surface \(expected '\/wallet'\)/)
+  })
+
+  it('names routes that exist in THIS repository, on both sides of the arrow', () => {
+    // A redirect declared to a route that has been deleted would make the gate demand a surface
+    // that cannot render, and the failure would read as though the app were broken rather than the
+    // map. Asserted as a property of the generated tree, so adding routes never edits this test.
+    const paths = routePathsFromGeneratedTree(join(REPO_ROOT, 'apps/web/src/routeTree.gen.ts'))
+    for (const [from, to] of Object.entries(EXPECTED_REDIRECTS)) {
+      expect(paths, `${from} is declared as redirecting but is not a route`).toContain(from)
+      expect(paths, `${from} redirects to ${to}, which is not a route`).toContain(to)
+    }
+  })
+})
+
+// ---- 6-3: the cold-open surface stays in the entry --------------------------------------------------
+
+/** The route files this app has, and the chunk names the pinned bundler gives the split ones. */
+const ROUTE_FILES = [
+  'index.tsx',
+  'wallet.tsx',
+  'chat.tsx',
+  'swap.tsx',
+  'bridge.tsx',
+  'markets.tsx',
+  'launch.tsx',
+  'settings.tsx',
+  'activity.$id.tsx',
+  'pay.$address.tsx',
+]
+
+const ENTRY = 'index-CO2z40uQ.js'
+const SPLIT_CHUNKS = [
+  'assets/chat-B97lanbA.js',
+  'assets/swap-C6abQ9ZA.js',
+  'assets/bridge-uxa5ftWu.js',
+  'assets/markets-BS9NTS2-.js',
+  'assets/launch--QmUz3uA.js',
+  'assets/settings-D4wOeVfT.js',
+  'assets/activity._id-DzBccMk2.js',
+  'assets/pay._address-CtevTrQo.js',
+  'assets/preload-helper-DzsIKeED.js',
+  'assets/rolldown-runtime-CbXtAM7H.js',
+]
+
+const HEALTHY_DIST = { jsFiles: [`assets/${ENTRY}`, ...SPLIT_CHUNKS], entryFile: ENTRY, routeFiles: ROUTE_FILES }
+
+describe('the eager-route rule the byte budget cannot express', () => {
+  it('passes the shipped shape: every surface split except the one `/` redirects to', () => {
+    expect(eagerRouteProblems(HEALTHY_DIST)).toEqual([])
+  })
+
+  it('THE RED — a `/wallet` chunk is the cold open becoming a second round trip', () => {
+    const problems = eagerRouteProblems({
+      ...HEALTHY_DIST,
+      jsFiles: [...HEALTHY_DIST.jsFiles, 'assets/wallet-pGh4Xt0j.js'],
+    })
+    expect(problems).toHaveLength(1)
+    expect(problems[0]).toMatch(/the 'wallet' route was emitted as its own chunk \(wallet-pGh4Xt0j\.js\)/)
+  })
+
+  it('is invisible to the byte budget, which is why it exists', () => {
+    // Splitting moves bytes between files; it does not add them. The budget sums every emitted `.js`,
+    // so the same total describes both trees and no threshold can tell them apart.
+    const split = [...HEALTHY_DIST.jsFiles, 'assets/wallet-pGh4Xt0j.js']
+    expect(split.length).toBeGreaterThan(HEALTHY_DIST.jsFiles.length)
+    expect(eagerRouteProblems(HEALTHY_DIST)).toEqual([])
+    expect(eagerRouteProblems({ ...HEALTHY_DIST, jsFiles: split })).not.toEqual([])
+  })
+
+  it('reports that it has gone BLIND when chunks stop being named after routes', () => {
+    // The vacuous pass this closes: with hashed-only chunk names, "no chunk is called wallet" is
+    // true of a tree where `/wallet` IS split. Silence would be the wrong answer.
+    const opaque = { ...HEALTHY_DIST, jsFiles: [`assets/${ENTRY}`, 'assets/a1b2c3.js', 'assets/d4e5f6.js'] }
+    const problems = eagerRouteProblems(opaque)
+    expect(problems).toHaveLength(1)
+    expect(problems[0]).toMatch(/only 0 route\(s\) were found as their own chunk/)
+  })
+
+  it('refuses when the route it protects no longer exists', () => {
+    const problems = eagerRouteProblems({
+      ...HEALTHY_DIST,
+      routeFiles: ROUTE_FILES.filter((f) => f !== 'wallet.tsx'),
+    })
+    expect(problems.some((p) => /'wallet' is required to be eager but no route file produces it/.test(p))).toBe(true)
+  })
+
+  it('reads the entry chunk out of the artifact rather than guessing which one it is', () => {
+    expect(
+      entryChunkFromHtml('<script type="module" crossorigin src="/assets/index-CO2z40uQ.js"></script>'),
+    ).toBe(ENTRY)
+    expect(() => entryChunkFromHtml('<html><body>no module script</body></html>')).toThrow(
+      /declares no `<script type="module"/,
+    )
+  })
+
+  it("holds against this repository's own committed route files", () => {
+    // A property, not a copy: the fixture above must keep describing the real tree. If a route is
+    // added or renamed and `ROUTE_FILES` is not, the two stop agreeing and this says so.
+    const real = routeLeafFiles(join(REPO_ROOT, 'apps/web/src/routes'))
+    expect(real.slice().sort()).toEqual(ROUTE_FILES.slice().sort())
+  })
+})
+
+// ---- 6-3: `fullPath`, not `Route.id`, and not `location.pathname` -----------------------------------
+
+/** The literal path the gate visits for `pay.$address.tsx`, straight out of the `fullPaths:` union. */
+const PARAM_PATH = '/pay/$address'
+
+/**
+ * What the ROUTER puts in the address bar once it has matched that literal path.
+ *
+ * Measured with the router's own exported `interpolatePath`, not with a string typed here: it
+ * rebuilds the location from the matched route and its params, and `encodePathParam` runs
+ * `encodeURIComponent` over each one. The param value on this visit is the four-character string
+ * `"$address"`, and `$` does not survive that.
+ */
+const { interpolatedPath: PARAM_PATHNAME } = interpolatePath({
+  path: PARAM_PATH,
+  params: { address: '$address' },
+})
+
+describe('the route-identity marker is the fullPath (6-3)', () => {
+  it('the router encodes the literal param back into the URL', () => {
+    expect(PARAM_PATHNAME).toBe('/pay/%24address')
+    expect(PARAM_PATHNAME).not.toBe(PARAM_PATH)
+  })
+
+  it('the gate does no decoding, normalization or `$`-awareness — it compares strings', () => {
+    const visited = [PARAM_PATH]
+    expect(() =>
+      assertEvaluatedClean({
+        ...HEALTHY,
+        visited,
+        rendered: { [PARAM_PATH]: 'Pay' },
+        markers: { [PARAM_PATH]: [PARAM_PATH] },
+      }),
+    ).not.toThrow()
+
+    expect(() =>
+      assertEvaluatedClean({
+        ...HEALTHY,
+        visited,
+        rendered: { [PARAM_PATH]: 'Pay' },
+        markers: { [PARAM_PATH]: [PARAM_PATHNAME] },
+      }),
+    ).toThrow(/rendered '\/pay\/%24address' — a DIFFERENT route's surface \(expected '\/pay\/\$address'\)/)
+  })
+})
+
 // ---- the browser half: what evaluate() reads off a real document ----------------------------------
 
 /**
@@ -556,6 +760,10 @@ function surfaceScript({
   text = 'surface',
   lateConsoleError = null,
   lateConsoleErrorMs = 150,
+  // What the ROUTER does to the address bar before anything renders: it rebuilds the location from
+  // the matched route and its params and commits that. On a `$param` route the rebuilt path is not
+  // the path that was requested, which is the entire point of the case below.
+  commitPath = null,
 } = {}) {
   const ids = markerList ?? (marker === null ? [] : [marker])
   const attach = ids
@@ -574,6 +782,7 @@ function surfaceScript({
     : `setTimeout(attach, ${renderAfterMs})`
   return `
 window.__X__ = { network: 'mainnet' }
+${commitPath ? `history.replaceState(null, '', ${JSON.stringify(commitPath)})` : ''}
 function attach() {${attach}
 }
 ${trigger}
@@ -627,13 +836,13 @@ describe('evaluate: the marker comes off the real document', () => {
   it('captures one marker per route, and the healthy tree passes end to end', async () => {
     const dir = artifact()
     const { markers, rendered, errors, consoleErrors, published, visited } = await evaluateArtifact(dir, [
-      '/',
+      '/wallet',
       '/settings',
     ])
 
-    expect(visited).toEqual(['/', '/settings'])
-    expect(markers).toEqual({ '/': ['/'], '/settings': ['/settings'] })
-    expect(rendered).toEqual({ '/': 'surface', '/settings': 'surface' })
+    expect(visited).toEqual(['/wallet', '/settings'])
+    expect(markers).toEqual({ '/wallet': ['/wallet'], '/settings': ['/settings'] })
+    expect(rendered).toEqual({ '/wallet': 'surface', '/settings': 'surface' })
     expect(() =>
       assertEvaluatedClean({
         label: 'test',
@@ -816,6 +1025,57 @@ describe('evaluate: the marker comes off the real document', () => {
         markers,
       }),
     ).toThrow(/route \/settings rendered 2 \[data-route-id\] markers \('\/wallet', '\/settings'\)/)
+  }, 60_000)
+
+  it('visits the `$param` path literally, and the fullPath marker matches it', async () => {
+    // What the gate actually does with `/pay/$address`: it joins it onto the preview origin and
+    // navigates. `$` is a legal path character, so nothing encodes it on the way out — the surface
+    // is asked for the template and answers with the template.
+    const dir = artifact({ marker: JSON.stringify(PARAM_PATH), text: 'Pay' })
+    const { markers, rendered, errors, consoleErrors, published, visited } = await evaluateArtifact(dir, [
+      PARAM_PATH,
+    ])
+
+    expect(visited).toEqual([PARAM_PATH])
+    expect(markers).toEqual({ [PARAM_PATH]: [PARAM_PATH] })
+    expect(() =>
+      assertEvaluatedClean({
+        label: 'test',
+        errors,
+        consoleErrors,
+        published,
+        globalName: '__X__',
+        visited,
+        rendered,
+        markers,
+      }),
+    ).not.toThrow()
+  }, 60_000)
+
+  it('THE RED — the same surface emitting `location.pathname` fails a route with nothing wrong with it', async () => {
+    // The only change from the case above is WHICH string the surface names itself with. The
+    // document commits the router's own rebuilt location first — that is not a contrivance, it is
+    // what the router does before the surface renders — and `location.pathname` is then the encoded
+    // form. A marker read off the address bar is therefore red on a healthy `$param` route, which is
+    // exactly the trap the attribute's name (`data-route-id`) invites.
+    const dir = artifact({ commitPath: PARAM_PATHNAME, text: 'Pay' })
+    const { markers, rendered, errors, consoleErrors, published, visited } = await evaluateArtifact(dir, [
+      PARAM_PATH,
+    ])
+
+    expect(markers).toEqual({ [PARAM_PATH]: [PARAM_PATHNAME] })
+    expect(() =>
+      assertEvaluatedClean({
+        label: 'test',
+        errors,
+        consoleErrors,
+        published,
+        globalName: '__X__',
+        visited,
+        rendered,
+        markers,
+      }),
+    ).toThrow(/rendered '\/pay\/%24address' — a DIFFERENT route's surface/)
   }, 60_000)
 
   it('reports a page that never renders a marker as the absence it is', async () => {
