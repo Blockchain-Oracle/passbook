@@ -6,7 +6,7 @@
 // WHAT THIS OWNS. The whole of tokens.css. It is generated, committed, and never hand-edited —
 // `scripts/lint-tokens.mjs` re-renders on every `npm run lint` and fails when the committed sheet
 // and the yaml disagree. To change a value you edit `tokens.yaml`, which is the verbatim copy of
-// `DESIGN.md`'s frontmatter (`npm run tokens:verbatim` byte-compares the two locally).
+// `DESIGN.md`'s frontmatter, which is gitignored working material.
 //
 // This is a clone of the `render-topology.mjs` / `lint-topology.mjs` pair — the repository's
 // already-built answer to "generated artifact + freshness diff" — with `build-web.mjs`'s
@@ -512,7 +512,7 @@ export function render(yamlSource) {
     ' *',
     ' * Regenerate with `npm run render:tokens`. `npm run lint` re-renders and fails when this file',
     ' * and the yaml disagree, so a hand-edit here is caught rather than shipped. tokens.yaml is the',
-    " * verbatim frontmatter of the UX design authority; `npm run tokens:verbatim` proves that",
+    " * verbatim frontmatter of the UX design authority.",
     ' * locally. The banner carries the SOURCE HASH and no timestamp, so regenerating an unchanged',
     ' * sheet produces a byte-identical file and the gate stays about drift.',
     ' */',

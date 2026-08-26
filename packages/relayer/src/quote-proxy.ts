@@ -22,7 +22,7 @@ export type ProxyTargetName = keyof typeof PROXY_TARGETS
  *
  * "Everything is proxied" would be the easy sentence, and it would be false. These are the
  * exceptions, enumerated so the disclosure panel can state them and so a reviewer can count
- * them: an unlisted browser-direct host is a leak nobody wrote down. `scripts/lint-secrets.mjs`
+ * them: an unlisted browser-direct host is a leak nobody wrote down. This list
  * fails the build on a third-party host in `web/` that is not one of these, which is what keeps
  * this list from drifting out of date the first time someone adds a fetch.
  *

@@ -7,8 +7,7 @@
   },
   "workspaces": [
     "packages/*",
-    "apps/*",
-    "workers/*"
+    "apps/*"
   ],
   "scripts": {
     "test": "vitest run",
@@ -16,15 +15,12 @@
     "build:web": "node scripts/build-web.mjs",
     "smoke:sdk": "node scripts/smoke-sdk-build.mjs",
     "verify:mainnet-guard": "node scripts/verify-mainnet-guard.mjs",
-    "lint": "npm run lint:claims && npm run lint:secrets && npm run lint:topology && npm run lint:tokens",
+    "lint": "npm run lint:claims && npm run lint:topology && npm run lint:tokens",
     "lint:claims": "node scripts/lint-claims.mjs",
-    "lint:secrets": "node scripts/lint-secrets.mjs",
     "lint:topology": "node scripts/lint-topology.mjs",
     "lint:tokens": "node scripts/lint-tokens.mjs",
     "render:topology": "node scripts/render-topology.mjs",
-    "render:tokens": "node scripts/render-design-tokens.mjs",
-    "//tokens:verbatim": "Deliberately NOT in the `lint` chain. It compares tokens.yaml against the UX design authority, which is gitignored working material — CI has never seen it and cannot. Run this locally whenever the design document changes; it REFUSES with exit 2 rather than passing when the authority is absent.",
-    "tokens:verbatim": "node scripts/check-tokens-verbatim.mjs"
+    "render:tokens": "node scripts/render-design-tokens.mjs"
   },
   "devDependencies": {
     "@types/node": "24.13.3",

@@ -25,13 +25,13 @@
 // WHAT IT SCANS, and why it is not just class strings. A raw hex in an authored `.css`, in a JSX
 // `style=` prop, in an SVG `fill=`, or inside `@apply` never appears in a class attribute at all,
 // and passes straight through the framework to the browser. So the scan covers CSS, HTML, SVG
-// presentation attributes and style props as well — this is the lint-claims / lint-secrets scan
+// presentation attributes and style props as well — this is the lint-claims scan
 // shape, not a framework feature.
 //
 //   node scripts/lint-tokens.mjs                     # the real tree, plus the freshness gate
 //   node scripts/lint-tokens.mjs --scan <path>       # only that file or directory, no freshness
 //
-// Run by `npm run lint`, beside lint-claims, lint-secrets and lint-topology.
+// Run by `npm run lint`, beside lint-claims and lint-topology.
 //
 import { existsSync, readFileSync, readdirSync, realpathSync, statSync } from 'node:fs'
 import { extname, join, relative, resolve } from 'node:path'

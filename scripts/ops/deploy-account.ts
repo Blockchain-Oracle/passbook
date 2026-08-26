@@ -18,8 +18,8 @@
 //
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { Account, RpcProvider, ec, hash } from 'starknet'
-import { ACTIVE_NETWORK, NET, STRK_TOKEN } from '../packages/protocol/src/constants.js'
-import { loadDotEnv } from '../packages/protocol/src/env.js'
+import { ACTIVE_NETWORK, NET, STRK_TOKEN } from '../../packages/protocol/src/constants.js'
+import { loadDotEnv } from '../../packages/protocol/src/env.js'
 // The class hash lives in account-lib.ts — an import-safe module — precisely so the
 // OTHER session scripts can share it without triggering this file's top-level run.
 import { OZ_ACCOUNT_CLASS_HASH } from './account-lib.js'

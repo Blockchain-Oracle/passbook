@@ -20,9 +20,9 @@
 //
 import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs'
 import { Account, RpcProvider, hash, json } from 'starknet'
-import { ACTIVE_NETWORK, NET, STRK_TOKEN } from '../packages/protocol/src/constants.js'
-import { loadDotEnv } from '../packages/protocol/src/env.js'
-import { EXPECTED_POOL_CLASS_HASH } from '../packages/protocol/src/message-book.js'
+import { ACTIVE_NETWORK, NET, STRK_TOKEN } from '../../packages/protocol/src/constants.js'
+import { loadDotEnv } from '../../packages/protocol/src/env.js'
+import { EXPECTED_POOL_CLASS_HASH } from '../../packages/protocol/src/message-book.js'
 
 // Must run before anything reads process.env, which the pre-flight below does.
 const envFile = loadDotEnv()

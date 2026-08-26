@@ -9,8 +9,8 @@
 // deploy-account.ts imports it back.
 //
 import { RpcProvider } from 'starknet'
-import { NET, STRK_TOKEN } from '../packages/protocol/src/constants.js'
-import { withFallback } from '../packages/protocol/src/rpc.js'
+import { NET, STRK_TOKEN } from '../../packages/protocol/src/constants.js'
+import { withFallback } from '../../packages/protocol/src/rpc.js'
 
 /**
  * The OpenZeppelin account class, declared on SN_MAIN. Both keypairs in `.env` were

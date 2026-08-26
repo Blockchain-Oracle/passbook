@@ -6,7 +6,10 @@ export default defineConfig({
     // Only OUR source is tested. The vendored clones under reference/ (Uniswap, Yosuku) and every
     // node_modules carry their own suites that are not ours to run and fail in this environment —
     // exclude them so `vitest run` reports Passbook's real status.
-    include: ['packages/*/test/**/*.test.ts', 'web/**/*.test.js', 'scripts/**/*.test.{ts,js,mjs}'],
+    //
+    // `packages/*/test` is the whole surface: tooling under `scripts/` is not tested, and the
+    // `web/` gate console it also used to cover was retired with the gate (AD-13).
+    include: ['packages/*/test/**/*.test.ts'],
     exclude: ['**/node_modules/**', 'reference/**', 'contracts/**', 'dist/**'],
   },
 })

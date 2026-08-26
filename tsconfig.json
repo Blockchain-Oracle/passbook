@@ -9,11 +9,7 @@
     "types": ["node"],
     "verbatimModuleSyntax": true
   },
-  "include": ["packages", "scripts"],
-  // `scripts/fixtures/` is adversarial INPUT, not source. `redteam-tokens.tsx` exists so
-  // `scripts/lint-tokens.mjs` has a realistic component full of banned classes to fail on; nothing
-  // imports it, builds it or runs it. Typechecking it would demand the React JSX configuration
-  // this Node-only program has no reason to carry — and the fixture has to keep looking exactly
-  // like a real component, so making it typecheck-clean is the wrong end to fix it from.
-  "exclude": ["scripts/fixtures"]
+  // `scripts/ops/` is included on purpose: those are one-shot mainnet operations that already ran,
+  // and a type error in one is how you find out an SDK upgrade changed a call they would repeat.
+  "include": ["packages", "scripts"]
 }

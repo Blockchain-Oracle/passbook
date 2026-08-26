@@ -95,7 +95,7 @@ export default defineConfig((configEnv) => {
   return {
     // No `.env` file loading. Note what this does NOT do: shell/CI `VITE_*` variables are still
     // inlined by Vite regardless. Closing that hole needs an unused `envPrefix` or a post-build
-    // dist assertion, and belongs to the deferred lint-secrets work.
+    // dist assertion, and is logged in deferred-work.md.
     envDir: false,
     plugins: [
       // Codegen must run before the React transform sees the route files.
