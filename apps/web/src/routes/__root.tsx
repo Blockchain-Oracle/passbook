@@ -17,7 +17,7 @@
 // consequence, accepted rather than worked around: this boundary never fires for a child's throw. It
 // is here for the root's own failures, which are the ones that take the whole shell with them.
 //
-import { Suspense, lazy, useCallback, useEffect, useState } from 'react'
+import { Suspense, lazy, useCallback, useEffect, useState, useSyncExternalStore } from 'react'
 import { createRootRoute, Link, Outlet, useNavigate } from '@tanstack/react-router'
 import { ACTIVE_NETWORK, NET } from '@strk20/protocol/constants'
 
@@ -25,6 +25,9 @@ import { MODES, MODE_LABELS, MODE_ROUTES, type Mode } from '../shell/modes'
 import { ERROR_ROUTE_ID, NotFoundSurface, Surface } from '../shell/Surface'
 import { bindPaletteShortcut } from '../shell/palette-binding'
 import type { PaletteCommand } from '../shell/CommandPalette'
+import { PipelineRow } from '../shell/PipelineRow'
+import { getHealth, setHealth, subscribeHealth, watchConnectivity } from '../shell/pool-health'
+import { DegradedStrip } from '../components/DegradedStrip'
 
 //
 // THE PALETTE IS CODE-SPLIT, AND NOT FOR THE BYTE GATE.
@@ -193,6 +196,21 @@ function RootLayout() {
         </div>
       </header>
 
+      {/*
+        THE DEGRADED STRIP SITS UNDER THE CHROME AND ABOVE EVERY SURFACE, because every state it
+        renders is app-wide — a paused pool stops all six surfaces at once, and repeating that
+        sentence per surface would be six places for it to drift.
+      */}
+      <ShellHealth />
+
+      {/*
+        THE PIPELINE ROW IS ABOVE THE OUTLET, AND THAT PLACEMENT IS THE ENTIRE DETACH MECHANISM.
+        Navigation swaps the outlet's subtree; anything mounted outside it never unmounts, so a
+        running pipeline cannot be lost at the crossing. Moving this inside the `<div>` below would
+        silently reintroduce the bug it exists to prevent, with no test able to see it.
+      */}
+      <PipelineRow />
+
       <div>
         <Outlet />
       </div>
@@ -215,6 +233,50 @@ function RootLayout() {
         </Suspense>
       ) : null}
     </>
+  )
+}
+
+/**
+ * The live pool-health poll and the strip it feeds.
+ *
+ * ── IT RENDERS NOTHING UNTIL IT KNOWS SOMETHING ───────────────────────────────────────────
+ *
+ * The initial state is `null` — no strip, no skeleton, no space held. A degraded strip that
+ * appears optimistically and retracts is worse than one that arrives a second late: the first
+ * paint would claim a pool state nobody had read yet, on a surface whose entire argument is that
+ * it never claims what it has not measured.
+ *
+ * The read is behind a dynamic import (see `pool-health.ts`) so the chain client never enters the
+ * eager chunk. The poll runs at block cadence, not faster — §5 is explicit that this is a block
+ * cadence question, and a tighter loop would spend a user's battery on a value that cannot change
+ * between blocks.
+ */
+function ShellHealth() {
+  // ONE READER FOR THE WHOLE APP. Surfaces read the same store to relabel their own CTAs — see
+  // `pool-health.ts` on why re-deriving this per surface is both wasteful and unsafe.
+  const reading = useSyncExternalStore(subscribeHealth, getHealth, getHealth)
+
+  // Connectivity is the one degraded state the browser answers on its own, for zero bytes. The
+  // chain-backed modes are wired where chain reads have a byte budget — `build:web` rejects the
+  // starknet graph in ANY chunk of this bundle, lazy included, and it was right to.
+  useEffect(() => watchConnectivity(), [])
+
+  return (
+    <DegradedStrip
+      mode={reading.mode}
+      upgrade={reading.upgrade}
+      //
+      // §5 MAKES THE CHAT LINE CONDITIONAL, so the strip needs the two facts to choose between
+      // "Chat still works" and "New rooms can't open". Zero rooms and an unhealthy transport is
+      // the truthful answer until the chat surface exists — and it is the CONSERVATIVE branch,
+      // which renders the limitation rather than the promise. Passing nothing at all, as the first
+      // version did, meant §5's sentence could never appear on any paused strip.
+      //
+      chat={{ openRooms: 0, transportHealthy: false }}
+      // The only actionable degraded state in the table, and its button is gated on this handler.
+      // Re-reading is what "Try again" means; today that is re-evaluating connectivity.
+      onRetry={() => setHealth({ mode: null })}
+    />
   )
 }
 

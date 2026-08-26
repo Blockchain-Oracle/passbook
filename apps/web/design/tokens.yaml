@@ -169,6 +169,11 @@ easings:
   glide:     "cubic-bezier(0.25,0.46,0.45,0.94)"     # content: crossfades, slot swaps
   settle:    "cubic-bezier(0.25,0.1,0.25,1)"         # scrims and long overlays
   attention: "cubic-bezier(0.17,0.17,0,1)"           # [SIG] the one 1.2s cue
+  # INDETERMINATE MOTION ONLY. Every curve above is a curve on purpose — chrome and content should
+  # ease. A CONTINUOUSLY ROTATING ring must not: an eased revolution visibly accelerates and
+  # decelerates once per turn, and that cadence reads as progress events on a computation we do not
+  # own (§7.7's honesty split). Never reach for this on a transition.
+  linear:    "linear"
 motion:
   simple:        { duration: 80,   easing: simple }
   fastExit:      { duration: 80,   easing: snap }
@@ -181,6 +186,10 @@ motion:
   quickLong:     { duration: 300,  easing: glide }
   lazy:          { duration: 500,  easing: settle }
   attention:     { duration: 1200, easing: attention }   # [SIG]
+  # The hosted prover's indeterminate ring. §7.7, EXPERIENCE §4.2 and the §5 state table all name
+  # "750ms linear" in prose; this is that value transcribed into the frontmatter the generator
+  # reads, not a new preference.
+  ring:          { duration: 750,  easing: linear }
   stagger: 40
   properties: "transform + opacity only; never color, never layout height"
 

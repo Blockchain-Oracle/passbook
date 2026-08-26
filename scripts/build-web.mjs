@@ -40,6 +40,7 @@ import { build, createLogger } from 'vite'
 import {
   designProblems,
   expectedGrounds,
+  progressProblems,
   readDesign,
   reservedHeightProblems,
 } from './assert-design-shipped.mjs'
@@ -712,6 +713,24 @@ async function main() {
   console.log(
     '[build:web] value spine reserves its space — amount row and balance line both hold their ' +
       'height, balance line mounted at opacity 0, field border present at rest',
+  )
+
+  //
+  // THE PROGRESS MACHINE CANNOT REFLOW OR OVERCLAIM (story 6.5). A third verdict for the same
+  // reason there is a second: three distinct findings, and merging any two of them into one
+  // message would tell whoever reads it less than either would alone.
+  //
+  const progressFailures = progressProblems({ read })
+  if (progressFailures.length) {
+    throw new Error(
+      `[build:web] the progress machine is not built to §7.7:\n  - ${progressFailures.join('\n  - ')}`,
+    )
+  }
+  console.log(
+    '[build:web] progress machine holds its shape — step row measured at 40px on both min-height ' +
+      'and height, ring resolves to a linear curve on a positive duration and iterates infinitely, ' +
+      'connector dotted AND measured taller than zero, reduced motion stops the ring by name, ' +
+      're-consent and pipeline rows reserve the row height',
   )
 
   console.log('[build:web] OK')
