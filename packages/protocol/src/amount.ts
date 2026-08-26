@@ -135,7 +135,7 @@ export type RenderedAmount = ScaledAmount | RawUnitAmount
  * through `Intl.NumberFormat` so the output does not depend on the machine's locale — a test that
  * passes here and fails on a French CI runner is worse than either choice.
  */
-function group(digits: string): string {
+export function groupDigits(digits: string): string {
   return digits.replace(/\B(?=(\d{3})+(?!\d))/g, ',')
 }
 
@@ -157,14 +157,14 @@ export function formatTokenAmount(
 
   // RULE 2. No scale, no scaling. The unit is the caller's to name; this only refuses to invent
   // a decimal point that would move the value by orders of magnitude.
-  if (decimals === null) return { kind: 'raw-units', sign, units: group(abs.toString()) }
+  if (decimals === null) return { kind: 'raw-units', sign, units: groupDigits(abs.toString()) }
 
   if (!Number.isInteger(decimals) || decimals < 0) {
     throw new Error(`a token's decimals must be a whole number, not ${String(decimals)}`)
   }
 
   const base = 10n ** BigInt(decimals)
-  const whole = group((abs / base).toString())
+  const whole = groupDigits((abs / base).toString())
   const remainder = abs % base
 
   if (remainder === 0n) return { kind: 'scaled', sign, whole, hiddenZeros: 0, fraction: '', truncated: false }

@@ -15,7 +15,12 @@
 // caller intends to use. Epic 6 owns the subscript rendering; this owns the truth it renders.
 //
 
-import { DEFAULT_DISPLAY_DECIMALS, KNOWN_TOKEN_DECIMALS, isDustAt } from './token-scale.js'
+import {
+  DEFAULT_DISPLAY_DECIMALS,
+  KNOWN_TOKEN_DECIMALS,
+  isDustAt,
+  lookupDecimals,
+} from './token-scale.js'
 import { toFeltHex } from './discovery.js'
 import type { DiscoveryResult } from './discovery.js'
 import type { ShieldedBalancePresence } from './backup-cadence.js'
@@ -87,39 +92,16 @@ export interface BalanceOptions {
   displayDecimals?: number
 }
 
-/**
- * Looks a token's decimals up by FELT VALUE, never by string equality.
- *
- * The same address has many spellings. `constants.ts` writes `STRK_TOKEN` padded to 64 hex
- * digits, the discovery walk emits the unpadded form its `AddressMap` keys normalize to, and a
- * caller supplying their own map will use whichever they had. String-keyed lookup silently
- * misses across any two of those — and a miss here is not a crash, it is a `null` verdict that
- * reads as "we cannot say whether this is dust" for a token whose decimals we know perfectly
- * well. Comparing `BigInt(a) === BigInt(b)` is the `send.ts` `same()` precedent, and it makes
- * every spelling of an address the same address.
- *
- * A malformed key in a caller-supplied map is skipped rather than thrown on: the map is
- * decoration for a balance, and one bad entry must not take the balance down with it.
- */
-export function lookupDecimals(
-  table: Readonly<Record<string, number>>,
-  token: string,
-): number | null {
-  let wanted: bigint
-  try {
-    wanted = BigInt(token)
-  } catch {
-    return null
-  }
-  for (const [key, decimals] of Object.entries(table)) {
-    try {
-      if (BigInt(key) === wanted) return decimals
-    } catch {
-      continue
-    }
-  }
-  return null
-}
+//
+// MOVED TO `token-scale.ts` (story 6.6), RE-EXPORTED HERE so no caller changed.
+//
+// It is pure `BigInt` comparison and never needed anything this module imports — but living here
+// made it unreachable from a browser, because this module's first import reaches the privacy SDK.
+// The receipt page is the first UI caller that looks a token up by an address taken from chain
+// data rather than from `constants.ts`, which is exactly the case 6.4's review predicted would
+// silently return `undefined` from a direct index into the string-keyed map.
+//
+export { lookupDecimals } from './token-scale.js'
 
 /** One token address's canonical spelling, or `null` when it is not a felt at all. */
 function canonicalToken(token: string): string | null {

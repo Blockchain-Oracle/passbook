@@ -1039,6 +1039,224 @@
   }
 
   /*
+   * ── The activity feed (§2.3, §4.8) ─────────────────────────────────────────────────────
+   *
+   * THE ROW IS `.option-row`. There is no `.activity-row-inner`, and that is the point: the design
+   * authority states this row's own geometry as `components.activityRow: { radius: 16, py: 8,
+   * gap: 12, icon: 40 }` and `.option-row-inner` above already ships every one of those four. A
+   * second recipe would be four numbers that agree today.
+   */
+  .activity-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-s4);
+  }
+
+  .activity-row {
+    display: block;
+  }
+
+  /*
+   * Hover and keyboard focus are ONE state (§6), so the row lights up from either — and the focus
+   * half is `:focus-within` because the thing that takes focus is the title link inside the row,
+   * not the row itself. Without it, tabbing through the feed moves a ring around inside rows that
+   * never change, which reads as nothing happening.
+   */
+  .activity-row:hover .option-row-inner,
+  .activity-row:focus-within .option-row-inner {
+    background-color: var(--color-raisedHovered);
+  }
+
+  /* The link is the title, not the row — see `OptionRowBody`'s `titleTo` on why. */
+  .option-row-title-link {
+    color: inherit;
+    text-decoration: none;
+  }
+
+  .activity-controls {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--spacing-s12);
+    flex-wrap: wrap;
+  }
+
+  .activity-tabs {
+    display: flex;
+    gap: var(--spacing-s4);
+  }
+
+  .activity-tab {
+    padding: var(--spacing-s4) var(--spacing-s12);
+    border-radius: var(--radius-pill);
+    color: var(--color-neutral2);
+    font-size: var(--text-body3);
+    line-height: var(--text-body3--line-height);
+    cursor: default;
+  }
+
+  /*
+   * `data-active`, AND THE SPELLING IS NOT A DETAIL. The component library's own contract for this
+   * part is `tabs/tab/TabsTabDataAttributes.d.ts`: `active = "data-active"`. It has no
+   * `data-selected`, so the obvious guess renders the chosen tab identically to the other one — a
+   * rule that is valid CSS, compiles, and selects nothing. Presence selector because the attribute
+   * is boolean (present or absent), which is the same trap `.option-row[data-highlighted]` records.
+   *
+   * Three channels, not one: fill, ink and weight. A tab distinguished by fill alone disappears in
+   * greyscale, and the accent tints in this sheet are eight-percent washes.
+   */
+  .activity-tab[data-active] {
+    background-color: var(--color-inset);
+    color: var(--color-neutral1);
+    font-weight: var(--font-weight-medium);
+  }
+
+  /*
+   * The filter reads as a chip because it states a FACT about the list — but it is the one control
+   * on this surface that changes what is shown, so it keeps the pointer affordance. An earlier
+   * version set `cursor: default` to match the chip recipe and made the only action on the feed
+   * the least discoverable thing on it.
+   */
+  .activity-filter {
+    cursor: pointer;
+  }
+
+  .activity-filter[aria-pressed='false'] {
+    color: var(--color-neutral2);
+  }
+
+  /*
+   * ── The right-edge slot, and the whole reason it is a slot ─────────────────────────────
+   *
+   * §4.8: "pending/confirmed is a slot-swap at the right edge (timestamp ↔ spinner ↔ static ring)".
+   * The reserve is what makes it a swap rather than an appearance — a block label, a 24px ring and
+   * an inline Retry are three different widths, and without a floor the row's text re-wraps every
+   * time the state changes. `s60` clears the widest of the three, and the build gate resolves this
+   * declaration to a number rather than checking it is spelled.
+   */
+  .activity-right {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: var(--spacing-s8);
+    flex: none;
+    min-width: var(--spacing-s60);
+    white-space: nowrap;
+    text-align: right;
+  }
+
+  /*
+   * A STILL RING, AND THE STILLNESS IS THE CLAIM. §4.8: "queued/maturing is a static neutral3
+   * ring — a still ring means the clock runs, nothing is stuck".
+   *
+   * Same geometry as `.step-ring` and deliberately NOT that class. That spinner exists because we
+   * cannot observe a hosted prover's progress; nothing is being observed while a note ages, so a
+   * turning ring here would claim a watch that is not happening. There is no `animation-name` in
+   * this rule and `activityProblems` in the build gate fails if one appears — the inverse of the
+   * assertion it makes about `.step-ring`, for the opposite reason.
+   */
+  .activity-ring-static {
+    width: var(--spacing-s24);
+    height: var(--spacing-s24);
+    border-radius: var(--radius-pill);
+    border: var(--spacing-s2) solid var(--color-neutral3);
+  }
+
+  /* AMBER, NEVER RED. Nothing in this feed is irreversible — a failed send charged nothing. */
+  .activity-failed-mark {
+    color: var(--color-exposed);
+  }
+
+  .activity-retry {
+    padding: var(--spacing-s2) var(--spacing-s8);
+    border: var(--spacing-s1) solid var(--color-exposed);
+    border-radius: var(--radius-badge);
+    color: var(--color-neutral1);
+    font-size: var(--text-body4);
+    line-height: var(--text-body4--line-height);
+  }
+
+  /*
+   * NO SENTENCE LIVES IN THE SLOT, and an earlier version put one there.
+   *
+   * `.activity-right` is `flex: none`, so an unbounded child sizes the slot to its own content and
+   * `.option-row-main` (`flex: 1 1 auto; min-width: 0`) collapses to pay for it — the title then
+   * re-wraps on exactly the state transition the reserve exists to prevent. "Submitted, not yet
+   * indexed" is a fact about the row, so it goes where facts about rows go: the subtitle, in the
+   * anatomy's own middle column. What stays here is the ACTION, which is two words wide.
+   */
+  .activity-not-indexed {
+    color: var(--color-neutral2);
+    font-size: var(--text-body4);
+    line-height: var(--text-body4--line-height);
+  }
+
+  /*
+   * ONE CUE, ONCE. §4.8: a matured row "gains its timestamp without reflow and plays the 1.2s
+   * attention highlight once — never a toast".
+   *
+   * `animation-iteration-count: 1` is the whole "once", and it is enforced here rather than by a
+   * timer in the component: a cue whose lifetime is a `setTimeout` outlives the component that
+   * scheduled it, and a re-render cannot restart a CSS animation whose class never left the
+   * element. Background only — the row must not move, because a row that jumps is a reflow in the
+   * list the user is reading.
+   */
+  /*
+   * `accent2`, AND THIS TIME THE TOKEN IS BEING USED FOR WHAT IT IS.
+   *
+   * 6.5 painted a ring's BORDER in `accent2` and shipped an invisible spinner, because an
+   * eight-percent wash is a fill and not ink. Here it is a fill, which is the one thing it is for
+   * (`tokens.yaml` calls it the filled-accent background), so the same token that failed there is
+   * correct here. Worked out rather than assumed: over `ground` (#FCFAF6), 8% of #8C2F1E composites
+   * to roughly #F3EAE5 — a 9/16/17 RGB shift, on a par with the row's own hover fill and moving,
+   * which is what makes a cue a cue.
+   *
+   * `accent2Hovered` (12%) would read louder and is deliberately not used: reaching for a token by
+   * its value rather than its name is how a vocabulary stops meaning anything, and that is the same
+   * mistake as 6.5's from the other direction.
+   */
+  @keyframes pb-attention {
+    0%,
+    100% {
+      background-color: transparent;
+    }
+    30% {
+      background-color: var(--color-accent2);
+    }
+  }
+
+  .attention-highlight .option-row-inner {
+    animation-name: pb-attention;
+    animation-duration: var(--transition-duration-attention);
+    animation-timing-function: var(--ease-attention);
+    animation-iteration-count: 1;
+  }
+
+  /* The receipt's two columns: label above value on narrow, side by side once there is room. */
+  .receipt {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: var(--spacing-s2) var(--spacing-s16);
+    margin-block-start: var(--spacing-s8);
+  }
+
+  .receipt dd {
+    margin-block-end: var(--spacing-s8);
+    overflow-wrap: anywhere;
+  }
+
+  @media (min-width: 30rem) {
+    .receipt {
+      grid-template-columns: max-content 1fr;
+      align-items: baseline;
+    }
+
+    .receipt dd {
+      margin-block-end: var(--spacing-s0);
+    }
+  }
+
+  /*
    * ── The global degraded strip (§5) ─────────────────────────────────────────────────────
    *
    * A HAIRLINE, NOT A BANNER. Grey is the default because grey is what facts and administrative
@@ -1157,6 +1375,18 @@
     .step-ring {
       animation-name: none;
       border-color: var(--color-neutral3);
+    }
+
+    /*
+     * The attention cue is a background fade with no movement in it, so there is nothing to still —
+     * but it is named here anyway, because "reduced motion" covers flashing as well as travel and a
+     * 1.2s colour pulse across a row is exactly the kind of thing a reader asks the OS to stop. It
+     * has to be named: the blanket `*` rule is specificity 0,0,0 and this is 0,2,0, so the base
+     * rule's own `animation-name` wins unless something overrides it by name. That is the finding
+     * 6.5's review recorded, applied here rather than repeated.
+     */
+    .attention-highlight .option-row-inner {
+      animation-name: none;
     }
   }
 }

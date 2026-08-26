@@ -38,6 +38,7 @@ import { fileURLToPath } from 'node:url'
 import { build, createLogger } from 'vite'
 
 import {
+  activityProblems,
   designProblems,
   expectedGrounds,
   progressProblems,
@@ -728,9 +729,29 @@ async function main() {
   }
   console.log(
     '[build:web] progress machine holds its shape — step row measured at 40px on both min-height ' +
-      'and height, ring resolves to a linear curve on a positive duration and iterates infinitely, ' +
-      'connector dotted AND measured taller than zero, reduced motion stops the ring by name, ' +
-      're-consent and pipeline rows reserve the row height',
+      'and height, ring names a keyframes block that exists and resolves to a linear curve on a ' +
+      'positive duration, iterating infinitely, connector dotted AND measured taller than zero, ' +
+      'reduced motion stops the ring by name, re-consent and pipeline rows reserve the row height',
+  )
+
+  //
+  // THE FEED SWAPS RATHER THAN APPEARS, AND ITS RING STANDS STILL (story 6.6). A fourth verdict,
+  // and the assertion it makes about `.activity-ring-static` is the exact INVERSE of the one above
+  // about `.step-ring` — one must turn because we are watching something, the other must not
+  // because we are not.
+  //
+  const activityFailures = activityProblems({ read })
+  if (activityFailures.length) {
+    throw new Error(
+      `[build:web] the activity feed is not built to §4.8:\n  - ${activityFailures.join('\n  - ')}`,
+    )
+  }
+  console.log(
+    '[build:web] activity feed holds its shape — right edge reserves its slot, the selected tab is ' +
+      'keyed on the attribute the library emits and changes two channels, the maturing ring has a ' +
+      'measurable border and NO animation in either spelling, the attention highlight names a real ' +
+      'keyframes block that moves nothing, reaches a colour somebody can actually see, resolves to ' +
+      'a positive duration and plays exactly once, reduced motion stops it by name',
   )
 
   console.log('[build:web] OK')

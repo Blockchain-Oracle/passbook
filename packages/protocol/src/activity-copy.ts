@@ -127,6 +127,107 @@ export const PERSONAL_FEED_EMPTY =
   'Nothing of yours in this range yet. Showing everything the pool did instead.'
 
 /**
+ * A completed read that found nothing. EXPERIENCE §5's Empty(NOTHING) row, verbatim.
+ *
+ * "As they confirm" is the load-bearing half: it says the list is a record of settled facts, so a
+ * user who has just pressed a button does not read the empty feed as their action disappearing.
+ */
+export const ACTIVITY_EMPTY_NOTHING = 'No activity yet. Actions you take appear here as they confirm.'
+
+/**
+ * NO READ HAS RUN. Not the same sentence as the one above, and that is the whole point.
+ *
+ * EXPERIENCE §5's cross-state rules require an `initialized` flag so empty is never confused with
+ * unloaded, and then author copy for only one of the two. This is the other one, written to the §3
+ * rules — states what did not happen, no operator vocabulary, never merged with Empty(NOTHING) —
+ * and ratified verbatim by Abu on 2026-08-26, the same handling story 6.5 gave the screening-flip
+ * GAP.
+ *
+ * `No activity yet` is a claim about the chain. Before a read has run, we have not looked, and
+ * saying otherwise during an outage tells a user their history is gone.
+ */
+export const FEED_UNREAD = "The pool hasn't been read yet — this list is unread, not empty."
+
+/**
+ * The 1-wei companion, labelled. `context/11` §4 verbatim.
+ *
+ * Told as structure, never as anomaly: every message-only pool transaction must carry an action
+ * that writes a write-once slot, so a message costs a note whether or not it moves value. A row
+ * the user cannot account for is a row they assume is a bug or a leak.
+ */
+export const SYSTEM_NOTE_LABEL = 'System note — the pool requires one per message-only transaction.'
+
+/**
+ * A submitted row the chain has not published yet, past the patience bound.
+ *
+ * IN TWO PARTS, because the second is a link and the first is not — §11 checklist 9 writes it as
+ * `Submitted, not yet indexed — [check on Voyager ↗]`, and the brackets are the link. Returning
+ * one flat string would force a component to find the anchor text inside the sentence again, which
+ * is the re-parsing `noResultsSentence` (`option-row.ts:137`) avoids for the same reason.
+ *
+ * The row NEVER VANISHES on this state (checklist 9). A transaction we submitted and cannot find
+ * is the one thing a user most needs to keep looking at.
+ */
+export const NOT_YET_INDEXED = 'Submitted, not yet indexed'
+
+/** The anchor text for the sentence above. Lowercase, because it continues the sentence. */
+export const CHECK_ON_VOYAGER = 'check on Voyager'
+
+/**
+ * The system-note filter, stating which way it is set.
+ *
+ * §5 requires system notes to be "filterable with visible filter state" — so the control says what
+ * it is currently doing rather than what pressing it would do. A toggle labelled with its action
+ * is a toggle whose state has to be inferred from styling, and a filter whose state is invisible
+ * is how a user concludes the feed lost rows.
+ */
+export const SYSTEM_NOTES_SHOWN = 'System notes: shown'
+export const SYSTEM_NOTES_HIDDEN = 'System notes: hidden'
+
+/**
+ * A list the FILTER emptied. The third way to reach a blank feed, and the third sentence.
+ *
+ * Without it, hiding system notes in a range that holds only system notes prints "No activity yet"
+ * — a claim about the chain, made because of a switch the user flicked. That is the same
+ * conflation `initialized` exists to prevent, arriving through a different door, so it gets the
+ * same treatment: say which of the three things is true.
+ */
+export const FILTERED_ALL_HIDDEN =
+  'Everything in this range is a system note, and system notes are hidden.'
+
+/**
+ * An id that a completed read did not turn up.
+ *
+ * "In the range loaded here" rather than "does not exist": the feed is a window (see
+ * `FEED_RANGE_INCOMPLETE`), so absence from it is not absence from the chain, and a receipt page
+ * that declared an entry non-existent would be overclaiming about a range it never read.
+ */
+export const RECEIPT_NOT_FOUND = "There's no entry with that id in the range loaded here."
+
+/** A row this browser submitted, on a page whose other fields only exist once it has settled. */
+export const RECEIPT_NOT_YET_ON_CHAIN =
+  'Submitted from this browser. Nothing has been published on chain for it yet.'
+
+/** The receipt's two honest blanks. Neither is an error, and neither is an empty cell. */
+export const RECEIPT_NO_COUNTERPARTY = 'Not named in the record.'
+export const RECEIPT_NOT_A_NOTE = 'This row is not about a note.'
+
+/**
+ * Marks a figure that has been cut short at display precision.
+ *
+ * `formatTokenAmount` returns `truncated` and a receipt is the one page whose job is exactness, so
+ * a shortened figure has to say it is shortened. The alternative is a number that looks exact and
+ * is not, on the page a bookkeeper reads.
+ */
+export const AMOUNT_TRUNCATED = 'shortened for display'
+
+/** The receipt's unit line when the receipt itself did not name one. Never a guessed unit. */
+export const FEE_UNIT_UNNAMED = 'units — the receipt did not name one'
+
+/** An amount whose token scale this repository has not verified. Shown exactly, in its own unit. */
+export const SCALE_UNVERIFIED = 'units — this token’s scale is unverified'
+
+/**
  * The feed reached its page cap before the range ran out.
  *
  * A window is not a history, and a feed that quietly truncated would make "your last

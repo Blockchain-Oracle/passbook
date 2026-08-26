@@ -23,7 +23,8 @@
 // `div` for the group — is then an invalid child of `ul`. Neutral elements carrying explicit roles
 // say exactly one thing about the structure instead of two things that have to agree.
 //
-import type { Ref } from 'react'
+import type { ReactNode, Ref } from 'react'
+import { Link, type LinkProps } from '@tanstack/react-router'
 
 import type { OptionRow as OptionRowModel } from '@strk20/protocol/option-row'
 import type { Confidence } from '@strk20/protocol/amount'
@@ -39,8 +40,39 @@ export function confidenceClass(confidence: Confidence): string {
   return confidence === 'unknown' ? 'text-neutral3 not-yet-real' : 'text-neutral2'
 }
 
-/** The shared anatomy. Everything inside the row's own box. */
-export function OptionRowBody({ row }: { row: OptionRowModel }) {
+/**
+ * The shared anatomy. Everything inside the row's own box.
+ *
+ * ── WHY `rightSlot` IS A PROP AND NOT A FIELD ON THE MODEL ────────────────────────────────
+ *
+ * `OptionRow.right` is a `Valued<string>` — a formatted value carrying its confidence. The
+ * activity row's right edge is not a value, it is a STATE: a block, a spinner, a still ring, a
+ * failure, or "not indexed yet". Widening the model to hold either would put a React node in a
+ * data type whose own header (`option-row.ts:36`) explains why it must never hold one — the search
+ * would have to reach into rendered children, and no test could assert against it.
+ *
+ * So the model stays data and the slot stays markup, and the ANATOMY is shared, which is the part
+ * that must never be written twice. The design authority agrees the two rows are one:
+ * `tokens.yaml`'s `components.activityRow` is `{ radius: 16, py: 8, gap: 12, icon: 40 }` and
+ * `.option-row-inner` already ships all four.
+ */
+export function OptionRowBody({
+  row,
+  rightSlot,
+  titleTo,
+}: {
+  row: OptionRowModel
+  rightSlot?: ReactNode
+  /**
+   * Makes the TITLE a link, rather than the caller wrapping the whole row in one.
+   *
+   * The activity feed's rows navigate to a receipt AND carry an explorer link or a Retry button in
+   * their right slot. Interactive content may not nest inside an anchor — the parser hoists an
+   * inner `<a>` out on any hydrated path and the tab order stops matching what is on screen — so
+   * the link goes on the one part of the row that is unambiguously the thing being named.
+   */
+  titleTo?: Pick<LinkProps, 'to' | 'params'>
+}) {
   return (
     <div className="option-row-inner">
       {/*
@@ -52,7 +84,13 @@ export function OptionRowBody({ row }: { row: OptionRowModel }) {
 
       <div className="option-row-main">
         <div className="option-row-title">
-          <span className="option-row-title-text">{row.title}</span>
+          {titleTo ? (
+            <Link {...titleTo} className="option-row-title-text option-row-title-link focus-ring">
+              {row.title}
+            </Link>
+          ) : (
+            <span className="option-row-title-text">{row.title}</span>
+          )}
           {row.titleSuffix ? (
             <span className="option-row-title-text text-neutral2">{row.titleSuffix}</span>
           ) : null}
@@ -82,11 +120,19 @@ export function OptionRowBody({ row }: { row: OptionRowModel }) {
 
       {row.tag ? <span className="text-body4 text-neutral2">{row.tag}</span> : null}
 
-      {row.right ? (
-        <span className={`option-row-right ${confidenceClass(row.right.confidence)}`}>
-          {row.right.value}
-        </span>
-      ) : null}
+      {/*
+        ONE RIGHT-HAND ELEMENT, EVER. `row.right` is a formatted value carrying its confidence and
+        `rightSlot` is a state; a row has one or the other and never both, so the slot wins when it
+        is supplied rather than the two rendering side by side. Written as an either/or rather than
+        two independent conditionals because the silent version of this bug is two right-hand
+        elements crowding each other, which reads as a layout fault rather than a caller mistake.
+      */}
+      {rightSlot ??
+        (row.right ? (
+          <span className={`option-row-right ${confidenceClass(row.right.confidence)}`}>
+            {row.right.value}
+          </span>
+        ) : null)}
     </div>
   )
 }
