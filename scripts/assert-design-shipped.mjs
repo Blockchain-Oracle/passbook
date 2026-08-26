@@ -271,12 +271,86 @@ export function readDesign({ css, html }) {
           resolved(css, attrRuleBody(css, `.cta[data-severity='${name}']`), 'background-color'),
         ]),
       ),
+
+      // ── The linkability meter — see `linkabilityProblems` ───────────────────────────────
+      //
+      // The digit machine's two numbers, RESOLVED TO MILLISECONDS. `animation-duration:
+      // var(--transition-duration-simple)` passes a presence check while rolling in 80ms, so the
+      // question has to be about the time and not about the spelling.
+      //
+      // The stagger is read off `.odometer`'s own custom property because that is where it lives:
+      // the model carries an ORDINAL and CSS multiplies, so this declaration is the only place in
+      // the artifact the 40ms exists.
+      odometerDurationMs: timeMs(resolved(css, ruleBody(css, '.odometer-track'), 'animation-duration')),
+      odometerStaggerMs: timeMs(resolved(css, ruleBody(css, '.odometer'), '--odometer-stagger')),
+      odometerDelay: prop(ruleBody(css, '.odometer-track'), 'animation-delay'),
+      // BOTH SPELLINGS, for `disclosureAnimation`'s reason: a roll written as the `animation`
+      // shorthand does the same thing and answers a different key.
+      odometerAnimation: [
+        prop(ruleBody(css, '.odometer-track'), 'animation-name'),
+        prop(ruleBody(css, '.odometer-track'), 'animation'),
+      ]
+        .filter(Boolean)
+        .join(' '),
+      // Tabular figures, which is what stops the count jittering as it rolls (EXPERIENCE:138).
+      odometerNumeric: prop(ruleBody(css, '.odometer'), 'font-variant-numeric'),
+      // Anchored on the query text, for `attentionReducedMotion`'s reason: `ruleBody` returns the
+      // FIRST match, so without the anchor the base rule and the override are indistinguishable.
+      odometerReducedMotion:
+        css.match(/prefers-reduced-motion[^{]*\{[\s\S]*?\.odometer-track\s*\{([^}]*)\}/)?.[1] ?? '',
+      //
+      // THE FIELD DECLARES NO MOTION. C08:229 imagines nodes "filling/lighting during prove", which
+      // would be motion standing for progress on a computation we do not own — the same claim the
+      // `linear` ruling refuses for the spinner beside it. Read in both spellings, and read on the
+      // canvas as well as the container, because either could carry it.
+      //
+      fieldAnimation: [
+        prop(ruleBody(css, '.note-field'), 'animation-name'),
+        prop(ruleBody(css, '.note-field'), 'animation'),
+        prop(ruleBody(css, '.note-field-canvas'), 'animation-name'),
+        prop(ruleBody(css, '.note-field-canvas'), 'animation'),
+      ]
+        .filter(Boolean)
+        .join(' '),
+      // Square by construction, so the phyllotaxis stays circular at every width. Read through
+      // `groupedRuleBody` for `meterLineColor`'s reason: a rule the emitter merged into a selector
+      // list is present and correct, and reading it as absent would fail a good build.
+      fieldAspect: prop(groupedRuleBody(css, '.note-field-canvas'), 'aspect-ratio'),
+      // The meter's own severity channel, per level. Same shape as the panel's and deliberately
+      // resolved through the same tokens — a second palette here would be the drift 6-7a's whole
+      // story was about, wearing this story's face.
+      meterSeverityColors: Object.fromEntries(
+        PRIVACY_COLORS.map((name) => [
+          name,
+          resolved(
+            css,
+            attrRuleBody(css, `.linkability-meter[data-severity='${name}'] .meter-sentence`),
+            'color',
+          ),
+        ]),
+      ),
+      // The explanation is never coloured, only the claim. `disclosureMarkerColor`'s lesson,
+      // applied one story later to the lines that sit under the headline.
+      // MERGED BY THE EMITTER into `.meter-line,.meter-caret,.meter-provenance{…}`, because all
+      // three carry the identical declaration. See `groupedRuleBody` — read with plain `ruleBody`
+      // this returns '' and the verdict reports a correct colour as missing.
+      meterLineColor: resolved(css, groupedRuleBody(css, '.meter-line'), 'color'),
     },
   }
 }
 
 /** The four `PrivacyColor` values. Pinned against the union itself in `disclosure-gate.test.ts`. */
 export const PRIVACY_COLORS = ['neutral', 'exposed', 'irreversible', 'quiet']
+
+/**
+ * The three colours a TIER can resolve to. A strict subset of `PRIVACY_COLORS`.
+ *
+ * `severityOf` maps the three tiers onto `low`/`medium`/`high`, and `getPrivacyColor` sends those
+ * to `neutral`/`exposed`/`irreversible`. `quiet` belongs to `blocked`, which is a refusal — and the
+ * meter never refuses, so it can never paint that one. Pinned against those two functions in
+ * `linkability-gate.test.ts` for `PRIVACY_COLORS`' reason.
+ */
+export const TIER_COLORS = ['neutral', 'exposed', 'irreversible']
 
 /**
  * The two levels `ctaSeverity()` can return — the CTA's channel is narrower than the panel's.
@@ -365,6 +439,33 @@ function peakBackground(css, body) {
 function ruleBody(css, selector) {
   const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
   const hit = css.match(new RegExp(`(?:^|[,{};])\\s*${escaped}\\s*\\{([^}]*)\\}`))
+  return hit ? hit[1] : ''
+}
+
+/**
+ * `ruleBody`, but for a selector the minifier may have MERGED into a comma-separated list.
+ *
+ * ── THE FAILURE THIS EXISTS FOR, WHICH LOOKED EXACTLY LIKE A MISSING RULE ─────────────────
+ *
+ * `ruleBody` requires the selector to be followed immediately by `{`, which is what stops
+ * `.amount-balance[data-shown]` masquerading as `.amount-balance`. But three authored rules with
+ * IDENTICAL declarations come out of the emitter as one:
+ *
+ *   .meter-line,.meter-caret,.meter-provenance{color:var(--color-neutral2)}
+ *
+ * `.meter-line` is now followed by a comma, so `ruleBody` returns `''` and the verdict reports a
+ * colour that is present and correct as absent. The gate was measuring the AUTHORED shape while
+ * claiming to measure the shipped one — the same class of defect as reading a recipe from a second
+ * copy of itself, caught the same way: by running it against the real artifact.
+ *
+ * Keeps `ruleBody`'s leading boundary, so a descendant rule still cannot masquerade as a bare
+ * class, and requires the trailing `{` after the list so `.meter-line-thing` cannot match either.
+ */
+function groupedRuleBody(css, selector) {
+  const direct = ruleBody(css, selector)
+  if (direct) return direct
+  const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const hit = css.match(new RegExp(`(?:^|[,{};])\\s*${escaped}\\s*(?:,[^{}]*)?\\{([^}]*)\\}`))
   return hit ? hit[1] : ''
 }
 
@@ -1410,5 +1511,203 @@ function distinctValues({ values, names, missing, duplicate }) {
     }
     seen.set(value, name)
   }
+  return problems
+}
+
+/**
+ * The odometer's recipe, READ FROM THE AUTHORITY rather than retyped in this file.
+ *
+ * `expectedDisclosure`'s reason, and its shape. The two numbers DESIGN:242 owns live in
+ * `tokens.yaml`, the stylesheet writes each one once, and this is what lets the build compare the
+ * shipped artifact against the design authority instead of against a second copy of it.
+ *
+ * THROWS on a missing block rather than defaulting. There is no honest millisecond to fall back to,
+ * and a recipe that silently defaulted would leave the build printing a measurement it never made.
+ *
+ * @param {string} yamlPath
+ * @returns {{ perDigitMs: number, staggerMs: number }}
+ */
+export function expectedOdometer(yamlPath) {
+  const d = YAML.parse(readFileSync(yamlPath, 'utf8'))
+  const odometer = d.components?.odometer
+  if (!odometer) {
+    throw new Error(
+      `${yamlPath} has no \`components.odometer\` block, so the linkability gate has nothing to ` +
+        'hold the stylesheet to. The recipe lives in the design authority; deleting it there does ' +
+        'not make the digit machine unconstrained, it makes it unchecked.',
+    )
+  }
+  for (const [name, value] of [
+    ['odometer.perDigitMs', odometer.perDigitMs],
+    ['odometer.staggerMs', odometer.staggerMs],
+  ]) {
+    if (typeof value !== 'number' || !Number.isFinite(value)) {
+      throw new Error(`\`components.${name}\` in ${yamlPath} is ${JSON.stringify(value)}, not a number`)
+    }
+  }
+  return { perDigitMs: odometer.perDigitMs, staggerMs: odometer.staggerMs }
+}
+
+/**
+ * Proves the linkability meter shipped as a count, a sentence and a picture (story 6.7b).
+ *
+ * ── WHY THIS IS ITS OWN VERDICT ───────────────────────────────────────────────────────────
+ *
+ * `disclosureProblems` answers "is the panel furniture, and is its matrix legible without colour".
+ * This one answers a different question — "does the digit machine move the way the authority says,
+ * and does the picture avoid claiming progress it cannot see". Merging them would give one verdict
+ * two meanings and hide both, which is the split `reservedHeightProblems` already records.
+ *
+ * ── THE FIELD'S ASSERTION IS AN ABSENCE, AND ABSENCES ARE THE EASY ONES TO FAKE ───────────
+ *
+ * "Declares no animation" passes trivially on a stylesheet where the class does not exist at all.
+ * So the container's own geometry is checked too: if `.note-field-canvas` has no `aspect-ratio`,
+ * the rule is missing rather than motionless, and the verdict says so instead of reporting clean.
+ *
+ * @param {object} o
+ * @param {object|null} o.read      what `readDesign()` returned
+ * @param {object|null} o.expected  from `expectedOdometer()`
+ * @returns {string[]} problems, empty when the meter is built to §7.6
+ */
+export function linkabilityProblems({ read, expected }) {
+  const problems = []
+  if (!read) return ['the emitted stylesheet could not be read, so no meter rule was verified']
+  if (!expected) {
+    return ['no odometer recipe was supplied, so the digit machine was measured against nothing']
+  }
+
+  const r = read.reserved ?? {}
+
+  //
+  // THE TWO NUMBERS DESIGN:242 OWNS, resolved to milliseconds and compared to the yaml.
+  //
+  if (r.odometerDurationMs === null || r.odometerDurationMs !== expected.perDigitMs) {
+    problems.push(
+      `\`.odometer-track\` rolls for ${r.odometerDurationMs === null ? 'no readable duration' : `${r.odometerDurationMs}ms`}, ` +
+        `and \`components.odometer.perDigitMs\` in the design authority says ${expected.perDigitMs}ms. ` +
+        'DESIGN:242 is the only line in the corpus carrying the whole digit contract, and this is the ' +
+        'number it names.',
+    )
+  }
+
+  if (r.odometerStaggerMs === null || r.odometerStaggerMs !== expected.staggerMs) {
+    problems.push(
+      `\`.odometer\` declares \`--odometer-stagger\` as ${r.odometerStaggerMs === null ? 'nothing readable' : `${r.odometerStaggerMs}ms`}, ` +
+        `and \`components.odometer.staggerMs\` says ${expected.staggerMs}ms. This custom property is the ` +
+        'ONLY place the stagger exists in the artifact — the model carries an ordinal and this ' +
+        'multiplies it — so if this is wrong there is no second copy to be right.',
+    )
+  }
+
+  // THE MULTIPLICATION HAS TO ACTUALLY HAPPEN. A stagger declared and never used is a number the
+  // gate can read and the reader can never see: every digit would start at once.
+  const delay = String(r.odometerDelay ?? '')
+  if (!delay.includes('--odometer-stagger') || !delay.includes('--roll-step')) {
+    problems.push(
+      `\`.odometer-track\` has \`animation-delay: ${delay || '<nothing>'}\`, which does not multiply ` +
+        '`--odometer-stagger` by `--roll-step`. Without both, the declared stagger is a value nothing ' +
+        'consumes and every digit rolls on the same frame.',
+    )
+  }
+
+  if (!/pb-digit-roll/.test(String(r.odometerAnimation ?? ''))) {
+    problems.push(
+      '`.odometer-track` declares no `pb-digit-roll` animation in either spelling, so the figure ' +
+        'replaces its digits instantly. The roll is what makes a changing count legible as a change.',
+    )
+  }
+
+  if (!/tabular/.test(String(r.odometerNumeric ?? ''))) {
+    problems.push(
+      `\`.odometer\` declares \`font-variant-numeric: ${r.odometerNumeric || '<nothing>'}\`, not tabular ` +
+        'figures. EXPERIENCE:138 asks for them so nothing jitters — with proportional digits the ' +
+        'whole figure reflows every time a 1 becomes a 7.',
+    )
+  }
+
+  //
+  // REDUCED MOTION, BOTH HALVES. Killing the animation while leaving the track translated freezes
+  // the digit MID-ROLL — half of one glyph above half of another — which is worse than either the
+  // motion or the still figure. `.cta:active` carries the identical pair for the identical reason.
+  //
+  const reduced = String(r.odometerReducedMotion ?? '')
+  if (!/animation-name\s*:\s*none/.test(reduced)) {
+    problems.push(
+      '`.odometer-track` is not named in the `prefers-reduced-motion` block, so the digits still ' +
+        "roll for a reader who asked the OS to stop motion. The blanket `*` rule is specificity " +
+        "0,0,0 and the track's own `animation-name` beats it — this override has to be by name.",
+    )
+  }
+  if (!/transform\s*:\s*none/.test(reduced)) {
+    problems.push(
+      "`.odometer-track`'s reduced-motion override kills the animation without resetting `transform`, " +
+        'so the track can rest mid-roll showing half of one digit and half of another. `transform: ' +
+        'none` is the load-bearing half, exactly as it is for `.cta:active`.',
+    )
+  }
+
+  //
+  // THE PICTURE CLAIMS NO PROGRESS.
+  //
+  if (String(r.fieldAnimation ?? '').trim() !== '') {
+    problems.push(
+      `the note field declares \`${r.fieldAnimation}\`. The field shows a CROWD; animating it is ` +
+        'motion standing for progress on a computation we do not own, which is what the `linear` ' +
+        'ruling already refuses for the spinner beside it.',
+    )
+  }
+
+  if (String(r.fieldAspect ?? '').trim() === '') {
+    problems.push(
+      '`.note-field-canvas` declares no `aspect-ratio`, so the rule is missing rather than ' +
+        'motionless and the animation check above passed by having nothing to look at. The field is ' +
+        'square by construction so the spiral stays circular at every width.',
+    )
+  }
+
+  //
+  // THE METER'S SEVERITY RESOLVES THROUGH THE PANEL'S TOKENS AND STAYS DISTINGUISHABLE.
+  //
+  problems.push(
+    ...distinctValues({
+      values: r.meterSeverityColors,
+      names: TIER_COLORS,
+      missing: (name) =>
+        `\`.linkability-meter[data-severity='${name}'] .meter-sentence\` resolves to no colour, so a ` +
+        `tier that reaches ${name} renders the same as every other tier.`,
+      duplicate: (name, twin, value) =>
+        `\`.linkability-meter[data-severity='${name}']\` and \`[data-severity='${twin}']\` both resolve ` +
+        `to ${value}, so two different verdicts are the same colour on screen.`,
+    }),
+  )
+
+  // The panel already proved these tokens exist; this proves the meter reaches the SAME ones rather
+  // than a second palette that happens to look similar today.
+  for (const name of TIER_COLORS) {
+    const meterColor = String(r.meterSeverityColors?.[name] ?? '').trim()
+    const panelColor = String(r.severityColors?.[name] ?? '').trim()
+    if (meterColor && panelColor && meterColor !== panelColor) {
+      problems.push(
+        `the meter paints \`${name}\` as ${meterColor} while the disclosure panel paints it as ` +
+          `${panelColor}. One severity, one colour — two shades of the same verdict is the drift ` +
+          'the single `getPrivacyColor()` exists to prevent.',
+      )
+    }
+  }
+
+  // The claim is the words that make it. A coloured explanation spends the severity colour on
+  // sentences that are only qualifying the one above them.
+  const lineColor = String(r.meterLineColor ?? '').trim()
+  const neutral2 = String(r.neutral2 ?? '').trim()
+  if (!lineColor) {
+    problems.push('`.meter-line` declares no colour, so the axis lines inherit the meter severity.')
+  } else if (neutral2 && lineColor !== neutral2) {
+    problems.push(
+      `\`.meter-line\` resolves to ${lineColor} rather than \`--color-neutral2\` (${neutral2}). The ` +
+        'axis lines explain the verdict and never make one, so they are forced back the way ' +
+        '`.disclosure-marker` is.',
+    )
+  }
+
   return problems
 }

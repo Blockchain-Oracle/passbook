@@ -29,6 +29,7 @@
 // from nowhere else. When the receipt cannot be fetched the field says so — see `ActivityFee`.
 //
 
+import { asAddress, maybeAddress } from './address.js'
 import { compute_note_id, compute_nullifier, toFeltHex, type DiscoveredRegistry } from './discovery.js'
 import {
   decodePoolEvent,
@@ -421,22 +422,20 @@ export function markOwnAddress(entries: readonly ActivityEntry[], address: strin
   // COUNTERPARTY is different: it is one bad row inside a page of real history, and taking the
   // whole feed down because one event carried something unparseable is the wrong trade. That
   // row simply cannot be shown to be ours, which is the honest answer for it.
-  let self: bigint
-  try {
-    self = BigInt(address)
-  } catch {
-    throw new Error(`not an address: ${JSON.stringify(String(address).slice(0, 64))}`)
-  }
+  //
+  // THE TWO PARSERS ARE THE ASYMMETRY, not an inconsistency. `asAddress` throws and
+  // `maybeAddress` does not, which is exactly the split described above; both live in
+  // `address.ts` so the self-link detector can share the comparison without importing this
+  // module and, through it, the SDK.
+  //
+  const self = asAddress(address)
   return entries.map((entry) => {
     if (entry.mine) return entry
     const names =
       entry.kind === 'deposit' || entry.kind === 'withdrawal' || entry.kind === 'registration'
     if (!names || entry.counterparty === null) return entry
-    try {
-      return BigInt(entry.counterparty) === self ? { ...entry, mine: true } : entry
-    } catch {
-      return entry
-    }
+    const other = maybeAddress(entry.counterparty)
+    return other !== null && other === self ? { ...entry, mine: true } : entry
   })
 }
 

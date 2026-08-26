@@ -176,6 +176,16 @@ components:
     size: 10
     states: [sees, hidden, conditional, absent]
     encoding: "fill · hollow · half · dash — colour is the second channel, never the first"
+  # [6-7b] The digit machine (DESIGN:242 "Digit roll: 180ms/digit, 40ms stagger"). DESIGN:242 is the
+  # only line in the corpus carrying the full contract; EXPERIENCE:138 has the stagger but not the
+  # duration. Both numbers live here because this is the only place a build can read them: the
+  # stylesheet writes each one once and `assert-design-shipped.mjs` resolves the SHIPPED sheet
+  # against these lines. The MODEL (`packages/protocol/src/odometer.ts`) deliberately holds neither —
+  # it carries a stagger ORDINAL and lets CSS multiply, so there is no third copy to drift.
+  odometer:
+    perDigitMs: 180           # emitted as --transition-duration-quicker, which is already 180ms
+    staggerMs: 40             # off the duration scale; a stagger STEP is not a transition duration
+    rationedTo: [anonymity-set size, block counter]   # DESIGN:242 — widening is Abu's call only
 # [RATIFIED Abu 2026-08-25] "not yet real" is carried by structure, not by grey alone.
 notYetReal:
   encoding: dotted-underline    # 1px dotted, currentColor at 0.45 — survives greyscale and CVD

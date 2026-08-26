@@ -42,6 +42,19 @@ export interface ProgressMachineProps {
   maturation?: Maturation
   /** Accessible name for the list. Surfaces say what is progressing. */
   label: string
+  /**
+   * The picture the wait is spent watching, mounted ABOVE the list (C08:229, DESIGN:423).
+   *
+   * A `ReactNode` rather than a data prop, on `OptionRow.tsx:46-57`'s `rightSlot` precedent: the
+   * no-React-nodes rule binds the MODEL in `packages/protocol`, not the component, and the field
+   * carries its own model already. Optional because most waits have no crowd to draw — a
+   * registration is not hiding in anything.
+   *
+   * IT COMPOSES BESIDE THE LIST, NEVER INSIDE IT. §7.7's five redundant channels and constant 40px
+   * rows are shipped and gated, and a graphic inside a `<li>` would be the sixth thing competing
+   * for a row whose whole promise is that it does not move.
+   */
+  field?: React.ReactNode
 }
 
 export function ProgressMachine({
@@ -49,8 +62,15 @@ export function ProgressMachine({
   elapsedMs = 0,
   maturation,
   label,
+  field,
 }: ProgressMachineProps) {
-  return (
+  //
+  // A FRAGMENT, NOT A WRAPPER `<div>`. The `<ol>` has always been this component's root, and every
+  // caller mounts it as a direct child of `Surface`'s `flex flex-col gap-s8` column. A wrapper
+  // would create a nested layout context and swallow that gap; a fragment leaves both children in
+  // the parent's column, spaced by the same rule as everything else on the surface.
+  //
+  const list = (
     <ol className="step-list" aria-label={label}>
       {steps.map((step, index) => (
         <StepRow
@@ -62,6 +82,15 @@ export function ProgressMachine({
         />
       ))}
     </ol>
+  )
+
+  if (!field) return list
+
+  return (
+    <>
+      {field}
+      {list}
+    </>
   )
 }
 
