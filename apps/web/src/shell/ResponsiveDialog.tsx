@@ -132,6 +132,19 @@ export function ResponsiveDialog({
       */}
       <Drawer.Portal>
         {/*
+          THE BACKDROP, and its absence was a real defect rather than a deferred nicety.
+
+          Without it a confirmation dialog floats over a fully-lit page: nothing separates the thing
+          being agreed to from the form behind it, every control behind stays live, and the popup
+          reads as a card that happened to land on top rather than as a decision to make. It is
+          rendered only for a modal popup, because a non-modal one deliberately leaves the app
+          reachable — that is the whole difference between the two, and DESIGN §7.11's rule.
+
+          `--color-scrim` is the design authority's own, so it re-themes; a hand-rolled `rgba(0,0,0,…)`
+          would be a literal that goes wrong in dark mode.
+        */}
+        {modal ? <Drawer.Backdrop className="pb-scrim" /> : null}
+        {/*
           THE VIEWPORT IS MANDATORY, not decoration. Omitting it kills swipe-to-dismiss and touch
           scroll-lock, and says so through a console error that only exists in a development build —
           so the failure is invisible in exactly the artifact that ships. Its height is also the

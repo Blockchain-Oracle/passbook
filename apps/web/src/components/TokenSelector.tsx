@@ -61,11 +61,25 @@ export function TokenSelector({
   const results = useMemo(() => byLiquidity(searchTokens(tokens, query)), [tokens, query])
 
   return (
-    <ResponsiveDialog open={open} onOpenChange={onOpenChange} label="Select an asset">
-      <div className="flex max-h-[700px] w-full flex-col gap-s12 sm:w-[400px]">
-        <Text variant="subheading1" as="h2" className="px-s4">
-          Select an asset
-        </Text>
+    <ResponsiveDialog open={open} onOpenChange={onOpenChange} label="Select an asset" modal>
+      {/* `w-full`, not a fixed width — `.pb-dialog` caps at 420px and pads 24px each side, so a
+          400px child overflows. The dialog owns the width. */}
+      <div className="flex min-h-0 w-full min-w-0 flex-col gap-s12">
+        <div className="flex items-start justify-between gap-s12">
+          <Text variant="subheading1" as="h2">
+            Select an asset
+          </Text>
+          <button
+            type="button"
+            onClick={() => onOpenChange(false)}
+            aria-label="Close"
+            className="focus-ring -m-s4 rounded-control p-s4 text-neutral3 hover:bg-inset hover:text-neutral1"
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M6 6L18 18M18 6L6 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+            </svg>
+          </button>
+        </div>
 
         {/*
           48px search field. `autoFocus` only above the sheet threshold: on a phone it summons the
@@ -84,7 +98,9 @@ export function TokenSelector({
           )}
         />
 
-        <div className="-mx-s4 flex-1 overflow-y-auto">
+        {/* `min-h-0` is what lets a flex child actually shrink and scroll — without it the list
+            grows to its content and pushes the dialog past its own height cap. */}
+        <div className="-mx-s4 min-h-0 flex-1 overflow-y-auto">
           {loading ? (
             <div className="flex flex-col gap-s8 p-s4">
               {[0, 1, 2, 3, 4].map((index) => (
