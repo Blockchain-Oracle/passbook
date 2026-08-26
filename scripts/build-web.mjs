@@ -432,24 +432,37 @@ const APP_FORBIDDEN_IN_CHUNK = ['poseidon']
 //
 // A tripwire, not a target — and RAISED DELIBERATELY, in the commit that made it necessary.
 //
-// 409,916 B today. The jump from the previous 281,024 B is `@base-ui/react@1.7.0`, installed in the
-// same commit: the responsive dialog and the command palette are its first two consumers and every
-// list, selector and popup from story 6.4 onward is meant to be built from the same parts. Nothing
-// about that is dodgeable by code-splitting, because this gate sums EVERY emitted `.js` in the
-// output directory — the palette's own 127 kB chunk counts in full whether it is fetched or not.
-// (The split is still right; it buys first-paint parse cost, which is a different thing from bytes.)
+// ── RAISED 2026-08-26: 560,000 -> 900,000, AND ITS JOB CHANGED ───────────────────────────
 //
-// 560,000 leaves ~150 kB of headroom for the six remaining surface stories while staying 113 kB
-// BELOW the 673,480 B an eager SDK import produces — so the thing this number exists to catch is
-// still caught, with room to spare. It is not fitted to today's figure: a ceiling one build away
-// from firing is a ceiling that gets raised reflexively, which is how a tripwire stops being one.
+// The old number carried two jobs. It was a size ceiling, and it was a second line of defence
+// against the SDK becoming eager — chosen at 113 kB BELOW the 673,480 B an eager SDK import
+// produced, so the byte total alone would catch one.
+//
+// The second job is now gone, and it had to be. This product is embedded-key (AD-4/AD-7): the
+// browser derives its own account, `identity.ts` reaches `starknet` to do it, and the account is
+// the thing every surface stands on. Under a whole-output ban there was no arrangement of code in
+// which this app could have an account at all — measured, twice: a dynamic import moved the graph
+// into its own file and both the marker scan and the byte total still fired, because the bytes were
+// still somewhere in `dist`.
+//
+// So the ANTI-EAGER job moved to where it can be done precisely: the marker scan above now reads
+// the entry chunk plus every `modulepreload`, which is exactly the set the browser fetches before
+// the app has drawn anything. That check is strictly better than a byte proxy — it says WHICH
+// chunk and WHETHER THE DOCUMENT ASKS FOR IT, rather than inferring both from a total.
+//
+// What is left here is the size ceiling, and it is measured rather than guessed:
+//     before this story                                519,913 B
+//     with `identity` behind a lazy boundary            723,844 B   (+203,931 B, the SDK graph)
+// 900,000 leaves ~176 kB for the wallet, chat and bridge surfaces still to come, and is not fitted
+// to today's figure — a ceiling one build away from firing is a ceiling that gets raised
+// reflexively, which is how a tripwire stops being one.
 //
 // When a legitimate change crosses this, raise it DELIBERATELY and say why in the commit — that
 // conversation is the point of the number. Nothing pins it in a test and neither it nor
 // `assertAppChunkStaysLean` is exported, so a raise has no red/green available: the evidence is the
 // log line at the bottom of this function.
 //
-const APP_MAX_EAGER_BYTES = 560_000
+const APP_MAX_EAGER_BYTES = 900_000
 
 //
 // ---- the cold-open surface has to be IN the entry ----------------------------------------------
@@ -494,6 +507,33 @@ export function entryChunkFromHtml(html) {
     )
   }
   return basename(src)
+}
+
+/**
+ * EVERY chunk the browser fetches before the app has done anything: the entry, plus every
+ * `modulepreload` the document declares.
+ *
+ * ── WHY THE PRELOADS COUNT, AND WHY "THE ENTRY CHUNK" ALONE WOULD BE A HOLE ───────────────
+ *
+ * A statically-imported module does not have to live in the entry file. The bundler routinely
+ * splits shared code into its own chunk and adds a `<link rel="modulepreload">` for it — which the
+ * browser fetches and executes at first paint just as surely as the entry. Checking only the entry
+ * would let the whole SDK graph sit in a preloaded sibling with the gate green, which is precisely
+ * the failure this check exists to catch, one indirection away.
+ *
+ * So "eager" means: named by the document. Anything the app fetches LATER, because a route or an
+ * `import()` asked for it, is not.
+ *
+ * @param {string} html  the emitted `dist/index.html`
+ * @returns {string[]} basenames, entry first
+ */
+export function eagerChunksFromHtml(html) {
+  const eager = [entryChunkFromHtml(html)]
+  for (const match of html.matchAll(/<link[^>]*\brel="modulepreload"[^>]*\bhref="([^"]+)"/g)) {
+    const name = basename(match[1])
+    if (!eager.includes(name)) eager.push(name)
+  }
+  return eager
 }
 
 /**
@@ -611,22 +651,41 @@ function assertAppChunkStaysLean(outDir) {
     )
   }
 
+  //
+  // ── THE SDK MARKER, SCOPED TO WHAT THE DOCUMENT FETCHES ─────────────────────────────────
+  //
+  // This used to scan EVERY emitted chunk, which was right while no surface could legitimately
+  // hold the SDK and wrong the moment one could. The product is embedded-key (AD-4/AD-7): the
+  // browser derives its own account, and `identity.ts` reaches `starknet` to do it. Under a
+  // whole-output ban there is no arrangement of code — lazy boundary or not — in which this app can
+  // have an account at all. Measured before changing it: a dynamic import moved 231 kB into its own
+  // file and the ban still fired, because the bytes were still SOMEWHERE in `dist`.
+  //
+  // What the ban is actually for is the FIRST PAINT: a cold open must not pay for a crypto graph
+  // before it has drawn anything. That is a statement about the chunks the document names, not
+  // about the output directory — so the scan is now the entry chunk plus every `modulepreload`,
+  // and a route chunk fetched on navigation is free to carry what its surface needs.
+  //
+  const html = readFileSync(join(outDir, 'index.html'), 'utf8')
+  const eagerChunks = eagerChunksFromHtml(html)
+
   for (const file of emitted) {
+    if (!eagerChunks.includes(basename(file))) continue
     const source = readFileSync(file, 'utf8')
     for (const name of APP_FORBIDDEN_IN_CHUNK) {
       const count = source.split(name).length - 1
       if (count) {
         problems.push(
-          `${file.slice(REPO_ROOT.length + 1)} contains ${count}× "${name}" — the privacy SDK / ` +
-            `starknet crypto graph is in the app's eager bundle. \`src/main.tsx\` may import only ` +
-            `\`@strk20/protocol/constants\`; the SDK belongs behind a lazy boundary.`,
+          `${file.slice(REPO_ROOT.length + 1)} contains ${count}× "${name}" and the document fetches ` +
+            `it at first paint — the privacy SDK / starknet crypto graph is EAGER. \`src/main.tsx\` ` +
+            `may import only \`@strk20/protocol/constants\`; the SDK belongs behind a lazy boundary.`,
         )
       }
     }
   }
 
   // Which surfaces are eager, which the byte total above is structurally unable to answer.
-  const entryFile = entryChunkFromHtml(readFileSync(join(outDir, 'index.html'), 'utf8'))
+  const entryFile = eagerChunks[0]
   const routeFiles = routeLeafFiles(join(WEB_ROOT, 'src/routes'))
   problems.push(...eagerRouteProblems({ jsFiles: emitted, entryFile, routeFiles }))
 
@@ -635,7 +694,8 @@ function assertAppChunkStaysLean(outDir) {
   }
   console.log(
     `[build:web] eager bundle within budget — ${total.toLocaleString()} B of ` +
-      `${APP_MAX_EAGER_BYTES.toLocaleString()} B, 0 SDK markers, ` +
+      `${APP_MAX_EAGER_BYTES.toLocaleString()} B total, 0 SDK markers across the ` +
+      `${eagerChunks.length} chunk(s) the document fetches, ` +
       `${APP_EAGER_ROUTES.join(' + ')} in the entry chunk`,
   )
 }
