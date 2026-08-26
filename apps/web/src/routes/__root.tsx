@@ -27,6 +27,7 @@ import { bindPaletteShortcut } from '../shell/palette-binding'
 import type { PaletteCommand } from '../shell/CommandPalette'
 import { PipelineRow } from '../shell/PipelineRow'
 import { getHealth, setHealth, subscribeHealth, watchConnectivity } from '../shell/pool-health'
+import { AccountChip } from '../components/AccountChip'
 import { DegradedStrip } from '../components/DegradedStrip'
 
 //
@@ -193,6 +194,15 @@ function RootLayout() {
           <span data-testid="network" className="numeric text-body4 text-neutral2">
             {ACTIVE_NETWORK} · {NET.chainId}
           </span>
+          {/*
+            THE ACCOUNT, WHICH EXISTS BECAUSE THE PAGE OPENED.
+
+            Derived in the browser on first load (AD-4/AD-7) — no wallet to connect, nothing to
+            paste. It is the visible half of the login-free claim, and it arrives a beat after
+            first paint because the crypto that derives it is behind a lazy boundary the build
+            gate enforces.
+          */}
+          <AccountChip />
         </div>
       </header>
 
