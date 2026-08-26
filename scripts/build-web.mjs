@@ -823,8 +823,9 @@ export function evaluationSummary(visited, markers = {}) {
 // whole graph in the root chunk with the gate still green. So the artifact is checked too.
 //
 // Both numbers are measured, not guessed — clean app build vs the same build with one eager
-// `@strk20/protocol/send` import:
-//     total dist JS   270,104 B  ->  540,778 B
+// `@strk20/protocol/send` import, RE-MEASURED on 2026-08-26 with the component library in the
+// graph (the earlier pair, 270,104 -> 540,778, predates it and is kept nowhere but this sentence):
+//     total dist JS   409,916 B  ->  673,480 B
 //     "poseidon"              0  ->        13
 // `starknet` is NOT usable as a marker: it reads 3 in the clean build, from the RPC hostnames in
 // `constants.ts`. `poseidon` is a crypto primitive nothing but the SDK/starknet graph pulls in.
@@ -832,11 +833,26 @@ export function evaluationSummary(visited, markers = {}) {
 const APP_FORBIDDEN_IN_CHUNK = ['poseidon']
 
 //
-// A tripwire, not a target. 270 kB today; 400 kB leaves room for 6-2's surfaces while still
-// catching a ~700 kB SDK graph landing in the eager chunk. When a legitimate change crosses it,
-// raise it DELIBERATELY and say why in the commit — that conversation is the point of the number.
+// A tripwire, not a target — and RAISED DELIBERATELY, in the commit that made it necessary.
 //
-const APP_MAX_EAGER_BYTES = 400_000
+// 409,916 B today. The jump from the previous 281,024 B is `@base-ui/react@1.7.0`, installed in the
+// same commit: the responsive dialog and the command palette are its first two consumers and every
+// list, selector and popup from story 6.4 onward is meant to be built from the same parts. Nothing
+// about that is dodgeable by code-splitting, because this gate sums EVERY emitted `.js` in the
+// output directory — the palette's own 127 kB chunk counts in full whether it is fetched or not.
+// (The split is still right; it buys first-paint parse cost, which is a different thing from bytes.)
+//
+// 560,000 leaves ~150 kB of headroom for the six remaining surface stories while staying 113 kB
+// BELOW the 673,480 B an eager SDK import produces — so the thing this number exists to catch is
+// still caught, with room to spare. It is not fitted to today's figure: a ceiling one build away
+// from firing is a ceiling that gets raised reflexively, which is how a tripwire stops being one.
+//
+// When a legitimate change crosses this, raise it DELIBERATELY and say why in the commit — that
+// conversation is the point of the number. Nothing pins it in a test and neither it nor
+// `assertAppChunkStaysLean` is exported, so a raise has no red/green available: the evidence is the
+// log line at the bottom of this function.
+//
+const APP_MAX_EAGER_BYTES = 560_000
 
 //
 // ---- the cold-open surface has to be IN the entry ----------------------------------------------

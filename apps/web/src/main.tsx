@@ -156,6 +156,22 @@ function warmDeferredSurfaces() {
     if (to === MODE_ROUTES.wallet) continue // eager already: it is where the cold open lands
     warmed.push(router.preloadRoute({ to }).catch(() => {}))
   }
+
+  //
+  // THE COMMAND PALETTE'S CHUNK, warmed in the same window and for the same reason.
+  //
+  // It is not a route, so `preloadRoute` cannot reach it — the root layout mounts it through
+  // `React.lazy` on the first `/`, and without this that first press pays a network round trip
+  // before anything appears. The specifier must stay character-for-character the one
+  // `routes/__root.tsx` imports, or the bundler emits two chunks and this warms the wrong one.
+  //
+  // ITS OWN `.catch()`, JOINED BEFORE THE `Promise.all` BELOW. A rejected preload that reached that
+  // `all` would reject it, the `then` would never run, and the reload flag would stay set for the
+  // life of the tab — turning a stale deploy into a tab that can never recover a SECOND time. The
+  // build gate also fails on unhandled rejections, so this is two failures in one line.
+  //
+  warmed.push(import('./shell/CommandPalette').then(() => {}).catch(() => {}))
+
   void Promise.all(warmed).then(() => {
     // Every deferred chunk arrived and nothing reported a preload failure, so there is no loop to
     // guard against any more. Releasing the flag is what keeps a SECOND deploy recoverable in a

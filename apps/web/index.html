@@ -11,7 +11,7 @@
       gets the right one on the very first painted frame, with JavaScript disabled or slow. What CSS
       cannot do is reach an EXPLICIT pin — `prefers-color-scheme` knows nothing about it — so a
       pinned user is painted the OS theme first and corrected afterwards. Measured: at 400 ms of
-      script latency that correction arrives 404 ms late, and the entry bundle is 269,827 B. In a
+      script latency that correction arrives 404 ms late, and the entry bundle is 240,219 B. In a
       deferred module script this is a guaranteed flash in production and invisible on localhost,
       which is the worst combination available. Hence: here, first, blocking, before any stylesheet.
 

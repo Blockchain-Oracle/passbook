@@ -17,11 +17,55 @@
 // consequence, accepted rather than worked around: this boundary never fires for a child's throw. It
 // is here for the root's own failures, which are the ones that take the whole shell with them.
 //
-import { createRootRoute, Link, Outlet } from '@tanstack/react-router'
+import { Suspense, lazy, useCallback, useEffect, useState } from 'react'
+import { createRootRoute, Link, Outlet, useNavigate } from '@tanstack/react-router'
 import { ACTIVE_NETWORK, NET } from '@strk20/protocol/constants'
 
-import { MODES, MODE_LABELS, MODE_ROUTES } from '../shell/modes'
+import { MODES, MODE_LABELS, MODE_ROUTES, type Mode } from '../shell/modes'
 import { ERROR_ROUTE_ID, NotFoundSurface, Surface } from '../shell/Surface'
+import { bindPaletteShortcut } from '../shell/palette-binding'
+import type { PaletteCommand } from '../shell/CommandPalette'
+
+//
+// THE PALETTE IS CODE-SPLIT, AND NOT FOR THE BYTE GATE.
+//
+// That gate sums every emitted `.js` in `dist`, so moving code into its own chunk changes the total
+// by rounding error and buys exactly nothing there. What it buys is first-paint parse and execute
+// cost: this is chrome that most sessions never open, and the combobox machinery behind it is the
+// largest single thing the component library ships. `src/main.tsx` preloads the chunk in the same
+// deferred window as the five lazy surfaces, so the first `/` is not the first network request.
+//
+// Do not delete the split because "the budget counts it anyway". That is true and it is not the
+// reason it is here.
+//
+const CommandPalette = lazy(() => import('../shell/CommandPalette'))
+
+/** Every path the palette can take you to. Literal types, so the router checks each one. */
+type PalettePath = (typeof MODE_ROUTES)[Mode] | '/settings'
+
+/**
+ * What the palette offers, derived from the mode enum rather than typed out beside it.
+ *
+ * Add a seventh mode and it appears here for free; rename one and the label follows. The `detail`
+ * column is the destination's own path — the palette does not invent a description of a screen it
+ * has not seen.
+ */
+const PALETTE_DESTINATIONS: readonly { readonly to: PalettePath; readonly label: string }[] = [
+  ...MODES.map((mode) => ({ to: MODE_ROUTES[mode], label: MODE_LABELS[mode] })),
+  { to: '/settings', label: 'Settings' },
+]
+
+/**
+ * The commands, as the plain data the palette takes.
+ *
+ * Built once at module scope rather than per render: a new array every render is a new `items`
+ * identity, and the list would re-derive its filtered set and drop the highlight on every keystroke.
+ */
+const PALETTE_COMMANDS: readonly PaletteCommand[] = PALETTE_DESTINATIONS.map(({ to, label }) => ({
+  id: to,
+  label,
+  detail: to,
+}))
 
 export const Route = createRootRoute({
   component: RootLayout,
@@ -35,6 +79,39 @@ export const Route = createRootRoute({
 })
 
 function RootLayout() {
+  const navigate = useNavigate()
+
+  //
+  // TWO STATES, NOT ONE, AND THE SECOND IS THE WHOLE POINT OF THE SPLIT.
+  //
+  // `open` is what the palette is doing. `mounted` is whether its chunk has ever been asked for —
+  // it latches true on the first open and never goes back, so closing the palette does not throw
+  // the module away and the second `/` is instant. Rendering the lazy element unconditionally would
+  // fetch the chunk on the cold open, which is exactly what this is here to avoid.
+  //
+  const [open, setOpen] = useState(false)
+  const [mounted, setMounted] = useState(false)
+
+  const openPalette = useCallback(() => {
+    setMounted(true)
+    setOpen(true)
+  }, [])
+
+  // The `/` shortcut, on keyup and never inside a text field. Both reasons are in
+  // `../shell/palette-binding.ts`; neither is something either palette library provides.
+  useEffect(() => bindPaletteShortcut(openPalette), [openPalette])
+
+  const runCommand = useCallback(
+    (command: PaletteCommand) => {
+      const destination = PALETTE_DESTINATIONS.find((d) => d.to === command.id)
+      // A command whose destination has been deleted does NOTHING rather than navigating somewhere
+      // arbitrary. It cannot happen while both lists come from the same array, which is why this is
+      // a guard rather than a fallback.
+      if (destination) void navigate({ to: destination.to })
+    },
+    [navigate],
+  )
+
   return (
     <>
       <header className="app-header">
@@ -85,6 +162,23 @@ function RootLayout() {
           nobody can reach.
         */}
         <div className="flex items-center gap-s8">
+          {/*
+            A `<button>`, NEVER a `<Link>`, and that is a correctness rule rather than a preference.
+            Exactly one element on a page may carry `aria-current="page"`, and the router stamps
+            that onto any `<Link>` pointing at the route you are already on with no prop that can
+            suppress it — measured. A palette trigger that pointed at a real route would therefore
+            be announced as the current page on that route, alongside the nav item that genuinely
+            is. It also is not navigation: it opens a popup and stays where it is.
+          */}
+          <button
+            type="button"
+            onClick={openPalette}
+            aria-haspopup="dialog"
+            aria-keyshortcuts="/"
+            className="nav-item focus-ring cursor-pointer"
+          >
+            Search
+          </button>
           <Link to="/settings" className="nav-item focus-ring">
             Settings
           </Link>
@@ -102,6 +196,24 @@ function RootLayout() {
       <div>
         <Outlet />
       </div>
+
+      {/*
+        `fallback={null}` because there is nothing honest to show. The chunk is warmed 2 s after the
+        cold open, so by the time anyone reaches for `/` it is in memory and this suspends for zero
+        frames; on the one visit that beats the warm, a spinner for 40 ms is worse than nothing. A
+        chunk that 404s after a redeploy is handled by the `vite:preloadError` listener in
+        `main.tsx`, which reloads once — not by a fallback that would sit here forever.
+      */}
+      {mounted ? (
+        <Suspense fallback={null}>
+          <CommandPalette
+            open={open}
+            onOpenChange={setOpen}
+            commands={PALETTE_COMMANDS}
+            onRun={runCommand}
+          />
+        </Suspense>
+      ) : null}
     </>
   )
 }
