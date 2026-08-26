@@ -29,6 +29,11 @@ import type { RegisteredRouter } from '@tanstack/react-router'
 import type { RoutePaths } from '@tanstack/router-core'
 
 import type { ActivitySurface } from '@strk20/protocol/transaction'
+import type {
+  CONTEXT_SURFACE,
+  SURFACE_CONTEXT,
+  VisibilityContext,
+} from '@strk20/protocol/visibility-matrix'
 
 import type { ClassifiedPath, Mode } from './shell/modes'
 import type { routeTree } from './routeTree.gen'
@@ -109,6 +114,57 @@ export type EveryModeIsASurface = Assert<Ext<Mode, ActivitySurface>>
 
 /** And every surface the record can name is a mode of this app. */
 export type EverySurfaceIsAMode = Assert<Ext<ActivitySurface, Mode>>
+
+//
+// ---- the review vocabulary belongs to the six surfaces ---------------------------------------
+//
+// `@strk20/protocol/visibility-matrix` declares the ten review contexts a disclosure panel can be
+// asked for, and each of them has to live on one of the six modes — a context on a seventh surface
+// is a panel with no screen to render on, and a surface with no context is a Review that would have
+// to render an empty matrix, which is the one thing story 6.7 forbids.
+//
+// THE MAPS ARE WRITTEN AS PLAIN STRINGS IN THAT MODULE, on purpose: `render-privacy-matrix.mjs`
+// loads it with plain `node` under type stripping and a single relative import would break the
+// generator, so it cannot name `ActivitySurface` itself. This is where the duplication is made
+// safe, exactly as `EveryModeIsASurface` above makes the duplicated `Mode` list safe — and both
+// directions are asserted, because a context pointing at a surface that does not exist and a
+// surface with no review context are different mistakes.
+//
+// `SURFACE_CONTEXT` is NOT derivable from `CONTEXT_SURFACE`: three surfaces name two contexts each,
+// so the reverse direction is a decision (which action a bare surface means) rather than a lookup.
+// Both are pinned because both are consumed — the receipt reads the reverse map to decide which
+// matrix a settled row renders.
+//
+
+/** Every review context lives on a surface the record can name. */
+export type EveryContextIsASurface = Assert<
+  Ext<(typeof CONTEXT_SURFACE)[VisibilityContext], ActivitySurface>
+>
+
+/** And the reverse map is keyed by exactly the six surfaces — no more, no fewer. */
+export type EverySurfaceHasAContext = Assert<Ext<ActivitySurface, keyof typeof SURFACE_CONTEXT>>
+export type EveryContextKeyIsASurface = Assert<Ext<keyof typeof SURFACE_CONTEXT, ActivitySurface>>
+
+/** And what it maps to is a real review context, not a string that looks like one. */
+export type EverySurfaceContextIsAContext = Assert<
+  Ext<(typeof SURFACE_CONTEXT)[keyof typeof SURFACE_CONTEXT], VisibilityContext>
+>
+
+//
+// Per-context pins, for the reason the per-path pins below exist: a member deleted or renamed in
+// `VISIBILITY_CONTEXTS` fails here NAMING ITSELF, rather than as "this union is not assignable to
+// that one" with ten members on each side and no clue which one moved.
+//
+export type HasPoolSendContext = Assert<Ext<'pool-send', VisibilityContext>>
+export type HasSelfSubmitContext = Assert<Ext<'self-submit', VisibilityContext>>
+export type HasRegistrationContext = Assert<Ext<'registration', VisibilityContext>>
+export type HasChatPaymentContext = Assert<Ext<'chat-payment', VisibilityContext>>
+export type HasSwapContext = Assert<Ext<'swap', VisibilityContext>>
+export type HasBridgeExitContext = Assert<Ext<'bridge-exit', VisibilityContext>>
+export type HasMarketsBetContext = Assert<Ext<'markets-bet', VisibilityContext>>
+export type HasMarketsExitContext = Assert<Ext<'markets-exit', VisibilityContext>>
+export type HasLaunchBuyContext = Assert<Ext<'launch-buy', VisibilityContext>>
+export type HasLaunchSellContext = Assert<Ext<'launch-sell', VisibilityContext>>
 
 export type HasIndexRoute = Assert<Ext<'/', Paths>>
 export type HasSettingsRoute = Assert<Ext<'/settings', Paths>>

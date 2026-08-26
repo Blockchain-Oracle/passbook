@@ -153,6 +153,29 @@ components:
     label: "always full text contrast, never the status color"
   activityRow: { radius: 16, py: 8, gap: 12, icon: 40 }
   chatBubble: { radius: 18, padding: "8/12", runGap: "6→1px", facingCorner: 4 }  # [SIG]
+  # [6-7] The signature component (DESIGN §7.5 "Container recipe [UNI InlineCard via 08 §5.1]").
+  # Its numbers were prose in the body and nowhere a build could read them; they live here because
+  # this is where component recipes live, and `scripts/assert-design-shipped.mjs` holds the SHIPPED
+  # stylesheet to them rather than to a value retyped into index.css.
+  disclosure:
+    fill: inset
+    radius: 16
+    padding: 12
+    gap: 12
+    # AUTHORITY, NOT YET CONSUMED. D27's panel anatomy puts an icon chip beside the headline; story
+    # 6.7 ships no icon anywhere (§7.5 also bans padlock and shield iconography, so whatever lands
+    # here will not be a lock). Recorded now because the recipe is the authority's and losing it
+    # costs a re-derivation later — but nothing in `index.css` reads it today, and the build gate
+    # deliberately does not pin it. Delete this comment when a chip actually renders.
+    iconChip: { radius: 12, padding: 8 }
+    body: "forced neutral2 body3"   # headline takes the semantic colour; the body never does
+  # [6-7] The visibility-matrix cell marker (DESIGN §7.5 part 2, §2.3's icon-and-word rule).
+  # Ten is deliberately off the spacing scale — it is a mark, not a space, and the scale is the
+  # design authority's own list. The stylesheet writes it once and the gate pins it to this line.
+  visibilityDot:
+    size: 10
+    states: [sees, hidden, conditional, absent]
+    encoding: "fill · hollow · half · dash — colour is the second channel, never the first"
 # [RATIFIED Abu 2026-08-25] "not yet real" is carried by structure, not by grey alone.
 notYetReal:
   encoding: dotted-underline    # 1px dotted, currentColor at 0.45 — survives greyscale and CVD

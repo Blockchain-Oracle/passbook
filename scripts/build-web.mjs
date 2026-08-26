@@ -40,11 +40,22 @@ import { build, createLogger } from 'vite'
 import {
   activityProblems,
   designProblems,
+  disclosureProblems,
+  expectedDisclosure,
   expectedGrounds,
   progressProblems,
   readDesign,
   reservedHeightProblems,
 } from './assert-design-shipped.mjs'
+//
+// THE FIRST DOC-DRIFT GATE IN THIS REPOSITORY. `render-topology.mjs:8` has claimed since it was
+// written that it fails the build when the committed doc and the modules disagree, and
+// `docs/topology.md:7` admits the claim is false — its `--check` mode is wired to nothing. FR-058
+// requires the app and the docs' visibility matrix to be generated from the same module, and the
+// artifact that ships is the build, so this is where that requirement becomes true for
+// `docs/privacy.md`. Topology's hole stays open; it is not story 6.7's to close.
+//
+import { checkFreshness as checkPrivacyDoc, staleMessage as privacyStale } from './render-privacy-matrix.mjs'
 
 export const REPO_ROOT = resolve(fileURLToPath(import.meta.url), '../..')
 export const WEB_ROOT = join(REPO_ROOT, 'apps/web')
@@ -752,6 +763,48 @@ async function main() {
       'measurable border and NO animation in either spelling, the attention highlight names a real ' +
       'keyframes block that moves nothing, reaches a colour somebody can actually see, resolves to ' +
       'a positive duration and plays exactly once, reduced motion stops it by name',
+  )
+
+  //
+  // THE PANEL IS FURNITURE AND ITS MATRIX IS LEGIBLE WITHOUT COLOUR (story 6.7). A fifth verdict,
+  // and two of its assertions replace criteria that were written as behaviours — "re-render with
+  // poll ticks and assert nothing animates", "remove colour and check the cells still read". Both
+  // restate as construction rules that hold for every state rather than for the sampled ones.
+  //
+  // THE RECIPE COMES FROM THE AUTHORITY, not from a constant in the gate. `expectedGrounds` above
+  // already had this shape; the first version of the fifth verdict did not, so the line printed
+  // below claimed a measurement against tokens.yaml that was actually against a second copy of it.
+  const disclosureFailures = disclosureProblems({
+    read,
+    expected: expectedDisclosure(join(WEB_ROOT, 'design/tokens.yaml')),
+  })
+  if (disclosureFailures.length) {
+    throw new Error(
+      `[build:web] the disclosure panel is not built to §7.5:\n  - ${disclosureFailures.join('\n  - ')}`,
+    )
+  }
+  console.log(
+    '[build:web] disclosure panel holds its shape — container resolved against tokens.yaml itself ' +
+      '(fill token, radius, padding, gap, dot size on BOTH axes), body and marker both forced to ' +
+      'neutral2 at body3, four severity rules resolving to four DISTINCT colours, no animation in ' +
+      'either spelling with opacity the only transition AND a @starting-style to travel from, the ' +
+      'matrix dot filled for sees and hollow-with-a-real-border for hidden with two DIFFERENT ' +
+      'shapes on the qualified states, both CTA severity levels painted, and ' +
+      '`.cta[aria-disabled]` still after the LAST `.cta[data-severity]` so the blocked downgrade ' +
+      'keeps winning',
+  )
+
+  //
+  // AND THE DOCUMENT STILL SAYS WHAT THE MODULE SAYS (FR-058).
+  //
+  // A test would prove the two agreed at the moment the suite ran. The requirement is that they
+  // cannot SHIP apart, and the thing that ships is this build.
+  //
+  const privacyDoc = checkPrivacyDoc()
+  if (!privacyDoc.fresh) throw new Error(`[build:web] ${privacyStale(privacyDoc)}`)
+  console.log(
+    '[build:web] docs/privacy.md matches the module it is generated from — the app and the ' +
+      'document cannot ship apart',
   )
 
   console.log('[build:web] OK')

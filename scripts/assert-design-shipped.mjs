@@ -171,8 +171,155 @@ export function readDesign({ css, html }) {
         css.match(
           /prefers-reduced-motion[^{]*\{[\s\S]*?\.attention-highlight\s+\.option-row-inner\s*\{([^}]*)\}/,
         )?.[1] ?? '',
+
+      // ── The disclosure panel and the visibility matrix — see `disclosureProblems` ────────
+      //
+      // The container recipe, RESOLVED TO NUMBERS, so the check is about the shipped geometry and
+      // not about which words are spelled. `padding: var(--spacing-s0)` passes a presence check
+      // while padding nothing at all.
+      disclosureFill: resolved(css, ruleBody(css, '.disclosure-panel'), 'background-color'),
+      disclosureRadiusPx: lengthPx(css, ruleBody(css, '.disclosure-panel'), 'border-radius'),
+      disclosurePaddingPx: lengthPx(css, ruleBody(css, '.disclosure-panel'), 'padding'),
+      disclosureGapPx: lengthPx(css, ruleBody(css, '.disclosure-panel'), 'gap'),
+      disclosureTransition: [
+        prop(ruleBody(css, '.disclosure-panel'), 'transition-property'),
+        prop(ruleBody(css, '.disclosure-panel'), 'transition'),
+      ]
+        .filter(Boolean)
+        .join(' '),
+      // BOTH SPELLINGS, for `.activity-ring-static`'s reason: `animation-name: x` and
+      // `animation: x 1s` do the same thing, and a check reading only the longhand passes a panel
+      // that pulses written the other way. "Disclosure never animates on polls, never pulses."
+      disclosureAnimation: [
+        prop(ruleBody(css, '.disclosure-panel'), 'animation-name'),
+        prop(ruleBody(css, '.disclosure-panel'), 'animation'),
+      ]
+        .filter(Boolean)
+        .join(' '),
+      //
+      // THE APPEARANCE, WHICH HAS TO BE ABLE TO FIRE. §4.3 authors "appears at {motion.quick}
+      // opacity and then holds still", and the first version of this sheet declared the transition
+      // with no starting value and nothing toggling it — a transition that could never run, which
+      // this gate then reported as proof the behaviour held. `@starting-style` supplies the value
+      // the panel transitions FROM on its first style resolution, and it is read out of the at-rule
+      // rather than the base rule because that is the only place it can live.
+      //
+      disclosureStartingOpacity: prop(
+        css.match(/@starting-style[^{]*\{\s*\.disclosure-panel\s*\{([^}]*)\}/)?.[1] ?? '',
+        'opacity',
+      ),
+      disclosureRestOpacity: prop(ruleBody(css, '.disclosure-panel'), 'opacity'),
+      disclosureBodyColor: resolved(css, ruleBody(css, '.disclosure-body'), 'color'),
+      disclosureBodySize: resolved(css, ruleBody(css, '.disclosure-body'), 'font-size'),
+      // The MARKER, held to the same neutral as the body. Without a colour of its own it inherits
+      // the panel's severity, and a `high` panel then paints every ↗ on every muted line
+      // irreversible red beside neutral2 text — colour spent on punctuation.
+      disclosureMarkerColor: resolved(css, ruleBody(css, '.disclosure-marker'), 'color'),
+      // The two tokens the body is held to, read from the same sheet so the comparison is between
+      // the rule and the token rather than between the rule and a colour retyped in this file.
+      neutral2: decl(css, '--color-neutral2'),
+      body3: decl(css, '--text-body3'),
+      //
+      // EVERY COLOUR TOKEN THE SHEET DECLARES, keyed by its bare name.
+      //
+      // The recipe in `tokens.yaml` names its fill as a TOKEN (`fill: inset`), not as a hex, so the
+      // gate has to resolve whatever the authority happens to name — writing `--color-inset` into
+      // this file would put the recipe in two places again, which is the whole defect
+      // `expectedDisclosure` exists to fix. Last declaration wins, matching `decl`'s cascade
+      // semantics, so a dark redeclaration is what a token resolves to on both sides of every
+      // comparison.
+      //
+      colorTokens: Object.fromEntries(
+        [...css.matchAll(/--color-([\w-]+)\s*:\s*([^;}]+)/g)].map((m) => [m[1], m[2].trim()]),
+      ),
+      // One entry per `PrivacyColor`. An absent rule resolves to '' and a duplicated one resolves
+      // to the same string as its twin — both are failures, for different reasons.
+      severityColors: Object.fromEntries(
+        PRIVACY_COLORS.map((name) => [
+          name,
+          resolved(css, attrRuleBody(css, `.disclosure-panel[data-severity='${name}']`), 'color'),
+        ]),
+      ),
+      // BOTH AXES. `width: 10px; height: 24px` is a lozenge, not a dot, and a check that reads only
+      // the width returns clean on it — the shape channel broken by the one property nobody looked at.
+      dotWidthPx: lengthPx(css, ruleBody(css, '.visibility-dot'), 'width'),
+      dotHeightPx: lengthPx(css, ruleBody(css, '.visibility-dot'), 'height'),
+      dotBorderPx: lengthPx(css, ruleBody(css, '.visibility-dot'), 'border'),
+      dotSeesFill: resolved(css, attrRuleBody(css, ".visibility-dot[data-state='sees']"), 'background-color'),
+      dotHiddenFill: prop(attrRuleBody(css, ".visibility-dot[data-state='hidden']"), 'background-color'),
+      // The half and the dash. Read as `background-image` AND `background` for the same reason the
+      // animation is read twice — a shorthand carries the same meaning and answers a different key.
+      dotConditionalShape: backgroundShape(attrRuleBody(css, ".visibility-dot[data-state='conditional']")),
+      dotAbsentShape: backgroundShape(attrRuleBody(css, ".visibility-dot[data-state='absent']")),
+      //
+      // SOURCE POSITIONS, not rule bodies. Both selectors are specificity 0,2,0, so order is the
+      // only thing deciding which wins on a button that is blocked AND carries severity.
+      //
+      // `lastIndexOf`, AND THAT IS THE WHOLE POINT OF THE CHECK. With `indexOf`, adding a SECOND
+      // `.cta[data-severity=…]` rule below the blocked one keeps the first index where it was, so
+      // the comparison stayed green while the rule that actually wins the cascade had moved. The
+      // question being asked is "which of these two comes last", and only the last occurrence of
+      // each can answer it.
+      //
+      ctaSeverityAt: css.lastIndexOf('.cta[data-severity'),
+      ctaBlockedAt: css.lastIndexOf('.cta[aria-disabled'),
+      // Per level, by name. One rule existing proved nothing about the other: delete the `exposed`
+      // rule and `ctaSeverity('medium')` still returns a channel with no paint behind it.
+      ctaSeverityColors: Object.fromEntries(
+        CTA_SEVERITIES.map((name) => [
+          name,
+          resolved(css, attrRuleBody(css, `.cta[data-severity='${name}']`), 'background-color'),
+        ]),
+      ),
     },
   }
+}
+
+/** The four `PrivacyColor` values. Pinned against the union itself in `disclosure-gate.test.ts`. */
+export const PRIVACY_COLORS = ['neutral', 'exposed', 'irreversible', 'quiet']
+
+/**
+ * The two levels `ctaSeverity()` can return — the CTA's channel is narrower than the panel's.
+ *
+ * Pinned against that function in `disclosure-gate.test.ts` for `PRIVACY_COLORS`' reason: a
+ * hand-transcribed list in a `.mjs` gate is a list that silently stops covering the union it copies.
+ */
+export const CTA_SEVERITIES = ['exposed', 'irreversible']
+
+/**
+ * `ruleBody` for a selector carrying a QUOTED attribute value.
+ *
+ * The emitted artifact strips those quotes — `[data-theme=dark]` and `[aria-disabled=true]` are
+ * both in the shipped sheet unquoted — so a check written against the authored spelling matches
+ * nothing and reports every declaration absent, which is a gate that fails a correct build. Tries
+ * the authored form first so a fabricated stylesheet in the test suite can use either.
+ */
+function attrRuleBody(css, selector) {
+  return ruleBody(css, selector) || ruleBody(css, selector.replace(/'/g, ''))
+}
+
+/** Whatever gives a dot a shape rather than a colour, in either the longhand or the shorthand. */
+function backgroundShape(body) {
+  return [prop(body, 'background-image'), prop(body, 'background')].filter(Boolean).join(' ')
+}
+
+/**
+ * Every spelling of "no fill" a stylesheet or a minifier can produce.
+ *
+ * FOUR SHAPES, because a check that recognises three reports a transparent dot as filled and passes
+ * the exact failure it exists to catch. `transparent` is the authored word; `#0000` is what esbuild
+ * writes for it (measured in the emitted artifact); `rgba(0,0,0,0)` is the legacy comma form; and
+ * `rgb(0 0 0 / 0)` is the modern space-separated form a different minifier or a hand-edit can
+ * produce, which the comma-only pattern missed entirely.
+ */
+function isTransparent(value) {
+  const v = String(value || '').trim().toLowerCase()
+  if (v === 'transparent' || v === 'none') return true
+  if (/^#0{4,8}$/.test(v)) return true
+  // Comma form: the alpha is the last of four. Slash form: the alpha follows the `/`.
+  if (/^rgba?\([^)]*,\s*0*(?:\.0+)?\s*\)$/.test(v)) return true
+  if (/^rgba?\([^)/]*\/\s*0*(?:\.0+)?%?\s*\)$/.test(v)) return true
+  return false
 }
 
 /**
@@ -287,6 +434,58 @@ function lengthPx(css, body, name) {
 export function expectedGrounds(yamlPath) {
   const d = YAML.parse(readFileSync(yamlPath, 'utf8'))
   return { light: d.colors.light.ground, dark: d.colors.dark.ground, family: d.typography.family }
+}
+
+/**
+ * The disclosure panel's recipe, READ FROM THE AUTHORITY rather than retyped in this file.
+ *
+ * ── WHY THIS EXISTS AT ALL, AND IT IS THE MOST IMPORTANT FIX IN THIS GATE ─────────────────
+ *
+ * The first version hardcoded `{ radius: 16, padding: 12, gap: 12 }` and `DOT_PX = 10` as constants
+ * here, and `build-web.mjs` then printed "container measured against the yaml recipe". That message
+ * was FALSE: editing `components.disclosure.padding` to 16 in `tokens.yaml` changed nothing and
+ * broke nothing, because the gate was comparing the stylesheet against a second copy of the recipe
+ * rather than against the recipe. A build line asserting a measurement nobody performed is the exact
+ * class of defect this repository fails builds over, and it was in the sentence claiming otherwise.
+ *
+ * `expectedGrounds` above already had the right shape; this is the same move for the same reason.
+ * The yaml is the design authority, so the yaml is what the artifact is held to.
+ *
+ * THROWS on a missing block rather than defaulting. A recipe silently defaulting to nothing checks
+ * nothing, and there is no honest value to fall back to.
+ */
+export function expectedDisclosure(yamlPath) {
+  const d = YAML.parse(readFileSync(yamlPath, 'utf8'))
+  const panel = d.components?.disclosure
+  const dot = d.components?.visibilityDot
+  if (!panel || !dot) {
+    throw new Error(
+      `${yamlPath} has no \`components.disclosure\` / \`components.visibilityDot\` block, so the ` +
+        'disclosure gate has nothing to hold the stylesheet to. The recipe lives in the design ' +
+        'authority; deleting it there does not make the panel unconstrained, it makes it unchecked.',
+    )
+  }
+  for (const [name, value] of [
+    ['disclosure.radius', panel.radius],
+    ['disclosure.padding', panel.padding],
+    ['disclosure.gap', panel.gap],
+    ['visibilityDot.size', dot.size],
+  ]) {
+    if (typeof value !== 'number' || !Number.isFinite(value)) {
+      throw new Error(`\`components.${name}\` in ${yamlPath} is ${JSON.stringify(value)}, not a number`)
+    }
+  }
+  if (typeof panel.fill !== 'string' || !panel.fill) {
+    throw new Error(`\`components.disclosure.fill\` in ${yamlPath} must name a colour token`)
+  }
+  return {
+    /** A token NAME (`inset`), which the gate resolves against the sheet's own declaration. */
+    fill: panel.fill,
+    radius: panel.radius,
+    padding: panel.padding,
+    gap: panel.gap,
+    dotSize: dot.size,
+  }
 }
 
 /**
@@ -851,5 +1050,365 @@ export function activityProblems({ read }) {
     )
   }
 
+  return problems
+}
+
+
+/**
+ * The disclosure panel's construction rules, resolved to numbers (story 6.7).
+ *
+ * A FIFTH VERDICT, for the reason there is a fourth: "the token sheet shipped", "the value spine
+ * reserves its space", "the progress machine cannot reflow or overclaim", "the feed's slot swaps
+ * rather than appears" and "the panel is furniture and its matrix is legible without colour" are
+ * five separate findings. A caller that merges any two of them learns only that something is wrong.
+ *
+ * ── WHY THIS IS A STYLESHEET READ AND NOT A TEST ──────────────────────────────────────────
+ *
+ * Two of the criteria this covers were written as behaviours: "re-render with poll ticks and assert
+ * no animation fires", and "remove colour and check every cell is still legible". Neither can run
+ * here — there is no layout engine in jsdom and no browser driver in this repository — and both
+ * restate as CONSTRUCTION RULES that are stronger than the samples they replace. A rule that says
+ * the panel declares no animation holds for every poll, including the ones nobody thought to fire;
+ * a rule that says the hidden dot is a hollow ring and the seen dot is filled holds for every
+ * reader, including the one looking at a greyscale screenshot.
+ *
+ * ── IT TAKES THE RECIPE RATHER THAN CARRYING ONE ──────────────────────────────────────────
+ *
+ * `expected` comes from `expectedDisclosure(tokens.yaml)`. The first version hardcoded the numbers
+ * here and `build-web.mjs` printed "measured against the yaml recipe" over a comparison against a
+ * second copy of it — editing the authority changed nothing. See `expectedDisclosure` for the full
+ * account; the short version is that a build line asserting a measurement nobody performed is worse
+ * than no line at all.
+ *
+ * ── AND IT NEVER THROWS ───────────────────────────────────────────────────────────────────
+ *
+ * Every `r.*` read is guarded. The first version promised tolerance with `read.reserved ?? {}` and
+ * then dereferenced `.trim()` on three of the values it had just admitted might be missing, so
+ * `disclosureProblems({ read: {} })` died with a TypeError instead of returning findings — a gate
+ * that crashes reports nothing, and the four verdicts beside this one all get this right.
+ *
+ * @param {object} o
+ * @param {object|null} o.read      what `readDesign()` returned
+ * @param {object|null} o.expected  what `expectedDisclosure()` returned
+ * @returns {string[]} problems, empty when the panel is built the way §7.5 requires
+ */
+export function disclosureProblems({ read, expected }) {
+  const problems = []
+  if (!read) return ['the emitted stylesheet could not be read, so no disclosure rule was verified']
+  if (!expected) {
+    return [
+      'no recipe was supplied, so nothing was compared. `disclosureProblems` is held to ' +
+        '`components.disclosure` / `components.visibilityDot` in tokens.yaml (see ' +
+        '`expectedDisclosure`), and a verdict with no expectation is a verdict that passes ' +
+        'everything.',
+    ]
+  }
+
+  const r = read.reserved ?? {}
+  const tokens = r.colorTokens ?? {}
+  // Guarded readers. Every value below can legitimately be absent — that is the failure being
+  // reported — so nothing is dereferenced before it has been turned into a string or a number.
+  const text = (value) => String(value ?? '').trim()
+  const px = (value) => (typeof value === 'number' && Number.isFinite(value) ? value : null)
+
+  //
+  // THE CONTAINER RECIPE, resolved to numbers and compared to the design authority's own line.
+  //
+  for (const [name, want, got] of [
+    ['border-radius', expected.radius, px(r.disclosureRadiusPx)],
+    ['padding', expected.padding, px(r.disclosurePaddingPx)],
+    ['gap', expected.gap, px(r.disclosureGapPx)],
+  ]) {
+    if (got === null || got !== want) {
+      problems.push(
+        `\`.disclosure-panel\` resolves ${name} to ${got === null ? '(nothing readable)' : `${got}px`}, ` +
+          `and \`components.disclosure\` in tokens.yaml says ${want}. The recipe is the design ` +
+          "authority's; a panel that stops matching it has quietly become a different component.",
+      )
+    }
+  }
+
+  //
+  // THE FILL IS COMPARED TO THE TOKEN THE RECIPE NAMES, not merely found to be present.
+  //
+  // `background-color: var(--color-raised)` is a real colour, resolves fine, and is the wrong one —
+  // it paints the panel as a card instead of a well, and every "is it non-empty" check passes while
+  // the build prints "inset fill".
+  //
+  const wantFill = text(tokens[expected.fill])
+  const gotFill = text(r.disclosureFill)
+  if (!wantFill) {
+    problems.push(
+      `the sheet declares no \`--color-${expected.fill}\`, which is the fill ` +
+        '`components.disclosure` names. The recipe points at a token that does not exist, so ' +
+        'nothing can be held to it.',
+    )
+  } else if (!gotFill || gotFill !== wantFill) {
+    problems.push(
+      `\`.disclosure-panel\` resolves its background to ${gotFill ? JSON.stringify(gotFill) : '(nothing)'} ` +
+        `and \`components.disclosure.fill\` names \`${expected.fill}\` (${wantFill}). A different ` +
+        'colour is not a near miss: the panel is a well on a raised surface, and painting it as ' +
+        'another card leaves the one loud element on a review screen with no edge at all.',
+    )
+  }
+
+  //
+  // "APPEARS AT {motion.quick} OPACITY AND THEN HOLDS STILL" (EXPERIENCE §4.3). THREE assertions,
+  // and the third is the one that was missing: a transition that cannot fire is not an appearance.
+  //
+  if (text(r.disclosureAnimation) && !/^none\b/.test(text(r.disclosureAnimation))) {
+    problems.push(
+      `\`.disclosure-panel\` declares \`animation: ${text(r.disclosureAnimation)}\`, and it must ` +
+        'declare none at all. Disclosure is furniture, not alarm: it appears once and holds still, ' +
+        'and a panel that animates re-fires on every poll of the screen it sits on.',
+    )
+  }
+
+  if (text(r.disclosureTransition) !== 'opacity') {
+    problems.push(
+      `\`.disclosure-panel\` transitions ${text(r.disclosureTransition) ? JSON.stringify(text(r.disclosureTransition)) : '(nothing)'}, ` +
+        'and §4.3 allows opacity and only opacity. Anything else — a colour, a height, a transform ' +
+        '— is movement on a block whose whole job is to state facts calmly.',
+    )
+  }
+
+  //
+  // THE TRANSITION HAS TO HAVE SOMEWHERE TO COME FROM.
+  //
+  // Declaring `transition-property: opacity` with no starting value and nothing toggling one is a
+  // transition that can never run — §4.3's authored appearance simply not implemented, with this
+  // gate reporting the declaration as proof the behaviour held. `@starting-style` is what supplies
+  // the value the panel transitions FROM on first paint; without it the two checks above are
+  // assertions about three words.
+  //
+  const startOpacity = text(r.disclosureStartingOpacity)
+  const restOpacity = text(r.disclosureRestOpacity)
+  if (!/^0(?![.\d])/.test(startOpacity)) {
+    problems.push(
+      `\`@starting-style { .disclosure-panel }\` declares opacity ${startOpacity ? JSON.stringify(startOpacity) : '(nothing)'}, ` +
+        'and it must declare 0. Without a starting value the opacity transition has nothing to ' +
+        'travel from, so §4.3\'s "appears at {motion.quick} opacity" never happens — and every ' +
+        'other check on this rule still reads green over a declaration that cannot fire.',
+    )
+  }
+  if (!/^1(?![.\d])/.test(restOpacity)) {
+    problems.push(
+      `\`.disclosure-panel\` declares a resting opacity of ${restOpacity ? JSON.stringify(restOpacity) : '(nothing)'}, ` +
+        'and it must declare 1. The starting value is only half of a transition; without an ' +
+        'explicit destination on the base rule the panel has no authored end state to arrive at.',
+    )
+  }
+
+  //
+  // "HEADLINE TAKES THE SEMANTIC COLOUR, BODY FORCED NEUTRAL2 BODY3" (§7.5). THREE rules, because
+  // the marker is part of the body and was not: with no colour of its own `.disclosure-marker`
+  // INHERITS the panel's severity, so a `high` panel painted every ↗ on every muted line
+  // irreversible red beside neutral2 text — the one colour reserved for what cannot be undone,
+  // spent on punctuation, down the whole left edge of the block.
+  //
+  const neutral2 = text(r.neutral2)
+  for (const [selector, got] of [
+    ['.disclosure-body', text(r.disclosureBodyColor)],
+    ['.disclosure-marker', text(r.disclosureMarkerColor)],
+  ]) {
+    if (!got || !neutral2 || got !== neutral2) {
+      problems.push(
+        `\`${selector}\` resolves its colour to ${got ? JSON.stringify(got) : '(nothing)'} and ` +
+          `\`--color-neutral2\` is ${neutral2 ? JSON.stringify(neutral2) : '(absent)'}. §7.5 forces ` +
+          'both to neutral2 so the coloured claim is the headline alone; anything else inherits the ' +
+          'panel severity and there is no hierarchy left to read.',
+      )
+    }
+  }
+
+  const body3 = text(r.body3)
+  if (!text(r.disclosureBodySize) || !body3 || text(r.disclosureBodySize) !== body3) {
+    problems.push(
+      `\`.disclosure-body\` resolves its font-size to ${text(r.disclosureBodySize) ? JSON.stringify(text(r.disclosureBodySize)) : '(nothing)'} ` +
+        `and \`--text-body3\` is ${body3 ? JSON.stringify(body3) : '(absent)'}. The body step is part of the ` +
+        'recipe, not a preference — an explanation set at the headline size competes with it.',
+    )
+  }
+
+  //
+  // FOUR SEVERITY RULES, AND THEY MUST BE FOUR DIFFERENT COLOURS.
+  //
+  // Presence is not enough. The failure this catches is the one that looks correct in a diff: a
+  // fourth rule added by copying the third, so `quiet` and `irreversible` resolve to the same red
+  // and the most severe level stops rendering calmest — the ruling `blocked → quiet` exists to make.
+  //
+  problems.push(
+    ...distinctValues({
+      values: r.severityColors ?? {},
+      names: PRIVACY_COLORS,
+      missing: (name) =>
+        `\`.disclosure-panel[data-severity=${name}]\` resolves its colour to nothing. Either the ` +
+        'rule is missing or its token does not resolve, and a panel whose severity paints no ' +
+        'colour reads as the level below it.',
+      duplicate: (name, twin, value) =>
+        `\`${name}\` and \`${twin}\` both resolve to ${value}. The four privacy colours have to be ` +
+        'four colours: with two of them identical, one severity level is invisible — and if the ' +
+        'pair is `quiet` and `irreversible`, the most severe state has started rendering as red, ' +
+        'which is the one thing §2.3 rules out.',
+    }),
+  )
+
+  //
+  // THE NON-COLOUR CHANNEL, PROVED RATHER THAN ASSERTED.
+  //
+  // §2.3's ratified measurement is that `settled` and `irreversible` collapse toward each other
+  // under red-green colour vision deficiency, which makes the icon-and-word rule "load-bearing and
+  // must be enforced in code with a test". Twenty cells separated by hue alone is the densest place
+  // to break it. So: the seen dot is FILLED, the hidden dot is HOLLOW with a border that actually
+  // occupies space, the two qualified states carry a shape of their own, and NO TWO of those shapes
+  // are the same string. A dot set that differs only in colour fails every one of these.
+  //
+  for (const [axis, got] of [
+    ['width', px(r.dotWidthPx)],
+    ['height', px(r.dotHeightPx)],
+  ]) {
+    if (got === null || got !== expected.dotSize) {
+      problems.push(
+        `\`.visibility-dot\` resolves its ${axis} to ${got === null ? '(nothing readable)' : `${got}px`}, ` +
+          `and \`components.visibilityDot.size\` in tokens.yaml says ${expected.dotSize}. BOTH axes ` +
+          'are pinned: a dot that is 10 wide and 24 tall is a lozenge, and a check reading one axis ' +
+          'returns clean on it.',
+      )
+    }
+  }
+
+  if (px(r.dotBorderPx) === null || px(r.dotBorderPx) <= 0) {
+    problems.push(
+      `\`.visibility-dot\` has a border of ${px(r.dotBorderPx) === null ? 'no readable width' : `${r.dotBorderPx}px`}. ` +
+        'The hollow state is nothing but its border — at zero width a hidden cell renders as empty ' +
+        'space, which reads as a cell that failed to load rather than as a fact.',
+    )
+  }
+
+  if (!text(r.dotSeesFill) || isTransparent(r.dotSeesFill)) {
+    problems.push(
+      `\`.visibility-dot[data-state=sees]\` resolves its background to ${text(r.dotSeesFill) ? JSON.stringify(text(r.dotSeesFill)) : '(nothing)'}. ` +
+        'Fill is the channel that separates "sees" from "hidden" without colour; an unfilled seen ' +
+        'dot and a hidden dot are the same picture, and only the hue tells them apart.',
+    )
+  }
+
+  if (!text(r.dotHiddenFill) || !isTransparent(r.dotHiddenFill)) {
+    problems.push(
+      `\`.visibility-dot[data-state=hidden]\` declares \`background-color: ${text(r.dotHiddenFill) || '(nothing)'}\` ` +
+        'and it must be transparent. A filled "hidden" dot differs from a "sees" dot by colour ' +
+        'alone, which is exactly the failure the shape channel exists to prevent.',
+    )
+  }
+
+  for (const [state, shape] of [
+    ['conditional', text(r.dotConditionalShape)],
+    ['absent', text(r.dotAbsentShape)],
+  ]) {
+    if (!shape) {
+      problems.push(
+        `\`.visibility-dot[data-state=${state}]\` carries no background-image, so it has no shape ` +
+          'of its own and differs from the other states by colour alone. `conditional` is the ' +
+          'riskiest cell in the matrix — a claim that is USUALLY hidden — and rendering it as an ' +
+          'ordinary hidden dot is a false guarantee no copy check can see.',
+      )
+    }
+  }
+
+  //
+  // AND THE TWO SHAPES MUST NOT BE THE SAME SHAPE. The colours got a distinctness scan and the
+  // shapes did not, so pasting the `absent` declaration into `[data-state=conditional]` returned
+  // clean — two identical dashes, the shape channel collapsed, every presence check green.
+  //
+  problems.push(
+    ...distinctValues({
+      values: { conditional: text(r.dotConditionalShape), absent: text(r.dotAbsentShape) },
+      names: ['conditional', 'absent'],
+      // Absence is already reported above; this scan only speaks about collisions.
+      missing: null,
+      duplicate: (name, twin, value) =>
+        `\`${name}\` and \`${twin}\` draw the same shape (${value}). Fill · hollow · half · dash is ` +
+        'four distinct marks or it is not a channel — two states sharing one leaves the hue as the ' +
+        'only thing between them, which is the rule §2.3 makes load-bearing.',
+    }),
+  )
+
+  //
+  // SEVERITY REACHES THE CTA, AT BOTH LEVELS, AND THE BLOCKED DOWNGRADE STILL WINS.
+  //
+  // Checking that ONE `.cta[data-severity=…]` rule exists proved nothing about the other: delete
+  // the `exposed` rule and `ctaSeverity('medium')` still returns a channel with no paint behind it,
+  // so a medium-severity review ships an ink button while the panel headline goes amber.
+  //
+  const ctaColors = r.ctaSeverityColors ?? {}
+  for (const level of CTA_SEVERITIES) {
+    if (!text(ctaColors[level])) {
+      problems.push(
+        `\`.cta[data-severity=${level}]\` resolves its background to nothing. \`ctaSeverity()\` ` +
+          `returns \`${level}\` for one of the two levels §7.5 colours, so the attribute reaches the ` +
+          'button and no rule answers it — the thumb stays ink while the panel headline is not.',
+      )
+    }
+  }
+
+  //
+  // Both `.cta` selectors are specificity 0,2,0, so nothing but source order decides a button that
+  // is blocked AND carries privacy severity. §7.10 rules that blocked is an emphasis downgrade
+  // which does not take the irreversible colour — swap these two and a user who typed too large a
+  // number gets a red button, silently. LAST occurrence of each, because "which one comes last" is
+  // the question, and a second severity rule added below the blocked one is exactly how a
+  // first-occurrence comparison stays green while the cascade flips.
+  //
+  const severityAt = typeof r.ctaSeverityAt === 'number' ? r.ctaSeverityAt : -1
+  const blockedAt = typeof r.ctaBlockedAt === 'number' ? r.ctaBlockedAt : -1
+  if (severityAt < 0) {
+    problems.push(
+      'the stylesheet has no `.cta[data-severity=…]` rule, so severity never reaches the CTA. ' +
+        '§7.5 routes it there on purpose — the thumb carries the risk — and a panel that colours ' +
+        'its headline over an ink button is telling the reader two things at once.',
+    )
+  } else if (blockedAt < 0) {
+    problems.push('the stylesheet has no `.cta[aria-disabled=true]` rule, so blocked buttons never downgrade.')
+  } else if (blockedAt < severityAt) {
+    problems.push(
+      '`.cta[aria-disabled=true]` appears BEFORE the last `.cta[data-severity=…]` rule in the ' +
+        'emitted sheet. Both are specificity 0,2,0, so the later one wins: in this order a blocked ' +
+        'button that also carries `high` severity paints irreversible red, which §7.10 rules out ' +
+        'for a state the user fixes by typing a smaller number.',
+    )
+  }
+
+  return problems
+}
+
+/**
+ * Reports values that are missing, and values that are the SAME as one of their siblings.
+ *
+ * Shared because the failure is identical wherever a set of states is meant to be distinguishable:
+ * four severity colours, two dot shapes. Presence checks pass a set whose members were produced by
+ * copying one of them, and a copied member is a state the reader cannot see.
+ *
+ * @param {object} o
+ * @param {Record<string,string>} o.values
+ * @param {string[]} o.names               the members to check, in report order
+ * @param {((name: string) => string)|null} o.missing  message for an empty value, or null to skip
+ * @param {(name: string, twin: string, value: string) => string} o.duplicate
+ */
+function distinctValues({ values, names, missing, duplicate }) {
+  const problems = []
+  const seen = new Map()
+  for (const name of names) {
+    const value = String(values?.[name] ?? '').trim()
+    if (!value) {
+      if (missing) problems.push(missing(name))
+      continue
+    }
+    const twin = seen.get(value)
+    if (twin) {
+      problems.push(duplicate(name, twin, value))
+      continue
+    }
+    seen.set(value, name)
+  }
   return problems
 }

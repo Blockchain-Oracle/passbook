@@ -18,6 +18,8 @@
 //
 import { useCallback, useRef, useState } from 'react'
 
+import { ctaSeverity, type PrivacySeverity } from '@strk20/protocol/privacy'
+
 export interface BlockedButtonProps {
   /**
    * The first unmet requirement, or `null` when the action is ready.
@@ -29,9 +31,22 @@ export interface BlockedButtonProps {
   /** What the button says when nothing is in the way. */
   action: string
   onPress: () => void
+  /**
+   * The privacy severity of the disclosure panel above this button (story 6.7, DESIGN §7.5).
+   *
+   * "Severity routes to the CTA itself — the thumb carries the risk." The same
+   * `panelSeverity(panel)` the panel resolved its headline colour from is passed here, so the
+   * headline and the button carry ONE colour rather than two shades of bad.
+   *
+   * A SECOND, INDEPENDENT CHANNEL FROM `blocker`. Blocked is about readiness and severity is about
+   * consequence, and a button can be both at once — the stylesheet keeps `.cta[aria-disabled]`
+   * later in source than `.cta[data-severity]` so the blocked downgrade wins, and the build gate
+   * fails if that order is ever reversed.
+   */
+  severity?: PrivacySeverity
 }
 
-export function BlockedButton({ blocker, action, onPress }: BlockedButtonProps) {
+export function BlockedButton({ blocker, action, onPress, severity }: BlockedButtonProps) {
   // Bumped on every blocked press. It keys the live region's child, so pressing twice against the
   // SAME blocker still announces — a live region only speaks when its content changes, and the
   // second press against an unchanged sentence would otherwise be met with silence, which is the
@@ -43,6 +58,11 @@ export function BlockedButton({ blocker, action, onPress }: BlockedButtonProps) 
   // blocker chain by string concatenation can produce `''`, which would render an `aria-disabled`
   // button with no label at all — announced as "button" and nothing else.
   const stated = blocker !== null && blocker.trim() !== '' ? blocker : null
+
+  // `null` for every level the design authority does not colour — none, low, and blocked, which is
+  // the most severe and renders CALMEST. React omits an attribute whose value is `undefined`, so
+  // those buttons emit no `data-severity` at all rather than a third value nobody specified.
+  const channel = severity === undefined ? null : ctaSeverity(severity)
 
   const press = useCallback(() => {
     if (stated === null) {
@@ -84,6 +104,7 @@ export function BlockedButton({ blocker, action, onPress }: BlockedButtonProps) 
         // `aria-disabled`, never `disabled`. The real attribute removes the element from the tab
         // order and swallows the press, and then there is nothing left to explain itself with.
         aria-disabled={stated !== null}
+        data-severity={channel ?? undefined}
         // NO `aria-describedby`. While blocked the button's accessible NAME is already the blocker
         // sentence, so pointing a description at the same words made a screen reader announce it
         // three times over: as the name, as the description, and again as the live-region update.
