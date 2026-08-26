@@ -55,6 +55,14 @@ export type SessionState =
        * pool's indexer cannot read another's notes.
        */
       readonly viewingKey: bigint
+      /**
+       * Where this account WILL live — its counterfactual address.
+       *
+       * Starknet has no EOAs: an account is a contract, and its address is a hash of what it will
+       * be deployed from. So this is exact and usable before anything is deployed — funds sent
+       * here wait for the deployment. It is also what discovery looks the account up by.
+       */
+      readonly address: string
       /** True on the load that created it, so a first run can say something a return visit must not. */
       readonly created: boolean
     }
@@ -71,12 +79,22 @@ export async function bootSession(): Promise<SessionState> {
   try {
     // One dynamic import for the whole tier; the bundler gives it a single chunk. `constants` is
     // already eager, so naming it here costs nothing and keeps the pool binding explicit.
-    const [{ browserSessionStore, loadOrCreateAccountKey }, { deriveViewingKey }, { NET }] =
-      await Promise.all([
-        import('@strk20/protocol/session'),
-        import('@strk20/protocol/identity'),
-        import('@strk20/protocol/constants'),
-      ])
+    const [
+      { browserSessionStore, loadOrCreateAccountKey },
+      { deriveViewingKey },
+      { NET },
+      { accountAddressFor },
+      { ec, hash },
+    ] = await Promise.all([
+      import('@strk20/protocol/session'),
+      import('@strk20/protocol/identity'),
+      import('@strk20/protocol/constants'),
+      import('@strk20/protocol/account-address'),
+      // The SDK is already in this chunk because of `identity`, so naming it costs nothing here —
+      // and `account-address.ts` deliberately takes the hasher rather than importing it, so that
+      // module stays loadable by anything.
+      import('starknet'),
+    ])
 
     // `browserSessionStore` refuses outright where nothing can be saved, and `loadOrCreateAccountKey`
     // turns that into a typed failure carrying the sentence. Nothing here needs to check first.
@@ -87,6 +105,9 @@ export async function bootSession(): Promise<SessionState> {
       status: 'ready',
       accountKey: key.accountKey,
       viewingKey: deriveViewingKey(key.accountKey, NET.chainId, NET.pool),
+      address: accountAddressFor(ec.starkCurve.getStarkKey(key.accountKey), (a, b) =>
+        hash.computePedersenHash(a, b),
+      ),
       created: key.created,
     }
   } catch (error) {

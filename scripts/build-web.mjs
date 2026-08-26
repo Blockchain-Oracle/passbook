@@ -451,18 +451,29 @@ const APP_FORBIDDEN_IN_CHUNK = ['poseidon']
 // chunk and WHETHER THE DOCUMENT ASKS FOR IT, rather than inferring both from a total.
 //
 // What is left here is the size ceiling, and it is measured rather than guessed:
-//     before this story                                519,913 B
-//     with `identity` behind a lazy boundary            723,844 B   (+203,931 B, the SDK graph)
-// 900,000 leaves ~176 kB for the wallet, chat and bridge surfaces still to come, and is not fitted
-// to today's figure — a ceiling one build away from firing is a ceiling that gets raised
-// reflexively, which is how a tripwire stops being one.
+//     before any of this                               519,913 B
+//     + the session (identity, keys, the account)      723,844 B
+//     + the balance walk (discovery, balances)         944,272 B
+// The second jump is the discovery walk, and it is the last large one: `send` and `register` reach
+// the same SDK chunk that is already there, so they add their own source and not the graph again.
+//
+// 1,200,000 leaves ~256 kB for send, chat and bridge. It is deliberately NOT fitted to 944,272 —
+// a ceiling one build away from firing is a ceiling that gets raised reflexively, which is how a
+// tripwire stops being one. It still catches the failure worth catching: a duplicated SDK across
+// two `node_modules` roots adds ~266 kB and would cross it immediately.
+//
+// AND IT IS NOT THE NUMBER A USER PAYS. This sums every emitted chunk, lazily fetched ones
+// included. The log line reports the eager subset separately, which is the figure the load-order
+// rule actually protects — measured at 441,842 B across 7 chunks when this was raised, against
+// 944,272 B total. Slightly over half the output is fetched before anything is clicked, and none
+// of it is the SDK.
 //
 // When a legitimate change crosses this, raise it DELIBERATELY and say why in the commit — that
 // conversation is the point of the number. Nothing pins it in a test and neither it nor
 // `assertAppChunkStaysLean` is exported, so a raise has no red/green available: the evidence is the
 // log line at the bottom of this function.
 //
-const APP_MAX_EAGER_BYTES = 900_000
+const APP_MAX_EAGER_BYTES = 1_200_000
 
 //
 // ---- the cold-open surface has to be IN the entry ----------------------------------------------
@@ -692,10 +703,23 @@ function assertAppChunkStaysLean(outDir) {
   if (problems.length) {
     throw new Error(`[build:web] the eager bundle broke its load-order rule:\n  - ${problems.join('\n  - ')}`)
   }
+  //
+  // THE NUMBER A USER ACTUALLY PAYS, reported beside the one the budget caps.
+  //
+  // The budget sums every emitted `.js`, which is the right shape for "has the output bloated" and
+  // the wrong shape for "how heavy is a cold open" — a lazily-fetched chunk counts in full whether
+  // anyone ever navigates to it. Now that the SDK legitimately lives in the output, those two
+  // numbers have diverged badly enough that reporting only the total would be misleading about the
+  // thing the load-order rule exists to protect.
+  //
+  const eagerBytes = emitted
+    .filter((file) => eagerChunks.includes(basename(file)))
+    .reduce((n, file) => n + statSync(file).size, 0)
+
   console.log(
-    `[build:web] eager bundle within budget — ${total.toLocaleString()} B of ` +
-      `${APP_MAX_EAGER_BYTES.toLocaleString()} B total, 0 SDK markers across the ` +
-      `${eagerChunks.length} chunk(s) the document fetches, ` +
+    `[build:web] bundle within budget — ${total.toLocaleString()} B total of ` +
+      `${APP_MAX_EAGER_BYTES.toLocaleString()} B, of which ${eagerBytes.toLocaleString()} B is ` +
+      `fetched at first paint across ${eagerChunks.length} chunk(s), 0 SDK markers in them, ` +
       `${APP_EAGER_ROUTES.join(' + ')} in the entry chunk`,
   )
 }
@@ -707,16 +731,25 @@ async function main() {
     root: WEB_ROOT,
     configFile: join(WEB_ROOT, 'vite.config.ts'),
     //
-    // ZERO, and that is the correct number — not a relaxation.
+    // ── 0 -> 1 ON 2026-08-27, BECAUSE THE APP NOW LEGITIMATELY REACHES THE SDK ────────────
     //
-    // `src/main.tsx` imports only `@strk20/protocol/constants`, which has no SDK edge, so the app
-    // graph never reaches the SDK's `async_hooks` logger and there is nothing to allowlist. If this
-    // build ever DOES emit that warning, the app has started eagerly importing the SDK and the
-    // ~700 kB graph has landed in the root chunk — so a nonzero count here is a real regression on
-    // the load-order rule, and the gate will say so rather than shrug.
+    // This was zero for a precise reason: `src/main.tsx` imported only
+    // `@strk20/protocol/constants`, the graph never reached the SDK's `async_hooks` logger, and a
+    // nonzero count therefore meant the ~700 kB graph had landed in the root chunk. As a proxy for
+    // "did the SDK become eager", zero was doing real work.
     //
+    // The app now derives its own account and walks the pool for a balance (AD-4/AD-7), so the SDK
+    // is in the graph on purpose and that warning appears once, from
+    // `starknet-privacy-sdk/dist/utils/logging.js`. It is emitted per BUILD, not per import site,
+    // so the count does not track how many surfaces use the SDK — which is exactly why one is the
+    // number and why it is still worth pinning: TWO means the SDK has been duplicated across two
+    // `node_modules` roots, adding ~266 kB raw for nothing, and that shows up ONLY as this line.
     //
-    expectAllowlistedWarnings: 0,
+    // The "did it become eager" question is no longer this number's job. It moved to
+    // `assertAppChunkStaysLean`, which reads the entry chunk plus every `modulepreload` and can
+    // name the offending file — a strictly better answer than a warning count could give.
+    //
+    expectAllowlistedWarnings: 1,
     label: 'build:web',
   })
 

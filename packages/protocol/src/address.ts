@@ -49,6 +49,20 @@ export function asAddress(value: string): bigint {
 }
 
 /**
+ * A felt in its canonical spelling: `0x`-prefixed lowercase hex, no padding.
+ *
+ * `discovery.ts` exports a function of the same name, and this is deliberately a second one rather
+ * than a re-export: that module reaches the privacy SDK, so importing it to normalise a hex string
+ * would drag the whole crypto graph into any browser chunk that wanted one. Held to the original by
+ * test, the same way `crowd-rpc.ts`'s event selector is.
+ */
+export function toFeltHex(value: bigint | string | number): string {
+  const parsed = typeof value === 'bigint' ? value : BigInt(value)
+  if (parsed < 0n) throw new Error(`a felt cannot be negative: ${String(value)}`)
+  return `0x${parsed.toString(16)}`
+}
+
+/**
  * Parse an address, or `null` when it is not one.
  *
  * For values we READ out of somewhere — an event field, a pasted box — where one unparseable value
