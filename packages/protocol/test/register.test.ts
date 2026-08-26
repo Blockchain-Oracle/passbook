@@ -727,11 +727,19 @@ describe('the fee row copy (AC6)', () => {
 
 describe('the stage vocabulary', () => {
   it('is exactly the four stages, exhaustively', () => {
+    // THE UNION MOVED TO `pipeline-stage.ts` (story 6.5) so a renderer can import the vocabulary
+    // without importing this module, which reaches the relayer wire and the SDK. This module
+    // re-exports it, so every caller is unchanged — but the declaration to assert against is
+    // there now, and asserting it here would have gone vacuously true against a re-export line.
+    const STAGE_SOURCE = readFileSync(new URL('../src/pipeline-stage.ts', import.meta.url), 'utf8')
     // Matches to the statement terminator rather than to the end of the line, so wrapping
     // the union across several lines does not quietly make this assertion vacuous.
-    const union = SOURCE.match(/export type RegistrationStage\s*=([\s\S]*?)(?:\n\s*\n|\n(?=\S))/)?.[1] ?? ''
+    const union =
+      STAGE_SOURCE.match(/export type RegistrationStage\s*=([\s\S]*?)(?:\n\s*\n|\n(?=\S))/)?.[1] ?? ''
     expect(union).toBeTruthy()
     expect(union.match(/'[a-z-]+'/g)).toEqual(["'build'", "'prove'", "'relay'", "'confirmed'"])
+    // And this module still hands the name out under its original spelling.
+    expect(SOURCE).toContain("export type { RegistrationStage } from './pipeline-stage.js'")
   })
 
   it('names no ripening stage in the vocabulary or in the prose describing it', () => {

@@ -1,7 +1,7 @@
 /*
  * GENERATED FILE — DO NOT EDIT.
  *
- * source: apps/web/design/tokens.yaml  sha256 eb68b487531f153ca1408e8641bff850c5f04284ee01e9290ff7f4fce3d3f32b
+ * source: apps/web/design/tokens.yaml  sha256 06a9232a767f4d0b79f731d0e20cf42e788fbfe5fd051f429e50f51f4f3dcbe0
  *
  * Regenerate with `pnpm run render:tokens` after editing tokens.yaml, and commit the result.
  * and the yaml disagree, so a hand-edit here is caught rather than shipped. tokens.yaml is the
@@ -163,12 +163,14 @@
   --transition-duration-quickLong: 300ms;
   --transition-duration-lazy: 500ms;
   --transition-duration-attention: 1200ms;
+  --transition-duration-ring: 750ms;
   --transition-delay-stagger: 40ms;
   --ease-simple: ease-in-out;
   --ease-snap: cubic-bezier(0.17,0.67,0.45,1);
   --ease-glide: cubic-bezier(0.25,0.46,0.45,0.94);
   --ease-settle: cubic-bezier(0.25,0.1,0.25,1);
   --ease-attention: cubic-bezier(0.17,0.17,0,1);
+  --ease-linear: linear;
 
   /* shadows — whole-value indirection; the literal fallback is load-bearing, not belt-and-braces */
   --shadow-short: var(--sh-short, 0 1px 6px 2px rgba(33,26,18,0.03), 0 1px 2px 0 rgba(33,26,18,0.02));

@@ -30,13 +30,17 @@ import { readPoolConstants, type PoolConstants } from './pool.js'
 import { normalizeInviteCode, type SubmitBody, type SubmitResponseBody } from './relayer-wire.js'
 import { withFallback } from './rpc.js'
 import { mapRegistrationError, preflightRegistration, type PreflightRoute } from './registration.js'
+import type { RegistrationStage } from './pipeline-stage.js'
 
 /**
  * The four stages a sponsored registration passes through, in order. Four, exhaustively
  * — a ripening stage is absent on purpose, and adding one would not merely be extra
  * vocabulary, it would be a claim about the protocol that is false. See the header.
+ *
+ * DECLARED IN `pipeline-stage.ts` AND RE-EXPORTED HERE so a renderer can import the union without
+ * importing this module, which reaches the relayer wire and the SDK. No existing importer changed.
  */
-export type RegistrationStage = 'build' | 'prove' | 'relay' | 'confirmed'
+export type { RegistrationStage } from './pipeline-stage.js'
 
 /** Why a registration stopped. Every branch is a sentence the UI can show as-is. */
 export type RegisterFailure =

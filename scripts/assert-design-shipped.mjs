@@ -94,6 +94,22 @@ export function readDesign({ css, html }) {
       amountFieldBorderPx: lengthPx(css, ruleBody(css, '.amount-field'), 'border'),
       amountValueBasis: lengthPx(css, ruleBody(css, '.amount-value'), 'flex-basis'),
       amountValueMinWidth: prop(ruleBody(css, '.amount-value'), 'min-width'),
+      // The progress machine's constant row and the ring's honesty — see `progressProblems`.
+      stepRowMinHeight: lengthPx(css, ruleBody(css, '.step-row'), 'min-height'),
+      stepRowHeight: lengthPx(css, ruleBody(css, '.step-row'), 'height'),
+      stepRingEasing: resolved(css, ruleBody(css, '.step-ring'), 'animation-timing-function'),
+      stepRingDuration: resolved(css, ruleBody(css, '.step-ring'), 'animation-duration'),
+      stepRingIterations: prop(ruleBody(css, '.step-ring'), 'animation-iteration-count'),
+      stepConnectorBorder: prop(ruleBody(css, '.step-connector'), 'border-inline-start'),
+      stepConnectorHeight: lengthPx(css, ruleBody(css, '.step-connector'), 'height'),
+      // The reduced-motion override, read out of the media block rather than the base rule — see
+      // `progressProblems`. Anchored on the query text so the base `.step-ring` cannot answer for
+      // it: `ruleBody` returns the FIRST match, so without this anchor the two rules are
+      // indistinguishable and whichever the emitter happens to put first is what gets measured.
+      ringReducedMotion:
+        css.match(/prefers-reduced-motion[^{]*\{[\s\S]*?\.step-ring\s*\{([^}]*)\}/)?.[1] ?? '',
+      reconsentMinHeight: lengthPx(css, ruleBody(css, '.reconsent-row'), 'min-height'),
+      pipelineRowMinHeight: lengthPx(css, ruleBody(css, '.pipeline-row'), 'min-height'),
     },
   }
 }
@@ -117,6 +133,34 @@ function ruleBody(css, selector) {
 function prop(body, name) {
   const hit = (body || '').match(new RegExp(`(?:^|;)\\s*${name}\\s*:\\s*([^;]+)`))
   return hit ? hit[1].trim() : ''
+}
+
+/**
+ * A declaration resolved through one `var()` hop, as a STRING.
+ *
+ * The sibling of `lengthPx` for values that are not lengths — a timing function, a duration. Same
+ * reason it exists: `animation-timing-function: var(--ease-snap)` and `var(--ease-linear)` are
+ * indistinguishable to any check that only asks whether the declaration is spelled, and they are
+ * the difference between an honest indeterminate ring and one that appears to report progress.
+ */
+function resolved(css, body, name) {
+  const raw = prop(body, name)
+  if (!raw) return ''
+  const hit = raw.match(/var\((--[\w-]+)\)/)
+  return hit ? String(decl(css, hit[1])).trim() : raw
+}
+
+/**
+ * A CSS time in milliseconds, in whichever unit the artifact happens to carry it.
+ *
+ * The minifier rewrites `750ms` as `.75s`, so a check written against the authored spelling passes
+ * only on input the build never emits. Both units, and a leading-dot fraction, are the same value.
+ * Returns `null` when the string is not a time at all — which callers treat as a failure.
+ */
+function timeMs(value) {
+  const hit = String(value || '').trim().match(/^(\d*\.?\d+)(ms|s)$/)
+  if (!hit) return null
+  return hit[2] === 's' ? Number(hit[1]) * 1000 : Number(hit[1])
 }
 
 /**
@@ -341,6 +385,151 @@ export function reservedHeightProblems({ read }) {
         'Anything else makes the input as wide as its own content, and the font size is computed ' +
         'FROM that width — which closes the loop the two declarations exist to break.',
     )
+  }
+
+  return problems
+}
+
+/**
+ * The progress machine's construction rules, resolved to numbers (story 6.5).
+ *
+ * A THIRD VERDICT RATHER THAN A WIDER SECOND ONE, for the same reason `reservedHeightProblems` is
+ * not part of `designProblems`: "the token sheet shipped", "the value spine reserves its space" and
+ * "the progress machine cannot reflow or overclaim" are three separate findings, and a caller that
+ * merges them learns only that something is wrong.
+ *
+ * @param {object} o
+ * @param {object|null} o.read  what `readDesign()` returned
+ * @returns {string[]} problems, empty when the machine is built the way §7.7 requires
+ */
+export function progressProblems({ read }) {
+  const problems = []
+  if (!read) return ['the emitted stylesheet could not be read, so no progress rule was verified']
+
+  const r = read.reserved ?? {}
+
+  //
+  // §7.7: "total row height constant at 40px — any reflow reads as instability".
+  //
+  // BOTH ENDS ARE ASSERTED. A `min-height` alone reserves a floor and lets the row GROW when the
+  // slot goes 24→40 or a label wraps; a `height` alone can be undercut by a taller child in some
+  // layout modes. The row is constant only when the floor and the ceiling are the same number, and
+  // "constant" is the entire claim this component makes.
+  //
+  const STEP_ROW_PX = 40
+
+  for (const [name, value] of [
+    ['min-height', r.stepRowMinHeight],
+    ['height', r.stepRowHeight],
+  ]) {
+    if (value === null || value !== STEP_ROW_PX) {
+      problems.push(
+        `\`.step-row\` declares ${name} ${value === null ? '(none readable)' : `${value}px`}, ` +
+          `and §7.7 requires exactly ${STEP_ROW_PX}px on both. A row that can change height as the ` +
+          'pipeline advances moves every row below it at the moment the user is watching them.',
+      )
+    }
+  }
+
+  //
+  // THE RING MUST BE LINEAR, AND THIS IS AN HONESTY CHECK RATHER THAN A STYLE ONE.
+  //
+  // An eased revolution accelerates and decelerates once per turn. On an INDETERMINATE spinner —
+  // one that exists precisely because we cannot observe the hosted prover's progress — that cadence
+  // reads as progress events, which is the claim the indeterminate mode exists to avoid making.
+  // Any of the five authored curves would pass a "does it declare a timing function" check.
+  //
+  if (r.stepRingEasing !== 'linear') {
+    problems.push(
+      `\`.step-ring\` resolves its timing function to ${r.stepRingEasing ? JSON.stringify(r.stepRingEasing) : '(nothing)'}, ` +
+        'and it must be `linear`. A ring on a curve speeds up and slows down once per turn, and on ' +
+        'a spinner that exists BECAUSE we cannot see the prover\'s progress, that cadence is a ' +
+        'claim about progress we do not have.',
+    )
+  }
+
+  //
+  // READ IN EITHER UNIT, because the artifact is MINIFIED. The sheet declares `750ms` and the
+  // minifier ships `.75s` — an earlier version of this check tested for `ms` and failed a
+  // correctly-built ring. A gate that only recognises the unminified spelling is a gate that only
+  // works on input the build never produces.
+  //
+  const ringMs = timeMs(r.stepRingDuration)
+  if (ringMs === null || ringMs <= 0) {
+    problems.push(
+      `\`.step-ring\` resolves its duration to ${r.stepRingDuration ? JSON.stringify(r.stepRingDuration) : '(nothing)'}. ` +
+        'It must resolve to a positive time from the motion sheet — an unresolved var() leaves the ' +
+        'animation at the UA default of 0s, which is a ring that never turns and no error anywhere.',
+    )
+  }
+
+  if (!/infinite/.test(r.stepRingIterations || '')) {
+    problems.push(
+      '`.step-ring` does not iterate infinitely. A ring that stops after one turn looks like a ' +
+        'hung process, which is the single thing an indeterminate spinner must never imply.',
+    )
+  }
+
+  // Channel 5 of the five redundant channels, and the one that survives greyscale, reduced motion
+  // and a screenshot all at once. `dotted` is load-bearing: dots read as path-not-yet-travelled.
+  if (!/dotted/.test(r.stepConnectorBorder || '')) {
+    problems.push(
+      `\`.step-connector\` declares ${r.stepConnectorBorder || '(no inline-start border)'}, ` +
+        'and it must be dotted. It is one of the five redundant channels §7.7 requires so state ' +
+        'reads with colour and motion both stripped.',
+    )
+  }
+
+  //
+  // AND IT MUST OCCUPY SPACE. Checking only that the border is spelled `dotted` is the exact
+  // failure story 6.4 recorded — a declaration verified for its wording rather than its effect —
+  // and it happened again here: the connector shipped as an empty block with a border and no
+  // height, resolved to 0px, and this gate reported "connector dotted" over a channel that
+  // rendered nothing. A border on a zero-height box is not a channel.
+  //
+  if (r.stepConnectorHeight === null || r.stepConnectorHeight <= 0) {
+    problems.push(
+      `\`.step-connector\` resolves to ${r.stepConnectorHeight === null ? 'no readable height' : `${r.stepConnectorHeight}px`} tall. ` +
+        'It is a child of the list item, not a flex item of the list, so `align-self: stretch` ' +
+        'does nothing for it — without an explicit height it collapses and the channel disappears ' +
+        'while every wording check still passes.',
+    )
+  }
+
+  //
+  // REDUCED MOTION IS A PROMISE THE STYLESHEET MAKES AND NOTHING WAS CHECKING.
+  //
+  // Deleting the override ships an infinite spinner to a reader who asked their OS for stillness,
+  // with a green build and no other symptom. It is asserted here rather than trusted because the
+  // blanket `*` rule cannot cover it: `*` has specificity 0,0,0 and `.step-ring` has 0,1,0, so the
+  // base rule's own `animation-name` wins unless something overrides it by name.
+  //
+  if (!/animation-name\s*:\s*none/.test(r.ringReducedMotion || '')) {
+    problems.push(
+      'the `prefers-reduced-motion` block does not stop `.step-ring`. The blanket `*` rule cannot ' +
+        'reach it — a class selector outranks the universal one — so without a named override the ' +
+        'ring keeps spinning for a reader who asked the OS to stop motion.',
+    )
+  }
+
+  //
+  // §5's proof-expired row: "inline re-consent row in the fee row's slot, IDENTICAL HEIGHT".
+  //
+  // Same number as the step row, deliberately — both are the app's one row height. If the row that
+  // appears when a proof expires is shorter or taller than the row it replaces, the CTA below it
+  // moves at the exact moment the user is reaching for it.
+  //
+  for (const [selector, value] of [
+    ['.reconsent-row', r.reconsentMinHeight],
+    ['.pipeline-row', r.pipelineRowMinHeight],
+  ]) {
+    if (value === null || value < STEP_ROW_PX) {
+      problems.push(
+        `\`${selector}\` reserves ${value === null ? 'no readable min-height' : `${value}px`}, ` +
+          `and it must reserve at least ${STEP_ROW_PX}px so it swaps into a slot rather than ` +
+          'pushing what is underneath it down the page.',
+      )
+    }
   }
 
   return problems

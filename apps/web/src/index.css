@@ -847,6 +847,269 @@
   }
 
   /*
+   * ── The progress machine (§7.7) ────────────────────────────────────────────────────────
+   *
+   * THE ROW IS 40px AND THAT IS THE WHOLE CONTRACT. Every channel below fits inside a box whose
+   * height never changes: the slot grows 24→40 by changing its own box, the title changes weight
+   * and colour but not size, the right slot swaps content of equal height, and the fill bar is 4px
+   * INSIDE the right slot rather than a bar added to the row. A step list that reflows as it
+   * advances reads as instability at the exact moment the user is deciding whether to trust us.
+   */
+  .step-list {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .step-row {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-s12);
+    min-height: var(--spacing-s40);
+    height: var(--spacing-s40);
+  }
+
+  /*
+   * Channel 2 of 5: the slot's own size. 24px while the step is not the current one, 40px while it
+   * is — inside a 40px row, so growing it moves nothing.
+   */
+  /*
+   * NO TRANSITION HERE, DELIBERATELY. `tokens.yaml` states the motion contract as "transform +
+   * opacity only; never color, never layout height", and width/height are exactly what it excludes.
+   * An earlier version transitioned both and was wrong twice over: it animated layout, and the
+   * blanket reduced-motion rule could not reach it — `*` has specificity 0,0,0 and `.step-slot` has
+   * 0,1,0, so the class's own duration wins and a reader who asked their OS to stop motion got it
+   * anyway. Snapping is correct and costs nothing.
+   */
+  .step-slot {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: none;
+    width: var(--spacing-s24);
+    height: var(--spacing-s24);
+  }
+
+  /*
+   * Channel 2 of 5, and it has to be VISIBLE to be a channel. The slot grows and takes a ring of
+   * its own; growing an empty transparent box moves the title sideways and signals nothing, which
+   * is what the first version did.
+   */
+  .step-row[data-current] .step-slot {
+    width: var(--spacing-s40);
+    height: var(--spacing-s40);
+    border-radius: var(--radius-pill);
+    background-color: var(--color-inset);
+  }
+
+  /*
+   * Channel 1 of 5: icon treatment. Preview, complete and replaced withhold the icon and render a
+   * blank circle — "the future is not yet real", and a completed step does not need to keep
+   * announcing itself.
+   */
+  .step-icon {
+    width: var(--spacing-s24);
+    height: var(--spacing-s24);
+    border-radius: var(--radius-pill);
+    border: var(--spacing-s2) solid var(--color-neutral3);
+  }
+
+  .step-row[data-status='complete'] .step-icon {
+    border-color: var(--color-settled);
+  }
+
+  .step-row[data-status='failed'] .step-icon {
+    border-color: var(--color-irreversible);
+  }
+
+  /*
+   * THE INDETERMINATE RING. 750ms linear, and the linear is the load-bearing half — an eased
+   * revolution accelerates and decelerates once per turn, and that cadence reads as progress
+   * events on a computation we do not own. See `tokens.yaml`'s `easings.linear` comment.
+   */
+  @keyframes pb-ring-spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  /*
+   * `accent1`, NOT `accent2`. The accent scale is not a shade ramp: `accent2` is
+   * `rgba(140,47,30,0.08)`, an eight-percent TINT meant for filled backgrounds like the disabled
+   * CTA. Painted as a 2px border over the `inset` track it composites to roughly a three-value RGB
+   * delta — a ring that is technically rotating and visually a static circle. The build gate proved
+   * the curve was linear and the duration real over a spinner nobody could see turn.
+   */
+  .step-ring {
+    width: var(--spacing-s24);
+    height: var(--spacing-s24);
+    border-radius: var(--radius-pill);
+    border: var(--spacing-s2) solid var(--color-inset);
+    border-top-color: var(--color-accent1);
+    animation-name: pb-ring-spin;
+    animation-duration: var(--transition-duration-ring);
+    animation-timing-function: var(--ease-linear);
+    animation-iteration-count: infinite;
+  }
+
+  /*
+   * Channel 5 of 5: the connector. Dotted, because dots read as path-not-yet-travelled in a way a
+   * solid line does not. It is the one channel that survives every other one being stripped.
+   */
+  /*
+   * IT NEEDS AN EXPLICIT HEIGHT, and the first version did not have one.
+   *
+   * The connector is a child of the `<li>`, and the flex container is `.step-list` — so the flex
+   * items are the list items, not this. `flex: none` and `align-self: stretch` were inert, the box
+   * had no content and no height, and it resolved to 0px. The channel the design calls "the one
+   * that survives every other one being stripped" rendered nothing at all, and the gate reported it
+   * present because it only asked whether the border was spelled `dotted`. That is precisely the
+   * 6.4 failure — a declaration checked for its wording rather than for its effect — committed
+   * again in the story that added a gate to prevent it. The gate now resolves this height too.
+   */
+  .step-connector {
+    width: var(--spacing-s2);
+    height: var(--spacing-s8);
+    margin-inline-start: var(--spacing-s12);
+    border-inline-start: var(--spacing-s2) dotted var(--color-neutral3);
+  }
+
+  /*
+   * Channel 3 of 5: title weight and ink. Same size in every state — only weight and colour move.
+   * Truncates rather than wraps: the row is a fixed 40px, so a title that wrapped would overflow
+   * the box the whole component exists to hold constant.
+   */
+  .step-title {
+    flex: 1 1 auto;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: var(--color-neutral2);
+  }
+
+  .step-row[data-current] .step-title {
+    color: var(--color-neutral1);
+    font-weight: var(--font-weight-medium);
+  }
+
+  .step-row[data-status='replaced'] .step-title {
+    color: var(--color-neutral3);
+  }
+
+  /*
+   * Channel 4 of 5: the right slot. Reserved, so swapping its content moves nothing — and
+   * `nowrap`, because a second line inside a 40px row is the reflow this component forbids.
+   */
+  .step-right {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: var(--spacing-s8);
+    flex: none;
+    min-width: var(--spacing-s60);
+    white-space: nowrap;
+    color: var(--color-neutral3);
+  }
+
+  /*
+   * The determinate fill, and it is IN FLOW rather than absolutely positioned on the row.
+   *
+   * Positioning it would need `position: relative` on `.step-row`, and this app has no z-index
+   * vocabulary — stacking is paint order, ruled 2026-08-26. A positioned row later in the document
+   * than the sticky header paints OVER it on scroll, which is the exact hazard the open stacking
+   * follow-up names. A 4px track inside the already-reserved right slot needs none of that.
+   */
+  .step-fill {
+    width: var(--spacing-s60);
+    height: var(--spacing-s4);
+    border-radius: var(--radius-pill);
+    background-color: var(--color-inset);
+    overflow: hidden;
+  }
+
+  /*
+   * `accent1` for the same reason as the ring, and NO width transition for the same reason as the
+   * slot — width is a layout property, and the motion contract excludes it. Progress is monotonic
+   * by construction, so a snap is only ever forward.
+   */
+  .step-fill-bar {
+    height: 100%;
+    border-radius: var(--radius-pill);
+    background-color: var(--color-accent1);
+  }
+
+  /*
+   * ── The global degraded strip (§5) ─────────────────────────────────────────────────────
+   *
+   * A HAIRLINE, NOT A BANNER. Grey is the default because grey is what facts and administrative
+   * stops render in; amber is spent only where §5 names it, and red is not available here at all —
+   * none of these states is irreversible.
+   */
+  .degraded-strip {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-s4);
+    padding: var(--spacing-s8) var(--spacing-s12);
+    border-block-end: var(--spacing-s1) solid var(--color-surface3);
+    background-color: var(--color-raised);
+    color: var(--color-neutral2);
+  }
+
+  .degraded-strip[data-severity='amber'] {
+    border-block-end-color: var(--color-exposed);
+  }
+
+  /* WORKS / STOPPED render as a list, never as prose — an inventory is believed, a paragraph is skimmed. */
+  .degraded-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--spacing-s8);
+    color: var(--color-neutral3);
+  }
+
+  /* Both class hashes, in mono, because they are the checkable part of an upgrade claim. */
+  .degraded-hash {
+    font-family: var(--font-mono);
+    overflow-wrap: anywhere;
+  }
+
+  /*
+   * ── The inline re-consent row (§7.7) ───────────────────────────────────────────────────
+   *
+   * NEVER A MODAL. An expired proof is routine — it lapsed because the user took longer than 450
+   * blocks to press a button — and a scrim would make a recoverable, uncharged, unsubmitted event
+   * feel like a failure. It occupies the fee row's slot at the same height, so its appearance
+   * swaps content rather than pushing the CTA down the page.
+   */
+  .reconsent-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--spacing-s12);
+    min-height: var(--spacing-s40);
+    padding: var(--spacing-s8) var(--spacing-s12);
+    border: var(--spacing-s1) solid var(--color-surface3);
+    border-radius: var(--radius-card);
+    color: var(--color-neutral2);
+  }
+
+  /*
+   * ── The detached pipeline row ──────────────────────────────────────────────────────────
+   *
+   * Mounted above the router outlet, so navigating swaps the outlet's subtree and leaves this
+   * alone. There is no save-and-restore because there is no unmount — see `PipelineRow.tsx`.
+   */
+  .pipeline-row {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-s12);
+    min-height: var(--spacing-s40);
+    padding: var(--spacing-s0) var(--spacing-s12);
+    border-block-end: var(--spacing-s1) solid var(--color-surface3);
+    color: var(--color-neutral2);
+  }
+
+  /*
    * REDUCED MOTION IS HONOURED HERE BECAUSE THERE IS NOWHERE ELSE. This app ships no animation
    * library — the popup layer animates through the component library's own `data-*` attributes —
    * so the CSS media query is the whole mechanism rather than a layer that looks compliant while a
@@ -882,6 +1145,18 @@
     .pulse {
       animation-name: pb-pulse;
       animation-duration: var(--transition-duration-stiff);
+    }
+
+    /*
+     * The ring STOPS and closes rather than degrading to a dip. An indeterminate spinner says "we
+     * are waiting on something"; §5 already renders that as a STATIC ring for the maturing case,
+     * so a still complete circle is the authored vocabulary rather than an invention. The step
+     * still reads as in-progress through the other four channels, which is the whole reason five
+     * of them exist.
+     */
+    .step-ring {
+      animation-name: none;
+      border-color: var(--color-neutral3);
     }
   }
 }

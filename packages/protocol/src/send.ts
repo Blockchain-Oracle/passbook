@@ -44,6 +44,7 @@ import {
   type Proof,
 } from '@starkware-libs/starknet-privacy-sdk'
 import { NET, STRK_TOKEN } from './constants.js'
+import type { SendStage } from './pipeline-stage.js'
 import { deriveViewingKey } from './identity.js'
 import { CLIENT_ACTION } from './message-book.js'
 import { approveCeiling } from './fee-ceiling.js'
@@ -77,8 +78,12 @@ import {
 /**
  * The five stages a send passes through, in order. Five, exhaustively — and `mature` is the one
  * `RegistrationStage` does not have. See the header for why that asymmetry is a protocol fact.
+ *
+ * DECLARED IN `pipeline-stage.ts` AND RE-EXPORTED HERE, so that a renderer can import the union
+ * without importing this module — which reaches the privacy SDK. Every existing `SendStage`
+ * importer keeps working unchanged; see that file's header for the 268 kB reason.
  */
-export type SendStage = 'build' | 'prove' | 'relay' | 'mature' | 'confirmed'
+export type { SendStage } from './pipeline-stage.js'
 
 /** Who put the transaction on chain. Both are first-class outcomes; neither is a fallback. */
 export type SubmitMode = 'relayer' | 'self'
