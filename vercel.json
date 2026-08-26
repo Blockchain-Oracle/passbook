@@ -1,0 +1,8 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": "echo 'artifact built locally by `npm run build:web` — see vercel.json notes'",
+  "outputDirectory": "apps/web/dist",
+  "installCommand": "echo 'no install: the uploaded artifact is already built'",
+  "framework": null,
+  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
+}
