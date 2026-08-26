@@ -382,28 +382,506 @@
   }
 
   /*
-   * One row. This anatomy is the one every list in the app shares from 6.4 onward, so it is written
-   * once, here, rather than per surface.
+   * The palette's row used to be declared here as `.pb-palette-row`, a two-span stand-in. It is now
+   * `.option-row` below — the ONE row anatomy — and the palette is a caller of it rather than the
+   * owner of a second one. That was always the plan; see the note in `CommandPalette.tsx`.
    */
-  .pb-palette-row {
+
+  /*
+   * ---- the value spine (story 6.4) ---------------------------------------------------------
+   *
+   * THIS SECTION IS WHERE "ZERO LAYOUT SHIFT" ACTUALLY LIVES, and that is a deliberate move rather
+   * than a convenience. The acceptance criterion used to be a measurement — take the container box
+   * across empty / typed / error / focus and assert it never changes. That test cannot run in jsdom
+   * (no layout engine, so the assertion is `0 === 0`) and there is no browser driver in this
+   * repository any more. Restated as a CONSTRUCTION, it is stronger than the measurement was: the
+   * row reserves its height in this stylesheet, so the guarantee holds for every state, including
+   * the ones nobody thought to sample. `scripts/assert-design-shipped.mjs` reads these declarations
+   * back out of the emitted artifact, so deleting one fails `build:web` by name.
+   */
+
+  /*
+   * The amount container. `inset` at rest with a TRANSPARENT border — not "no border" — because a
+   * border that appears on focus would add 2px to the box and move everything below it. The border
+   * is always there; only its colour changes.
+   *
+   * NO TRANSITION ON THE FILL OR THE BORDER, on purpose (§1.4): colour snaps, and only transform and
+   * opacity get the 80ms. A fade between two surface fills reads as a lag in the input itself.
+   */
+  .amount-field {
     display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: var(--spacing-s12);
+    flex-direction: column;
+    gap: var(--spacing-s4);
+    padding: var(--spacing-s12) var(--spacing-s16);
+    background-color: var(--color-inset);
+    border: var(--spacing-s1) solid transparent;
+    border-radius: var(--radius-large);
+  }
+
+  /* Focus INVERTS the container (§7.1). No glow, no ring — the surface itself rises. */
+  .amount-field:focus-within {
+    background-color: var(--color-raised);
+    border-color: var(--color-surface3);
+  }
+
+  /*
+   * THE RESERVED ROW. `min-height` is the whole guarantee.
+   *
+   * The tallest thing this row can ever hold is the 36px ceiling at line-height 1.2 = 43.2px, and
+   * `packages/protocol/test/amount.test.ts` asserts that arithmetic stays under the reserve. So the
+   * row is constant-height for every input the field accepts — before a character is typed, while
+   * the font is shrinking toward its floor, and in the insufficient state, which changes only ink.
+   */
+  .amount-row {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-s8);
+    min-height: var(--spacing-s60);
+  }
+
+  /*
+   * The field itself. Font size is the ONE inline style in this component — it is continuous
+   * between two token-derived endpoints, so there is no utility that could express it and no token
+   * that should try to. Everything else here is on-sheet.
+   */
+  .amount-value {
+    /*
+     * `flex-basis: 0`, NOT `auto`, and the difference is a feedback loop. With `auto` the basis is
+     * the content's own width, so a font size computed FROM this element's width would feed back
+     * into that width and the `ResizeObserver` could oscillate. At basis 0 the width is purely the
+     * free space left by the symbol, and the size calculation is one-way.
+     *
+     * `min-width: 0` is load-bearing beside it: a flex item defaults to `min-width: auto`, refuses
+     * to shrink below its content, and pushes the symbol out of the row instead of letting the text
+     * scroll within it.
+     */
+    flex-grow: 1;
+    flex-shrink: 1;
+    flex-basis: var(--spacing-s0);
+    min-width: 0;
+    padding: var(--spacing-s0);
+    background-color: transparent;
+    border: none;
+    color: var(--color-neutral1);
+    font-family: inherit;
+    font-weight: var(--font-weight-medium);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .amount-value:focus {
+    outline: none;
+  }
+
+  /*
+   * The unit beside the number. It is one of the three elements that turn `irreversible` when the
+   * balance is short, which is why it is its own element rather than part of the input's value.
+   */
+  .amount-symbol {
+    flex-shrink: 0;
+    color: var(--color-neutral2);
+    font-size: var(--text-subheading1);
+    line-height: var(--text-subheading1--line-height);
+    font-weight: var(--font-weight-medium);
+  }
+
+  /*
+   * THE BALANCE LINE IS ALWAYS MOUNTED. Conditional rendering is what makes a row grow by 20px the
+   * first time a balance arrives, and that shift lands under the user's cursor mid-type. It holds
+   * its 20px from first paint and only ever changes opacity and colour.
+   */
+  .amount-balance {
+    /*
+     * SINGLE-LINE BY CONSTRUCTION, which is what makes the reserve above a guarantee rather than a
+     * floor. `min-height` alone reserves 20px and then lets a sentence that wraps take 40 — and the
+     * balance line is the one element in here whose text a surface writes freely, so "it is short
+     * enough today" is not a property anything holds. Ellipsis over reflow: the number is at the
+     * start of the line, and a truncated tail beats a row that moves.
+     */
+    min-height: var(--spacing-s20);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    opacity: 0;
+    color: var(--color-neutral2);
+    font-size: var(--text-body3);
+    line-height: var(--text-body3--line-height);
+    font-variant-numeric: tabular-nums;
+    transition-property: opacity;
+    transition-duration: var(--transition-duration-quick);
+    transition-timing-function: var(--ease-glide);
+  }
+
+  .amount-balance[data-shown] {
+    opacity: 1;
+  }
+
+  /*
+   * Insufficient balance, in full. THREE elements change ink and NOTHING changes size — no banner
+   * is inserted, no icon appears, no slot opens. The CTA beside them relabels without taking this
+   * colour: red on the button as well would spend the irreversible colour on a state the user fixes
+   * by typing a smaller number.
+   */
+  .amount-short {
+    color: var(--color-irreversible);
+  }
+
+  /*
+   * The additive chips. `+1 / +5 / +20` ADD to what is there — they are not presets, and the field
+   * is never pre-filled, so there is nothing for them to overwrite.
+   */
+  .amount-chip {
+    display: inline-flex;
+    align-items: center;
+    padding: var(--spacing-s6) var(--spacing-s12);
+    background-color: var(--color-surface3);
+    border: var(--spacing-s1) solid transparent;
+    border-radius: var(--radius-pill);
+    color: var(--color-neutral1);
+    font-size: var(--text-buttonLabel4);
+    line-height: var(--text-buttonLabel4--line-height);
+    font-weight: var(--font-weight-medium);
+    font-variant-numeric: tabular-nums;
+    cursor: pointer;
+  }
+
+  .amount-chip:hover {
+    background-color: var(--color-surface3Hovered);
+  }
+
+  /*
+   * A control that shows and hides something. Geometrically it is the `small` button
+   * (px12 py8 r12), which is a different recipe from the additive chip above — they looked alike
+   * enough that the chip class got borrowed for one, and a class with two meanings is re-themable
+   * as neither. `align-self: start` keeps it from stretching full-bleed inside the surface's
+   * `flex-col`, where `inline-flex` alone does not stop a flex item from filling the cross axis.
+   */
+  .disclosure-toggle {
+    display: inline-flex;
+    align-items: center;
+    align-self: flex-start;
+    gap: var(--spacing-s8);
     padding: var(--spacing-s8) var(--spacing-s12);
+    background-color: var(--color-inset);
+    border: var(--spacing-s1) solid var(--color-surface3);
     border-radius: var(--radius-control);
+    color: var(--color-neutral1);
+    font-size: var(--text-buttonLabel3);
+    line-height: var(--text-buttonLabel3--line-height);
+    font-weight: var(--font-weight-medium);
+    cursor: pointer;
+  }
+
+  .disclosure-toggle:hover {
+    background-color: var(--color-insetHovered);
+  }
+
+  /*
+   * "NOT YET REAL", ENCODED BY STRUCTURE (`tokens.yaml` → `notYetReal`).
+   *
+   * `neutral3` measures 2.12–2.18:1 on light surfaces and CANNOT be fixed — the alpha that reaches
+   * AA composites byte-identically to `neutral2` and collapses the three-level ladder to two. So the
+   * grey is a secondary cue and this underline is the carrier: 1px dotted at currentColor, which
+   * survives greyscale and every form of colour blindness.
+   */
+  .not-yet-real {
+    text-decoration-line: underline;
+    text-decoration-style: dotted;
+    text-decoration-thickness: var(--spacing-s1);
+    text-underline-offset: var(--spacing-s2);
+  }
+
+  /*
+   * The chip recipe (§7.9), one rule plus its status variants. The LABEL IS ALWAYS AT FULL TEXT
+   * CONTRAST and never in the status colour — which is what makes the recipe pass contrast in both
+   * themes without a per-theme label token.
+   *
+   * Every tinted variant also carries its 1px status border. Measured rule: a bare tint shifts
+   * lightness by a full elevation step and reads as elevation rather than status.
+   */
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--spacing-s4);
+    padding: var(--spacing-s1) var(--spacing-s6);
+    border: var(--spacing-s1) solid var(--color-surface3);
+    border-radius: var(--radius-badge);
+    color: var(--color-neutral1);
+    font-size: var(--text-body4);
+    line-height: var(--text-body4--line-height);
+    white-space: nowrap;
+  }
+
+  .chip[data-status='settled'] {
+    background-color: var(--color-settledTint);
+    border-color: var(--color-settled);
+  }
+
+  .chip[data-status='exposed'] {
+    background-color: var(--color-exposedTint);
+    border-color: var(--color-exposed);
+  }
+
+  /* The most severe state renders CALMEST. An expired proof is an administrative stop, not a danger. */
+  .chip[data-status='quiet'] {
+    color: var(--color-neutral2);
+  }
+
+  /*
+   * ---- one row, every list -----------------------------------------------------------------
+   *
+   * §7.2's anatomy: outer px12, inner p8 r16 gap12, hover fill on the INNER rounded flex so the
+   * highlight is an inset pill rather than a full-bleed band.
+   */
+  .option-row {
+    display: block;
+    padding: var(--spacing-s0) var(--spacing-s12);
     cursor: default;
     scroll-margin-block: var(--spacing-s4);
+  }
+
+  .option-row-inner {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-s12);
+    padding: var(--spacing-s8);
+    border-radius: var(--radius-card);
   }
 
   /*
    * HOVER AND KEYBOARD ARE ONE STATE, which is why there is no `:hover` rule beside this one. The
    * library sets `data-highlighted` for both the pointer and the arrow keys, so a second rule would
-   * be a second source of truth for one fact. It is a BOOLEAN attribute — present or absent — so a
-   * presence selector is correct here; the palette library this one was chosen over stamps
-   * `data-selected="false"` on every unselected row, where the same selector paints all six.
+   * be a second source of truth for one fact — and `option-row.ts`'s `nextHighlight` moves that same
+   * highlight. It is a BOOLEAN attribute — present or absent — so a presence selector is correct
+   * here; the palette library this one was chosen over stamps `data-selected="false"` on every
+   * unselected row, where the same selector would paint all six.
    */
-  .pb-palette-row[data-highlighted] {
-    background-color: var(--color-inset);
+  .option-row[data-highlighted] .option-row-inner {
+    background-color: var(--color-raisedHovered);
+  }
+
+  /* Readable, just not choosable. Never hidden — a token you cannot pick is information. */
+  .option-row[data-disabled] {
+    opacity: 0.5;
+  }
+
+  /* The one size the authority states for a row icon (`components.activityRow.icon`). */
+  .option-row-image {
+    flex-shrink: 0;
+    width: var(--spacing-s40);
+    height: var(--spacing-s40);
+    border-radius: var(--radius-pill);
+    object-fit: cover;
+  }
+
+  /* `min-width: 0` is what lets `truncate` work on the children. Without it the row just grows. */
+  .option-row-main {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .option-row-title {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-s6);
+    min-width: 0;
+    color: var(--color-neutral1);
+    font-size: var(--text-body1);
+    line-height: var(--text-body1--line-height);
+  }
+
+  /*
+   * THE TEXT RUNS SHRINK; THE CHIP BESIDE THEM DOES NOT. This is the bug that hides.
+   *
+   * `.option-row-main` already carries `min-width: 0`, and a comment there says it "lets `truncate`
+   * work on the children" — true for the block-level subtitle, false for these. The title row is a
+   * FLEX container, so its children are flex items at `min-width: auto`, which refuses to shrink
+   * below the text's own width no matter what `text-overflow` says. A long token name pushed
+   * straight through the tag and balance slots instead of ellipsizing, and `truncate` looked
+   * applied because it was.
+   *
+   * Written as its own class rather than `.option-row-title > *`, which would also let the
+   * lifecycle chip be crushed to nothing — a badge that shrinks is worse than a title that does
+   * not, because the badge is the state and the title is only the name.
+   */
+  .option-row-title-text {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .option-row-title .chip {
+    flex-shrink: 0;
+  }
+
+  .option-row-subtitle {
+    color: var(--color-neutral2);
+    font-size: var(--text-body3);
+    line-height: var(--text-body3--line-height);
+  }
+
+  .option-row-right {
+    flex-shrink: 0;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /*
+   * The section header. "Public balance (will reveal)" is disclosure as FURNITURE — the consequence
+   * is stated on the way past rather than in a warning that fires after the choice is made.
+   */
+  .option-section-heading {
+    display: flex;
+    align-items: center;
+    margin: var(--spacing-s8) var(--spacing-s12) var(--spacing-s4);
+    padding: var(--spacing-s2) var(--spacing-s8);
+    border: var(--spacing-s1) solid transparent;
+    border-radius: var(--radius-badge);
+    color: var(--color-neutral2);
+    font-size: var(--text-body4);
+    line-height: var(--text-body4--line-height);
+    font-weight: var(--font-weight-medium);
+  }
+
+  .option-section-heading[data-exposed] {
+    background-color: var(--color-exposedTint);
+    border-color: var(--color-exposed);
+    color: var(--color-neutral1);
+  }
+
+  /*
+   * ---- the blocker-chain CTA (§7.10) -------------------------------------------------------
+   *
+   * `large`, which binds padding AND radius together: px20 py16 r20. Primary fill is INK
+   * (`accent3`), not the brand — oxblood is reserved for the one branded moment.
+   */
+  .cta {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--spacing-s12);
+    padding: var(--spacing-s16) var(--spacing-s20);
+    background-color: var(--color-accent3);
+    border: var(--spacing-s1) solid transparent;
+    border-radius: var(--radius-large);
+    color: var(--color-ground);
+    font-size: var(--text-buttonLabel1);
+    line-height: var(--text-buttonLabel1--line-height);
+    font-weight: var(--font-weight-medium);
+    cursor: pointer;
+    transition-property: transform, opacity;
+    transition-duration: var(--transition-duration-simple);
+    transition-timing-function: var(--ease-simple);
+  }
+
+  /*
+   * BLOCKED IS AN EMPHASIS DOWNGRADE, NOT A DISABLE (§7.10). The button stays a real, focusable,
+   * pressable button — `aria-disabled` says it will not act, and pressing it explains why. It drops
+   * to the accent-at-8% secondary within the same family: "your action, not ready yet".
+   *
+   * It does NOT take the irreversible colour. Insufficient balance relabels colourlessly, and red on
+   * a state the user fixes by typing a smaller number would spend the one colour this product
+   * reserves for what cannot be undone.
+   */
+  .cta[aria-disabled='true'] {
+    background-color: var(--color-accent2);
+    color: var(--color-neutral1);
+  }
+
+  .cta:active {
+    transform: scale(0.98);
+  }
+
+  /*
+   * ---- motion ------------------------------------------------------------------------------
+   *
+   * Transform and opacity only, per `tokens.yaml` → `motion.properties`. Never colour, never height.
+   */
+
+  /*
+   * The blocked-press shake. §7.1 specifies ±5px and the spacing scale has no 5 — it runs
+   * 0 1 2 4 6 8 — so this uses `s4`. A raw `5px` here would be the first off-sheet length in the
+   * app and the difference is one pixel of travel at 300ms; the vocabulary is worth more.
+   */
+  @keyframes pb-shake {
+    0%,
+    100% {
+      transform: translateX(var(--spacing-s0));
+    }
+    25% {
+      transform: translateX(calc(var(--spacing-s4) * -1));
+    }
+    75% {
+      transform: translateX(var(--spacing-s4));
+    }
+  }
+
+  .shake {
+    animation-name: pb-shake;
+    animation-duration: var(--transition-duration-quickLong);
+    animation-timing-function: var(--ease-snap);
+  }
+
+  /*
+   * The refetch pulse: a value that came back UNCHANGED still proves the read happened, and a
+   * skeleton would claim the number had gone away when it had not.
+   *
+   * DURATION DEVIATION, stated rather than hidden: §7.1 asks for 800ms and the motion sheet runs
+   * 80 100 120 150 180 200 300 500 1200 — there is no 800. This ships on `lazy` (500ms) rather than
+   * minting an off-sheet duration, and the gap is open for Abu to rule on.
+   */
+  @keyframes pb-pulse {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.4;
+    }
+  }
+
+  .pulse {
+    animation-name: pb-pulse;
+    animation-duration: var(--transition-duration-lazy);
+    animation-timing-function: var(--ease-settle);
+  }
+
+  /*
+   * REDUCED MOTION IS HONOURED HERE BECAUSE THERE IS NOWHERE ELSE. This app ships no animation
+   * library — the popup layer animates through the component library's own `data-*` attributes —
+   * so the CSS media query is the whole mechanism rather than a layer that looks compliant while a
+   * JS spring plays underneath.
+   *
+   * IT COVERS TRANSITIONS TOO, and an earlier version did not. The comment here used to claim the
+   * two keyframes below were "the only authored motion", which was wrong the moment it was
+   * written: this same stylesheet transitions the nav item, the dialog, the sheet, the balance
+   * line and the CTA, and scales the CTA on press. A reduced-motion reader got every one of them.
+   * The blanket rule is the honest shape — anything added later is covered by default rather than
+   * by someone remembering to come back here.
+   *
+   * `transform: none` is the load-bearing half: killing the TRANSITION on `.cta:active` without
+   * killing the transform would simply make the scale instant instead of absent.
+   */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      transition-duration: var(--transition-duration-simple);
+    }
+
+    .cta:active {
+      transform: none;
+    }
+
+    /*
+     * The shake and the pulse both carry meaning — "that press did nothing", "the read happened" —
+     * so they degrade to a still opacity dip rather than vanishing. The feedback survives; the
+     * movement does not.
+     */
+    .shake,
+    .pulse {
+      animation-name: pb-pulse;
+      animation-duration: var(--transition-duration-stiff);
+    }
   }
 }
