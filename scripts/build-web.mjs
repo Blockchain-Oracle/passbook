@@ -13,7 +13,7 @@
 // `classify` so the SDK smoke is held to the same contract as the app.
 //
 import { existsSync, readdirSync, readFileSync, realpathSync, statSync } from 'node:fs'
-import { dirname, join, resolve } from 'node:path'
+import { basename, dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import { build, createLogger, preview } from 'vite'
@@ -629,10 +629,21 @@ const RESERVED_MARKER_PREFIX = '__'
 // Routes whose marker is legitimately a DIFFERENT path than the one requested, because the router
 // redirects before anything renders. An explicit map, never a prefix or "starts with" rule: the
 // point of the marker is that the gate knows which surface it is looking at, and a fuzzy match
-// hands that back. Empty today — `/` is a real route with its own surface. When `/` starts
-// redirecting to `/wallet`, this is the one line that changes.
+// hands that back.
 //
-export const EXPECTED_REDIRECTS = {}
+// `/` is not a surface: it throws `redirect({ to: '/wallet' })` from `beforeLoad` and renders
+// nothing of its own, so the marker the gate reads at `/` is `/wallet`'s. DECLARING it is what keeps
+// that from being a shrug — a `/` that stops redirecting now renders `/` and fails the build,
+// instead of quietly becoming a blank page nobody visits on purpose.
+//
+// This is the module default and BOTH gates inherit it: `main()` below and `smoke-sdk-build.mjs`
+// both call `assertEvaluatedClean` without the parameter.
+//
+// FROZEN because it is a shared default reached through a parameter default, not through an import
+// each caller owns. A test that mutated it — to describe a tree without the redirect, say — would
+// silently reconfigure `main()` and `smoke:sdk` for the rest of the process, and the gate would go
+// on reporting whatever the last mutation asked for.
+export const EXPECTED_REDIRECTS = Object.freeze({ '/': '/wallet' })
 
 /** `evaluate()` hands back `string[]` per route; tolerate the one-marker and absent spellings. */
 function markerList(value) {
@@ -827,6 +838,106 @@ const APP_FORBIDDEN_IN_CHUNK = ['poseidon']
 //
 const APP_MAX_EAGER_BYTES = 400_000
 
+//
+// ---- the cold-open surface has to be IN the entry ----------------------------------------------
+//
+// A HOLE THE BUDGET GATE CANNOT SEE, BY CONSTRUCTION. `assertAppChunkStaysLean` sums every emitted
+// `.js`, which is the right shape for "did the SDK land in the bundle" and exactly the wrong shape
+// for "is `/wallet` eager": moving a surface out of the entry and into its own chunk moves bytes
+// between files and changes the total by a rounding error. Delete `codeSplitGroupings: []` from
+// `routes/wallet.tsx` and the cold open silently becomes a second round trip while `build:web`,
+// `smoke:sdk` and the whole suite stay green.
+//
+// `/wallet` is where `/` redirects, so it is on the critical path of every first visit.
+//
+const APP_EAGER_ROUTES = ['wallet']
+
+//
+// The anti-vacuity floor, and the reason this check is not one assumption deep.
+//
+// It reads chunk FILENAMES, which means it rests on the bundler naming a route's chunk after the
+// route's module. That is true of the pinned bundler and observed on every split route here — but if
+// it ever stops being true, "no chunk is named wallet" becomes true for the wrong reason and the
+// check passes on a split cold open. So the split routes are counted too: when the convention holds,
+// there are eight of them, and if that number collapses this gate says it has gone blind instead of
+// saying everything is fine.
+//
+const MIN_SPLIT_ROUTE_CHUNKS = 3
+
+/** `routes/activity.$id.tsx` -> `activity._id`, which is what the bundler names its chunk. */
+function routeChunkBase(routeFile) {
+  const name = routeFile.split('/').pop() ?? routeFile
+  return name.replace(/\.[jt]sx?$/, '').replace(/\$/g, '_')
+}
+
+/** The `<script type="module">` `dist/index.html` loads: the eager entry, named by the artifact. */
+export function entryChunkFromHtml(html) {
+  const src = html.match(/<script[^>]*\btype="module"[^>]*\bsrc="([^"]+)"/)?.[1]
+  if (!src) {
+    throw new Error(
+      'dist/index.html declares no `<script type="module" src=…>`, so which chunk is the eager ' +
+        'entry is not a fact this gate can read. It refuses rather than guessing — every check ' +
+        'below is about what is IN that chunk.',
+    )
+  }
+  return basename(src)
+}
+
+/**
+ * PURE. The verdict on which surfaces are eager, over filenames alone.
+ *
+ * @param {object} o
+ * @param {string[]} o.jsFiles     every emitted `.js`, any path shape
+ * @param {string} o.entryFile     the entry chunk's basename
+ * @param {string[]} o.routeFiles  route files that own a path, as `routeLeafFiles()` returns them
+ * @returns {string[]} problems, empty when the eager set is what it should be
+ */
+export function eagerRouteProblems({
+  jsFiles,
+  entryFile,
+  routeFiles,
+  eagerRoutes = APP_EAGER_ROUTES,
+  minSplitChunks = MIN_SPLIT_ROUTE_CHUNKS,
+}) {
+  const problems = []
+  const chunks = jsFiles.map((f) => basename(f)).filter((f) => f !== entryFile)
+  const bases = chunks.map((f) => f.replace(/\.js$/, ''))
+  const chunkFor = (base) => bases.find((b) => b === base || b.startsWith(`${base}-`))
+
+  const routeBases = routeFiles.map(routeChunkBase)
+  for (const eager of eagerRoutes) {
+    if (!routeBases.includes(eager)) {
+      problems.push(
+        `'${eager}' is required to be eager but no route file produces it. Either the route was ` +
+          `renamed and this list was not, or the cold-open surface no longer exists — and an ` +
+          `eager-route rule about a route that is gone is a check that has stopped checking.`,
+      )
+      continue
+    }
+    const chunk = chunkFor(eager)
+    if (chunk) {
+      problems.push(
+        `the '${eager}' route was emitted as its own chunk (${chunk}.js) instead of staying in the ` +
+          `entry. \`/\` redirects there, so every first visit now pays a second round trip before ` +
+          `anything paints. Restore \`codeSplitGroupings: []\` on that route — the byte budget ` +
+          `cannot see this, because splitting moves bytes between files rather than adding them.`,
+      )
+    }
+  }
+
+  const split = routeBases.filter((b) => !eagerRoutes.includes(b) && chunkFor(b))
+  if (split.length < minSplitChunks) {
+    problems.push(
+      `only ${split.length} route(s) were found as their own chunk (expected at least ` +
+        `${minSplitChunks}). This gate identifies a route's chunk by its filename, so a bundler ` +
+        `that has stopped naming chunks after route modules makes the eager-route check above pass ` +
+        `for the wrong reason. It reports that it has gone blind rather than reporting success.`,
+    )
+  }
+
+  return problems
+}
+
 function assertAppChunkStaysLean(outDir) {
   const emitted = walkFiles(outDir).filter((f) => f.endsWith('.js'))
   if (!emitted.length) throw new Error('[build:web] the build emitted no JavaScript at all')
@@ -855,12 +966,18 @@ function assertAppChunkStaysLean(outDir) {
     }
   }
 
+  // Which surfaces are eager, which the byte total above is structurally unable to answer.
+  const entryFile = entryChunkFromHtml(readFileSync(join(outDir, 'index.html'), 'utf8'))
+  const routeFiles = routeLeafFiles(join(WEB_ROOT, 'src/routes'))
+  problems.push(...eagerRouteProblems({ jsFiles: emitted, entryFile, routeFiles }))
+
   if (problems.length) {
     throw new Error(`[build:web] the eager bundle broke its load-order rule:\n  - ${problems.join('\n  - ')}`)
   }
   console.log(
     `[build:web] eager bundle within budget — ${total.toLocaleString()} B of ` +
-      `${APP_MAX_EAGER_BYTES.toLocaleString()} B, 0 SDK markers`,
+      `${APP_MAX_EAGER_BYTES.toLocaleString()} B, 0 SDK markers, ` +
+      `${APP_EAGER_ROUTES.join(' + ')} in the entry chunk`,
   )
 }
 

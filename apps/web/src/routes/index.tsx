@@ -1,25 +1,31 @@
-import { createFileRoute } from '@tanstack/react-router'
+//
+// The cold open. `/` is not a surface — it is a decision that `/wallet` is the product.
+//
+// No component, deliberately: `beforeLoad` throws before anything can render, so a component here
+// would be a screen that exists and is never seen. That is also why this route paints no marker of
+// its own — `scripts/build-web.mjs` visits `/`, sees `/wallet`'s marker, and only accepts it because
+// `EXPECTED_REDIRECTS` DECLARES the redirect. A `/` that stops redirecting fails the build rather
+// than quietly becoming a blank page.
+//
+// ON `replace`, WHICH IS NOT PASSED HERE AND CANNOT BE: `router-core`'s `followRedirect()` hardcodes
+// `replace: true` at all three of its commit sites, spreading the caller's options first and then
+// overriding them. Measured byte-identical with and without the flag — `history.length` 2, `/` never
+// in history, one Back leaves the document. Passing it would read as though it were what made that
+// true, and the next person to remove it would find nothing changed.
+//
+// The host-level 302 that would save the client round trip is deploy-story work: no host is
+// configured yet, and this half is the one every gate actually exercises.
+//
+import { createFileRoute, redirect } from '@tanstack/react-router'
 
 export const Route = createFileRoute('/')({
-  component: Home,
+  beforeLoad: () => {
+    //
+    // `search: true` and `hash: true` mean "carry what is already there". Without them the redirect
+    // silently drops everything after the path on EVERY first visit: `/?ref=x#note` becomes a bare
+    // `/wallet`, and since `/` is the address every link, bookmark and campaign points at, that is
+    // the one visit where losing the query costs something.
+    //
+    throw redirect({ to: '/wallet', search: true, hash: true })
+  },
 })
-
-// `data-route-id` is the route-identity marker the build gate asserts: every surface names the
-// route it IS, so "which surface actually rendered" is a fact the gate reads rather than a string
-// it hopes for. Three rules, all enforced in `scripts/build-web.mjs`:
-//
-//   - the value is the route's `fullPath` — what the URL says — NOT its `Route.id`. For a route
-//     under a pathless layout those differ (`/_shell/wallet` vs `/wallet`) and the id fails a
-//     healthy route, which the attribute's own name unhelpfully argues for;
-//   - `__`-prefixed values are reserved for error and not-found fallbacks. A route may never emit
-//     one as its own id — that rule is what keeps a permanently-throwing surface from passing
-//     while wearing the identity of the route it broke;
-//   - exactly ONE element per page carries it. A layout that marks itself around a leaf that marks
-//     itself leaves the gate picking by document order, so it refuses both.
-function Home() {
-  return (
-    <main data-route-id="/">
-      <p>Passbook scaffold.</p>
-    </main>
-  )
-}
