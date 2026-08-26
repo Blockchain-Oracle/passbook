@@ -37,7 +37,12 @@ import { fileURLToPath } from 'node:url'
 
 import { build, createLogger } from 'vite'
 
-import { designProblems, expectedGrounds, readDesign } from './assert-design-shipped.mjs'
+import {
+  designProblems,
+  expectedGrounds,
+  readDesign,
+  reservedHeightProblems,
+} from './assert-design-shipped.mjs'
 
 export const REPO_ROOT = resolve(fileURLToPath(import.meta.url), '../..')
 export const WEB_ROOT = join(REPO_ROOT, 'apps/web')
@@ -676,14 +681,15 @@ async function main() {
   //
   const cssFiles = walkFiles(outDir).filter((f) => f.endsWith('.css'))
   const cssAssets = cssFiles.map((f) => f.slice(REPO_ROOT.length + 1))
+  const read = cssFiles.length
+    ? readDesign({
+        css: cssFiles.map((f) => readFileSync(f, 'utf8')).join('\n'),
+        html: readFileSync(join(outDir, 'index.html'), 'utf8'),
+      })
+    : null
   const designFailures = designProblems({
     cssAssets,
-    read: cssFiles.length
-      ? readDesign({
-          css: cssFiles.map((f) => readFileSync(f, 'utf8')).join('\n'),
-          html: readFileSync(join(outDir, 'index.html'), 'utf8'),
-        })
-      : null,
+    read,
     expected: expectedGrounds(join(WEB_ROOT, 'design/tokens.yaml')),
   })
   if (designFailures.length) {
@@ -692,6 +698,20 @@ async function main() {
   console.log(
     `[build:web] design system shipped — ${cssAssets.length} stylesheet(s), linked from index.html, ` +
       `both dark paths present, color-scheme flips, shadows re-theme`,
+  )
+
+  //
+  // THE VALUE SPINE STILL RESERVES ITS SPACE (story 6.4). A separate verdict from the one above on
+  // purpose: that one asks whether the token sheet reached the artifact, this one asks whether the
+  // layout is still built the way it has to be. One function answering both would hide both.
+  //
+  const layoutFailures = reservedHeightProblems({ read })
+  if (layoutFailures.length) {
+    throw new Error(`[build:web] the value spine no longer reserves its space:\n  - ${layoutFailures.join('\n  - ')}`)
+  }
+  console.log(
+    '[build:web] value spine reserves its space — amount row and balance line both hold their ' +
+      'height, balance line mounted at opacity 0, field border present at rest',
   )
 
   console.log('[build:web] OK')

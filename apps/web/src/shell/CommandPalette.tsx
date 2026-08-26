@@ -27,6 +27,7 @@
 //
 import { Autocomplete } from '@base-ui/react/autocomplete'
 
+import { OptionRowBody } from '../components/OptionRow'
 import { ResponsiveDialog } from './ResponsiveDialog'
 
 /**
@@ -100,7 +101,7 @@ export function CommandPalette({ open, onOpenChange, commands, onRun }: CommandP
                 <Autocomplete.Item
                   key={command.id}
                   value={command}
-                  className="pb-palette-row"
+                  className="option-row"
                   onClick={() => {
                     // Closed FIRST, so focus is restored to the trigger before whatever the command
                     // does takes the reader somewhere else. Running first and closing after leaves
@@ -109,8 +110,14 @@ export function CommandPalette({ open, onOpenChange, commands, onRun }: CommandP
                     onRun(command)
                   }}
                 >
-                  <span className="text-buttonLabel3 text-neutral1">{command.label}</span>
-                  <span className="text-body4 text-neutral2">{command.detail}</span>
+                  {/*
+                    THE SHARED ROW, not a second one. Story 6.4 promoted this anatomy out of the
+                    palette and into `components/OptionRow.tsx`, and the palette became a caller of
+                    it — which is what makes "one row implementation in the repository" a fact about
+                    the code rather than a rule someone has to keep remembering. The library owns the
+                    OUTER element (it is what carries `data-highlighted`); the body is shared.
+                  */}
+                  <OptionRowBody row={{ id: command.id, title: command.label, subtitle: command.detail }} />
                 </Autocomplete.Item>
               ) : null
             }
