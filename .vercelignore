@@ -1,0 +1,31 @@
+# What the deploy does NOT need to upload.
+#
+# `vercel deploy` tars the working directory and sends it. Unfiltered that is ~600 MB here and the
+# upload simply aborts — which is how this file came to exist.
+#
+# WHAT IS EXCLUDED AND WHY EACH ONE IS SAFE:
+#
+#   reference/     366 MB of upstream clones — the Uniswap interface, the sponsor's privacy
+#                  monorepo, the hackathon repo. Read by humans and by research, never by the
+#                  build. This is the whole reason the upload was failing.
+#   node_modules/  221 MB, reinstalled remotely from the lockfile.
+#   _bmad*/        planning artifacts and the workflow engine. Not build inputs.
+#   .relayer/      the relayer's file-backed stores. Local state, and some of it is a funded
+#                  signer's business — it must never leave this machine.
+#
+# WHAT IS DELIBERATELY NOT EXCLUDED:
+#
+#   vendor/        the privacy SDK installs from here (`file:vendor/…` in the lockfile), so an
+#                  install without it fails outright. 180 KB.
+#   docs/          `build:web` reads `docs/privacy.md` and fails the build when it drifts from the
+#                  module it is generated from. Excluding it would break the deploy in a way whose
+#                  error message points somewhere else entirely.
+#   evidence/      small, and it is the project's record of what it has actually done on mainnet.
+#   apps/web/dist/ THE ARTIFACT ITSELF. It is uploaded rather than built remotely — see the note
+#                  in vercel.json. Excluding it would deploy an empty site.
+#
+reference/
+node_modules/
+_bmad/
+_bmad-output/
+.relayer/
