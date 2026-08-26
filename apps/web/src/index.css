@@ -218,4 +218,192 @@
   .focus-ring:focus-visible {
     outline-style: solid;
   }
+
+  /*
+   * ---- the popup layer -------------------------------------------------------------------------
+   *
+   * STACKING IS DELIBERATE HERE, NOT LUCKY. There is still no `z-index` namespace, so the note
+   * above applies in full: among positioned boxes at `z-index: auto`, the LATER one in the document
+   * paints on top. A portalled popup is appended to the end of `<body>`, which puts it after the
+   * header — and for a popup that is the desired outcome rather than the accident it would be for a
+   * toast or a bottom bar. The `layers:` block stays deferred; this relies on paint order on
+   * purpose and says so.
+   *
+   * EVERY STATE RULE BELOW IS AN UNQUOTED ATTRIBUTE SELECTOR, and every one of these classes also
+   * carries a BARE `.name {` rule. Both are load-bearing. The component library expresses all of its
+   * state through `data-*` attributes, and `scripts/lint-tokens.mjs` categorically rejects every
+   * `data-*` / `aria-*` Tailwind variant — which invalidates the copy-paste path from every one of
+   * the library's own Tailwind examples. And `appBaseClasses()` registers a class name only when it
+   * starts its own line followed by `{` or `,`: a class existing only as `.pb-sheet[data-open]`
+   * registers NOTHING, and every use of it becomes a lint finding somewhere else.
+   */
+
+  /*
+   * The full-viewport positioning container the popup is laid out inside. `items-center` /
+   * `items-end` beside it is what makes the same popup a centred dialog or a bottom sheet.
+   *
+   * `pointer-events: none` is not an optimisation. This box covers the whole viewport, and the app
+   * behind a NON-MODAL popup has to stay clickable — DESIGN §7.11's rule. It also keeps the
+   * geometric scrim probe honest in both directions: the probe skips boxes that cannot be clicked,
+   * so a viewport that swallowed clicks would be a scrim the probe agreed was not one. The popup
+   * turns pointer events back on for itself.
+   */
+  .pb-viewport {
+    position: fixed;
+    inset: var(--spacing-s0);
+    display: flex;
+    justify-content: center;
+    pointer-events: none;
+  }
+
+  /*
+   * The dialog, at and above 640px. Geometry is the design authority's `components.modal` block:
+   * max-width 420, radius 16, 1px surface3, padding 24/16, and a viewport-relative height cap.
+   *
+   * TWO ARITHMETIC CHOICES WORTH READING ONCE. 420 is `7 × s60` rather than a literal — the sheet
+   * has no 420 step and inventing one would be a design value nothing re-themes. And the height cap
+   * is `100% - s32` rather than `calc(100vh - 32px)`: the percentage resolves against the fixed
+   * full-viewport parent above, so it means exactly the same thing while keeping a viewport unit
+   * out of a stylesheet whose raw-length scan would report the literal either way.
+   */
+  .pb-dialog {
+    pointer-events: auto;
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    max-width: calc(7 * var(--spacing-s60));
+    max-height: calc(100% - var(--spacing-s32));
+    margin: var(--spacing-s16);
+    padding: var(--spacing-s16) var(--spacing-s24);
+    background-color: var(--color-raised);
+    border: var(--spacing-s1) solid var(--color-surface3);
+    border-radius: var(--radius-card);
+    box-shadow: var(--shadow-large);
+    transition-property: opacity, transform;
+    transition-duration: var(--transition-duration-quick);
+    transition-timing-function: var(--ease-snap);
+  }
+
+  /*
+   * The same popup below 640px: full-bleed, bottom-anchored, top corners only.
+   *
+   * It is the SAME `Drawer.Root` and the same children — only the class differs — which is what
+   * makes a filled form survive the crossing. Swapping the component type here instead is the
+   * defect this whole pair exists to prevent.
+   */
+  .pb-sheet {
+    pointer-events: auto;
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    max-height: calc(100% - var(--spacing-s32));
+    padding: var(--spacing-s16) var(--spacing-s24);
+    background-color: var(--color-raised);
+    border-top: var(--spacing-s1) solid var(--color-surface3);
+    border-top-left-radius: var(--radius-card);
+    border-top-right-radius: var(--radius-card);
+    box-shadow: var(--shadow-large);
+    transition-property: opacity, transform;
+    transition-duration: var(--transition-duration-quick);
+    transition-timing-function: var(--ease-snap);
+  }
+
+  /*
+   * Enter and exit, as CSS. The component library ships zero animation dependencies and drives both
+   * ends through these two attributes, which is why no JavaScript animation library is in this app.
+   * The travel is asymmetric by design (§1.4): a sheet rises further than it sinks.
+   */
+  .pb-dialog[data-starting-style],
+  .pb-dialog[data-ending-style] {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+
+  .pb-sheet[data-starting-style] {
+    opacity: 0;
+    transform: translateY(var(--spacing-s12));
+  }
+
+  .pb-sheet[data-ending-style] {
+    opacity: 0;
+    transform: translateY(var(--spacing-s8));
+  }
+
+  /*
+   * The grab handle: 32×4, pill, neutral3, exactly as the authority specifies it.
+   *
+   * Hand-authored rather than the library's `Handle` export, which is the imperative handle CLASS
+   * used to associate a detached trigger with a drawer — putting it in JSX is a type error and a
+   * runtime crash. It is decoration for a gesture, so it is `aria-hidden` at the call site.
+   */
+  .pb-grabber {
+    flex-shrink: 0;
+    width: var(--spacing-s32);
+    height: var(--spacing-s4);
+    margin: var(--spacing-s0) auto var(--spacing-s8);
+    border-radius: var(--radius-pill);
+    background-color: var(--color-neutral3);
+  }
+
+  /*
+   * The palette's own column: query box, live region, scrolling list.
+   *
+   * `min-height: 0` on the column and on the list is what lets the list scroll instead of pushing
+   * the dialog past its height cap — a flex item's default `min-height: auto` refuses to shrink
+   * below its content, and the symptom is a popup taller than the screen with no scrollbar. The
+   * matching `min-h-0` utility is on the token gate's allowlist but generates NO rule at all, so it
+   * would have looked like the fix and done nothing.
+   *
+   * The list is reached as `[role=listbox]` — the element the library gives it — rather than
+   * through a class of its own, because the role is the thing that is actually true about it.
+   */
+  .pb-palette {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  .pb-palette input {
+    width: 100%;
+    padding: var(--spacing-s8) var(--spacing-s12);
+    margin-bottom: var(--spacing-s8);
+    background-color: var(--color-inset);
+    border: var(--spacing-s1) solid var(--color-surface3);
+    border-radius: var(--radius-control);
+    color: var(--color-neutral1);
+    font-size: var(--text-body2);
+    line-height: var(--text-body2--line-height);
+  }
+
+  .pb-palette [role=listbox] {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+  }
+
+  /*
+   * One row. This anatomy is the one every list in the app shares from 6.4 onward, so it is written
+   * once, here, rather than per surface.
+   */
+  .pb-palette-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--spacing-s12);
+    padding: var(--spacing-s8) var(--spacing-s12);
+    border-radius: var(--radius-control);
+    cursor: default;
+    scroll-margin-block: var(--spacing-s4);
+  }
+
+  /*
+   * HOVER AND KEYBOARD ARE ONE STATE, which is why there is no `:hover` rule beside this one. The
+   * library sets `data-highlighted` for both the pointer and the arrow keys, so a second rule would
+   * be a second source of truth for one fact. It is a BOOLEAN attribute — present or absent — so a
+   * presence selector is correct here; the palette library this one was chosen over stamps
+   * `data-selected="false"` on every unselected row, where the same selector paints all six.
+   */
+  .pb-palette-row[data-highlighted] {
+    background-color: var(--color-inset);
+  }
 }
