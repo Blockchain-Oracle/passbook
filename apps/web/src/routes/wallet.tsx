@@ -1,14 +1,16 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { BookState, ShieldedBalance, TokenBalance } from '@strk20/protocol/balances'
 import { toPlainText } from '@strk20/protocol/amount'
 
+import { AccountLadder } from '../components/AccountLadder'
 import { ActivityFeed } from '../components/ActivityFeed'
 import { TokenLogo } from '../components/TokenLogo'
 import { Button } from '../components/ui/Button'
 import { Skeleton, SkeletonBox } from '../components/ui/Skeleton'
 import { Text } from '../components/ui/Text'
 import { ResponsiveDialog } from '../shell/ResponsiveDialog'
+import { readAccountStatus, type AccountStatus } from '../shell/account-status'
 import { useBalance } from '../shell/use-balance'
 import { findToken, useTokenList } from '../shell/use-token-list'
 import { useSession, shortenFelt } from '../shell/session'
@@ -50,6 +52,20 @@ function Wallet() {
   const { balance, loading, refresh } = useBalance(ready?.address ?? null, ready?.accountKey ?? null)
   const [receiving, setReceiving] = useState(false)
 
+  // Plain JSON-RPC, no SDK — so the ladder can say where the account stands before the crypto
+  // graph has finished loading.
+  const [accountStatus, setAccountStatus] = useState<AccountStatus | null>(null)
+  useEffect(() => {
+    if (!ready) return
+    let live = true
+    void readAccountStatus(ready.address).then((status) => {
+      if (live) setAccountStatus(status)
+    })
+    return () => {
+      live = false
+    }
+  }, [ready?.address])
+
   return (
     <Surface routeId={Route.fullPath}>
       <div className="mx-auto flex w-full max-w-[480px] flex-col gap-s16">
@@ -80,6 +96,16 @@ function Wallet() {
                 this repository fails builds over. It arrives with the submission path.
               */}
             </div>
+
+            {/*
+              WHAT THIS ACCOUNT CAN DO, AND WHAT IT NEEDS NEXT.
+
+              An embedded key is not yet an account that can transact — it has to be funded, then
+              deployed, then registered, in that order, and the order is protocol rather than
+              preference. Naming the rung is what turns "something went wrong" into "here is the
+              one thing to do next".
+            */}
+            {ready && accountStatus ? <AccountLadder status={accountStatus} /> : null}
           </>
         )}
 
