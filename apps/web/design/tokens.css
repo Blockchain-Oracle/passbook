@@ -5,7 +5,7 @@
  *
  * Regenerate with `npm run render:tokens`. `npm run lint` re-renders and fails when this file
  * and the yaml disagree, so a hand-edit here is caught rather than shipped. tokens.yaml is the
- * verbatim frontmatter of the UX design authority; `npm run tokens:verbatim` proves that
+ * verbatim frontmatter of the UX design authority.
  * locally. The banner carries the SOURCE HASH and no timestamp, so regenerating an unchanged
  * sheet produces a byte-identical file and the gate stays about drift.
  */

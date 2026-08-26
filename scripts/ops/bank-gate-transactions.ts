@@ -23,9 +23,9 @@
 //
 import { existsSync, readFileSync } from 'node:fs'
 import { RpcProvider } from 'starknet'
-import { ACTIVE_NETWORK, NET } from '../packages/protocol/src/constants.js'
-import { loadDotEnvVerbose } from '../packages/protocol/src/env.js'
-import { readPoolConstants } from '../packages/protocol/src/pool.js'
+import { ACTIVE_NETWORK, NET } from '../../packages/protocol/src/constants.js'
+import { loadDotEnvVerbose } from '../../packages/protocol/src/env.js'
+import { readPoolConstants } from '../../packages/protocol/src/pool.js'
 import {
   ACTION_LIST_EVIDENCE,
   EXPECTED_POOL_CLASS_HASH,
@@ -36,7 +36,7 @@ import {
   packUtf8ToFelts,
   planGateCompanions,
   predictMessageBookRevert,
-} from '../packages/protocol/src/message-book.js'
+} from '../../packages/protocol/src/message-book.js'
 
 const OUTPUT_FILE = 'evidence/gate-transactions.json'
 const REQUIRED_TRANSACTIONS = 3

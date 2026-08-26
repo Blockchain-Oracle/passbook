@@ -11,7 +11,7 @@
 // a lint that demanded generated prose would either produce unreadable documentation or stop
 // anyone from writing any.
 //
-// Run by `npm run lint`, beside lint-claims and lint-secrets.
+// Run by `npm run lint`, beside lint-claims and lint-tokens.
 //
 import { render, currentDoc } from './render-topology.mjs'
 

@@ -215,9 +215,9 @@ Calls the browser still makes **directly**, and what each costs the user:
 <!-- /generated:proxy -->
 
 "Everything is proxied" would be the easy sentence and it would be false, which is why the
-exceptions above are enumerated rather than assumed. `scripts/lint-secrets.mjs` fails the build
-on a third-party host in browser code that is not one of them, so the list cannot go stale the
-first time someone adds a fetch.
+exceptions above are enumerated rather than assumed. The list is generated from
+`packages/relayer/src/quote-proxy.ts`, so adding a browser-direct host means declaring what it
+leaks in the same edit.
 
 ### What the independence tests actually prove
 

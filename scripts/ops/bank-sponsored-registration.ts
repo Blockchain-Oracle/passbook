@@ -18,7 +18,7 @@
 // EXACTLY ONE, BY CONSTRUCTION. The script refuses to run while the evidence file
 // exists, and every pre-check runs before anything is signed or posted. There is no
 // --execute flag because there is no dry run to have: the free full-stack rehearsal is
-// scripts/probes/registration-prove.ts, which should be green before this runs.
+// the registration-prove probe, whose result is banked in evidence/sponsored-registration.json.
 //
 // THE DEPLOYER ALSO SPENDS HERE, and that is a discovered prerequisite rather than a
 // choice: the prove leg hard-requires a DEPLOYED contract at the registering address
@@ -38,11 +38,11 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { setTimeout as sleep } from 'node:timers/promises'
 import { Account, CallData, RpcProvider, cairo, hash } from 'starknet'
-import { ACTIVE_NETWORK, NET, STRK_TOKEN } from '../packages/protocol/src/constants.js'
-import { loadDotEnvVerbose } from '../packages/protocol/src/env.js'
-import { actualFeeWei } from '../packages/protocol/src/activity.js'
-import { generateIdentity } from '../packages/protocol/src/identity.js'
-import { readPoolConstants } from '../packages/protocol/src/pool.js'
+import { ACTIVE_NETWORK, NET, STRK_TOKEN } from '../../packages/protocol/src/constants.js'
+import { loadDotEnvVerbose } from '../../packages/protocol/src/env.js'
+import { actualFeeWei } from '../../packages/protocol/src/activity.js'
+import { generateIdentity } from '../../packages/protocol/src/identity.js'
+import { readPoolConstants } from '../../packages/protocol/src/pool.js'
 import {
   confirmFromReceipt,
   formatStrk,
@@ -50,10 +50,10 @@ import {
   proveRegistration,
   registerSponsored,
   type RegistrationStage,
-} from '../packages/protocol/src/register.js'
-import { preflightRegistration } from '../packages/protocol/src/registration.js'
-import { withFallback } from '../packages/protocol/src/rpc.js'
-import { REFUSAL_FEE_MULTIPLE } from '../packages/relayer/src/funding-monitor.js'
+} from '../../packages/protocol/src/register.js'
+import { preflightRegistration } from '../../packages/protocol/src/registration.js'
+import { withFallback } from '../../packages/protocol/src/rpc.js'
+import { REFUSAL_FEE_MULTIPLE } from '../../packages/relayer/src/funding-monitor.js'
 import { OZ_ACCOUNT_CLASS_HASH, pickBroadcastHost, strkBalance } from './account-lib.js'
 
 const OUTPUT_FILE = 'evidence/sponsored-registration.json'

@@ -278,7 +278,7 @@ export function buildGateActionList(input: {
  * is scoped to that last run because it is the only one whose hash was recorded at the
  * time — the older rows were taken against what was then deployed, which is believed to
  * be the same class but is not evidenced here. The pool is upgradeable at ZERO delay, so
- * re-run `scripts/probes/registration-compile-actions.ts` rather than trusting any of it
+ * re-probe `compile_actions` live rather than trusting any of it
  * across an upgrade.
  */
 export const ACTION_LIST_EVIDENCE = [
@@ -323,7 +323,7 @@ export const ACTION_LIST_EVIDENCE = [
   {
     // Probed 24 Aug 2026 at block 13789403, class hash still
     // 0x67dddd89d80fedadc06b6f160798f94800a4a70164e5a24301cd0d6076b554d. Re-run
-    // `scripts/probes/send-compile-actions.ts` rather than trusting any of it across an upgrade.
+    // `compile_actions` live rather than trusting any of it across an upgrade.
     //
     // WHAT THESE ROWS DO AND DO NOT SAY. Every one is a free `compile_actions` view, so they are
     // evidence about what the pool's COMPILER accepts and nothing more — no send has been paid
