@@ -15,25 +15,27 @@
 // ellipsises has stopped being a money field; shrinking is the only behaviour that keeps the whole
 // value visible without moving anything around it.
 //
-import { useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { AMOUNT_LINE_RATIO, fitAmountFontPx } from '@strk20/protocol/amount'
 import type { TokenInfo } from '@strk20/protocol/token-list'
 
 import { cn } from '../lib/cn'
 import { Text } from './ui/Text'
 import { TokenLogo } from './TokenLogo'
 
-/** Uniswap's numbers: start at 36, never go below 24, line-height always 1.2x. */
-const MAX_FONT_PX = 36
-const MIN_FONT_PX = 24
-/** Characters past which the figure starts shrinking. Tuned to the 480px column. */
-const COMFORTABLE_CHARS = 9
-
-function fontSizeFor(text: string): number {
-  const length = Math.max(text.length, 1)
-  if (length <= COMFORTABLE_CHARS) return MAX_FONT_PX
-  const shrunk = Math.round((MAX_FONT_PX * COMFORTABLE_CHARS) / length)
-  return Math.max(MIN_FONT_PX, shrunk)
-}
+//
+// THE FIGURE'S SIZE IS `amount.ts`'s JOB, NOT THIS FILE'S.
+//
+// The first version of this panel estimated it from a character count. That was a second, worse
+// copy of something the protocol package already owns and tests: `fitAmountFontPx` measures the
+// text against the container's REAL width using a deliberately wide per-digit advance, so an
+// 18-decimal amount cannot overflow — and its own header explains why an unmeasurable width returns
+// the CEILING rather than the floor (returning the floor paints 24px for one frame on an empty
+// field and then jumps, which is a layout shift invented by the guard meant to prevent one).
+//
+// The ceiling and floor are 36 and 24, which are the same numbers Uniswap uses. That is the design
+// authority and the reference agreeing, not a coincidence worth re-deriving here.
+//
 
 export interface CurrencyPanelProps {
   /** "Sell" / "Buy" / "Amount". Sits above the figure at 12px. */
@@ -52,6 +54,8 @@ export interface CurrencyPanelProps {
   corners?: 'all' | 'top' | 'bottom'
   /** Turns the figure red — an insufficient balance, not a validation error. */
   invalid?: boolean
+  /** Merged last, so a caller can adjust the panel without forking it. */
+  className?: string
   children?: ReactNode
 }
 
@@ -66,10 +70,27 @@ export function CurrencyPanel({
   onMax,
   corners = 'all',
   invalid = false,
+  className,
   children,
 }: CurrencyPanelProps) {
   const [focused, setFocused] = useState(false)
-  const fontSize = useMemo(() => fontSizeFor(value || '0'), [value])
+
+  // The real available width, observed. `fitAmountFontPx` needs a measurement, not a guess — and
+  // before the observer first fires it correctly returns the ceiling for an empty field.
+  const fieldRef = useRef<HTMLDivElement>(null)
+  const [availablePx, setAvailablePx] = useState(0)
+
+  useEffect(() => {
+    const element = fieldRef.current
+    if (!element || typeof ResizeObserver === 'undefined') return
+    const observer = new ResizeObserver(([entry]) => {
+      if (entry) setAvailablePx(entry.contentRect.width)
+    })
+    observer.observe(element)
+    return () => observer.disconnect()
+  }, [])
+
+  const fontSize = useMemo(() => fitAmountFontPx(value, availablePx), [value, availablePx])
 
   return (
     <div
@@ -80,6 +101,7 @@ export function CurrencyPanel({
         corners === 'bottom' && 'rounded-b-large',
         // THE INVERSION. Resting panel is the well; focused panel comes forward and shows its edge.
         focused ? 'border-surface3 bg-raised' : 'border-transparent bg-inset',
+        className,
       )}
     >
       <Text variant="body4" className="text-neutral2">
@@ -87,31 +109,32 @@ export function CurrencyPanel({
       </Text>
 
       <div className="flex items-center gap-s12">
-        <input
-          // `inputMode="decimal"` summons the numeric keypad on a phone without the spinner and
-          // locale parsing that `type="number"` drags in — the latter also silently rejects values
-          // it dislikes, which on a money field means the user's keystroke vanishes.
-          inputMode="decimal"
-          autoComplete="off"
-          placeholder="0"
-          value={value}
-          readOnly={readOnly}
-          aria-label={`${label} amount`}
-          onFocus={() => setFocused(true)}
-          onBlur={() => setFocused(false)}
-          onChange={(event) => {
-            // Digits and one separator. Filtering here rather than validating later is what stops
-            // a stray letter reaching the amount parser at all.
-            const next = event.target.value.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1')
-            onValueChange?.(next)
-          }}
-          className={cn(
-            'numeric min-w-0 flex-1 bg-transparent font-medium outline-none',
-            'placeholder:text-neutral3',
-            invalid ? 'text-irreversible' : 'text-neutral1',
-          )}
-          style={{ fontSize, lineHeight: 1.2 }}
-        />
+        <div ref={fieldRef} className="min-w-0 flex-1">
+          <input
+            // `inputMode="decimal"` summons the numeric keypad on a phone without the spinner and
+            // locale parsing that `type="number"` drags in — the latter also silently rejects
+            // values it dislikes, which on a money field means the user's keystroke vanishes.
+            inputMode="decimal"
+            autoComplete="off"
+            placeholder="0"
+            value={value}
+            readOnly={readOnly}
+            aria-label={`${label} amount`}
+            onFocus={() => setFocused(true)}
+            onBlur={() => setFocused(false)}
+            // RAW, straight through. Sanitising here would be a second parser competing with
+            // `parseAmountInput`, which already handles the comma-as-separator case, the second
+            // decimal point, and the two pastes that silently change a value's meaning (`1e5`,
+            // `-1.5`). The owner of this panel runs that and hands back what it returned.
+            onChange={(event) => onValueChange?.(event.target.value)}
+            className={cn(
+              'numeric w-full bg-transparent font-medium outline-none',
+              'placeholder:text-neutral3',
+              invalid ? 'text-irreversible' : 'text-neutral1',
+            )}
+            style={{ fontSize, lineHeight: AMOUNT_LINE_RATIO }}
+          />
+        </div>
 
         <TokenPill token={token} onPress={onSelectToken} />
       </div>

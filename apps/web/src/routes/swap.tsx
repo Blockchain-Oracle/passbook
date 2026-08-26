@@ -5,6 +5,8 @@ import { SEND_STAGES } from '@strk20/protocol/pipeline-stage'
 import { stepsFor } from '@strk20/protocol/progress'
 import { meterFor } from '@strk20/protocol/linkability'
 import { maxSeverity } from '@strk20/protocol/privacy'
+import { parseAmountInput, toPlainText } from '@strk20/protocol/amount'
+import { DEFAULT_SLIPPAGE_BPS, minimumOut, priceImpact } from '@strk20/protocol/quote'
 import type { TokenInfo } from '@strk20/protocol/token-list'
 
 import { BlockedButton } from '../components/BlockedButton'
@@ -17,6 +19,7 @@ import { TokenSelector } from '../components/TokenSelector'
 import { Text } from '../components/ui/Text'
 import { currentBlocker, getHealth, subscribeHealth } from '../shell/pool-health'
 import { useCrowd } from '../shell/use-crowd'
+import { useQuote } from '../shell/use-quote'
 import { useTokenList } from '../shell/use-token-list'
 import { Surface } from '../shell/Surface'
 
@@ -77,9 +80,40 @@ function Swap() {
     setSellAmount('')
   }, [buyToken, defaultedSell])
 
+  // The typed field, through the protocol's own parser — which owns the comma separator, the
+  // second decimal point, and the two pastes that silently change a value's meaning.
+  const parsed = useMemo(
+    () => parseAmountInput(sellAmount, defaultedSell?.decimals ?? null),
+    [sellAmount, defaultedSell],
+  )
+
+  const quote = useQuote({
+    sellToken: defaultedSell?.address ?? null,
+    buyToken: buyToken?.address ?? null,
+    sellAmount: parsed.wei,
+  })
+
+  const quoted = quote.result?.state === 'quoted' ? quote.result.quote : null
+
+  // What the output panel shows. Empty until there is a real quote — never an echo of the sell
+  // figure, which would be a price of 1:1 that nobody computed.
+  const buyDisplay =
+    quoted && buyToken ? toPlainText(quoted.buyAmount, buyToken.decimals) : ''
+
+  const impact = quoted ? priceImpact(quoted) : null
+
+  // The floor the swap must clear. Computed here so the review step and the eventual transaction
+  // read the same number, and so a zero can never reach a call — `minimumOut` throws on one.
+  const minOut = quoted ? minimumOut(quoted.buyAmount, DEFAULT_SLIPPAGE_BPS) : null
+
   const meter = useMemo(
-    () => meterFor({ reading: crowd, amountWei: null, decimals: defaultedSell?.decimals ?? null }),
-    [crowd, defaultedSell],
+    () =>
+      meterFor({
+        reading: crowd,
+        amountWei: parsed.wei,
+        decimals: defaultedSell?.decimals ?? null,
+      }),
+    [crowd, parsed.wei, defaultedSell],
   )
 
   const meterSeverity = maxSeverity(
@@ -101,7 +135,12 @@ function Swap() {
     (tokensLoading ? 'Loading assets' : null) ??
     (tokens.length === 0 ? 'Asset list unavailable' : null) ??
     (defaultedSell === null || buyToken === null ? 'Select an asset' : null) ??
-    (sellAmount.trim() === '' || Number(sellAmount) === 0 ? 'Enter an amount' : null) ??
+    // The parser's own sentence, when a paste meant something other than what it looked like.
+    parsed.problem ??
+    (parsed.wei === null || parsed.wei === 0n ? 'Enter an amount' : null) ??
+    (quote.loading && !quote.stale ? 'Finding the best price' : null) ??
+    (quote.result?.state === 'unavailable' ? quote.result.because : null) ??
+    (quote.result?.state === 'no-route' ? 'No route for this pair' : null) ??
     'Swap is not built yet'
 
   return (
@@ -133,15 +172,39 @@ function Swap() {
           <CurrencyPanel
             label="Buy"
             corners="bottom"
-            // READ-ONLY, and empty. This is the quote's slot; there is no quote pipeline yet, so it
-            // shows nothing rather than echoing the sell figure as though a price of 1:1 had been
-            // found. The CTA carries the reason.
-            value=""
+            // READ-ONLY: this is the quote's slot, and the venue decides what goes in it. Empty
+            // until a real quote arrives — never an echo of the sell figure, which would be a
+            // price of 1:1 that nobody computed.
+            value={buyDisplay}
             readOnly
             token={buyToken}
             onSelectToken={() => setPicker('buy')}
+            // Dimmed while a newer quote is in flight: the figure on screen is a REAL price for a
+            // slightly older amount, which is worth showing and worth marking as not-yet-current.
+            className={quote.stale ? 'opacity-60' : undefined}
           />
         </div>
+
+        {quoted ? (
+          <QuoteDetails
+            rate={`1 ${defaultedSell?.symbol ?? ''} = ${
+              buyToken && quoted.sellAmount > 0n
+                ? toPlainText(
+                    (quoted.buyAmount * 10n ** BigInt(defaultedSell?.decimals ?? 0)) /
+                      quoted.sellAmount,
+                    buyToken.decimals,
+                  )
+                : '—'
+            } ${buyToken?.symbol ?? ''}`}
+            impact={impact}
+            minOut={
+              minOut !== null && buyToken
+                ? `${toPlainText(minOut, buyToken.decimals)} ${buyToken.symbol}`
+                : null
+            }
+            route={quoted.routes.map((r) => r.name).join(' · ') || null}
+          />
+        ) : null}
 
         {/* The meter above the thumb, where the consequence is read before the action is taken. */}
         <LinkabilityMeter meter={meter} />
@@ -200,5 +263,76 @@ function Swap() {
         }}
       />
     </Surface>
+  )
+}
+
+/**
+ * The rows under the form: rate, impact, floor, route.
+ *
+ * ── THE FLOOR IS SHOWN, NOT BURIED ────────────────────────────────────────────────────────
+ *
+ * Uniswap's review modal shows "Max slippage" as a percentage. This shows the resulting AMOUNT,
+ * because a percentage is a setting and an amount is a consequence — and the consequence is the
+ * thing a person can actually check against what they expected. It is also the number the
+ * transaction will assert on-chain, so what is on screen is what gets enforced.
+ *
+ * ── AND THE IMPACT IS COLOURED ONLY WHEN IT IS WORTH COLOURING ────────────────────────────
+ *
+ * Below 1% it is ordinary text. A route that costs a fraction of a percent is not a warning, and
+ * colouring every one of them spends the warning colour on the normal case — which is how a real
+ * warning stops being read.
+ */
+function QuoteDetails({
+  rate,
+  impact,
+  minOut,
+  route,
+}: {
+  rate: string
+  impact: number | null
+  minOut: string | null
+  route: string | null
+}) {
+  const impactPercent = impact === null ? null : impact * 100
+  const loud = impactPercent !== null && impactPercent >= 1
+
+  return (
+    <dl className="flex flex-col gap-s8 rounded-card border border-solid border-surface3 p-s12">
+      <Row label="Rate" value={rate} />
+      {impactPercent !== null ? (
+        <Row
+          label="Price impact"
+          value={`${impactPercent >= 0 ? '' : '+'}${Math.abs(impactPercent).toFixed(2)}%`}
+          tone={loud ? 'exposed' : 'plain'}
+        />
+      ) : null}
+      {minOut ? <Row label="Minimum received" value={minOut} /> : null}
+      {route ? <Row label="Route" value={route} /> : null}
+    </dl>
+  )
+}
+
+function Row({
+  label,
+  value,
+  tone = 'plain',
+}: {
+  label: string
+  value: string
+  tone?: 'plain' | 'exposed'
+}) {
+  return (
+    <div className="flex items-baseline justify-between gap-s12">
+      <Text as="dt" variant="body4" className="text-neutral2">
+        {label}
+      </Text>
+      <Text
+        as="dd"
+        variant="body4"
+        className={tone === 'exposed' ? 'numeric text-exposed' : 'numeric text-neutral1'}
+      >
+        {value}
+      </Text>
+    </div>
   )
 }
