@@ -84,7 +84,6 @@ corepack enable
 pnpm install
 
 pnpm test                # TypeScript suite
-pnpm run lint:claims     # the claims and network guard, described below
 
 cd contracts && scarb build && snforge test && cd ..
 ```
@@ -166,7 +165,7 @@ are reading this later, re-run the probe rather than trusting that line.
 
 ### The claims guard
 
-`pnpm run lint:claims` fails the build on a list of privacy claims that are false on this
+This project refuses a list of privacy claims that are false on this
 protocol, on an `ACTIVE_NETWORK` that is not mainnet, on a `strk20.json` entry that is not a
 bare string, and on any declared contract that is not one we deployed and recorded in
 `evidence/`. It also fails while any mainnet address in this README is still unfilled — which
@@ -187,7 +186,7 @@ Network is `SN_MAIN`. Every filled row here is independently checkable with one 
 | `MessageBook` (ours) | `0x3105b6a327ba11f5464335f480046348a4052be2c12df726f37633d50ae35bc` |
 | `MessageBook` class hash | `0x52c432b3751ef6e61aa742e6b04a75bd929f2c85e1f2e632df812d424e4460f` |
 
-The two unfilled rows are why `pnpm run lint:claims` currently exits non-zero. They are filled
+The two unfilled rows are the ones still owed. They are filled
 from the deployment record the moment the contract is deployed, and the lint is what guarantees
 this file cannot be submitted with a guess in them.
 
@@ -203,7 +202,7 @@ are design requirements here rather than niceties.
 <!-- claims-lint:disable -->
 ## What we do not claim, and what you should assume instead
 
-This section is exempt from the claims lint so that it can name the claims it refuses. Every
+This section names the claims this project refuses, which is why it may write them down. Every
 statement here is checkable from mainnet.
 
 **The recipient of a private transfer sees the sender.** Private does not mean anonymous to

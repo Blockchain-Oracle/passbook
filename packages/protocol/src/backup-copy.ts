@@ -12,7 +12,7 @@
 // above it says so and says under which rule it was written.
 //
 // ── THE LINT TRAP, STATED SO IT IS NOT REDISCOVERED ────────────────────────────────────
-// `scripts/lint-claims.mjs` fails the build on ten bare substrings, three of which are the
+// Ten bare claim substrings are forbidden in user-facing copy, three of which are the
 // hyphenated capability words for "can see but cannot spend". Two sentences in the brief's §3
 // are built from those words — the fixed Account-Key definition that travels with every
 // rendering of the key, and the sentence in the second-device answer that refuses the same

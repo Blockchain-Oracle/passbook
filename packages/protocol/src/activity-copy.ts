@@ -9,7 +9,7 @@
 //
 // ── THE LINT TRAP, AND WHY IT BITES HARDEST HERE ─────────────────────────────────────────
 //
-// `scripts/lint-claims.mjs` fails the build on ten bare substrings, line-based over whole
+// Ten bare claim substrings are forbidden in user-facing copy, line-based over whole
 // files, comments included. THREE of them are the hyphenated capability words for "can see but
 // cannot spend" — which is precisely the concept an export disclosure and a visibility matrix
 // reach for first. The export in this story exists because that capability does not exist on

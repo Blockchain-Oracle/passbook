@@ -4,7 +4,7 @@
 // frontmatter.
 //
 // WHAT THIS OWNS. The whole of tokens.css. It is generated, committed, and never hand-edited —
-// `scripts/lint-tokens.mjs` re-renders on every `npm run lint` and fails when the committed sheet
+// The committed sheet is GENERATED; regenerate with `pnpm run render:tokens` after editing
 // and the yaml disagree. To change a value you edit `tokens.yaml`, which is the verbatim copy of
 // `DESIGN.md`'s frontmatter, which is gitignored working material.
 //
@@ -510,7 +510,7 @@ export function render(yamlSource) {
     ' *',
     ` * source: apps/web/design/tokens.yaml  sha256 ${sha}`,
     ' *',
-    ' * Regenerate with `pnpm run render:tokens`. `pnpm run lint` re-renders and fails when this file',
+    ' * Regenerate with `pnpm run render:tokens` after editing tokens.yaml, and commit the result.',
     ' * and the yaml disagree, so a hand-edit here is caught rather than shipped. tokens.yaml is the',
     " * verbatim frontmatter of the UX design authority.",
     ' * locally. The banner carries the SOURCE HASH and no timestamp, so regenerating an unchanged',

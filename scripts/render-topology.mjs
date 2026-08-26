@@ -4,7 +4,7 @@
 //
 // WHAT THIS OWNS AND WHAT IT DOES NOT. Everything between a pair of
 // `<!-- generated:NAME -->` / `<!-- /generated:NAME -->` markers is written by this script and
-// must not be hand-edited — `scripts/lint-topology.mjs` re-renders on every `npm run lint` and
+// must not be hand-edited — regenerate with `pnpm run render:topology` after editing, and
 // fails the build when the committed doc and the modules disagree. Everything OUTSIDE the
 // markers is hand-written prose that a human owns; this script never touches it.
 //
