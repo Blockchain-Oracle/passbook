@@ -16,6 +16,7 @@
 //
 import type { AccountStatus, AccountRung } from '../shell/account-status'
 import { cn } from '../lib/cn'
+import { Button } from './ui/Button'
 import { Text } from './ui/Text'
 
 /**
@@ -51,7 +52,21 @@ const STEP: Record<Rung, { title: string; done: string; todo: string }> = {
   },
 }
 
-export function AccountLadder({ status }: { status: AccountStatus }) {
+export interface AccountLadderProps {
+  status: AccountStatus
+  /**
+   * Deploy the account contract. Rendered as a button only when supplied AND the account is
+   * standing on that rung — the never-a-no-op rule, and the reason the ladder can be shown on a
+   * surface that cannot act on it.
+   */
+  onDeploy?: () => void
+  /** A deployment is in flight. The button says so rather than looking pressable twice. */
+  deploying?: boolean
+  /** What went wrong with the last attempt, as a sentence. */
+  problem?: string | null
+}
+
+export function AccountLadder({ status, onDeploy, deploying = false, problem = null }: AccountLadderProps) {
   if (status.rung === 'unknown') {
     return (
       <div className="rounded-large border border-solid border-surface3 p-s16">
@@ -95,6 +110,24 @@ export function AccountLadder({ status }: { status: AccountStatus }) {
                 <Text variant="body4" className="text-settled">
                   {step.done}
                 </Text>
+              ) : null}
+
+              {/*
+                THE ONE RUNG THIS APP CAN CLEAR ITSELF. Funding is someone else's action and
+                registration needs the send pipeline; deployment is a single transaction the
+                account pays for out of what it already holds.
+              */}
+              {state === 'current' && rung === 'undeployed' && onDeploy ? (
+                <div className="mt-s4 flex flex-col gap-s4">
+                  <Button variant="primary" size="sm" onClick={onDeploy} disabled={deploying}>
+                    {deploying ? 'Deploying…' : 'Deploy account'}
+                  </Button>
+                  {problem ? (
+                    <Text variant="body4" className="text-irreversible">
+                      {problem}
+                    </Text>
+                  ) : null}
+                </div>
               ) : null}
             </div>
           </li>

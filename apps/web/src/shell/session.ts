@@ -39,6 +39,12 @@
 //
 import { useEffect, useState } from 'react'
 
+// STATIC, and correct precisely because this module has no SDK edge: `account-address.ts` takes the
+// Pedersen hasher as an argument rather than importing one, which is the whole reason it was
+// written that way. Importing it dynamically here while `submit.ts` imports it statically also
+// defeated both splits — the bundler said so, and the warning contract refused the build.
+import { accountAddressFor } from '@strk20/protocol/account-address'
+
 /** What the app knows about its own account. */
 export type SessionState =
   /** Before the first answer. NOT "no account" — nothing has been read yet. */
@@ -83,13 +89,11 @@ export async function bootSession(): Promise<SessionState> {
       { browserSessionStore, loadOrCreateAccountKey },
       { deriveViewingKey },
       { NET },
-      { accountAddressFor },
       { ec, hash },
     ] = await Promise.all([
       import('@strk20/protocol/session'),
       import('@strk20/protocol/identity'),
       import('@strk20/protocol/constants'),
-      import('@strk20/protocol/account-address'),
       // The SDK is already in this chunk because of `identity`, so naming it costs nothing here —
       // and `account-address.ts` deliberately takes the hasher rather than importing it, so that
       // module stays loadable by anything.
