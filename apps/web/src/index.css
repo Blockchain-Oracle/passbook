@@ -303,6 +303,32 @@
   }
 
   /*
+   * The scrim behind a MODAL popup, and only a modal one.
+   *
+   * It does two jobs and the second is the one that is easy to forget: it dims the page so the
+   * decision is the only lit thing, and it CATCHES THE CLICK that dismisses. A dialog whose only
+   * exit is a button is a dialog people get stuck in, and pressing the dark area is what everyone
+   * tries first.
+   *
+   * `--color-scrim` is the authority's token (a warm near-black at 0.6), so it re-themes with
+   * everything else. The fade is `quickLong` on the way in and out — deliberately slower than the
+   * popup's own `quick`, because a backdrop that snaps reads as a flash rather than as a dimming.
+   */
+  .pb-scrim {
+    position: fixed;
+    inset: var(--spacing-s0);
+    background-color: var(--color-scrim);
+    transition-property: opacity;
+    transition-duration: var(--transition-duration-quickLong);
+    transition-timing-function: var(--ease-glide);
+  }
+
+  .pb-scrim[data-starting-style],
+  .pb-scrim[data-ending-style] {
+    opacity: 0;
+  }
+
+  /*
    * The dialog, at and above 640px. Geometry is the design authority's `components.modal` block:
    * max-width 420, radius 16, 1px surface3, padding 24/16, and a viewport-relative height cap.
    *

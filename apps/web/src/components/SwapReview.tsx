@@ -60,37 +60,70 @@ export function SwapReview({
   blocker = null,
 }: SwapReviewProps) {
   return (
-    <ResponsiveDialog open={open} onOpenChange={onOpenChange} label="Review swap">
-      <div className="flex w-full flex-col gap-s16 sm:w-[420px]">
-        <Text variant="body2" as="h2" className="text-neutral2">
-          You&rsquo;re swapping
-        </Text>
-
-        {/* The two amounts at heading size with 40px marks — the only thing on this screen that
-            should be readable across a room, because it is the thing being agreed to. */}
-        <div className="flex flex-col gap-s12">
-          <AmountRow token={sellToken} display={sellDisplay} />
-          <ArrowDown />
-          <AmountRow token={buyToken} display={buyDisplay} />
+    // MODAL, because this is a decision. The scrim dims the form behind it and catches the click
+    // that dismisses — the first thing anyone tries.
+    <ResponsiveDialog open={open} onOpenChange={onOpenChange} label="Review swap" modal>
+      {/*
+        `w-full`, NOT a fixed width. `.pb-dialog` is already `max-width: 420px` with 24px of padding
+        on each side, so a 420px child inside it overflows by 48px — which is exactly what this
+        looked like. The dialog owns the width; the content fills what it is given.
+      */}
+      <div className="flex min-h-0 w-full min-w-0 flex-col gap-s16">
+        <div className="flex items-start justify-between gap-s12">
+          <Text variant="body2" as="h2" className="text-neutral2">
+            You&rsquo;re swapping
+          </Text>
+          {/* Every dialog needs a visible way out. Escape and the scrim both work, and neither is
+              discoverable. */}
+          <button
+            type="button"
+            onClick={() => onOpenChange(false)}
+            aria-label="Close"
+            className="focus-ring -m-s4 rounded-control p-s4 text-neutral3 hover:bg-inset hover:text-neutral1"
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path
+                d="M6 6L18 18M18 6L6 18"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+              />
+            </svg>
+          </button>
         </div>
 
-        <div className="h-px w-full bg-surface3" />
+        {/*
+          A TALL MODAL SCROLLS ITS MIDDLE, not its whole self. The header and the button stay put;
+          the amounts, the rows and the picture are what move. Without this the confirm button ends
+          up below the fold on a phone, which is the one control that must never be hard to reach.
+        */}
+        <div className="-mx-s4 flex min-h-0 flex-1 flex-col gap-s16 overflow-y-auto px-s4">
+          {/* The two amounts at heading size with 40px marks — the only thing on this screen that
+              should be readable across a room, because it is the thing being agreed to. */}
+          <div className="flex flex-col gap-s12">
+            <AmountRow token={sellToken} display={sellDisplay} />
+            <ArrowDown />
+            <AmountRow token={buyToken} display={buyDisplay} />
+          </div>
 
-        <dl className="flex flex-col gap-s8">
-          <ReviewRow label="Rate" value={rate} />
-          {impactPercent !== null ? (
-            <ReviewRow
-              label="Price impact"
-              value={`${impactPercent >= 0 ? '' : '+'}${Math.abs(impactPercent).toFixed(2)}%`}
-              tone={impactPercent >= 1 ? 'exposed' : 'plain'}
-            />
-          ) : null}
-          {minimumReceived ? <ReviewRow label="Minimum received" value={minimumReceived} /> : null}
-          {route ? <ReviewRow label="Route" value={route} /> : null}
-        </dl>
+          <div className="h-px w-full bg-surface3" />
 
-        {/* THE CROWD, DRAWN. The full meter — count, sentence and picture. */}
-        <LinkabilityMeter meter={meter} />
+          <dl className="flex flex-col gap-s8">
+            <ReviewRow label="Rate" value={rate} />
+            {impactPercent !== null ? (
+              <ReviewRow
+                label="Price impact"
+                value={`${impactPercent >= 0 ? '' : '+'}${Math.abs(impactPercent).toFixed(2)}%`}
+                tone={impactPercent >= 1 ? 'exposed' : 'plain'}
+              />
+            ) : null}
+            {minimumReceived ? <ReviewRow label="Minimum received" value={minimumReceived} /> : null}
+            {route ? <ReviewRow label="Route" value={route} /> : null}
+          </dl>
+
+          {/* THE CROWD, DRAWN. The full meter — count, sentence and picture. */}
+          <LinkabilityMeter meter={meter} />
+        </div>
 
         <Button
           variant={blocker ? 'secondary' : 'primary'}
