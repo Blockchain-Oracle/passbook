@@ -26,6 +26,10 @@ import {
   SCALE_UNVERIFIED,
 } from '@strk20/protocol/activity-copy'
 
+import { RECEIPT_YOU_IS_THE_ACTOR } from '@strk20/protocol/disclosure-copy'
+import { receiptContext } from '@strk20/protocol/visibility-matrix'
+
+import { VisibilityMatrix } from '../components/VisibilityMatrix'
 import { Surface } from '../shell/Surface'
 
 export const Route = createFileRoute('/activity/$id')({
@@ -88,11 +92,21 @@ function Activity() {
  * money: the sequencer charged gas on top, and on a relayed submission the two were paid by
  * different parties.
  *
- * NO VISIBILITY MATRIX HERE. Its rows and columns are authored (You / Relayer / Everyone / Auditor
- * × amount, sender, recipient, timing, IP) but its cell values are not, and each one is a privacy
- * claim. Story 6.7 owns the single source module the docs also generate from (FR-058), so a
- * hand-authored copy on this page would be precisely the drift that rule exists to prevent. Ruled
- * 2026-08-26. When 6.7 lands, it mounts below the fee row.
+ * THE VISIBILITY MATRIX MOUNTS BELOW THE FEE ROW, and every value in it comes out of
+ * `@strk20/protocol/visibility-matrix` (story 6.7, FR-058). This page carried a refusal in its
+ * place until 6.7 landed: the rows and columns were authored and not one cell value was, and a
+ * hand-authored copy here would be exactly the drift generating `docs/privacy.md` from the same
+ * module exists to prevent. There is still no cell literal in this file and there must never be one.
+ *
+ * WHICH MATRIX, AND WHY THE ANSWER IS SOMETIMES "THE BASELINE". `transaction.surface` is `null` on
+ * every RECONSTRUCTED row by design — 6.6 made it so a Global row could not wear a `Swap` tag it
+ * could not justify — so a row this browser did not originate renders the pool baseline, which is
+ * what is true of any pool transaction. That is not a degraded case to apologise for; it is the
+ * product's central claim showing up as a constraint on its own UI.
+ *
+ * SETTLED ROWS ONLY. A failed row was never submitted — "nothing was submitted, nothing was
+ * charged" is its whole grammar — so a matrix saying the amount and the timing are public would be
+ * describing a transaction that does not exist.
  */
 function Receipt({ transaction }: { transaction: Transaction }) {
   const settled = transaction.chain.state === 'settled' ? transaction.chain.entry : null
@@ -124,66 +138,85 @@ function Receipt({ transaction }: { transaction: Transaction }) {
           ) : null}
         </>
       ) : (
-        <dl className="receipt">
-          <Field label="What happened" format="prose">
-            {ACTIVITY_KIND_LABELS[settled.kind]}
-          </Field>
+        <>
+          <dl className="receipt">
+            <Field label="What happened" format="prose">
+              {ACTIVITY_KIND_LABELS[settled.kind]}
+            </Field>
 
-          <Field label="Amount" format="numeric">
-            {settled.amount === null ? (
-              <span className="text-body3 text-neutral2">{AMOUNT_NOT_OURS_TO_READ}</span>
-            ) : (
-              <Amount
-                rendered={formatTokenAmount(
-                  settled.amount,
-                  settled.token === null ? null : lookupDecimals(KNOWN_TOKEN_DECIMALS, settled.token),
-                )}
-              />
-            )}
-          </Field>
+            <Field label="Amount" format="numeric">
+              {settled.amount === null ? (
+                <span className="text-body3 text-neutral2">{AMOUNT_NOT_OURS_TO_READ}</span>
+              ) : (
+                <Amount
+                  rendered={formatTokenAmount(
+                    settled.amount,
+                    settled.token === null ? null : lookupDecimals(KNOWN_TOKEN_DECIMALS, settled.token),
+                  )}
+                />
+              )}
+            </Field>
 
-          <Field label="Counterparty" format={settled.counterparty ? 'mono' : 'prose'}>
-            {settled.counterparty ?? (
-              <span className="text-neutral2">{RECEIPT_NO_COUNTERPARTY}</span>
-            )}
-          </Field>
+            <Field label="Counterparty" format={settled.counterparty ? 'mono' : 'prose'}>
+              {settled.counterparty ?? (
+                <span className="text-neutral2">{RECEIPT_NO_COUNTERPARTY}</span>
+              )}
+            </Field>
 
-          <Field label="Block" format="numeric">
-            {blockLabel(settled.blockNumber)}
-          </Field>
+            <Field label="Block" format="numeric">
+              {blockLabel(settled.blockNumber)}
+            </Field>
 
-          <Field label="Note commitment" format={settled.noteCommitment ? 'mono' : 'prose'}>
-            {settled.noteCommitment ?? <span className="text-neutral2">{RECEIPT_NOT_A_NOTE}</span>}
-          </Field>
+            <Field label="Note commitment" format={settled.noteCommitment ? 'mono' : 'prose'}>
+              {settled.noteCommitment ?? <span className="text-neutral2">{RECEIPT_NOT_A_NOTE}</span>}
+            </Field>
 
-          <Field label="Transaction" format="mono">
-            {settled.transactionHash}
-          </Field>
+            <Field label="Transaction" format="mono">
+              {settled.transactionHash}
+            </Field>
 
-          <Field label="Check it yourself" format="prose">
-            <ExplorerLink hash={settled.transactionHash} />
-          </Field>
+            <Field label="Check it yourself" format="prose">
+              <ExplorerLink hash={settled.transactionHash} />
+            </Field>
+
+            {/*
+              THE FEE COLUMN NEVER GUESSES. `ActivityFee` has no zero variant by design: a missing
+              receipt and a genuinely free action are different facts, and a fabricated 0 handed to a
+              bookkeeper is worse than a blank. It is GROUPED for the same reason every other number
+              on this page is — an ungrouped eighteen-digit run is misread by orders of magnitude,
+              which is its own kind of wrong number.
+            */}
+            <Field label="Fee charged" format="numeric">
+              {settled.fee.state === 'charged' ? (
+                <>
+                  {groupDigits(settled.fee.amountWei.toString())}{' '}
+                  <span className="text-body3 text-neutral2">
+                    {settled.fee.unit === 'unknown' ? FEE_UNIT_UNNAMED : settled.fee.unit}
+                  </span>
+                </>
+              ) : (
+                <span className="text-body3 text-neutral2">{FEE_UNREADABLE}</span>
+              )}
+            </Field>
+          </dl>
 
           {/*
-            THE FEE COLUMN NEVER GUESSES. `ActivityFee` has no zero variant by design: a missing
-            receipt and a genuinely free action are different facts, and a fabricated 0 handed to a
-            bookkeeper is worse than a blank. It is GROUPED for the same reason every other number
-            on this page is — an ungrouped eighteen-digit run is misread by orders of magnitude,
-            which is its own kind of wrong number.
+            NO `data-severity` HERE. A receipt is a record, not a review — nothing on this page is
+            about to happen — and a privacy severity typed into a `.tsx` is the class of thing
+            `packages/protocol/src/privacy.ts` exists to delete. The panel is being used as the
+            container recipe it is; the four severity rules belong to the surfaces that ask a user
+            to press something.
+
+            The heading and the accessible shape are `VisibilityMatrix`'s, not this file's, so the
+            receipt and the review panel cannot disagree about them.
           */}
-          <Field label="Fee charged" format="numeric">
-            {settled.fee.state === 'charged' ? (
-              <>
-                {groupDigits(settled.fee.amountWei.toString())}{' '}
-                <span className="text-body3 text-neutral2">
-                  {settled.fee.unit === 'unknown' ? FEE_UNIT_UNNAMED : settled.fee.unit}
-                </span>
-              </>
-            ) : (
-              <span className="text-body3 text-neutral2">{FEE_UNREADABLE}</span>
-            )}
-          </Field>
-        </dl>
+          <div className="disclosure-panel">
+            {settled.amount === null ? (
+              <p className="disclosure-body">{RECEIPT_YOU_IS_THE_ACTOR}</p>
+            ) : null}
+            <VisibilityMatrix context={receiptContext(transaction.surface)} />
+          </div>
+        </>
       )}
     </>
   )

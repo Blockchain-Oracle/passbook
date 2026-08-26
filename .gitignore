@@ -44,6 +44,12 @@ docs/*
 # of writing it. It is neither research nor competitive analysis, so the rule above does not
 # describe it. Everything else under docs/ (the retired Superpowers plans) stays excluded.
 !docs/topology.md
+# The user-facing privacy page (story 6.7 / FR-058). It SHIPS for the same reason, and it has a
+# second reason topology does not: `scripts/build-web.mjs` READS IT and fails the build when it
+# disagrees with `packages/protocol/src/visibility-matrix.ts`. Left excluded, a fresh clone has no
+# such file and the build dies on ENOENT inside a gate, which is the least legible failure in the
+# repository. Regenerate with `pnpm run render:privacy` and commit the result.
+!docs/privacy.md
 
 # Upstream sources cloned for ground truth — not ours to ship
 reference/

@@ -775,6 +775,31 @@
   }
 
   /*
+   * ── PRIVACY SEVERITY ON THE THUMB (§7.5) ───────────────────────────────────────────────
+   *
+   * "Severity routes to the CTA itself (High → irreversible button, Medium → exposed button — the
+   * thumb carries the risk)." One `getPrivacyColor()` decides it, `ctaSeverity()` narrows it to the
+   * two levels the design authority names, and the button emits NO attribute for the other three —
+   * so there is no third shade and no rule here for one.
+   *
+   * A SEPARATE CHANNEL FROM `aria-disabled`, and the two must never be merged. Blocked is about
+   * readiness ("your action, not ready yet"); this is about consequence. A button can be both.
+   *
+   * THESE RULES COME FIRST IN SOURCE ORDER AND THAT IS THE WHOLE MECHANISM. `.cta[data-severity=…]`
+   * and `.cta[aria-disabled='true']` are both specificity 0,2,0, so nothing but position decides
+   * which one wins on a button that is blocked AND carries severity. The blocked downgrade has to
+   * win — red on a state the user fixes by typing a smaller number is the one thing §7.10 rules
+   * out — so it stays BELOW, and `disclosureProblems` in the build gate fails if the two ever swap.
+   */
+  .cta[data-severity='exposed'] {
+    background-color: var(--color-exposed);
+  }
+
+  .cta[data-severity='irreversible'] {
+    background-color: var(--color-irreversible);
+  }
+
+  /*
    * BLOCKED IS AN EMPHASIS DOWNGRADE, NOT A DISABLE (§7.10). The button stays a real, focusable,
    * pressable button — `aria-disabled` says it will not act, and pressing it explains why. It drops
    * to the accent-at-8% secondary within the same family: "your action, not ready yet".
@@ -1257,6 +1282,267 @@
   }
 
   /*
+   * ── The disclosure panel (§7.5) ────────────────────────────────────────────────────────
+   *
+   * The signature component, and the container recipe is the design authority's
+   * (`tokens.yaml` → `components.disclosure`): `inset` fill, r16, p12, gap12. Those four numbers
+   * are read out of the SHIPPED stylesheet by `disclosureProblems` in `assert-design-shipped.mjs`
+   * and compared to the yaml, so this rule cannot quietly stop matching the recipe it names.
+   *
+   * DISCLOSURE IS FURNITURE, NOT ALARM (EXPERIENCE §4.3). It "appears at {motion.quick} opacity and
+   * then HOLDS STILL — disclosure never animates on polls, never pulses". There is deliberately no
+   * `animation-name` in this block in either spelling, and the transition names ONE property. That
+   * is a construction rule rather than a sampled behaviour: it holds for every state, including the
+   * ones nobody thought to poll, and the gate proves it by reading the emitted rule.
+   *
+   * It also needs no entry in the reduced-motion block below. The blanket `*` rule shortens every
+   * transition, and there is no animation here for a named override to stop — which is precisely
+   * what the gate's "no animation-name" assertion is proving.
+   */
+  .disclosure-panel {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-s12);
+    padding: var(--spacing-s12);
+    background-color: var(--color-inset);
+    border-radius: var(--radius-card);
+    opacity: 1;
+    transition-property: opacity;
+    transition-duration: var(--transition-duration-quick);
+    transition-timing-function: var(--ease-glide);
+  }
+
+  /*
+   * THE "APPEARS AT {motion.quick} OPACITY" HALF, AND IT HAS TO BE REAL.
+   *
+   * The first version of this block declared the transition and nothing else — no initial opacity,
+   * no mount class, and neither component toggling anything. So the transition could never fire,
+   * §4.3's authored appearance was not implemented, and the build gate was reporting an unfireable
+   * declaration as proof the behaviour held. A gate can only check what it is pointed at, and it was
+   * pointed at three words.
+   *
+   * `@starting-style` is what makes it fire with no state and no JavaScript: it supplies the value
+   * the element transitions FROM on its first style resolution. No class to add, nothing to remove
+   * on unmount, and nothing that can re-fire on a poll — which is the other half of §4.3 ("and then
+   * holds still"). A browser without support paints the panel at full opacity immediately, which is
+   * the correct degradation for a fade.
+   *
+   * The reduced-motion blanket rule already covers it: this is a TRANSITION, and `*` shortens every
+   * transition-duration to `simple`. There is no animation here for a named override to stop, which
+   * is exactly what `disclosureProblems` asserts.
+   */
+  @starting-style {
+    .disclosure-panel {
+      opacity: 0;
+    }
+  }
+
+  /*
+   * ONE COLOUR PER PANEL, PICKED ONCE. §7.5: "Panel severity = max severity of its lines via one
+   * `getPrivacyColor()` so two shades of 'bad' never coexist." The panel sets the colour and the
+   * headline inherits it; `.disclosure-body` below forces every other line back to neutral2, which
+   * is the authority's "coloured claim, neutral explanation" written as two rules.
+   *
+   * FOUR VALUES, AND THE LAST ONE IS THE RULING. `quiet` is what the most severe level — `blocked`
+   * — resolves to, and it is grey. Painting it red would spend the one colour reserved for what
+   * cannot be undone on a state the user reaches by pressing something they were not allowed to
+   * press. Same call `.chip[data-status='quiet']` makes for an expired proof.
+   */
+  .disclosure-panel[data-severity='neutral'] {
+    color: var(--color-neutral1);
+  }
+
+  .disclosure-panel[data-severity='exposed'] {
+    color: var(--color-exposed);
+  }
+
+  .disclosure-panel[data-severity='irreversible'] {
+    color: var(--color-irreversible);
+  }
+
+  .disclosure-panel[data-severity='quiet'] {
+    color: var(--color-neutral2);
+  }
+
+  .disclosure-line {
+    display: flex;
+    align-items: baseline;
+    gap: var(--spacing-s8);
+  }
+
+  /*
+   * ↗ leaves the private domain · ✓ stays private. THE GLYPH IS THE CHANNEL, not the colour.
+   *
+   * THE MARKER IS FORCED TO NEUTRAL2, AND THAT IS A CORRECTION. It used to declare no colour at
+   * all, which meant it INHERITED the panel's severity — so on a `high` panel every ↗ on every
+   * muted line rendered irreversible red beside neutral2 text. §7.5's rule is "coloured claim,
+   * neutral explanation", and the claim is the words: a column of red arrows down the side of four
+   * grey sentences is the alarm this panel is specified not to be, and it spends the one colour
+   * this product reserves for what cannot be undone on punctuation.
+   *
+   * Only the ✓ takes a colour of its own, and only because §7.5 names it green. A ✓ can never sit
+   * beside a loud claim anyway: `disclosure.ts` refuses a `stays` line above `low` at module load.
+   */
+  .disclosure-marker {
+    flex: none;
+    width: var(--spacing-s12);
+    color: var(--color-neutral2);
+    text-align: center;
+  }
+
+  .disclosure-marker[data-marker='stays'] {
+    color: var(--color-settled);
+  }
+
+  /* "Body forced neutral2 body3" (§7.5), and the gate resolves both halves rather than spelling. */
+  .disclosure-body {
+    color: var(--color-neutral2);
+    font-size: var(--text-body3);
+    line-height: var(--text-body3--line-height);
+  }
+
+  /*
+   * THE WAY OUT IS A REAL BUTTON (D27: "a disclosure that offers the safer path is a feature; an
+   * obstacle is not"). Geometry is `components.button.small` — px12 py8 r12 — the same recipe
+   * `.disclosure-toggle` uses, written separately because that class is an EXPANDER and a class
+   * with two meanings is re-themable as neither. It renders only when a caller supplies the action
+   * that fulfils it; a label with no action behind it never reaches the DOM.
+   */
+  .disclosure-way-out {
+    display: inline-flex;
+    align-items: center;
+    align-self: flex-start;
+    /*
+     * A REAL TOUCH TARGET, which the first version did not have. `components.button.small` sets
+     * py8 on a body-sized label, so this control measured about 36px — under the yaml's own
+     * `hitSlop: "runtime to 44/48px minimums"` on the ONE control D27 calls a feature rather than
+     * an obstacle. `s48` is the smallest step on the authority's spacing scale that clears both
+     * numbers, and it still sits under the primary CTA's 56.
+     */
+    min-height: var(--spacing-s48);
+    padding: var(--spacing-s8) var(--spacing-s12);
+    background-color: var(--color-raised);
+    border: var(--spacing-s1) solid var(--color-surface3);
+    border-radius: var(--radius-control);
+    color: var(--color-neutral1);
+    font-size: var(--text-buttonLabel3);
+    line-height: var(--text-buttonLabel3--line-height);
+    font-weight: var(--font-weight-medium);
+    cursor: pointer;
+    transition-property: transform, opacity;
+    transition-duration: var(--transition-duration-simple);
+    transition-timing-function: var(--ease-simple);
+  }
+
+  /*
+   * A button with a pointer cursor and no hover state reads as decoration, which is the opposite of
+   * what this control is for. Same two responses every other pressable surface in the sheet gives.
+   */
+  .disclosure-way-out:hover {
+    background-color: var(--color-raisedHovered);
+  }
+
+  .disclosure-way-out:active {
+    transform: scale(0.98);
+  }
+
+  /*
+   * ── The visibility matrix (§7.5 part 2) ────────────────────────────────────────────────
+   *
+   * A REAL TABLE, with `<th scope>` on both axes, because it is one: twenty cells whose meaning is
+   * the intersection of a row and a column. A grid of divs reads to a screen reader as twenty
+   * unrelated words.
+   */
+  /*
+   * WIDE CONTENT SCROLLS IN ITS OWN BOX, NEVER ON THE PAGE.
+   *
+   * Five columns and a row-header column, at 320px minus the surface's `p-s16` on both sides, is
+   * less room than the header row needs. Without this the table overflows its container and the
+   * whole document scrolls sideways — which moves the header, the nav and every other surface under
+   * a thumb that was only trying to read one cell.
+   *
+   * `min-width: max-content` on the table is the other half: at `width: 100%` alone the table would
+   * squeeze instead of overflow, so it would never scroll and the columns would crush to nothing.
+   * With both, it fills the box when there is room and scrolls when there is not.
+   */
+  .visibility-scroll {
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+  }
+
+  .visibility-matrix {
+    width: 100%;
+    min-width: max-content;
+    border-collapse: collapse;
+    color: var(--color-neutral2);
+    font-size: var(--text-body4);
+    line-height: var(--text-body4--line-height);
+  }
+
+  .visibility-matrix th,
+  .visibility-matrix td {
+    padding: var(--spacing-s4) var(--spacing-s6);
+    text-align: start;
+    font-weight: var(--font-weight-book);
+    /* A wrapped column header turns a five-column grid into a wall. The box scrolls instead. */
+    white-space: nowrap;
+  }
+
+  .visibility-matrix th {
+    color: var(--color-neutral1);
+  }
+
+  /*
+   * COLOUR IS THE SECOND CHANNEL HERE, NEVER THE FIRST (`tokens.yaml` → `components.visibilityDot`).
+   *
+   * DESIGN §2.3's ratified measurement: under red-green colour vision deficiency `settled` and
+   * `irreversible` collapse toward each other at ΔE 9.26–11.90, which makes the icon-and-word rule
+   * "load-bearing and must be enforced in code with a test". A twenty-cell grid with nothing but
+   * hue between its cells is the densest possible place to break it, so each state carries a SHAPE
+   * — fill · hollow · half · dash — and the component carries the word beside it for assistive
+   * technology. All three survive greyscale, every form of CVD, and a screenshot in a slide deck.
+   *
+   * `10px` is the one off-scale length in this sheet and it is deliberate: the authority's spacing
+   * scale runs 8 → 12 with nothing between, and this is a MARK rather than a space. It is written
+   * once, recorded in `tokens.yaml` as `components.visibilityDot.size`, and the build gate resolves
+   * this declaration and compares it to that line — so it is a transcribed recipe and not a number
+   * somebody liked.
+   */
+  .visibility-dot {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border: var(--spacing-s2) solid var(--color-neutral2);
+    border-radius: var(--radius-pill);
+    background-color: transparent;
+    background-repeat: no-repeat;
+  }
+
+  .visibility-dot[data-state='sees'] {
+    background-color: var(--color-neutral1);
+    border-color: var(--color-neutral1);
+  }
+
+  .visibility-dot[data-state='hidden'] {
+    background-color: transparent;
+    border-color: var(--color-neutral2);
+  }
+
+  /* Half filled: the qualifier has a shape of its own, so "usually hidden" never reads as hidden. */
+  .visibility-dot[data-state='conditional'] {
+    border-color: var(--color-neutral1);
+    background-image: linear-gradient(to right, var(--color-neutral1) 50%, transparent 50%);
+  }
+
+  /* A dash: nothing to see AND nothing being hidden. The empty ring already means "hidden". */
+  .visibility-dot[data-state='absent'] {
+    border-color: transparent;
+    background-image: linear-gradient(to right, var(--color-neutral3), var(--color-neutral3));
+    background-size: 100% var(--spacing-s2);
+    background-position: center;
+  }
+
+  /*
    * ── The global degraded strip (§5) ─────────────────────────────────────────────────────
    *
    * A HAIRLINE, NOT A BANNER. Grey is the default because grey is what facts and administrative
@@ -1350,7 +1636,8 @@
       transition-duration: var(--transition-duration-simple);
     }
 
-    .cta:active {
+    .cta:active,
+    .disclosure-way-out:active {
       transform: none;
     }
 
