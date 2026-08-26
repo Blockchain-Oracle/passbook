@@ -60,16 +60,22 @@ Being precise about this is cheaper than being caught.
 
 | Component | State |
 |---|---|
-| `packages/protocol` | Live pool reads with RPC fallback, local identity generation with encrypted backup, registration pre-flight with the `ForeignKey` collision guard. Tested. |
-| `packages/relayer` | Paymaster and submission server. Written and tested; **not yet proven on mainnet.** |
-| `contracts/MessageBook` | Cairo contract, builds and passes its tests. **Not yet deployed.** |
+| `packages/protocol` | Live pool reads with RPC fallback, local identity generation with encrypted backup, registration pre-flight with the `ForeignKey` collision guard, send/withdraw planning, indexer-free discovery. Tested. |
+| `packages/relayer` | Paymaster and submission server. **Proven on mainnet** — it submitted the sponsored registration below. |
+| `contracts/MessageBook` | **Deployed to mainnet** at `0x3105b6a327ba11f5464335f480046348a4052be2c12df726f37633d50ae35bc`; class hash verified on-chain at block 13,673,080. |
+| Sponsored registration | **Banked on mainnet** — tx `0x4fbbf9aa7992a95d313554bc17b2fff311b35a5974271defc6672f57abfe27d`, block 13,805,277. Cost 8.594 STRK (6 pool fee + 2.594 gas). |
 | Mainnet gate transactions | **Not yet banked.** |
-| Web app | Does not exist in this repository yet. |
+| Web app | `apps/web` — shell, routing and the design system. No value surface is wired to the pool yet. |
 
-Because the relayer is unproven on mainnet, this app does not yet claim that your address is
-hidden from the public record. It will make that claim on the day the mechanism demonstrably
-works, and not before. Until then the honest sentence is the one it ships with: the pool sees
-your transaction, not your notes.
+Every number above is reproducible from `evidence/`, which is the audit trail for anything this
+project asserts.
+
+What that registration does and does not prove. It proves the sponsorship mechanism works end to
+end on mainnet: the transaction was submitted and paid for by the relayer's address, not the
+registering one, so the registering address never appears as the submitter and never spends. It
+does not prove more than that, and this repository will not say it does — the pool sees your
+transaction, not your notes, and the section at the end of this file lists every party who can
+still see what.
 
 ---
 
@@ -103,13 +109,12 @@ headless Chromium to learn the same things; that cost a 130 MB binary and a post
 ```bash
 npm run typecheck            # root + apps/web; the root config alone does not cover the app
 npm run build:web            # builds, holds the warning contract, reads the artifact
-npm run smoke:sdk            # React + router + protocol + privacy SDK in one evaluated bundle
 npm run verify:mainnet-guard # flips the tree off mainnet and back, proving the guard both ways
 ```
 
 `npm run build:web` from the repository root is the only supported way to build the app. There is
 deliberately no `build` script in `apps/web/package.json`: a bare `vite build` skips the warning
-contract, the eager-bundle budget and the browser evaluation, and produces an artifact nothing has
+contract, the eager-bundle budget and the artifact reads, and produces something nothing has
 checked.
 
 `verify:mainnet-guard` rewrites `packages/protocol/src/constants.ts` in your working tree for a few
@@ -117,18 +122,15 @@ seconds. Do not run it alongside other work in the same checkout. If it is kille
 mid-run it leaves a `.guard-verify-backup` sidecar; the next run finds it, restores from it, and
 says so.
 
-Two probes read mainnet. `evidence/` is the audit trail for every number this project asserts,
-and only a probe that actually measured something is allowed to write into it:
+`evidence/` is the audit trail for every number this project asserts, and only a run that actually
+measured something is allowed to write into it. The probe scripts that produced those files have
+been retired now that their results are banked — re-deriving a measured fact is not verification,
+it is spending 6 STRK to reprint a receipt. `scripts/ops/` keeps the one-shot mainnet operations
+for reference.
 
-```bash
-npx tsx scripts/probe-constants.ts      # live fee, pause state, proof validity
-npx tsx scripts/probe-proof-timing.ts   # exits non-zero until the contract is deployed
-```
-
-The second one refusing to run is the correct behaviour, not a bug. Proof wall-time has never
-been measured by anyone on this protocol, and a probe that reported zeros would put a false
-number into the audit trail. That is also why no duration appears anywhere in this repository,
-including in this README.
+One number is deliberately missing everywhere, including from this README: **proof wall-time.** It
+has never been measured by anyone on this protocol, so no duration is quoted anywhere rather than
+a plausible-looking guess being quoted once and then cited forever.
 
 ### Running the relayer, and the one setting you must not skip
 

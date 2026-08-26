@@ -2,7 +2,7 @@
 // The route-identity marker, and the app's one page landmark.
 //
 // Every surface renders exactly one `<main data-route-id="…">` naming the route it IS. Three gates
-// read that attribute — `scripts/build-web.mjs`, `npm run smoke:sdk`, and the anti-demo review gate
+// read that attribute — `scripts/build-web.mjs` and the anti-demo review gate
 // of story 6.10 — so it is written once, here, rather than typed out per route.
 //
 // TWO RULES THE ATTRIBUTE'S OWN NAME ARGUES AGAINST, both learned the expensive way:

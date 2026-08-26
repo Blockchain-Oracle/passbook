@@ -183,7 +183,7 @@ function RootLayout() {
             Settings
           </Link>
           {/*
-            The network the artifact actually resolved to. `npm run smoke:sdk` asserts both of these
+            The network the artifact actually resolved to. The mainnet guard asserts both of these
             values reach the mounted DOM — one assertion covering the whole chain, from the protocol
             package through the router to a committed render — so this line is load-bearing.
           */}

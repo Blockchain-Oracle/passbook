@@ -1,12 +1,5 @@
 node_modules/
 dist/
-# The SDK smoke's build outputs. They sit beside `dist/` rather than inside it because the app
-# build empties its own outDir, and a smoke artifact that the next `npm run build:web` deletes is
-# one nobody can inspect after a failure. NOT covered by the `dist/` rule above — that matches the
-# directory name exactly.
-dist-smoke/
-dist-smoke-negative/
-dist-smoke-canary/
 .env
 .env.*
 !.env.example
