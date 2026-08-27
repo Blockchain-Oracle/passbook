@@ -3,11 +3,11 @@
 //
 // ── WHY ONE HOOK AND NOT ONE PER SURFACE ─────────────────────────────────────────────────
 //
-// A transfer, a withdraw and a swap differ by a `kind` and, for a swap, one extra leg. Everything
-// else — the account, the wallet data, the self-submit executor, the stage reporting, the
-// optimistic row — is identical, and it is the part that is easy to get subtly wrong. Three
-// copies of it would be three chances for one surface to forget the executor and report a send
-// nobody made.
+// A transfer, a withdraw, a swap and a crossing differ by a `kind` and, for the last two, one
+// extra leg. Everything else — the account, the wallet data, the self-submit executor, the stage
+// reporting, the optimistic row — is identical, and it is the part that is easy to get subtly
+// wrong. Four copies of it would be four chances for one surface to forget the executor and
+// report a send nobody made.
 //
 // ── `selfSubmit` DEFAULTS TO REFUSING, AND THAT IS WHY THIS FILE HAS TO EXIST ─────────────
 //
@@ -27,19 +27,21 @@
 //
 import { useCallback, useState } from 'react'
 import type { DiscoveryResult } from '@strk20/protocol/discovery'
-import type { SendFailure, SendResult, SwapLeg } from '@strk20/protocol/send'
+import type { BridgeLeg, SendFailure, SendResult, SwapLeg } from '@strk20/protocol/send'
 import type { SendStage } from '@strk20/protocol/pipeline-stage'
 
 import { makeSelfSubmit } from './submit'
 
 export interface SendAsk {
-  kind: 'transfer' | 'withdraw' | 'swap'
+  kind: 'transfer' | 'withdraw' | 'swap' | 'bridge'
   recipient: string
   token: string
   symbol: string
   amount: bigint
   /** Required when `kind` is `'swap'`. `planSend` refuses a swap without one. */
   swap?: SwapLeg
+  /** Required when `kind` is `'bridge'`. `planSend` refuses a crossing without one. */
+  bridge?: BridgeLeg
 }
 
 export interface SendState {
@@ -114,6 +116,7 @@ export function useSend(read: DiscoveryResult | null, session: {
             // option that cannot work. The account pays its own fee instead, which it can.
             mode: 'self',
             ...(ask.swap ? { swap: ask.swap } : {}),
+            ...(ask.bridge ? { bridge: ask.bridge } : {}),
             wallet: read.wallet,
           },
           {

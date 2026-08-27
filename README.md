@@ -69,15 +69,24 @@ Being precise about this is cheaper than being caught.
 **What works end to end today.** Open the app and an account is derived in your browser on first
 load; nothing is connected and nothing is pasted. The wallet reads your shielded balance straight
 from the pool and tells you which of four states it is in — including "the pool could not be read",
-which is deliberately not shown as a zero. Swap prices a real route through an on-chain aggregator,
-with the minimum you would receive and the price impact stated before you commit. An account funded
-in the browser can deploy itself from the wallet, which is a real mainnet transaction the product
-sends on its own.
+which is deliberately not shown as a zero. An account funded in the browser can deploy itself and
+then register its viewing key with the pool, both real mainnet transactions the product sends on
+its own. Swap prices a real route through an on-chain aggregator and executes it in one
+transaction: the sell token is withdrawn to the venue's privacy executor, the executor is invoked,
+and the proceeds land back in the pool as a note — the value never touches a public address of
+yours. Bridge sends shielded USDC out to another chain through StarkWare's own deployed
+`OutboundAnonymizer`, on the same withdraw-then-invoke sandwich, with Circle's fee read live and
+the exact arriving amount shown before you commit.
 
-**What does not work yet, stated plainly.** Registration writes your viewing key to the pool and
-costs the protocol's 6 STRK fee; until an account is registered it cannot hold shielded value, so
-swap stops at the review step and the wallet has no Send button. Chat, bridge, markets and launch
-are not built — each says so on its own screen, along with what is already working underneath it.
+**What does not work yet, stated plainly.** The wallet has no Send form — a shielded transfer to
+another person goes through the pipeline swap and bridge already use, but no screen drives it yet.
+Chat, markets and launch are not built; each says so on its own screen, along with what is already
+working underneath it. The bridge is **outbound only** — bringing value back needs a second
+contract, a relayer that has to stay alive, and a fund-stranding failure path nobody here has
+rehearsed. And while the bridge's helper has hundreds of successful mainnet burns behind it, the
+crossing this app builds has been pinned against a real one felt-for-felt in tests rather than run:
+no crossing has been sent from this code. Solana is offered and says on its own row that a
+destination with no existing USDC account is a path nobody here has tested.
 
 This app does not claim that your address is hidden from the public record. Depositing into the
 pool is public: the depositor and the amount are both visible. What the pool hides is which notes
