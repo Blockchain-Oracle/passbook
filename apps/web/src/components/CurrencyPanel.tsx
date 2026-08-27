@@ -45,7 +45,16 @@ export interface CurrencyPanelProps {
   /** A quoted output panel is not typed into. Renders the same, refuses input. */
   readOnly?: boolean
   token: TokenInfo | null
-  onSelectToken: () => void
+  /**
+   * Open the asset picker. ABSENT MEANS THE ASSET IS NOT A CHOICE, and the pill renders as a
+   * label rather than a button.
+   *
+   * The crossing surface is the case: the sponsor's helper has USDC baked in at construction and
+   * the caller cannot pass a token, so a picker there would be a control that can only be pressed
+   * to be told no. A button that cannot do anything is the never-a-no-op rule broken in the place
+   * a user reaches first.
+   */
+  onSelectToken?: () => void
   /** e.g. `"Balance: 12.40"`. Rendered bottom-left at 12px, or a reserved blank. */
   balanceLabel?: string | null
   /**
@@ -207,24 +216,43 @@ function PresetRow({ onPreset }: { onPreset: (fraction: number) => void }) {
  * outlined empty trigger looks disabled next to a filled one, which is backwards: choosing the
  * asset is the most important thing an empty form needs.
  */
-function TokenPill({ token, onPress }: { token: TokenInfo | null; onPress: () => void }) {
+function TokenPill({ token, onPress }: { token: TokenInfo | null; onPress?: () => void }) {
+  const shell = cn(
+    'flex min-h-s36 shrink-0 items-center gap-s6 rounded-pill px-s12',
+    token
+      ? 'border border-solid border-surface3 bg-raised text-neutral1'
+      : 'bg-accent1 text-ground',
+  )
+
+  const mark = token ? (
+    <span className="-ml-s8">
+      <TokenLogo url={token.logoUri} symbol={token.symbol} name={token.name} size={28} />
+    </span>
+  ) : null
+
+  // A FIXED ASSET IS A LABEL, and it loses the chevron with the button. The chevron is the
+  // affordance that says "there are others" — keeping it on something unpressable would promise a
+  // choice that does not exist.
+  if (!onPress) {
+    return (
+      <span className={shell}>
+        {mark}
+        <Text variant="buttonLabel2">{token ? token.symbol : '—'}</Text>
+      </span>
+    )
+  }
+
   return (
     <button
       type="button"
       onClick={onPress}
       className={cn(
-        'focus-ring flex min-h-s36 shrink-0 items-center gap-s6 rounded-pill px-s12',
-        'transition-colors duration-[var(--transition-duration-simple)] active:scale-[0.98]',
-        token
-          ? 'border border-solid border-surface3 bg-raised text-neutral1 hover:bg-raisedHovered'
-          : 'bg-accent1 text-ground hover:bg-accent1Hovered',
+        'focus-ring transition-colors duration-[var(--transition-duration-simple)] active:scale-[0.98]',
+        shell,
+        token ? 'hover:bg-raisedHovered' : 'hover:bg-accent1Hovered',
       )}
     >
-      {token ? (
-        <span className="-ml-s8">
-          <TokenLogo url={token.logoUri} symbol={token.symbol} name={token.name} size={28} />
-        </span>
-      ) : null}
+      {mark}
       <Text variant="buttonLabel2">{token ? token.symbol : 'Select asset'}</Text>
       <ChevronDown />
     </button>
