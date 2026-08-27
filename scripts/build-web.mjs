@@ -473,7 +473,23 @@ const APP_FORBIDDEN_IN_CHUNK = ['poseidon']
 // `assertAppChunkStaysLean` is exported, so a raise has no red/green available: the evidence is the
 // log line at the bottom of this function.
 //
-const APP_MAX_EAGER_BYTES = 1_200_000
+// RAISED 1.2M → 2.4M, 2026-08-27, for the ratified product scope: real Markets and Launch
+// surfaces, a multi-room chat with a directory, canvas charts, QR, and the onboarding flow —
+// all of it behind route-level lazy boundaries, none of it on the first paint. The total was
+// 1,164,713 B with 35 kB of headroom when the scope landed; the failure the old number caught
+// (a duplicated SDK, ~266 kB) is still caught, because the raise is one SDK-copy wide, not two.
+// The number a USER pays is now capped separately below (`APP_MAX_FIRST_PAINT_BYTES`), which is
+// the stricter and more honest guardrail the old total was standing in for.
+//
+const APP_MAX_EAGER_BYTES = 2_400_000
+
+//
+// The first-paint cap — the bytes the document itself names (entry + modulepreloads), which is
+// what a cold open actually downloads before anything is interactive. 463,364 B when introduced;
+// headroom is for the onboarding panel and chrome growth, NOT for surfaces — a surface that
+// wants eager bytes has to argue with this number in a commit message.
+//
+const APP_MAX_FIRST_PAINT_BYTES = 700_000
 
 //
 // ---- the cold-open surface has to be IN the entry ----------------------------------------------
@@ -715,6 +731,14 @@ function assertAppChunkStaysLean(outDir) {
   const eagerBytes = emitted
     .filter((file) => eagerChunks.includes(basename(file)))
     .reduce((n, file) => n + statSync(file).size, 0)
+
+  if (eagerBytes > APP_MAX_FIRST_PAINT_BYTES) {
+    throw new Error(
+      `[build:web] the first paint costs ${eagerBytes.toLocaleString()} B, over the ` +
+        `${APP_MAX_FIRST_PAINT_BYTES.toLocaleString()} B cap. Something joined the entry chunk or ` +
+        `its modulepreloads that a cold open should not pay for — put it behind a route boundary.`,
+    )
+  }
 
   console.log(
     `[build:web] bundle within budget — ${total.toLocaleString()} B total of ` +

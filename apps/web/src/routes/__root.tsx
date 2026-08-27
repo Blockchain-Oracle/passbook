@@ -30,6 +30,7 @@ import { getHealth, setHealth, subscribeHealth, watchConnectivity } from '../she
 import { AccountChip } from '../components/AccountChip'
 import { DegradedStrip } from '../components/DegradedStrip'
 import { ThemeToggle } from '../components/ThemeToggle'
+import { ToastViewport } from '../shell/ToastViewport'
 
 //
 // THE PALETTE IS CODE-SPLIT, AND NOT FOR THE BYTE GATE.
@@ -244,6 +245,8 @@ function RootLayout() {
           />
         </Suspense>
       ) : null}
+
+      <ToastViewport />
     </>
   )
 }
