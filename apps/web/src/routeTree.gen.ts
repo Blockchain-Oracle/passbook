@@ -14,6 +14,7 @@ import { Route as BridgeRouteImport } from './routes/bridge'
 import { Route as ChatRouteImport } from './routes/chat'
 import { Route as LaunchRouteImport } from './routes/launch'
 import { Route as MarketsRouteImport } from './routes/markets'
+import { Route as SendRouteImport } from './routes/send'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as SwapRouteImport } from './routes/swap'
 import { Route as WalletRouteImport } from './routes/wallet'
@@ -43,6 +44,11 @@ const LaunchRoute = LaunchRouteImport.update({
 const MarketsRoute = MarketsRouteImport.update({
   id: '/markets',
   path: '/markets',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SendRoute = SendRouteImport.update({
+  id: '/send',
+  path: '/send',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SettingsRoute = SettingsRouteImport.update({
@@ -77,6 +83,7 @@ export interface FileRoutesByFullPath {
   '/chat': typeof ChatRoute
   '/launch': typeof LaunchRoute
   '/markets': typeof MarketsRoute
+  '/send': typeof SendRoute
   '/settings': typeof SettingsRoute
   '/swap': typeof SwapRoute
   '/wallet': typeof WalletRoute
@@ -89,6 +96,7 @@ export interface FileRoutesByTo {
   '/chat': typeof ChatRoute
   '/launch': typeof LaunchRoute
   '/markets': typeof MarketsRoute
+  '/send': typeof SendRoute
   '/settings': typeof SettingsRoute
   '/swap': typeof SwapRoute
   '/wallet': typeof WalletRoute
@@ -102,6 +110,7 @@ export interface FileRoutesById {
   '/chat': typeof ChatRoute
   '/launch': typeof LaunchRoute
   '/markets': typeof MarketsRoute
+  '/send': typeof SendRoute
   '/settings': typeof SettingsRoute
   '/swap': typeof SwapRoute
   '/wallet': typeof WalletRoute
@@ -116,6 +125,7 @@ export interface FileRouteTypes {
     | '/chat'
     | '/launch'
     | '/markets'
+    | '/send'
     | '/settings'
     | '/swap'
     | '/wallet'
@@ -128,6 +138,7 @@ export interface FileRouteTypes {
     | '/chat'
     | '/launch'
     | '/markets'
+    | '/send'
     | '/settings'
     | '/swap'
     | '/wallet'
@@ -140,6 +151,7 @@ export interface FileRouteTypes {
     | '/chat'
     | '/launch'
     | '/markets'
+    | '/send'
     | '/settings'
     | '/swap'
     | '/wallet'
@@ -153,6 +165,7 @@ export interface RootRouteChildren {
   ChatRoute: typeof ChatRoute
   LaunchRoute: typeof LaunchRoute
   MarketsRoute: typeof MarketsRoute
+  SendRoute: typeof SendRoute
   SettingsRoute: typeof SettingsRoute
   SwapRoute: typeof SwapRoute
   WalletRoute: typeof WalletRoute
@@ -195,6 +208,13 @@ declare module '@tanstack/react-router' {
       path: '/markets'
       fullPath: '/markets'
       preLoaderRoute: typeof MarketsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/send': {
+      id: '/send'
+      path: '/send'
+      fullPath: '/send'
+      preLoaderRoute: typeof SendRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/settings': {
@@ -241,6 +261,7 @@ const rootRouteChildren: RootRouteChildren = {
   ChatRoute: ChatRoute,
   LaunchRoute: LaunchRoute,
   MarketsRoute: MarketsRoute,
+  SendRoute: SendRoute,
   SettingsRoute: SettingsRoute,
   SwapRoute: SwapRoute,
   WalletRoute: WalletRoute,

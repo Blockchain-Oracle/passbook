@@ -54,3 +54,7 @@ docs/*
 # Upstream sources cloned for ground truth — not ours to ship
 reference/
 .vercel
+.env*
+# The router plugin's scratch directory. It writes a uniquely-named temp file on every codegen run,
+# so left tracked it adds one junk file per build to every commit.
+apps/web/.tanstack/
