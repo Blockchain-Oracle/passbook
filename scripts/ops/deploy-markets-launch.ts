@@ -33,18 +33,30 @@ const PRAGMA_ADDRESS = '0x2a85bd616f912537c50a49a4076db02c00b29b2cdc8a197ce92ed1
  * computed hash stops matching, the Cairo changed after review; the script stops rather than
  * paying for bytes nobody looked at. Update deliberately, in the same commit as the change.
  */
-const CONTRACTS = [
+const LAUNCH_TOKEN_CLASS_HASH =
+  '0x6bc12b93be701b35f48d30acdf4caddf9fe603a3d7ca4f2ce8444a175262782'
+
+interface DeployTarget {
+  name: string
+  artifact: string
+  expectedClassHash: string
+  deploy: boolean
+  constructorCalldata?: () => string[]
+  constructorNote?: string
+}
+
+const CONTRACTS: DeployTarget[] = [
   {
     name: 'LaunchToken',
     artifact: 'contracts/target/dev/strk20_app_LaunchToken',
-    expectedClassHash: '0x6bc12b93be701b35f48d30acdf4caddf9fe603a3d7ca4f2ce8444a175262782',
-    deploy: false as const, // declare only — graduate() deploys instances of it later
+    expectedClassHash: LAUNCH_TOKEN_CLASS_HASH,
+    deploy: false, // declare only — graduate() deploys instances of it later
   },
   {
     name: 'Markets',
     artifact: 'contracts/target/dev/strk20_app_Markets',
     expectedClassHash: '0x750ec8f6c6c96f1e66129f84ac8ca798973bb3e5fd9384269706a7e079f4388',
-    deploy: true as const,
+    deploy: true,
     constructorCalldata: () => [NET.pool, PRAGMA_ADDRESS],
     constructorNote: '(pool, pragma)',
   },
@@ -52,9 +64,9 @@ const CONTRACTS = [
     name: 'Launch',
     artifact: 'contracts/target/dev/strk20_app_Launch',
     expectedClassHash: '0x7c4a3f7cd257beb5a8243fb1cd3ac3e5f59b36f08a436bbd657ef214c970d22',
-    deploy: true as const,
+    deploy: true,
     // The token CLASS hash, not an address — graduate() deploy_syscalls from it.
-    constructorCalldata: () => [NET.pool, CONTRACTS[0]!.expectedClassHash],
+    constructorCalldata: () => [NET.pool, LAUNCH_TOKEN_CLASS_HASH],
     constructorNote: '(pool, launch_token_class_hash)',
   },
 ]
@@ -371,7 +383,7 @@ for (const c of CONTRACTS) {
 
   let deployTx: string | null = null
   let contractAddress: string | null = null
-  if (c.deploy) {
+  if (c.deploy && c.constructorCalldata) {
     const calldata = c.constructorCalldata()
     console.log(`  deploying ${c.name}${c.constructorNote} ...`)
     const res = await account.deployContract({ classHash: l.classHash, constructorCalldata: calldata })
