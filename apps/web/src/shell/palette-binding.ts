@@ -51,3 +51,65 @@ export function bindPaletteShortcut(open: () => void): () => void {
   window.addEventListener('keyup', onKeyUp)
   return () => window.removeEventListener('keyup', onKeyUp)
 }
+
+//
+// ── ⌘K / Ctrl+K, AND WHY IT IS BOUND ON keydown WHERE `/` IS BOUND ON keyup ───────────────
+//
+// The rule above is about a CHARACTER leaking into the input the palette just focused. `/` produces
+// one; `⌘K` produces none — it is a chord the browser reports and no field would ever receive as
+// text. So the reason for keyup does not apply, and the reason AGAINST it does: Chrome and Firefox
+// both bind ⌘K/Ctrl+K to their own address-bar search, and only `preventDefault` on keydown takes
+// it. On keyup the browser has already acted.
+//
+// It is therefore also the one binding here that fires INSIDE a text field. Someone typing in the
+// swap amount who reaches for ⌘K means the palette — there is no character to swallow and no
+// competing interpretation, which is exactly why every app with a palette binds it this way.
+//
+export const PALETTE_CHORD_KEY = 'k'
+
+/** Binds ⌘K on macOS and Ctrl+K elsewhere. Returns the unbinder. */
+export function bindPaletteChord(open: () => void): () => void {
+  const onKeyDown = (event: KeyboardEvent) => {
+    if (event.key.toLowerCase() !== PALETTE_CHORD_KEY) return
+    // EITHER modifier, never both required: matching only `metaKey` would leave every Linux and
+    // Windows user without the shortcut, and matching only `ctrlKey` would collide with macOS
+    // conventions. `altKey` is excluded because ⌥⌘K and ⌃⌥K are different chords that belong to
+    // whatever else claimed them.
+    if (!(event.metaKey || event.ctrlKey) || event.altKey) return
+    if (event.defaultPrevented) return
+    // Taken from the browser deliberately — see the note above. This is the only place in this
+    // module that calls it, because it is the only binding with something to take.
+    event.preventDefault()
+    open()
+  }
+
+  window.addEventListener('keydown', onKeyDown)
+  return () => window.removeEventListener('keydown', onKeyDown)
+}
+
+//
+// ── `?` FOR THE SHORTCUTS OVERLAY ─────────────────────────────────────────────────────────
+//
+// Shift+/ on most layouts, which makes it a CHARACTER — so it inherits `/`'s keyup rule exactly,
+// for exactly the same reason. Anyone who binds this on keydown ships an overlay that opens with a
+// stray `?` in whatever it focused.
+//
+// Read off `event.key` rather than reconstructed from `Shift` + `Slash`: on a German or French
+// layout `?` is a different physical key, and a shift-plus-slash check would leave those users
+// without the shortcut while silently firing on something else.
+//
+export const SHORTCUTS_KEY = '?'
+
+export function bindShortcutsOverlay(open: () => void): () => void {
+  const onKeyUp = (event: KeyboardEvent) => {
+    if (event.key !== SHORTCUTS_KEY) return
+    // Shift is the character's own modifier and must NOT disqualify it; the others are chords.
+    if (event.altKey || event.ctrlKey || event.metaKey) return
+    if (event.defaultPrevented) return
+    if (isTypingTarget(event.target)) return
+    open()
+  }
+
+  window.addEventListener('keyup', onKeyUp)
+  return () => window.removeEventListener('keyup', onKeyUp)
+}

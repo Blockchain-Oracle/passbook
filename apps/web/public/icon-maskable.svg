@@ -1,0 +1,8 @@
+<!-- Maskable: the mark sits inside the 80% safe zone, so a circular or squircle
+     mask on Android cannot clip it. Same glyph, more padding — that is the whole difference. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Passbook">
+  <rect width="512" height="512" fill="#131313"/>
+  <g transform="translate(102 102) scale(0.6)">
+    <path d="M168 132h128c53 0 92 38 92 90s-39 90-92 90h-60v68h-68V132zm68 62v56h52c17 0 29-11 29-28s-12-28-29-28h-52z" fill="#ff37c7"/>
+  </g>
+</svg>

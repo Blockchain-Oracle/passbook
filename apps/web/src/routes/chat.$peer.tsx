@@ -14,7 +14,7 @@ import type { TokenInfo } from '@strk20/protocol/token-list'
 import { AmountInput, useAmountField } from '../components/AmountInput'
 import { BlockedButton } from '../components/BlockedButton'
 import { ChatThread } from '../components/ChatThread'
-import { Disclosure } from '../components/Disclosure'
+import { PrivacyRow } from '../components/PrivacyRow'
 import { PeerAvatar } from '../components/PeerAvatar'
 import { TokenSelector } from '../components/TokenSelector'
 import { Button } from '../components/ui/Button'
@@ -255,8 +255,17 @@ function Thread() {
         The authored panel, on the surface rather than behind a review dialog. A conversation has no
         confirm step to attach a disclosure to, so it stands next to the thread — which is also
         where it is true for every message, not just the paid ones.
+
+        COLLAPSED TO ONE ROW (Wave 4). A thread is a place people read, and a permanently-open
+        privacy panel under every conversation is the furniture Abu named as noise. The headline
+        claim stays visible at rest and the detail is one press away — the same treatment the three
+        reviews got, so the pattern means the same thing everywhere it appears.
+
+        No `meter`: there is no anonymity set to measure on a conversation. `PrivacyRow` takes it as
+        optional for exactly this case, and passing a fabricated one to fill the space would be the
+        invented measurement the whole meter story exists to refuse.
       */}
-      <Disclosure disclosure={disclosure} />
+      <PrivacyRow disclosure={disclosure} />
 
       <ResponsiveDialog open={paying} onOpenChange={setPaying} label="Send money" modal>
         <div className="flex w-full min-w-0 flex-col gap-s16">
