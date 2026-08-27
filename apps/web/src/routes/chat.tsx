@@ -372,7 +372,7 @@ function ConnectionChip({ status }: { status: RoomStatus }) {
     <span className="flex items-center gap-s6 rounded-pill bg-inset px-s8 py-s4">
       <span
         aria-hidden="true"
-        className={`size-s6 rounded-pill ${live ? 'bg-shielded' : 'bg-exposed'}`}
+        className={`size-s6 rounded-pill ${live ? 'bg-settled' : 'bg-exposed'}`}
       />
       <Text variant="body4" className="text-neutral2">
         {live ? 'Live' : 'Reconnecting…'}

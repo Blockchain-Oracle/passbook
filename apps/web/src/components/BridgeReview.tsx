@@ -26,6 +26,7 @@ import { ResponsiveDialog } from '../shell/ResponsiveDialog'
 import { Disclosure } from './Disclosure'
 import { LinkabilityMeter } from './LinkabilityMeter'
 import { VisibilityMatrix } from './VisibilityMatrix'
+import { ChainLogo, isKnownChain } from './ChainLogo'
 import { TokenLogo } from './TokenLogo'
 import { Button } from './ui/Button'
 import { Text } from './ui/Text'
@@ -179,7 +180,11 @@ function AmountRow({
         </Text>
       </div>
       {chain ? (
-        <TokenLogo url={null} symbol={chain.name} name={chain.name} size={40} />
+        isKnownChain(chain.key) ? (
+          <ChainLogo chainKey={chain.key} size={40} />
+        ) : (
+          <TokenLogo url={null} symbol={chain.name} name={chain.name} size={40} />
+        )
       ) : (
         <TokenLogo url={null} symbol="USDC" name="USD Coin" size={40} />
       )}
