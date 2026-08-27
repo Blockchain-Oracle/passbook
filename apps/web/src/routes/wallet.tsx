@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from '@tanstack/react-router'
-import { Suspense, lazy, useCallback, useEffect, useState, type ReactNode } from 'react'
+import { Suspense, lazy, useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import type { BookState, ShieldedBalance, TokenBalance } from '@strk20/protocol/balances'
 import { toPlainText } from '@strk20/protocol/amount'
 import {
@@ -30,6 +30,7 @@ import { findToken, useTokenList } from '../shell/use-token-list'
 import { labelAccount, unlockSession, useSession, shortenFelt, type SessionState } from '../shell/session'
 import { useFirstRun } from '../shell/use-first-run'
 import { usePoolFee } from '../shell/use-pool-fee'
+import { claimAfterRegistration } from '../shell/claim-after-registration'
 import { Surface } from '../shell/Surface'
 
 //
@@ -169,6 +170,15 @@ function WalletAccount({ session }: { session: Extract<SessionState, { status: '
   const [receiving, setReceiving] = useState(false)
   const firstRun = useFirstRun()
   const poolFee = usePoolFee()
+  //
+  // WHAT THE NAME SCREEN ASKED FOR, held until registration confirms.
+  //
+  // The claim cannot be made earlier: the relayer verifies it against the public key the POOL
+  // holds, and before registration the pool holds nothing. So the intent is captured on screen 1
+  // and spent at the end — a ref rather than state, because nothing renders from it and a re-render
+  // between the two moments would be noise.
+  //
+  const pendingClaim = useRef<{ name: string; claimPublicly: boolean }>({ name: '', claimPublicly: false })
 
   // Plain JSON-RPC, no SDK — so the ladder can say where the account stands before the crypto
   // graph has finished loading.
@@ -208,7 +218,19 @@ function WalletAccount({ session }: { session: Extract<SessionState, { status: '
     }
     // Re-read rather than assume the rung moved — the ladder reports what it reads.
     setStatusNonce((n) => n + 1)
-  }, [session.accountKey, session.address, backedUp])
+
+    // THE NAME, NOW THAT THERE IS A KEY ON-CHAIN TO VERIFY IT AGAINST.
+    //
+    // Not awaited, and every failure inside it becomes a toast rather than an error state — see
+    // `claim-after-registration.ts`. The registration has already confirmed at this point, so
+    // nothing about a directory entry is allowed to make a working account look broken.
+    void claimAfterRegistration({
+      ...pendingClaim.current,
+      address: session.address,
+      viewingKey: session.viewingKey,
+    })
+    pendingClaim.current = { name: '', claimPublicly: false }
+  }, [session.accountKey, session.address, session.viewingKey, backedUp])
 
   const onDeploy = useCallback(async () => {
     setDeploying(true)
@@ -265,7 +287,9 @@ function WalletAccount({ session }: { session: Extract<SessionState, { status: '
               <ConversionPanel
                 feeStrk={poolFee}
                 appName={APP_NAME}
-                onGenerateKey={async (label) => {
+                onGenerateKey={async (label, claimPublicly) => {
+                  // Held for the registration step; see `pendingClaim`.
+                  pendingClaim.current = { name: label, claimPublicly }
                   // The key already exists — the session mints one on first boot — so this names it
                   // rather than generating it. See the note on `feeStrk` below for why that gap is
                   // reported rather than papered over.
