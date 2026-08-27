@@ -30,7 +30,9 @@ _bmad/
 _bmad-output/
 context/
 docs/
-evidence/
+# evidence/ WAS here, and its exclusion was the bug: the allowlist and keeper read contract
+# addresses from evidence/*.json at boot, so an image without the directory runs with no
+# MessageBook, Markets or Launch — "not a build input" was simply false for these files.
 
 # The web app builds and deploys elsewhere (Vercel). The relayer image only needs the two
 # packages, the root manifest and `vendor/`.
