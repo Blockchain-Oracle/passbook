@@ -52,15 +52,30 @@ const NAME_BY_SELECTOR: ReadonlyMap<string, PoolEventName> = new Map(
 )
 
 /**
- * The most events one RPC request may ask for.
+ * How many events one RPC request asks for by DEFAULT.
  *
  * 100 rather than the 1000 a host will usually allow: this runs in a browser, every page is a
- * round trip the user is waiting through, and a smaller chunk means the feed can render its
+ * round trip the user is waiting through, and a smaller chunk means a caller can render its
  * first page while later ones are still arriving. The precedent in this repository is
  * `reference/tipjar/app/src/hooks/useTipJar.ts`, which uses the same number against the same
  * network for the same reason.
+ *
+ * A CALLER THAT DOES NOT RENDER INCREMENTALLY SHOULD ASK FOR MORE, and `MAX_EVENT_CHUNK_SIZE`
+ * is how far. The saving is not marginal: measured against mainnet on 2026-08-27, a week of pool
+ * history is 30 round trips at this size and 6 at the ceiling — 22 seconds against 8.5.
  */
 export const EVENT_CHUNK_SIZE = 100
+
+/**
+ * The largest chunk this module will ask a host for, whatever a caller requests.
+ *
+ * 1000 is the documented ceiling on Starknet RPC `starknet_getEvents`. Measured on 2026-08-27 the
+ * public host serves around 546 events for such a request and hands back a continuation token for
+ * the rest, so asking for 1000 is not a promise of 1000 — it is the difference between five pages
+ * and one. Asking for more than the spec allows risks an outright refusal rather than a short
+ * page, which is why this is a clamp and not a suggestion.
+ */
+export const MAX_EVENT_CHUNK_SIZE = 1000
 
 /**
  * The most pages one call will walk before it stops and SAYS it stopped.
@@ -192,7 +207,10 @@ export async function readPoolEvents(options: ReadPoolEventsOptions): Promise<Po
   }
   const selectors = names.map(poolEventSelector)
 
-  const chunkSize = Math.min(options.chunkSize ?? EVENT_CHUNK_SIZE, EVENT_CHUNK_SIZE)
+  // Clamped to the SPEC ceiling, not to the default — a caller that asked for more than 100 was
+  // making a deliberate trade (fewer round trips, no incremental render) and silently holding it
+  // at the default would take the choice away while appearing to honour it.
+  const chunkSize = Math.min(options.chunkSize ?? EVENT_CHUNK_SIZE, MAX_EVENT_CHUNK_SIZE)
   const maxPages = Math.min(options.maxPages ?? MAX_EVENT_PAGES, MAX_EVENT_PAGES)
   const resume = options.continuation
 

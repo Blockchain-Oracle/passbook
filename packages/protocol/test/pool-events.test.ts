@@ -14,6 +14,7 @@ import {
   readPoolEvents,
   toRawEvent,
   EVENT_CHUNK_SIZE,
+  MAX_EVENT_CHUNK_SIZE,
   MAX_EVENT_PAGES,
   OPEN_NOTE_SALT,
   POOL_EVENT_NAMES,
@@ -327,12 +328,37 @@ describe('the bounded read is bounded (AD-14)', () => {
       getEvents: reader.read,
     })
     for (const request of reader.requests) {
-      expect(request.chunk_size).toBeLessThanOrEqual(EVENT_CHUNK_SIZE)
+      // Clamped to the SPEC ceiling, which is what a host will actually answer. Asking beyond it
+      // risks a refusal rather than a short page.
+      expect(request.chunk_size).toBeLessThanOrEqual(MAX_EVENT_CHUNK_SIZE)
       // The AD-14 rule, asserted on the wire: never an unbounded range.
       expect(request.from_block).toEqual({ block_number: 42 })
       expect(request.to_block).toEqual({ block_number: 99 })
       expect(request.address).toBe(NET.pool)
     }
+  })
+
+  it('asks for the small default chunk when the caller does not choose', async () => {
+    // The default is a deliberate browser trade — a caller that wants fewer round trips has to
+    // say so. Raising this silently would change the shape of every existing read.
+    const reader = endlessReader()
+    await readPoolEvents({ fromBlock: 1, toBlock: 9, maxPages: 1, getEvents: reader.read })
+    expect(reader.requests[0]?.chunk_size).toBe(EVENT_CHUNK_SIZE)
+    expect(EVENT_CHUNK_SIZE).toBeLessThan(MAX_EVENT_CHUNK_SIZE)
+  })
+
+  it('honours a caller that asks for more, up to the ceiling', async () => {
+    const reader = endlessReader()
+    await readPoolEvents({
+      fromBlock: 1,
+      toBlock: 9,
+      chunkSize: MAX_EVENT_CHUNK_SIZE,
+      maxPages: 1,
+      getEvents: reader.read,
+    })
+    // The regression this guards: clamping to the DEFAULT rather than the ceiling, which looks
+    // like it honours the request and quietly does not.
+    expect(reader.requests[0]?.chunk_size).toBe(MAX_EVENT_CHUNK_SIZE)
   })
 
   it('filters on keys[0] only — one inner array, or it matches nothing', async () => {

@@ -16,6 +16,7 @@ import { deployAccount } from '../shell/submit'
 import { registerAccount } from '../shell/register'
 import type { RegistrationStage } from '@strk20/protocol/pipeline-stage'
 import { useBalance } from '../shell/use-balance'
+import { useActivity } from '../shell/use-activity'
 import { findToken, useTokenList } from '../shell/use-token-list'
 import { useSession, shortenFelt } from '../shell/session'
 import { Surface } from '../shell/Surface'
@@ -53,7 +54,14 @@ export const Route = createFileRoute('/wallet')({
 function Wallet() {
   const session = useSession()
   const ready = session.status === 'ready' ? session : null
-  const { balance, loading, refresh } = useBalance(ready?.address ?? null, ready?.accountKey ?? null)
+  const { balance, read, loading, refresh } = useBalance(
+    ready?.address ?? null,
+    ready?.accountKey ?? null,
+  )
+  // The record, off the same walk. It publishes into the store `ActivityFeed` subscribes to, so
+  // nothing is threaded through — but its two honest sentences are, because the feed cannot know
+  // that a read failed or was truncated from the rows alone.
+  const activity = useActivity(read, ready?.accountKey ?? null)
   const [receiving, setReceiving] = useState(false)
 
   // Plain JSON-RPC, no SDK — so the ladder can say where the account stands before the crypto
@@ -174,7 +182,7 @@ function Wallet() {
           </>
         )}
 
-        <ActivityFeed />
+        <ActivityFeed problem={activity.problem} windowNote={activity.windowNote} />
       </div>
 
       {ready ? (
