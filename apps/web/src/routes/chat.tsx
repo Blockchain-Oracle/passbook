@@ -2,6 +2,8 @@ import { createFileRoute } from '@tanstack/react-router'
 import { useSyncExternalStore } from 'react'
 
 import { BlockedButton } from '../components/BlockedButton'
+import { ComingState } from '../components/ComingState'
+import { Text } from '../components/ui/Text'
 import { Surface } from '../shell/Surface'
 import { currentBlocker, getHealth, subscribeHealth } from '../shell/pool-health'
 
@@ -37,19 +39,50 @@ function Chat() {
 
   return (
     <Surface routeId={Route.fullPath}>
-      <h1 className="text-heading3">Chat</h1>
-      <p className="text-body3 text-neutral2">
-        Messages that travel with a payment will be written and read here. The chat surface is built
-        in a later story.
-      </p>
+      <div className="mx-auto flex w-full max-w-[480px] flex-col gap-s16">
+        <Text variant="heading3" as="h1">
+          Chat
+        </Text>
 
-      <BlockedButton
-        blocker={blocker}
-        action="Send money in a thread"
-        // The seam the real handler goes into, same as `/swap`'s. Empty rather than a throw: this
-        // is unreachable while the blocker chain always ends in a reason.
-        onPress={() => {}}
-      />
+        <ComingState
+          title="Money as a message"
+          //
+          // THE ONE SURFACE WHOSE CONTRACT IS ALREADY ON MAINNET. `evidence/deployment.json` records
+          // the MessageBook deploy and its class hash was verified live before this copy was
+          // written — so the claim below is checkable rather than a promise, which is the only kind
+          // worth putting on a page like this.
+          //
+          description="Send a message and send value in the same thread, so a payment reads like part of the conversation instead of a receipt from somewhere else. Messages carry no deposit and travel off-chain; sending money is a pool transaction like any other."
+          alreadyTrue={[
+            'The message contract is deployed on Starknet mainnet',
+            'Your account exists in this browser already, with no wallet to connect',
+          ]}
+          icon={<ChatMark />}
+        />
+
+        <BlockedButton
+          blocker={blocker}
+          action="Send money in a thread"
+          // The seam the real handler goes into, same as `/swap`'s. Empty rather than a throw: this
+          // is unreachable while the blocker chain always ends in a reason.
+          onPress={() => {}}
+        />
+      </div>
     </Surface>
+  )
+}
+
+/** A bubble with a value mark inside it — the thing this surface is actually about. */
+function ChatMark() {
+  return (
+    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d="M21 12a8 8 0 0 1-8 8H7l-4 3V12a8 8 0 0 1 8-8h2a8 8 0 0 1 8 8Z"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinejoin="round"
+      />
+      <path d="M12 8v8M9.5 10.5h5M9.5 13.5h5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+    </svg>
   )
 }

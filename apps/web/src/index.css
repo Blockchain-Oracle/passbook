@@ -189,16 +189,48 @@
    * a horizontal scroll or an ellipsis. The bottom tab bar, the safe-area inset and the compact/
    * expanded scroll behaviour are the deferred adaptive-chrome story; none of them is here.
    */
+  /*
+   * ── The nav ──────────────────────────────────────────────────────────────────────────────
+   *
+   * A THREE-COLUMN GRID, and the outer columns are `minmax(0, 1fr)` for one reason: it is the only
+   * arrangement in which the middle stays truly centred regardless of how wide the two sides are.
+   * A flex row centres the middle relative to the space LEFT OVER, so the tabs drift every time the
+   * account chip's address changes width. Uniswap's `NavBar` uses exactly this grid.
+   *
+   * It still wraps below the tab breakpoint — `grid-template-columns` is overridden to a single
+   * column there — because six modes plus a chip does not fit a phone, and a nav that scrolls
+   * sideways is worse than one that takes two lines.
+   */
   .app-header {
     position: sticky;
     top: var(--spacing-s0);
-    display: flex;
-    flex-wrap: wrap;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
     align-items: center;
     gap: var(--spacing-s8) var(--spacing-s16);
     padding: var(--spacing-s12) var(--spacing-s16);
     background-color: var(--color-raised);
     border-bottom: var(--spacing-s1) solid var(--color-surface3);
+  }
+
+  /* The right rail: pushed to the end of its own column, never wrapping under the tabs. */
+  .app-header-end {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: var(--spacing-s8);
+  }
+
+  @media (width < 768px) {
+    .app-header {
+      grid-template-columns: minmax(0, 1fr);
+      justify-items: start;
+    }
+
+    .app-header-end {
+      justify-content: flex-start;
+      flex-wrap: wrap;
+    }
   }
 
   .nav-item {

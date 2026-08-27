@@ -165,7 +165,7 @@ function RootLayout() {
           here because the theme control lives on `/settings` and a route nothing links to is a route
           nobody can reach.
         */}
-        <div className="flex items-center gap-s8">
+        <div className="app-header-end">
           {/*
             A `<button>`, NEVER a `<Link>`, and that is a correctness rule rather than a preference.
             Exactly one element on a page may carry `aria-current="page"`, and the router stamps
