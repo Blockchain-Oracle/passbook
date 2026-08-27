@@ -1,0 +1,82 @@
+{
+  "purpose": "tx A ATTEMPT 1 \u2014 REVERTED. Banked as failure evidence per the stop-on-revert rule.",
+  "transactionHash": "0x7f71dd450e9212254e96abf8230d22b3e6140369a069318c904d28c95f9684",
+  "executionStatus": "REVERTED",
+  "block": 13963388,
+  "submitter": "0x10fe91ce9947fdfb2b8dbfcb146560176ab3bf5ec15f3fc501170a5880f4b97",
+  "submittedBy": "deployer, self-submitted \u2014 it is the named depositor here and deposits are public by design",
+  "market": {
+    "contract": "0x7905ba4e7535a3e7c1f9f4045762cc7ce83cfb120fe916f97a0dc512d72a783",
+    "pairId": "0x4254432f555344",
+    "strike": "8005009184007",
+    "strikeHuman": 80050.09184007,
+    "deadline": 1787867415,
+    "windowSeconds": 900,
+    "experimental": true,
+    "seedWei": "8000000000000000000",
+    "seederCommitment": "0x1b034a2dcad5c92f43e86b2945a6c875670460114196ab6a7060cc336efa3b3"
+  },
+  "shielded": {
+    "depositWei": "25000000000000000000",
+    "changeNoteWei": "17000000000000000000",
+    "accountAddress": "0x10fe91ce9947fdfb2b8dbfcb146560176ab3bf5ec15f3fc501170a5880f4b97",
+    "note": "the account key is in .env as MARKETS_DEMO_ACCOUNT_KEY, never committed"
+  },
+  "oracleAtOpen": {
+    "timestamp": 1787865506,
+    "priceRaw": "8005009184007"
+  },
+  "poolFeeWei": "6000000000000000000",
+  "verifiedAt": "2026-08-27T21:35:37.983Z",
+  "outcome": {
+    "executionStatus": "REVERTED",
+    "block": 13963388,
+    "actualFeeWei": "2536443470000000000",
+    "actualFeeStrk": 2.536,
+    "revertReason": "Result::unwrap failed. \u2014 raised in the DEPLOYER's own __execute__ (class 0x061dac032f228abef9c6626f995015233097ae253a7f72d68552db02f2971b8f, selector __execute__), meaning an inner call reverted and the account unwrapped it",
+    "poolFeeCharged": false,
+    "poolFeeNote": "only ~2.54 STRK of GAS was taken, not the 6 STRK pool fee \u2014 collect_fee never ran, so apply_actions reverted before the pool charged anything",
+    "stateUnchanged": {
+      "deployerRegistered": false,
+      "marketsCreated": 0,
+      "note": "a reverted transaction changes nothing but the gas; verified by reading get_public_key and market_count back after the revert"
+    }
+  },
+  "leadingHypothesis": "The v3 proof fields did not reach the sequencer. starknet.js Account.execute forwards proofFacts/proof to invokeFunction ONLY; prepareInvoke (which builds and signs) never sees them. Supplying resourceBounds to skip the fee estimate may also have changed the prepareInvoke path that carries them. apply_actions without a proof reverts, which matches a revert that charged gas but never reached collect_fee.",
+  "whatWasProvenBeforeSubmitting": [
+    "the composed action list COMPILES \u2014 42 span felts, 7 client actions",
+    "the hosted prover ACCEPTED and proved it (it refuses to prove reverting transactions, and did so twice earlier for SUBCHANNEL_NOT_FOUND)",
+    "so the action list itself is valid against the deployed pool; the failure is in submission, not composition"
+  ],
+  "knownProductBug": "apps/web/src/shell/submit.ts makeSelfSubmit has this same shape and has never run against mainnet. starknet.js Account.execute forwards proofFacts/proof to invokeFunction only, so the fee estimate simulates apply_actions unproven. Fixing it properly is post-deadline work; the evidence sequence routes through the relayer instead, which is the one proven path.",
+  "supersededBy": "evidence/tx-a-shield-and-create.json \u2014 the relayed attempt",
+  "whatWasRuledOut": {
+    "gasExhaustion": {
+      "verdict": "RULED OUT",
+      "evidence": "execution_resources l2_gas 78,047,360 consumed against a 100,000,000 bound \u2014 22M units of headroom. Exhaustion charges AT the cap."
+    },
+    "proofDroppedByStarknetJs": {
+      "verdict": "RULED OUT",
+      "evidence": "read from starknet.js@10.5.0 source: prepareInvoke returns hookedDetails unchanged when no account hook is registered (hookResult?.details ?? transactionsDetail), and execute spreads proofFacts/proof into invokeFunction. The pair survives and is broadcast.",
+      "methodWarning": "getTransactionByHash shows NO proof_facts on this transaction \u2014 but it shows none on the SUCCESSFUL registration 0x4fbb either. The RPC does not echo proof fields at all. Project memory records this trap verbatim: \"receipt-sampling can never verify proof presence.\" Do not re-derive proof presence from the chain; read the client source."
+    },
+    "poolStateDrift": {
+      "verdict": "RULED OUT",
+      "evidence": "starknet_getEvents on the pool across blocks 13963369-13963388 (prove \u2192 execute) returns ZERO events and zero transactions. Pool state was identical at both ends."
+    },
+    "proofExpiry": {
+      "verdict": "RULED OUT",
+      "evidence": "19 blocks elapsed against a 450-block validity window."
+    }
+  },
+  "traceIsExhausted": "Two independent RPC hosts return the identical 685-character revert_reason, and its INNERMOST frame is still the deployer account (0x010fe91\u2026, selector __execute__) with Result::unwrap failed. No pool frame appears at any depth, so the pool's own typed error \u2014 if there was one \u2014 is not recoverable from the chain.",
+  "stillUnexplained": "A list the prover accepted (it refuses to prove reverting transactions), carrying its proof, with sufficient gas, against unchanged pool state, reverted on chain. Next step is the bare-deposit probe: the smallest proof-REQUIRING list, to establish whether this project can land any such transaction at all.",
+  "CAUSE_CONFIRMED": "THE DEADLINE ARITHMETIC. `Markets::op_create` asserts `deadline - block_timestamp >= 900`; the script computed `deadline = now + 900` from its local clock, and proving plus inclusion pushed execution past the floor, so the contract panicked 'WINDOW_TOO_SHORT'. The pool unwraps the invoke's result, which is why a named felt surfaced as the generic Result::unwrap failed. Confirmed by the market-create attempt (0x404d7275\u2026) reverting identically with the same 15-minute local-clock deadline, while every list WITHOUT an invoke landed.",
+  "supersededTheory": {
+    "theory": "an unmatched open note from `deposit({ amount })` with no recipient",
+    "status": "SUPERSEDED \u2014 plausible and wrong",
+    "whyItLookedRight": "the recipient-less form does declare an open note in the SDK's own swap example, and the UNDEPOSITED_OPEN_NOTES trap is genuinely invisible to compile_actions \u2014 so it fitted the evidence available at the time.",
+    "whyItIsWrong": "the market create used no deposit action at all \u2014 it spent a note \u2014 and reverted identically. The one thing both reverts shared was a deadline computed from local time.",
+    "keptBecause": "the trail is honest work; a theory that was reasonable and disproven is worth more on the record than a tidy file."
+  }
+}

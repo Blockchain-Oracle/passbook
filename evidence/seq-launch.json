@@ -1,0 +1,16 @@
+{
+  "step": "launch",
+  "describe": "create a launch: 1 epoch × 16 units at 0.05/unit",
+  "transactionHash": "0x13b246bd1ce1eb11af8ae5cbe3b2aa9ab8b458fe472b92511302048a74e4c93",
+  "executionStatus": "SUCCEEDED",
+  "block": 13964707,
+  "launch": "0x3fc07897f657b184ff9b0dab28939bb5a175d7cff9290406a1bd4b3d032eb54",
+  "creatorSecret": "held in .secrets/position-secrets.json — UNSPENT, and a position secret is the money itself",
+  "creatorCommitment": "0x2f7fe5a0e7be362ffaf1b035f2f7a18f4bd46a4fd1112ac0393b893cc1e51ee",
+  "deadline": 1787870555,
+  "p0Wei": "50000000000000000",
+  "epochs": 1,
+  "trancheTokens": "1600",
+  "note": "a DIRECT call — no pool, no fee, no proof. Gas only.",
+  "verifiedAt": "2026-08-27T22:12:52.733Z"
+}

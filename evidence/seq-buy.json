@@ -1,0 +1,24 @@
+{
+  "step": "buy",
+  "describe": "THE HIDDEN BUY — 4 units for 0.2 on launch 0, buyer never named",
+  "transactionHash": "0x84a59651f14c6c995eac59ce0598e9cb58a7b1d02334870db9494acf3871d4",
+  "executionStatus": "SUCCEEDED",
+  "block": 13964760,
+  "actualFee": "0x26a10c2394d511b0",
+  "executionResources": {
+    "l1_data_gas": 1248,
+    "l1_gas": 0,
+    "l2_gas": 85482640
+  },
+  "revertReason": null,
+  "eventCount": 10,
+  "markets": "0x7905ba4e7535a3e7c1f9f4045762cc7ce83cfb120fe916f97a0dc512d72a783",
+  "submittedBy": "THE RELAYER — the buyer never appears on chain as sender",
+  "launchId": 0,
+  "units": 4,
+  "costWei": "200000000000000000",
+  "buyerSecret": "held in .secrets/position-secrets.json — UNSPENT, and a position secret is the money itself",
+  "buyerCommitment": "0x60c1d6797c30187c51b67e0ebb9599bd726112dd15ece2f35f857105d912e05",
+  "headline": "the stake arrives through the pool and the launch records a commitment, never an address",
+  "verifiedAt": "2026-08-27T22:14:20.111Z"
+}

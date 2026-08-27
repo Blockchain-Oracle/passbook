@@ -1,0 +1,18 @@
+{
+  "step": "fund",
+  "describe": "deposit 5 into a note",
+  "transactionHash": "0x6dfc3a54fd6816d8552ab45388a79952ef8625ea274f8bebb4d49ef554b39de",
+  "executionStatus": "SUCCEEDED",
+  "block": 13964268,
+  "actualFee": "0x24358a8a7a7af390",
+  "executionResources": {
+    "l1_data_gas": 416,
+    "l1_gas": 0,
+    "l2_gas": 79998160
+  },
+  "revertReason": null,
+  "eventCount": 8,
+  "markets": "0x7905ba4e7535a3e7c1f9f4045762cc7ce83cfb120fe916f97a0dc512d72a783",
+  "submittedBy": "the deployer, self-submitted — the relayer wire cannot carry resourceBounds yet",
+  "verifiedAt": "2026-08-27T22:00:26.365Z"
+}

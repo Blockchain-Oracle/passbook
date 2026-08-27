@@ -58,3 +58,16 @@ reference/
 # The router plugin's scratch directory. It writes a uniquely-named temp file on every codegen run,
 # so left tracked it adds one junk file per build to every commit.
 apps/web/.tanstack/
+
+# UNSPENT BEARER SECRETS, AND THIS IS A SECURITY LINE RATHER THAN A TIDINESS ONE.
+#
+# A position secret IS the money: `poseidon(secret)` is the commitment, and the contracts pay
+# whoever presents the preimage — no address is checked, because not checking one is the entire
+# point. So a live secret in a public repository is a public claim on the position, and this
+# repository is going public.
+#
+# `evidence/` keeps the SPENT ones on purpose: once a position is CLAIMED the preimage buys nothing,
+# and leaving it in lets any reader hash it themselves and watch the commitment fall out — the
+# scheme demonstrated rather than asserted. Anything still claimable lives here instead, and
+# `evidence/` points at it by name.
+.secrets/
