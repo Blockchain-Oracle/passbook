@@ -33,6 +33,19 @@ export interface DestinationFieldProps {
   onValueChange: (next: string) => void
   chain: BridgeDestination
   onSelectChain: () => void
+  /**
+   * Hides this field's own chain pill.
+   *
+   * WAVE 4 MADE THE BRIDGE CHAIN-FIRST: the destination chain is now chosen at the TOP of the form,
+   * before an amount exists, because "where is this going" is the question a crossing can get
+   * catastrophically wrong and the one a user actually starts with. With that row above, the pill
+   * here would be a second control for a decision already made — two places to change one value.
+   *
+   * The chain still appears on the resolved identity row below, which is a STATEMENT of where the
+   * money lands rather than a control, and that one stays: it is the fact worth repeating next to
+   * the address it will be sent to.
+   */
+  hideChainPill?: boolean
   /** `true` once `parseDestination` accepted it for this chain. Flips the field to the identity row. */
   resolved: boolean
   /**
@@ -49,6 +62,7 @@ export function DestinationField({
   onValueChange,
   chain,
   onSelectChain,
+  hideChainPill = false,
   resolved,
   problem,
 }: DestinationFieldProps) {
@@ -68,7 +82,7 @@ export function DestinationField({
         <Text variant="body4" className="text-neutral2">
           To
         </Text>
-        <ChainPill chain={chain} onPress={onSelectChain} />
+        {hideChainPill ? null : <ChainPill chain={chain} onPress={onSelectChain} />}
       </div>
 
       {resolved ? (

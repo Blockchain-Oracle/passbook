@@ -10,19 +10,23 @@ import {
   deliveredWei,
   OUTBOUND_ANONYMIZER,
   parseDestination,
+  type BridgeDestination,
 } from '@strk20/protocol/bridge'
 import { meterFor } from '@strk20/protocol/linkability'
 import { maxSeverity } from '@strk20/protocol/privacy'
 import type { TokenInfo } from '@strk20/protocol/token-list'
 import { voyagerTxUrl } from '@strk20/protocol/transaction'
 
+import { cn } from '../lib/cn'
 import { BlockedButton } from '../components/BlockedButton'
 import { BridgeReview } from '../components/BridgeReview'
+import { ChainLogo, isKnownChain } from '../components/ChainLogo'
 import { ChainSelector } from '../components/ChainSelector'
 import { CurrencyPanel } from '../components/CurrencyPanel'
 import { DestinationField } from '../components/DestinationField'
 import { LinkabilityMeter } from '../components/LinkabilityMeter'
 import { SpeedBump, type SpeedBumpModel } from '../components/SpeedBump'
+import { TokenLogo } from '../components/TokenLogo'
 import { Text } from '../components/ui/Text'
 import { currentBlocker, getHealth, subscribeHealth } from '../shell/pool-health'
 import { useBalance } from '../shell/use-balance'
@@ -295,6 +299,17 @@ function Bridge() {
 
         {landed ? <Landed {...landed} onDismiss={() => setLanded(null)} /> : null}
 
+        {/*
+          CHAIN FIRST (Wave 4). The form used to open on an amount, with the destination chain a
+          pill buried in the address row at the bottom — which asks "how much" before "to where",
+          and puts the one decision a crossing can get catastrophically wrong last.
+
+          A burn is irreversible: Circle's own words are that once burned, USDC can only arrive at
+          the destination, never be refunded. So the chain is chosen first, on its own row, and
+          every number below it is then framed by an answer the user has already given.
+        */}
+        <ChainRow chain={chain} onPress={() => setPicking(true)} />
+
         <div className="flex flex-col gap-s2">
           <CurrencyPanel
             label="Send"
@@ -331,6 +346,9 @@ function Bridge() {
             onSelectChain={() => setPicking(true)}
             resolved={resolved}
             problem={parsedDestination.state === 'refused' ? parsedDestination.because : null}
+            // The chain is chosen on its own row above; a second pill here would be two controls
+            // for one decision.
+            hideChainPill
           />
         </div>
 
@@ -523,4 +541,42 @@ const STAGE_LABEL: Record<string, string> = {
   relay: 'Signing and broadcasting…',
   mature: 'Waiting for the pool…',
   confirmed: 'Confirming on chain…',
+}
+
+/**
+ * The destination chain, as the form's FIRST decision.
+ *
+ * Shaped as a full-width panel rather than a pill, because on this form it is not a modifier on
+ * something else — it is the question being asked. Same 20px radius and inset fill as the amount
+ * panel below it, so the two read as one stack rather than a header and a form.
+ */
+function ChainRow({ chain, onPress }: { chain: BridgeDestination; onPress: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onPress}
+      aria-label={`Destination chain, currently ${chain.name}. Change it`}
+      className={cn(
+        'focus-ring flex w-full items-center gap-s12 rounded-card bg-inset px-s16 py-s12 text-left',
+        'transition-colors duration-[var(--transition-duration-simple)] hover:bg-insetHovered',
+      )}
+    >
+      {isKnownChain(chain.key) ? (
+        <ChainLogo chainKey={chain.key} size={36} />
+      ) : (
+        <TokenLogo url={null} symbol={chain.name} name={chain.name} size={36} />
+      )}
+      <span className="flex min-w-0 flex-1 flex-col">
+        <Text variant="body4" className="text-neutral2">
+          To
+        </Text>
+        <Text variant="body2" className="truncate text-neutral1">
+          {chain.name}
+        </Text>
+      </span>
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true" className="shrink-0 text-neutral3">
+        <path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    </button>
+  )
 }

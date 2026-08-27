@@ -15,12 +15,13 @@
 // reason this product exists. A swap review that lists slippage and says nothing about who can see
 // the transaction is the industry's blind spot, not a design constraint.
 //
+import type { Disclosure as DisclosureModel } from '@strk20/protocol/disclosure'
 import type { LinkabilityModel } from '@strk20/protocol/linkability'
 import type { TokenInfo } from '@strk20/protocol/token-list'
 
 import { cn } from '../lib/cn'
 import { ResponsiveDialog } from '../shell/ResponsiveDialog'
-import { LinkabilityMeter } from './LinkabilityMeter'
+import { PrivacyRow } from './PrivacyRow'
 import { TokenLogo } from './TokenLogo'
 import { Button } from './ui/Button'
 import { Text } from './ui/Text'
@@ -38,6 +39,14 @@ export interface SwapReviewProps {
   minimumReceived: string | null
   route: string | null
   meter: LinkabilityModel
+  /**
+   * What this swap leaks and to whom.
+   *
+   * NEW IN WAVE 4, AND IT WAS A GAP: DESIGN §7.5 requires every review to render a disclosure or
+   * explicitly assert none, and this one did neither — it showed the anonymity set and said nothing
+   * about the venue seeing the trade. `disclosureFor('swap')` has existed the whole time.
+   */
+  disclosure: DisclosureModel
   /** Absent while the action cannot be performed; the CTA says why instead of vanishing. */
   onConfirm?: () => void
   /** What stops the confirm, as a sentence. */
@@ -56,6 +65,7 @@ export function SwapReview({
   minimumReceived,
   route,
   meter,
+  disclosure,
   onConfirm,
   blocker = null,
 }: SwapReviewProps) {
@@ -121,8 +131,9 @@ export function SwapReview({
             {route ? <ReviewRow label="Route" value={route} /> : null}
           </dl>
 
-          {/* THE CROWD, DRAWN. The full meter — count, sentence and picture. */}
-          <LinkabilityMeter meter={meter} />
+          {/* ONE ROW, not four stacked panels. The headline claim stays visible at rest; the
+              matrix, the meter and the dot-scatter are one press away. See `PrivacyRow`. */}
+          <PrivacyRow disclosure={disclosure} meter={meter} />
         </div>
 
         <Button

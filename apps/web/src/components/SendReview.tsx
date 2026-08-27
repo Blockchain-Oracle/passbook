@@ -27,10 +27,8 @@ import { disclosureFor } from '@strk20/protocol/disclosure'
 import type { LinkabilityModel } from '@strk20/protocol/linkability'
 import type { TokenInfo } from '@strk20/protocol/token-list'
 
-import { Disclosure } from './Disclosure'
-import { LinkabilityMeter } from './LinkabilityMeter'
+import { PrivacyRow } from './PrivacyRow'
 import { TokenLogo } from './TokenLogo'
-import { VisibilityMatrix } from './VisibilityMatrix'
 import { Button } from './ui/Button'
 import { Text } from './ui/Text'
 import { ResponsiveDialog } from '../shell/ResponsiveDialog'
@@ -110,16 +108,7 @@ export function SendReview({
 
           <div className="h-px w-full bg-surface3" />
 
-          <Disclosure disclosure={disclosure} />
-
-          <VisibilityMatrix
-            context="self-submit"
-            statedAbove={disclosure.authored ? disclosure.lines.map((l) => l.text).join(' ') : ''}
-          />
-
-          {/* THE CROWD, DRAWN — the full meter at the moment of action, which is where the picture
-              earns its space. */}
-          <LinkabilityMeter meter={meter} />
+          <PrivacyRow disclosure={disclosure} meter={meter} />
         </div>
 
         <Button

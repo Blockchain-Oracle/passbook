@@ -23,9 +23,7 @@ import type { LinkabilityModel } from '@strk20/protocol/linkability'
 
 import { cn } from '../lib/cn'
 import { ResponsiveDialog } from '../shell/ResponsiveDialog'
-import { Disclosure } from './Disclosure'
-import { LinkabilityMeter } from './LinkabilityMeter'
-import { VisibilityMatrix } from './VisibilityMatrix'
+import { PrivacyRow } from './PrivacyRow'
 import { ChainLogo, isKnownChain } from './ChainLogo'
 import { TokenLogo } from './TokenLogo'
 import { Button } from './ui/Button'
@@ -134,14 +132,7 @@ export function BridgeReview({
           {/* The authored panel. No `onWayOut`: the model's way out is "use a fresh address
               instead", and this app cannot create an address on another chain — a stated recovery
               wired to nothing is the overclaim the component's own contract refuses. */}
-          <Disclosure disclosure={disclosure} />
-
-          <VisibilityMatrix
-            context="bridge-exit"
-            statedAbove={disclosure.authored ? disclosure.lines.map((l) => l.text).join(' ') : ''}
-          />
-
-          <LinkabilityMeter meter={meter} />
+          <PrivacyRow disclosure={disclosure} meter={meter} />
         </div>
 
         <Button
