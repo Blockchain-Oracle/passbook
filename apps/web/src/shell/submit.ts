@@ -40,7 +40,18 @@ export interface SubmitDetails {
 export interface SubmitCall {
   contractAddress: string
   entrypoint: string
-  calldata?: unknown[]
+  /**
+   * DELIBERATELY `unknown`, not `unknown[]`.
+   *
+   * starknet.js types a `Call`'s calldata as `RawArgs | Calldata`, and `RawArgs` includes a plain
+   * OBJECT — the named-arguments form its serialiser accepts. Narrowing to an array here would
+   * make this type structurally incompatible with the `SelfSubmitExecutor` seam `send.ts`
+   * declares, for a shape that is legal on the wire.
+   *
+   * Nothing in this file reads it. It is handed to `account.execute`, which owns the
+   * serialisation, so the honest type is "whatever that accepts" rather than a guess at it.
+   */
+  calldata?: unknown
 }
 
 /**
