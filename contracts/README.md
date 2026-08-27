@@ -1,7 +1,15 @@
 # `strk20_app` contracts
 
-Cairo package for `MessageBook`, the helper the privacy pool invokes. Nothing else in this
-repo is Cairo.
+Cairo package for the contracts the privacy pool invokes. Nothing else in this repo is Cairo.
+
+| Contract | What it is |
+|---|---|
+| `MessageBook` | Append-only ciphertext log for chat. Touches no value. |
+| `Markets` | Binary UP/DOWN prediction markets on a constant-product AMM, settled from Pragma. |
+
+`MockERC20`, `MockPool` and `MockPragma` are snforge fixtures. They compile into `target/dev/`
+because snforge can only `declare` classes that are in the package's artifacts — they are never
+declared on mainnet.
 
 ## Toolchain
 
@@ -28,13 +36,15 @@ Do not upgrade these to make something build. `starknet = "2.8.2"` and
 
 ```bash
 scarb build    # -> target/dev/  (this is what gets deployed)
-snforge test   # 10 tests
+snforge test   # 62 tests
 ```
 
-`scarb build` emits both artifacts the deploy step needs:
+`scarb build` emits both artifacts the deploy step needs, per contract:
 
-- `target/dev/strk20_app_MessageBook.contract_class.json` — Sierra
-- `target/dev/strk20_app_MessageBook.compiled_contract_class.json` — CASM
+- `target/dev/strk20_app_<Name>.contract_class.json` — Sierra
+- `target/dev/strk20_app_<Name>.compiled_contract_class.json` — CASM
+
+`Markets`'s constructor takes `(pool, pragma)`, both non-zero.
 
 `casm = true` in `Scarb.toml` is required, not cosmetic: declaring a class needs
 `compiled_class_hash`, which is derived from the CASM. With `sierra = true` alone, scarb emits
