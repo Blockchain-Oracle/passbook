@@ -74,13 +74,14 @@ const CONTRACTS: DeployTarget[] = [
 const OUTPUT_FILE = 'evidence/markets-launch-deployment.json'
 
 /**
- * Floor for the whole run: three declares plus two UDC deploys. MessageBook's declare measured
- * ~8.66 STRK; Markets and Launch are larger classes. 60 STRK of headroom against the deployer's
- * live 81.7 keeps a mid-run gas move from stranding the sequence half-done — the worst outcome,
- * because a half-deployed pair means Launch's constructor argument exists but Launch does not.
- * `--estimate` prints the live numbers; trust those over this floor.
+ * Floor for the whole run: three declares plus two UDC deploys. MEASURED via `--estimate` on
+ * 27 Aug: LaunchToken 27.4 + Markets 74.9 + Launch 86.8 = 189 STRK of declares — class size is
+ * the fee driver, and these classes are 3-6x MessageBook, so MessageBook's 8.66 figure does not
+ * transfer. The floor sits above the measured total plus deploys because the worst outcome is a
+ * mid-sequence balance failure: a half-deployed pair means Launch's constructor argument exists
+ * but Launch does not. `--estimate` prints the live numbers; trust those over this constant.
  */
-const MIN_BALANCE_WEI = 60n * 10n ** 18n
+const MIN_BALANCE_WEI = 210n * 10n ** 18n
 
 const SUPPORTED_SPEC = new Set(['0.9.0', '0.10.0', '0.10.2', '0.10.3'])
 

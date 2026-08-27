@@ -105,6 +105,28 @@ export const SESSION_KEYS = {
    * so nothing that reads the old slot breaks. See `session-accounts.ts`'s header.
    */
   accounts: 'passbook.accounts',
+  /**
+   * The secrets that claim market positions and launch purchases (Wave 3,
+   * `session-position-store.ts`).
+   *
+   * THE SIXTH ENTRY, and it carries its argument like the fourth and fifth did. Unlike
+   * `inviteIntents` — which is a note-to-self about money that has not moved — this one IS the
+   * money. A position is bearer: `markets.cairo` and `launch.cairo` store `poseidon(secret)` and
+   * pay whoever reveals the secret. There is no address on it, no recovery path, and no second
+   * copy anywhere. Losing this key is exactly as bad as losing a note.
+   *
+   * It is here because the alternative is not "store less", it is "no positions at all". The
+   * contracts were designed bearer precisely so a bet never writes the bettor's address on chain
+   * — that is the whole privacy claim — and the cost of that design is that the client is the only
+   * party holding the claim. A secret that does not survive a reload is a bet that can never be
+   * collected, and the money is simply gone with nothing to show a user.
+   *
+   * ON THE "MUST NEVER PERSIST" LIST IT IS NOT, but it belongs to the same category as entry 1:
+   * bearer key material, covered by `session-key.ts`'s plaintext note, and exposed to an origin
+   * compromise exactly as the account key already is. What it must NOT be is invisible to backup —
+   * see `session-position-store.ts` for why it rides the same surface note material does.
+   */
+  positionSecrets: 'passbook.position-secrets',
 } as const
 
 /** An in-memory store: real semantics, no durability. The default for tests. */
