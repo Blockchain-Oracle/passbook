@@ -4,7 +4,10 @@ import { useCallback, useMemo, useState, useSyncExternalStore } from 'react'
 import { meterFor } from '@strk20/protocol/linkability'
 import { maxSeverity } from '@strk20/protocol/privacy'
 import { parseAmountInput, toPlainText } from '@strk20/protocol/amount'
-import { DEFAULT_SLIPPAGE_BPS, minimumOut, priceImpact } from '@strk20/protocol/quote'
+// `buildSwap` alongside the rest: `quote.ts` is already in this route's chunk for `minimumOut`,
+// so importing it lazily would be the `INEFFECTIVE_DYNAMIC_IMPORT` the build gate rejects. It is
+// a fetch-only module with no SDK edge, which is why it can sit here at all.
+import { buildSwap, DEFAULT_SLIPPAGE_BPS, minimumOut, priceImpact } from '@strk20/protocol/quote'
 import type { TokenInfo } from '@strk20/protocol/token-list'
 
 import { BlockedButton } from '../components/BlockedButton'
@@ -16,8 +19,11 @@ import { SwapSettings } from '../components/SwapSettings'
 import { TokenSelector } from '../components/TokenSelector'
 import { Text } from '../components/ui/Text'
 import { currentBlocker, getHealth, subscribeHealth } from '../shell/pool-health'
+import { useBalance } from '../shell/use-balance'
 import { useCrowd } from '../shell/use-crowd'
 import { useQuote } from '../shell/use-quote'
+import { useSend } from '../shell/use-send'
+import { useSession } from '../shell/session'
 import { useTokenList } from '../shell/use-token-list'
 import { Surface } from '../shell/Surface'
 
@@ -28,18 +34,25 @@ export const Route = createFileRoute('/swap')({
 //
 // THE SWAP SURFACE.
 //
-// ── WHAT IS REAL ON THIS SCREEN AND WHAT IS NOT, STATED PLAINLY ───────────────────────────
+// ── WHAT IS REAL ON THIS SCREEN, STATED PLAINLY ───────────────────────────────────────────
 //
-// REAL: the asset list (fetched from AVNU's routable set, every entry's `decimals()` confirmed
-// against its own contract), the token marks, the crowd reading behind the linkability meter (a
-// live bounded read over on-chain events), and every state the CTA can be in.
+// All of it, now. The asset list is AVNU's routable set with every entry's `decimals()` confirmed
+// against its own contract; the price is a live quote; the linkability meter sits on a bounded
+// read of real pool events; and Confirm builds a private route and sends it through the pool.
 //
-// NOT REAL YET: the quote and the execution. There is no price on this screen, and the CTA says so
-// rather than showing a number nobody computed. When the quote pipeline lands, it fills the output
-// panel and the blocker chain loses its last link — nothing else here moves.
+// This comment used to end "NOT REAL YET: the quote and the execution", which was true when it
+// was written and is the reason it is being rewritten rather than deleted — a header that
+// describes an earlier version of its own file is worse than no header, because it is read as
+// current.
 //
-// That split is the same discipline the progress machine below keeps: `preview` steps are an
-// HONEST render of a pipeline that has not started, not a fixture made to look busy.
+// What a swap actually does, in one transaction: withdraw the sell token to AVNU's privacy
+// executor, mint an open note for the buy token, and invoke the executor with the route and that
+// note's id. The proceeds land back in the pool without ever touching a public address of the
+// user's. `send.ts` builds that sandwich and refuses it if the two legs ever name different
+// contracts.
+//
+// The one thing this screen cannot do is pay for you: the pool charges its fee per batch, and the
+// account needs the sell amount plus that fee.
 //
 
 /**
@@ -61,6 +74,14 @@ function Swap() {
   const [picker, setPicker] = useState<PickerSide>(null)
   const [slippageBps, setSlippageBps] = useState(DEFAULT_SLIPPAGE_BPS)
   const [reviewing, setReviewing] = useState(false)
+
+  // The account, its notes, and the one path that signs. The walk is shared with `/wallet` in the
+  // sense that both ask `discoverWallet` the same question; what matters here is that the notes a
+  // swap spends come from the same reading the amounts were checked against.
+  const session = useSession()
+  const ready = session.status === 'ready' ? session : null
+  const { read } = useBalance(ready?.address ?? null, ready?.accountKey ?? null)
+  const sending = useSend(read, ready)
 
   // The list is volume-ordered, so the first entry is the deepest market. Defaulting the sell side
   // to it means the form is usable on arrival instead of asking for two decisions before anything
@@ -139,6 +160,57 @@ function Swap() {
   const meterSeverity = maxSeverity(
     meter.state === 'measured' && meter.severity !== null ? [meter.severity] : [],
   )
+
+  //
+  // CONFIRM: build the private route, then send it.
+  //
+  // ── THE ROUTE IS BUILT HERE, NOT AT QUOTE TIME ──────────────────────────────────────────
+  //
+  // `/swap/v3/build` is what returns the EXECUTOR and the calls, and it is the venue committing
+  // to a route rather than describing one. Building at quote time would mean holding a committed
+  // route across every keystroke that followed, and executing whichever one happened to be in
+  // hand — so it happens once, on the press, against the quote actually on screen.
+  //
+  // ── AND THE TAKER IS THE EXECUTOR, WHICH LOOKS WRONG AND IS NOT ─────────────────────────
+  //
+  // The route is executed BY the executor, holding funds the pool withdrew to it. So the address
+  // AVNU must build for is the executor's, not this account's — a route built for the user would
+  // pull tokens from an address that never receives them, and revert after the fee.
+  //
+  const [building, setBuilding] = useState(false)
+  const [buildProblem, setBuildProblem] = useState<string | null>(null)
+
+  const onConfirm = useCallback(async () => {
+    if (!quoted || !buyToken || !defaultedSell || minOut === null) return
+    setBuildProblem(null)
+    setBuilding(true)
+    try {
+      const built = await buildSwap(quoted.quoteId, slippageBps)
+      if (built.state !== 'built') {
+        setBuildProblem(built.because)
+        return
+      }
+
+      await sending.send({
+        kind: 'swap',
+        // The executor, on BOTH legs. `planSend` refuses the send if these ever disagree — see
+        // `SendRequest.recipient` — so naming it once and reusing it is the safe spelling.
+        recipient: built.plan.executorAddress,
+        token: defaultedSell.address,
+        symbol: defaultedSell.symbol,
+        amount: quoted.sellAmount,
+        swap: {
+          executor: built.plan.executorAddress,
+          buyToken: buyToken.address,
+          buySymbol: buyToken.symbol,
+          calls: built.plan.calls,
+          minOutWei: minOut,
+        },
+      })
+    } finally {
+      setBuilding(false)
+    }
+  }, [quoted, buyToken, defaultedSell, minOut, slippageBps, sending])
 
   //
   // THE BLOCKER CHAIN (§7.10), ordered so the reason a person can act on comes first.
@@ -268,9 +340,29 @@ function Swap() {
           }
           route={quoted.routes.map((r) => r.name).join(' · ') || null}
           meter={meter}
-          // No `onConfirm`: the submission path is the next piece of work. The review is otherwise
-          // entirely real, and its button says which part is not.
-          blocker="Submitting is not wired up yet"
+          onConfirm={onConfirm}
+          //
+          // THE BUTTON SAYS WHAT IS HAPPENING, or why it cannot.
+          //
+          // Ordered so the reason a person can act on comes first, the same rule the outer CTA's
+          // blocker chain keeps. A stage label is not a blocker — it is the send running — but it
+          // occupies the same slot because a button that still said "Confirm swap" while a proof
+          // was being generated invites a second press, and a second press is a double-spend one
+          // of the two pays a revert for.
+          //
+          blocker={
+            !ready
+              ? 'This browser has no account yet'
+              : read === null
+                ? 'Reading your balance…'
+                : read.state !== 'walked'
+                  ? 'Your balance could not be read'
+                  : building
+                    ? 'Getting the route…'
+                    : sending.stage
+                      ? STAGE_LABEL[sending.stage] ?? 'Working…'
+                      : (buildProblem ?? sending.problem)
+          }
         />
       ) : null}
 
@@ -367,4 +459,22 @@ function Row({
       </Text>
     </div>
   )
+}
+
+/**
+ * What each pipeline stage is called on screen.
+ *
+ * `relay` is reworded, as it is on the account ladder and for the same reason: this browser is not
+ * relaying to anyone, it is signing and broadcasting. Showing a user the word for the architecture
+ * they are NOT using is how copy ends up describing a different product.
+ *
+ * `mature` is the wait nobody expects — a note exists on chain before the pool will let it be
+ * spent — so it says what is being waited for rather than naming the state.
+ */
+const STAGE_LABEL: Record<string, string> = {
+  build: 'Building the swap…',
+  prove: 'Proving…',
+  relay: 'Signing and broadcasting…',
+  mature: 'Waiting for the pool to accept it…',
+  confirmed: 'Confirming on chain…',
 }
