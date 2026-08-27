@@ -174,5 +174,6 @@ export type HasSwapRoute = Assert<Ext<'/swap', Paths>>
 export type HasBridgeRoute = Assert<Ext<'/bridge', Paths>>
 export type HasMarketsRoute = Assert<Ext<'/markets', Paths>>
 export type HasLaunchRoute = Assert<Ext<'/launch', Paths>>
+export type HasSendRoute = Assert<Ext<'/send', Paths>>
 export type HasActivityRoute = Assert<Ext<'/activity/$id', Paths>>
 export type HasPayRoute = Assert<Ext<'/pay/$address', Paths>>

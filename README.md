@@ -61,7 +61,7 @@ Being precise about this is cheaper than being caught.
 | Component | State |
 |---|---|
 | `packages/protocol` | Live pool reads with RPC fallback, local identity generation with encrypted backup, registration pre-flight with the `ForeignKey` collision guard. Tested. |
-| `packages/relayer` | Paymaster, submission server and the chat room bus. **Proven on mainnet** — it signed and broadcast the sponsored registration below. It binds loopback by default; `Dockerfile` and `fly.toml` are the hosting path, and no deployment of it is live yet. |
+| `packages/relayer` | Paymaster, submission server and the chat room bus. **Proven on mainnet** — it signed and broadcast the sponsored registration below. **Hosted** at `passbook-relayer.fly.dev`, one machine, always on; it binds loopback by default and only this deployment does otherwise. |
 | `contracts/MessageBook` | **Deployed on mainnet**, class hash verified against the running contract. |
 | Mainnet transactions touching the pool | **1 of the 3 the submission gate requires.** |
 | Web app | Live at **https://passbook-zeta.vercel.app** — no login, no wallet to connect. |
@@ -71,17 +71,26 @@ load; nothing is connected and nothing is pasted. The wallet reads your shielded
 from the pool and tells you which of four states it is in — including "the pool could not be read",
 which is deliberately not shown as a zero. An account funded in the browser can deploy itself and
 then register its viewing key with the pool, both real mainnet transactions the product sends on
-its own. Swap prices a real route through an on-chain aggregator and executes it in one
+its own. Send moves a shielded note to another pool account: the asset list is what this account
+actually holds rather than a catalogue, and the recipient's address is checked against the pool
+while it is still being typed — for free, before a fee is spent — because a transfer to an address
+that never registered a viewing key is one the protocol refuses. Chat derives a room from two
+addresses' pool keys with no handshake and no directory, streams sealed messages through a relay
+that holds no key and cannot read them, and can attach a real transfer to a message; the payment
+card appears only after that transaction has confirmed, so a card in a thread is never a claim
+about money that did not move. Swap prices a real route through an on-chain aggregator and executes it in one
 transaction: the sell token is withdrawn to the venue's privacy executor, the executor is invoked,
 and the proceeds land back in the pool as a note — the value never touches a public address of
 yours. Bridge sends shielded USDC out to another chain through StarkWare's own deployed
 `OutboundAnonymizer`, on the same withdraw-then-invoke sandwich, with Circle's fee read live and
 the exact arriving amount shown before you commit.
 
-**What does not work yet, stated plainly.** The wallet has no Send form — a shielded transfer to
-another person goes through the pipeline swap and bridge already use, but no screen drives it yet.
-Chat, markets and launch are not built; each says so on its own screen, along with what is already
-working underneath it. The bridge is **outbound only** — bringing value back needs a second
+**What does not work yet, stated plainly.** There is no invite. An address that has never registered
+with the pool is named as exactly that and nothing is offered to fix it — paying a stranger's
+registration so they can be paid is a feature this repository has copy for and no implementation of,
+and a button that opened nothing would be worse than the sentence. Markets and launch are not built;
+each says so on its own screen, along with what is already working underneath it. The bridge is
+**outbound only** — bringing value back needs a second
 contract, a relayer that has to stay alive, and a fund-stranding failure path nobody here has
 rehearsed. And while the bridge's helper has hundreds of successful mainnet burns behind it, the
 crossing this app builds has been pinned against a real one felt-for-felt in tests rather than run:
@@ -207,15 +216,18 @@ can change between two page loads. It is read at call time, every time. The most
 measurement was **6 STRK at block 13,650,965**, recorded in `evidence/constants.json`; if you
 are reading this later, re-run the probe rather than trusting that line.
 
-### The claims guard
+### The claims list, and what enforces it
 
-This project refuses a list of privacy claims that are false on this
-protocol, on an `ACTIVE_NETWORK` that is not mainnet, on a `strk20.json` entry that is not a
-bare string, and on any declared contract that is not one we deployed and recorded in
-`evidence/`. It also fails while any mainnet address in this README is still unfilled — which
-it is right now, deliberately. The disclosure section below is exempted by an explicit,
-greppable marker, because it must state several of those claims in order to refuse them; the
-lint prints every line it exempts so a reviewer can check each one.
+Ten phrases are false about STRK20 as deployed, and this project does not use them. They live as
+data in `packages/protocol/src/forbidden-claims.ts`, each with the reason it is false written beside
+it, and the copy modules that ship user-facing sentences are held to that list by tests — a surface
+cannot introduce one of them without a test going red.
+
+**There is no lint scanning this file.** A standalone `lint-claims.mjs` used to, and it was removed
+on purpose; the list is product knowledge rather than tooling, so it moved into the package the copy
+lives in instead of dying with the script. The disclosure section at the bottom carries a
+`claims-lint:disable` marker from that era, which is now a note to a human: everything inside it
+states a claim in order to refuse it, and it must be read as a whole or not at all.
 
 ---
 

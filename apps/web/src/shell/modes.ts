@@ -71,10 +71,17 @@ export const MODE_LABELS = {
  * destinations reached from a surface, never from the nav. A route that belongs in neither list
  * fails `EveryRouteIsClassified` — which is the point: "is this a seventh mode or an ancillary
  * page?" is a decision, and this file is where it is recorded rather than defaulted.
+ *
+ * `/send` is the decision worth writing down. A send is not a seventh mode: it is what the WALLET
+ * does, and it is reached from the wallet's own Send tile rather than from the nav. Giving it a
+ * route instead of a dialog is about the form's size — a 480px column with an asset picker, a
+ * recipient field and a review does not belong stacked inside another surface's modal — not about
+ * its rank.
  */
 export const ANCILLARY_PATHS = [
   '/',
   '/settings',
+  '/send',
   '/activity/$id',
   '/pay/$address',
 ] as const satisfies readonly Paths[]

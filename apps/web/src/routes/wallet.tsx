@@ -1,4 +1,4 @@
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, Link } from '@tanstack/react-router'
 import { useCallback, useEffect, useState } from 'react'
 import type { BookState, ShieldedBalance, TokenBalance } from '@strk20/protocol/balances'
 import { toPlainText } from '@strk20/protocol/amount'
@@ -7,7 +7,7 @@ import { AccountLadder } from '../components/AccountLadder'
 import { BackupCeremony } from '../components/BackupCeremony'
 import { ActivityFeed } from '../components/ActivityFeed'
 import { TokenLogo } from '../components/TokenLogo'
-import { Button } from '../components/ui/Button'
+import { Button, buttonVariants } from '../components/ui/Button'
 import { Skeleton, SkeletonBox } from '../components/ui/Skeleton'
 import { Text } from '../components/ui/Text'
 import { ResponsiveDialog } from '../shell/ResponsiveDialog'
@@ -141,15 +141,27 @@ function Wallet() {
           <>
             <BalanceCard balance={balance} loading={loading || session.status === 'loading'} />
 
+            {/*
+              SEND AND RECEIVE, the two tiles Uniswap's account drawer leads with — and the pair a
+              wallet is judged on. Send held this space open with a comment for as long as the form
+              behind it could not submit, which was the honest shape of "there is nothing to send";
+              it is a real destination now, and the ladder below still says when the account is not
+              yet in a state to use it.
+            */}
             <div className="flex gap-s8">
+              {/*
+                A LINK WEARING THE BUTTON'S CLOTHES, not a button that navigates. Send is a
+                destination, so middle-click, cmd-click and "open in new tab" have to work — and
+                they only do on a real anchor. `buttonVariants` is the cva table the `Button`
+                component itself renders through, so the two are the same control by construction
+                rather than by two stylesheets agreeing.
+              */}
+              <Link to="/send" className={buttonVariants({ variant: 'secondary', size: 'md', fill: true })}>
+                Send
+              </Link>
               <Button variant="secondary" size="md" fill onClick={() => setReceiving(true)}>
                 Receive
               </Button>
-              {/*
-                No Send button yet, and its absence is the honest form of "there is nothing to
-                send". A button that opened a form which could not submit would be the overclaim
-                this repository fails builds over. It arrives with the submission path.
-              */}
             </div>
 
             {/*

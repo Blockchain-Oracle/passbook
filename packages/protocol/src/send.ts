@@ -55,6 +55,7 @@ import { invokeCalldata } from './swap-calldata.js'
 import { BRIDGE_USDC, buyParamsCalldata, DESTINATIONS, FAST_FINALITY_THRESHOLD } from './bridge.js'
 import type { SwapCall } from './quote.js'
 import { getNumOfChannels, getPublicKey, noteExists, readPoolHealth, type PoolHealth } from './pool.js'
+import { preflightRecipient, type DoorAInvite } from './recipient.js'
 import { assertBalancedActionList, assertActionListValid, type ValidatableAction } from './actions.js'
 import { withFallback } from './rpc.js'
 import type { FeeRecipientBody, SubmitBody } from './relayer-wire.js'
@@ -292,26 +293,13 @@ export type SendResult =
 // ── Copy constants (epic 6 renders these; this story only ships them) ─────────────────────
 
 /**
- * The Door-A transform's copy, byte-exact.
- *
- * It is a TRANSFORM, not an error: the form becomes an invitation rather than turning red,
- * because the user did nothing wrong and the recipient is reachable — just not yet here. The
- * sentence names the protocol as the thing refusing, which is true and is the only framing that
- * does not read as our bug.
+ * The Door-A copy and the gate that raises it now live in `recipient.ts` — a leaf that imports the
+ * pool client and nothing else, so a form can ask where an address routes without pulling this
+ * module's SDK edge into the chunk that renders it. Re-exported here because every existing caller
+ * and every test imports them from `send`, and moving a file is not a reason to move a name.
  */
-export interface DoorAInvite {
-  message: string
-  primaryAction: string
-  secondaryAction: string
-}
-
-export const DOOR_A_INVITE: DoorAInvite = {
-  message:
-    'This address has no account on this protocol. Private funds cannot reach it — ' +
-    'the protocol rejects transfers to an unregistered key.',
-  primaryAction: 'Send them an invite',
-  secondaryAction: 'we pay their registration',
-}
+export { DOOR_A_INVITE, preflightRecipient } from './recipient.js'
+export type { DoorAInvite, RecipientRoute } from './recipient.js'
 
 /**
  * The balance relabel. "Insufficient funds" is a bank's sentence and it is wrong here twice: the
@@ -384,39 +372,6 @@ export interface SendChannelData {
 export interface SendWalletData {
   channels: SendChannelData[]
   notes: SendNoteData[]
-}
-
-// ── Recipient pre-flight (Door A) ─────────────────────────────────────────────────────────
-
-/** Where a recipient address routes, decided for free before anything is built. */
-export type RecipientRoute =
-  | { route: 'registered'; publicKey: bigint }
-  | { route: 'unregistered'; door: DoorAInvite }
-  | { route: 'blocked-rpc-unknown'; reason: string }
-
-/**
- * The free gate in front of a shielded transfer. Routes; never proves, never posts.
- *
- * FAILS CLOSED. A read that did not land is its own route and must never collapse into either
- * answer: calling it `registered` builds a note nobody can decrypt, and calling it
- * `unregistered` shows a stranger the invite screen for an account they already have.
- *
- * Not called for a WITHDRAW. A withdraw names a public address and the pool transfers to it
- * directly; requiring registration there would refuse the one send that works for anybody.
- */
-export async function preflightRecipient(
-  recipient: string,
-  read: (address: string) => Promise<bigint> = getPublicKey,
-): Promise<RecipientRoute> {
-  let publicKey: bigint
-  try {
-    publicKey = await read(recipient)
-  } catch (e) {
-    return { route: 'blocked-rpc-unknown', reason: String(e) }
-  }
-  return publicKey === 0n
-    ? { route: 'unregistered', door: DOOR_A_INVITE }
-    : { route: 'registered', publicKey }
 }
 
 // ── The plan (pure: what the action list will be, before anything is built) ────────────────
