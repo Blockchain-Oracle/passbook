@@ -52,6 +52,7 @@ import { deriveViewingKey } from './identity.js'
 import { CLIENT_ACTION } from './message-book.js'
 import { approveCeiling } from './fee-ceiling.js'
 import { invokeCalldata } from './swap-calldata.js'
+import { BRIDGE_USDC, buyParamsCalldata, DESTINATIONS, FAST_FINALITY_THRESHOLD } from './bridge.js'
 import type { SwapCall } from './quote.js'
 import { getNumOfChannels, getPublicKey, noteExists, readPoolHealth, type PoolHealth } from './pool.js'
 import { assertBalancedActionList, assertActionListValid, type ValidatableAction } from './actions.js'
@@ -100,8 +101,14 @@ export type SubmitMode = 'relayer' | 'self'
  * comes back — the sell token is withdrawn to a venue's executor, the executor is invoked, and it
  * deposits the buy token into an open note this same transaction minted. One transaction, and the
  * value never sits anywhere the user does not control.
+ *
+ * A BRIDGE IS THE SWAP SANDWICH WITH THE RETURN LEG REMOVED. The same two actions — withdraw to a
+ * helper, invoke the helper — but the helper burns the USDC through CCTP instead of trading it, so
+ * nothing comes back into the pool and no open note is minted. That absence is the whole structural
+ * difference between the two kinds, and it is why `bridge` is its own kind rather than a swap whose
+ * buy token happens to be somewhere else.
  */
-export type SendKind = 'transfer' | 'withdraw' | 'swap'
+export type SendKind = 'transfer' | 'withdraw' | 'swap' | 'bridge'
 
 /**
  * The venue leg of a swap: where the sell token goes, and what to tell it to do.
@@ -143,6 +150,46 @@ export interface SwapLeg {
    * what was promised, and so a surface can refuse a quote that moved.
    */
   minOutWei: bigint
+}
+
+/**
+ * The crossing leg: which helper burns the USDC, and the burn's terms.
+ *
+ * ── EVERY FIELD IS A FELT THAT REACHES A CONTRACT, SO EVERY FIELD IS PINNED ───────────────
+ *
+ * A swap's invoke calldata has exactly one felt the plan cannot know — the open note's id, minted
+ * inside the compiler. A crossing has NONE: there is no open note, so the whole eight-felt payload
+ * is computable at plan time and `assertSendSpan` compares all of it. That makes this the most
+ * completely checked action list the pipeline builds, which is the right way round for the one that
+ * cannot be undone.
+ *
+ * `bridge.ts` owns the shapes; this is what survives the trip into the planner.
+ */
+export interface BridgeLeg {
+  /** The sponsor's `OutboundAnonymizer`. The USDC is withdrawn HERE and burned from here. */
+  helper: string
+  /** Circle's CCTP domain for the destination chain. */
+  destinationDomain: number
+  /** The u256 CCTP mints to at the far end. Already parsed for the destination's address family. */
+  mintRecipient: bigint
+  /**
+   * The CCTP fee, in USDC base units, taken out of the burned amount.
+   *
+   * ENFORCED HERE, unlike a swap's `minOutWei`. A swap's floor is enforced by the venue's own
+   * revert; this number is one the helper compares against the amount (`AMOUNT_LE_MAX_FEE`), and
+   * the sentence a user can act on is worth more than a reverted transaction they paid for.
+   */
+  maxFeeWei: bigint
+  /**
+   * The finality tier, which MUST be the tier the fee was quoted for.
+   *
+   * Carried rather than defaulted because a fee quoted for one tier on a burn declaring another is
+   * the stranding class the sponsor's own code exists to prevent — and a constant read
+   * independently at two call sites is exactly how the two drift apart.
+   */
+  minFinalityThreshold: number
+  /** How the destination is named in copy. A parameter for the same reason `symbol` is. */
+  chainName: string
 }
 
 /** Why a send stopped. Every branch is data a surface can render without inventing a sentence. */
@@ -395,6 +442,8 @@ export interface SendRequest {
   mode: SubmitMode
   /** Required when `kind` is `'swap'`, and refused on every other kind. */
   swap?: SwapLeg
+  /** Required when `kind` is `'bridge'`, and refused on every other kind. */
+  bridge?: BridgeLeg
 }
 
 /** The relayer's advertised reimbursement leg. Both fields are read live, never assumed. */
@@ -565,6 +614,72 @@ export function planSend(
       return bad(`this swap accepts a minimum of ${swap.minOutWei}, which is no floor at all`)
     }
   }
+
+  // ── The crossing leg, on the same terms ──────────────────────────────────────────────────
+  //
+  // Held to a STRICTER standard than the swap leg above, because a swap that goes wrong reverts and
+  // a crossing that goes wrong is a burn. Circle's own words: once burned, USDC can only arrive at
+  // the destination — never be refunded.
+  if (request.kind !== 'bridge' && request.bridge !== undefined) {
+    return bad(`a ${request.kind} carried a bridge leg; it was refused rather than dropped`)
+  }
+  const bridge = request.kind === 'bridge' ? request.bridge : undefined
+  if (request.kind === 'bridge') {
+    if (!bridge) return bad('a crossing needs a helper, a destination and a fee, and carried none')
+    const helperFelt = feltOrNull(bridge.helper)
+    if (helperFelt === null) {
+      return bad(`the bridge helper ${JSON.stringify(bridge.helper)} is not a felt address`)
+    }
+    // THE SAME TWO-ADDRESS RULE AS THE SWAP, and here it is load-bearing twice over: the helper
+    // burns whatever balance of the baked token it holds up to `amount`, so withdrawing to one
+    // contract and instructing another does not merely strand the funds — it funds a contract that
+    // the NEXT caller can burn to their own address.
+    if (helperFelt !== recipientFelt) {
+      return bad(
+        `this crossing withdraws to ${request.recipient} and invokes ${bridge.helper}. Those must ` +
+          'be the same contract — anything left sitting in the helper is burnable by whoever calls ' +
+          'it next.',
+      )
+    }
+    // The token is pinned rather than passed through. There are two contracts on Starknet whose
+    // symbol is some spelling of "USDC" and only one of them is the issuance CCTP burns; the other
+    // is the StarkGate bridged token. See `BRIDGE_USDC`.
+    const sellFelt = feltOrNull(request.token)
+    if (sellFelt === null) {
+      return bad(`${JSON.stringify(request.token)} is not a felt token address`)
+    }
+    if (sellFelt !== BigInt(BRIDGE_USDC)) {
+      return bad(
+        `this crossing sends ${request.symbol} at ${request.token}, and the helper can only burn ` +
+          `the USDC at ${BRIDGE_USDC}. Sending any other token to it does nothing this app can undo.`,
+      )
+    }
+    if (bridge.maxFeeWei < 0n) return bad(`the bridge quoted a fee of ${bridge.maxFeeWei}`)
+    // `AMOUNT_LE_MAX_FEE` is the helper's revert; this is the same refusal taken for free, before
+    // a pool fee has been paid to learn it.
+    if (bridge.maxFeeWei >= request.amount) {
+      return bad(
+        `this crossing sends ${request.amount} and ${bridge.maxFeeWei} of it is fee, so nothing ` +
+          'would arrive',
+      )
+    }
+    if (bridge.minFinalityThreshold !== FAST_FINALITY_THRESHOLD) {
+      // A fee quoted for one tier and a burn declaring another is the mismatch that pays a fast
+      // price for a slow transfer, or quotes a slow price a fast one will not accept.
+      return bad(
+        `this crossing declares finality tier ${bridge.minFinalityThreshold}, and the fee it ` +
+          `carries was quoted for ${FAST_FINALITY_THRESHOLD}`,
+      )
+    }
+    if (!DESTINATIONS.some((d) => d.domain === bridge.destinationDomain)) {
+      // A domain nobody in this repository has checked is a chain nobody has checked. The list is
+      // deliberately short for exactly this reason.
+      return bad(
+        `this crossing names CCTP domain ${bridge.destinationDomain}, which this app has not verified`,
+      )
+    }
+  }
+
   if (recipientFelt === 0n) return bad('refusing to send to the zero address')
 
   const sendTokenFelt = feltOrNull(request.token)
@@ -816,7 +931,14 @@ export function planSend(
   // this app does not control, which is why `recipientFelt` is pinned here and cross-checked
   // against `swap.executor` above: the whole safety of the sandwich is that the same transaction
   // that hands the funds over also contains the instruction to give them back.
-  if (request.kind === 'withdraw' || request.kind === 'swap') {
+  //
+  // A BRIDGE WITHDRAWS ON THE SAME LINE, and the amount matters more here than anywhere else in
+  // this file: the pool's `Withdraw` amount and the burn's `BuyParams.amount` are two separate
+  // numbers that nothing on chain reconciles. Withdraw more than the burn asks for and the excess
+  // sits in a helper with no owner, where the next caller burns it to their own address. They are
+  // the same `request.amount` here, and `assertSendSpan` holds both to it.
+  //
+  if (request.kind === 'withdraw' || request.kind === 'swap' || request.kind === 'bridge') {
     expectedActions.push({
       variant: CLIENT_ACTION.Withdraw,
       fields: [recipientFelt, BigInt(request.token), request.amount, null],
@@ -857,6 +979,32 @@ export function planSend(
     expectedActions.push({
       variant: CLIENT_ACTION.InvokeExternal,
       fields: [BigInt(swap.executor), BigInt(shape.calldata.length), ...felts],
+    })
+  }
+
+  // The crossing's invoke: the same variant, and NOT ONE `null` IN IT.
+  //
+  // Every felt of `BuyParams` is decided here — the recipient, the amount, the fee, the tier, the
+  // chain — because unlike a swap there is no open note whose id only the compiler can know. So the
+  // span guard compares the entire payload, and a compiler or a caller that rewrote the destination
+  // address between the plan and the proof is caught before a prover is paid, let alone a burn.
+  if (bridge) {
+    const shape = buyParamsCalldata({
+      mintRecipient: bridge.mintRecipient,
+      amount: request.amount,
+      maxFeeWei: bridge.maxFeeWei,
+      minFinalityThreshold: bridge.minFinalityThreshold,
+      destinationDomain: bridge.destinationDomain,
+    })
+    if (shape.state === 'refused') return bad(shape.because)
+
+    expectedActions.push({
+      variant: CLIENT_ACTION.InvokeExternal,
+      fields: [
+        BigInt(bridge.helper),
+        BigInt(shape.calldata.length),
+        ...shape.calldata.map((f) => BigInt(f)),
+      ],
     })
   }
 
@@ -918,11 +1066,14 @@ export function planToValidatableActions(plan: SendPlan): ValidatableAction[] {
   if (request.kind === 'swap' && request.swap) {
     out.push({ type: 'CreateOpenNote', token: request.swap.buyToken, amount: 0n })
   }
-  if (request.kind === 'withdraw' || request.kind === 'swap') {
+  if (request.kind === 'withdraw' || request.kind === 'swap' || request.kind === 'bridge') {
     out.push({ type: 'Withdraw', token: request.token, amount: request.amount })
   }
   if (fee) out.push({ type: 'Withdraw', token: STRK_TOKEN, amount: fee.feeWei })
-  if (request.kind === 'swap') out.push({ type: 'InvokeExternal' })
+  // NO `CreateOpenNote` FOR A CROSSING, and the balance invariant is why it would be wrong to add
+  // one for symmetry: an open note declares that this transaction expects a deposit back into the
+  // pool, and a burn deposits nothing. The USDC leaves and the books close on the `Withdraw` alone.
+  if (request.kind === 'swap' || request.kind === 'bridge') out.push({ type: 'InvokeExternal' })
   return out
 }
 
@@ -1378,9 +1529,10 @@ export async function proveSend(input: ProveSendInput): Promise<ProvedSend> {
       if (plan.request.kind === 'transfer') {
         t.transfer({ recipient: plan.request.recipient, amount: plan.request.amount })
       } else {
-        // A SWAP TAKES THIS BRANCH TOO. Its recipient is the executor, checked in `planSend` to
-        // be the same contract the invoke leg names — so this is the leg that hands the sell
-        // amount over, and the invoke below is the instruction to give it back.
+        // A SWAP AND A BRIDGE BOTH TAKE THIS BRANCH. Their recipient is a helper contract, checked
+        // in `planSend` to be the same contract the invoke leg names — so this is the leg that
+        // hands the amount over. For a swap the invoke below is the instruction to give it back;
+        // for a bridge it is the instruction to burn it.
         t.withdraw({ recipient: plan.request.recipient, amount: plan.request.amount })
       }
     }
@@ -1433,6 +1585,30 @@ export async function proveSend(input: ProveSendInput): Promise<ProvedSend> {
       })
       if (built.state === 'refused') throw new Error(built.because)
       return { contractAddress: swapLeg.executor, calldata: [...built.calldata] }
+    })
+  }
+
+  // ── The crossing: one invoke, and no note to wait for ────────────────────────────────────
+  //
+  // The callback still runs inside the compiler, because that is the only shape `.invoke()` takes —
+  // but it ignores `openNotes` entirely rather than reading `[0]`. There is no open note in a
+  // crossing, and a callback that reached for one would throw on a transaction that is correct.
+  //
+  // Built here rather than reused from the plan for the reason the swap leg gives: one serialiser,
+  // called twice, cannot disagree with itself about layout. Every felt is already pinned in
+  // `expectedActions`, so `assertSendSpan` compares this payload byte for byte against it.
+  const bridgeLeg = plan.request.kind === 'bridge' ? plan.request.bridge : undefined
+  if (bridgeLeg) {
+    builder.invoke(() => {
+      const built = buyParamsCalldata({
+        mintRecipient: bridgeLeg.mintRecipient,
+        amount: plan.request.amount,
+        maxFeeWei: bridgeLeg.maxFeeWei,
+        minFinalityThreshold: bridgeLeg.minFinalityThreshold,
+        destinationDomain: bridgeLeg.destinationDomain,
+      })
+      if (built.state === 'refused') throw new Error(built.because)
+      return { contractAddress: bridgeLeg.helper, calldata: [...built.calldata] }
     })
   }
 
@@ -1824,6 +2000,9 @@ export async function sendShielded(input: SendInput, deps: SendDeps = {}): Promi
       // back. `planSend` refuses a swap with no leg, so the failure is loud; this is what makes
       // it never happen.
       swap: input.swap,
+      // Same rule, same consequence, worse failure: a dropped bridge leg is a plain withdraw of
+      // USDC to a contract with no owner, which the next caller burns to their own address.
+      bridge: input.bridge,
     },
     input.wallet,
     self,
