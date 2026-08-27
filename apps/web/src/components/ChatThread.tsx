@@ -27,10 +27,12 @@ import type { RoomMessage } from '@strk20/protocol/room-message'
 
 import { cn } from '../lib/cn'
 import { Text } from './ui/Text'
-import type { ThreadEntry } from '../shell/use-room'
+// The log's entry IS the thread's entry — `chat-log.ts` was written to the shape this file
+// already rendered, so the store could replace React state without touching the bubble.
+import type { ChatLogEntry } from '@strk20/protocol/chat-log'
 
 export interface ChatThreadProps {
-  entries: readonly ThreadEntry[]
+  entries: readonly ChatLogEntry[]
   /** Shown when there is nothing yet — different words before and after a room exists. */
   emptyNote: string
 }
@@ -69,7 +71,7 @@ export function ChatThread({ entries, emptyNote }: ChatThreadProps) {
   )
 }
 
-function Bubble({ entry }: { entry: ThreadEntry }) {
+function Bubble({ entry }: { entry: ChatLogEntry }) {
   const { mine, message } = entry
   return (
     <div className={cn('flex w-full', mine ? 'justify-end' : 'justify-start')}>

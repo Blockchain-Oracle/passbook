@@ -121,12 +121,53 @@ export interface RoomStreamHandle {
 }
 
 export interface RoomStreamInput {
-  room: string
+  /** One room. Kept for the single-thread caller; `rooms` is the multiplexed form. */
+  room?: string
+  /**
+   * Every room this one socket should carry.
+   *
+   * ── WHY THE CLIENT MULTIPLEXES AND DOES NOT JUST OPEN N STREAMS ────────────────────────
+   *
+   * The browser reaches the relayer through a same-origin proxy, so every open stream is a HELD
+   * proxied connection. Under an HTTP/1.1 hop the six-connections-per-host cap is reached at six
+   * conversations — and the seventh does not fail loudly, it starves every other request on the
+   * origin, including the balance walk. A conversation list makes six threads ordinary.
+   *
+   * The relayer already accepts this shape (`MAX_ROOMS_PER_STREAM = 32`, all-or-nothing on
+   * subscribe), and the wire format is unchanged: raw envelopes as `data:` frames, exactly as the
+   * single-room form delivers them. Routing them to the right conversation is the CLIENT's job
+   * and it needs no wire change either — `RoomEnvelope.from` is the sender's public key x, which
+   * the protocol already defines as the routing hint.
+   */
+  rooms?: readonly string[]
   /** Called for each envelope, in arrival order, after de-duplication. */
   onEnvelope: (envelope: RoomEnvelope) => void
   /** Called on every state change. A surface that ignores it will still receive messages. */
   onState?: (state: RoomStreamState) => void
   deps?: RoomTransportDeps
+}
+
+/**
+ * The rooms a stream input names, in the shape the relayer's body expects.
+ *
+ * EXACTLY ONE FORM, AND A CALLER THAT NAMES BOTH IS A BUG rather than a merge: `{room}` and
+ * `{rooms}` disagreeing about which conversations a socket carries is the kind of thing that
+ * silently drops a thread, so it throws where it is written instead of resolving to a guess.
+ *
+ * Exported so the relayer's own contract can be asserted against the client's, rather than two
+ * files agreeing by inspection.
+ */
+export function streamBody(input: Pick<RoomStreamInput, 'room' | 'rooms'>): { rooms: string[] } {
+  if (input.room !== undefined && input.rooms !== undefined) {
+    throw new Error('a room stream takes `room` or `rooms`, never both')
+  }
+  const named = input.rooms ?? (input.room === undefined ? [] : [input.room])
+  // De-duplicated here as well as on the relayer: a conversation list that somehow held one peer
+  // twice would otherwise ask for the same subscription twice and receive every message twice —
+  // which the iv dedupe below would hide, making the real bug invisible.
+  const rooms = [...new Set(named)]
+  if (rooms.length === 0) throw new Error('a room stream must name at least one room')
+  return { rooms }
 }
 
 /**
@@ -141,6 +182,10 @@ export function openRoomStream(input: RoomStreamInput): RoomStreamHandle {
   const deps = input.deps ?? {}
   const fetchImpl = deps.fetch ?? fetch
   const url = roomEndpoint(deps.relayerUrl ?? DEFAULT_RELAYER_URL, 'stream')
+
+  // COMPUTED ONCE, BEFORE THE LOOP, so a caller that named both forms fails on the call rather
+  // than inside a reconnect two minutes later where nothing is watching.
+  const body = JSON.stringify(streamBody(input))
 
   let closed = false
   let attempt = 0
@@ -180,7 +225,7 @@ export function openRoomStream(input: RoomStreamInput): RoomStreamHandle {
         const response = await fetchImpl(url, {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ room: input.room }),
+          body,
           signal: controller.signal,
         })
         if (!response.ok || response.body === null) {

@@ -141,6 +141,19 @@ off-chain through it, so it sees who is talking to whom, when, and how often. Wh
 messages stays ciphertext to us — and is legible to the auditor escrow, which can derive a room's
 secret from keys that are already on chain.
 
+Your conversations are kept in your own browser and nowhere else. The relay holds a short buffer so
+a dropped connection can catch up; it is not a record, and nothing restores a conversation once the
+browser storing it has been cleared. Anything sent while that browser was closed for more than half
+an hour was never stored anywhere it could be fetched from later.
+
+**The name directory is opt-in, and it is public.** Claiming a name publishes name → address on our
+relay for anyone to read; that is its entire function, and it is the one thing here that links a
+handle somebody chose to an address. Registration is already publicly enumerable on chain, so what
+a claim adds is the label, not the address. Two things make it narrower than it could be: nobody has
+to claim one — addresses work whether or not their owner did — and SEARCH is private, because a
+client fetches the whole list and matches inside the browser, so the relay never learns who anyone
+looked for. Taking a name back removes it from the list rather than from anyone who already read it.
+
 ---
 
 ## Swapping

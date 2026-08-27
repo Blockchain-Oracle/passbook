@@ -4,6 +4,7 @@ import { createFileRoute } from '@tanstack/react-router'
 import { Surface } from '../shell/Surface'
 import { pinTheme, storedChoice, themeChoice } from '../shell/theme'
 import type { ThemeChoice } from '../shell/theme'
+import { NameClaim } from '../components/NameClaim'
 
 export const Route = createFileRoute('/settings')({
   component: Settings,
@@ -79,6 +80,13 @@ function Settings() {
           <ThemeStatus choice={state.choice} stored={state.stored} />
         </p>
       </fieldset>
+
+      {/*
+        The name claim lives here rather than on `/chat` because it is a property of the ACCOUNT,
+        not of a conversation — the same reason the theme control does. Chat links to it from the
+        new-message flow, which is where somebody first wants one.
+      */}
+      <NameClaim />
     </Surface>
   )
 }
