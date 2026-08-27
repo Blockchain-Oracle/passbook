@@ -29,7 +29,15 @@ import { readFileSync } from 'node:fs'
 import YAML from 'yaml'
 
 /** `#FCFAF6` and `#fcfaf6` are the same colour; the emitter lowercases. */
-const sameHex = (a, b) => String(a).trim().toLowerCase() === String(b).trim().toLowerCase()
+// The minifier is allowed to collapse #ffffff to #fff; the comparison must not care.
+const expandHex = (v) => {
+  const s = String(v).trim().toLowerCase()
+  const short = /^#([0-9a-f])([0-9a-f])([0-9a-f])([0-9a-f])?$/.exec(s)
+  if (!short) return s
+  const [, r, g, b, a] = short
+  return `#${r}${r}${g}${g}${b}${b}${a ? a + a : ''}`
+}
+const sameHex = (a, b) => expandHex(a) === expandHex(b)
 
 /**
  * The three theme-carrying regions of the emitted sheet.
