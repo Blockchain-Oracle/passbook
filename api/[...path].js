@@ -64,6 +64,13 @@ export default async function handler(req, res) {
   }
 
   const upstreamUrl = new URL(req.url, RELAYER_ORIGIN)
+  // Vercel's file-system router injects the catch-all match into the query — `/api/fee-recipient`
+  // arrives here as `/api/fee-recipient?...path=fee-recipient`, the param named after the
+  // `[...path]` bracket segment, dots included — and the relayer matches paths EXACTLY, query
+  // string and all, so the injected param turns every proxied route into a 404. `vite dev`
+  // forwards clean paths, which is why this only ever breaks in production.
+  upstreamUrl.searchParams.delete('...path')
+  upstreamUrl.searchParams.delete('path')
 
   const headers = { 'content-type': 'application/json' }
   // Absent is legitimate: a relayer that was started without a token accepts requests without
