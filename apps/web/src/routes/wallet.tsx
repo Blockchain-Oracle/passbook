@@ -4,6 +4,7 @@ import type { BookState, ShieldedBalance, TokenBalance } from '@strk20/protocol/
 import { toPlainText } from '@strk20/protocol/amount'
 
 import { AccountLadder } from '../components/AccountLadder'
+import { BackupCeremony } from '../components/BackupCeremony'
 import { ActivityFeed } from '../components/ActivityFeed'
 import { TokenLogo } from '../components/TokenLogo'
 import { Button } from '../components/ui/Button'
@@ -59,6 +60,8 @@ function Wallet() {
   const [statusNonce, setStatusNonce] = useState(0)
   const [deploying, setDeploying] = useState(false)
   const [deployProblem, setDeployProblem] = useState<string | null>(null)
+  // The ceremony's terminal state is what `canRegister` will read when registration is wired.
+  const [, setBackedUp] = useState(false)
 
   useEffect(() => {
     if (!ready) return
@@ -131,6 +134,13 @@ function Wallet() {
                 onDeploy={onDeploy}
                 deploying={deploying}
                 problem={deployProblem}
+                backup={
+                  <BackupCeremony
+                    accountKey={ready.accountKey}
+                    receiveAddress={ready.address}
+                    onComplete={() => setBackedUp(true)}
+                  />
+                }
               />
             ) : null}
           </>
