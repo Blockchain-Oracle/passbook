@@ -61,15 +61,28 @@ Being precise about this is cheaper than being caught.
 | Component | State |
 |---|---|
 | `packages/protocol` | Live pool reads with RPC fallback, local identity generation with encrypted backup, registration pre-flight with the `ForeignKey` collision guard. Tested. |
-| `packages/relayer` | Paymaster and submission server. Written and tested; **not yet proven on mainnet.** |
-| `contracts/MessageBook` | Cairo contract, builds and passes its tests. **Not yet deployed.** |
-| Mainnet gate transactions | **Not yet banked.** |
-| Web app | Does not exist in this repository yet. |
+| `packages/relayer` | Paymaster and submission server. **Proven on mainnet** — it signed and broadcast the sponsored registration below. Not hosted anywhere; it binds loopback by design. |
+| `contracts/MessageBook` | **Deployed on mainnet**, class hash verified against the running contract. |
+| Mainnet transactions touching the pool | **1 of the 3 the submission gate requires.** |
+| Web app | Live at **https://passbook-zeta.vercel.app** — no login, no wallet to connect. |
 
-Because the relayer is unproven on mainnet, this app does not yet claim that your address is
-hidden from the public record. It will make that claim on the day the mechanism demonstrably
-works, and not before. Until then the honest sentence is the one it ships with: the pool sees
-your transaction, not your notes.
+**What works end to end today.** Open the app and an account is derived in your browser on first
+load; nothing is connected and nothing is pasted. The wallet reads your shielded balance straight
+from the pool and tells you which of four states it is in — including "the pool could not be read",
+which is deliberately not shown as a zero. Swap prices a real route through an on-chain aggregator,
+with the minimum you would receive and the price impact stated before you commit. An account funded
+in the browser can deploy itself from the wallet, which is a real mainnet transaction the product
+sends on its own.
+
+**What does not work yet, stated plainly.** Registration writes your viewing key to the pool and
+costs the protocol's 6 STRK fee; until an account is registered it cannot hold shielded value, so
+swap stops at the review step and the wallet has no Send button. Chat, bridge, markets and launch
+are not built — each says so on its own screen, along with what is already working underneath it.
+
+This app does not claim that your address is hidden from the public record. Depositing into the
+pool is public: the depositor and the amount are both visible. What the pool hides is which notes
+are yours afterwards. The honest sentence is the one it ships with — the pool sees your
+transaction, not your notes.
 
 ---
 
@@ -186,9 +199,20 @@ Network is `SN_MAIN`. Every filled row here is independently checkable with one 
 | `MessageBook` (ours) | `0x3105b6a327ba11f5464335f480046348a4052be2c12df726f37633d50ae35bc` |
 | `MessageBook` class hash | `0x52c432b3751ef6e61aa742e6b04a75bd929f2c85e1f2e632df812d424e4460f` |
 
-The two unfilled rows are the ones still owed. They are filled
-from the deployment record the moment the contract is deployed, and the lint is what guarantees
-this file cannot be submitted with a guess in them.
+Every row is filled and every one was read back off the chain rather than copied from a deployment
+log — "the transaction succeeded" is a weaker claim than "the class is there now", and only the
+second is worth printing here.
+
+**Transactions this project has landed on mainnet**, each checkable on Voyager:
+
+| What | Transaction |
+|---|---|
+| Sponsored registration, through our own relayer | `0x4fbbf9aa7992a95d313554bc17b2fff311b35a5974271defc6672f57abfe27d` |
+| `MessageBook` deploy | `0x1df2698443f4bf7d49f802aae3180674394d3e339c31666780c1e640562569` |
+
+The first is the one that touches the pool. The submission gate asks for three such transactions,
+so this project currently meets one third of that requirement — said plainly here because a reader
+who checks will find out in thirty seconds either way.
 
 **The pool class hash is pinned on purpose.** The pool is upgradeable with zero delay and can
 be paused, including during judging week — StarkWare can swap the implementation instantly and
