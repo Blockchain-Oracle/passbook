@@ -1,0 +1,29 @@
+{
+  "network": "mainnet",
+  "chainId": "0x534e5f4d41494e",
+  "pragma": "0x2a85bd616f912537c50a49a4076db02c00b29b2cdc8a197ce92ed1837fa875b",
+  "poolClassHash": "0x67dddd89d80fedadc06b6f160798f94800a4a70164e5a24301cd0d6076b554d",
+  "declaredVia": "https://rpc.starknet.lava.build",
+  "LaunchToken": {
+    "classHash": "0x6bc12b93be701b35f48d30acdf4caddf9fe603a3d7ca4f2ce8444a175262782",
+    "compiledClassHash": "0x3e90602a9e289edc90d56ca1e7d801d5d5c954b455e27014bb8f688c66ad3e3",
+    "declareTx": "0x52a17e74efea63da9fb7a10687fb9dca84668a0e421552954fc09820ca9fa1d",
+    "note": "declare only — graduate() deploys instances"
+  },
+  "Markets": {
+    "classHash": "0x750ec8f6c6c96f1e66129f84ac8ca798973bb3e5fd9384269706a7e079f4388",
+    "compiledClassHash": "0x218b68724e08cf237e9ae7f60d951ee635700b75f389154bf952737040d5dee",
+    "declareTx": "0x591f798f93d17efff06251185dbc436e30d3b052420f6001cdacfbe75e0364a",
+    "deployTx": "0x17939c4f9b5f65224a64a4c6e37f7cb06edd9a527ca054868d8fa5c32a35b09",
+    "contractAddress": "0x7905ba4e7535a3e7c1f9f4045762cc7ce83cfb120fe916f97a0dc512d72a783"
+  },
+  "Launch": {
+    "classHash": "0x7c4a3f7cd257beb5a8243fb1cd3ac3e5f59b36f08a436bbd657ef214c970d22",
+    "compiledClassHash": "0x5730c1fc29021e61671650e0f17a89beea0c4de80f06c8b33ecdbbcdc24069",
+    "declareTx": "0x5a74a2c446e4108137a2aeccec5c5844149bde4d5efcac0d03e2b1c91e22a41",
+    "deployTx": "0x3caf6752205721633f683a299d1c8fab20d3ad634d7b9f3f4b63785476edf57",
+    "contractAddress": "0x3fc07897f657b184ff9b0dab28939bb5a175d7cff9290406a1bd4b3d032eb54"
+  },
+  "verifiedAtBlock": 13962406,
+  "deployedAt": "2026-08-27T21:08:13.229Z"
+}
