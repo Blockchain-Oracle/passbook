@@ -10,6 +10,7 @@ import {
 } from '@strk20/protocol/account-copy'
 
 import { AccountLadder } from '../components/AccountLadder'
+import { ConversionPanel } from '../components/onboarding/ConversionPanel'
 import { BackupCeremony } from '../components/BackupCeremony'
 import { ActivityFeed } from '../components/ActivityFeed'
 import { IdentityDisc } from '../components/IdentityDisc'
@@ -26,7 +27,9 @@ import type { RegistrationStage } from '@strk20/protocol/pipeline-stage'
 import { useBalance } from '../shell/use-balance'
 import { useActivity } from '../shell/use-activity'
 import { findToken, useTokenList } from '../shell/use-token-list'
-import { unlockSession, useSession, shortenFelt, type SessionState } from '../shell/session'
+import { labelAccount, unlockSession, useSession, shortenFelt, type SessionState } from '../shell/session'
+import { useFirstRun } from '../shell/use-first-run'
+import { usePoolFee } from '../shell/use-pool-fee'
 import { Surface } from '../shell/Surface'
 
 //
@@ -68,6 +71,16 @@ export const Route = createFileRoute('/wallet')({
 // THIS FUNCTION IS ONLY THE SESSION'S FOUR ARMS. The account's own surface is `WalletAccount`,
 // mounted under a `key`; the geometry is `WalletFrame`. Both splits are explained where they live.
 //
+/**
+ * The app's own name, for the fee row.
+ *
+ * NOT imported from `register.ts`, which is where `DEFAULT_APP_NAME` lives: that module is loaded
+ * lazily on purpose and a static import of it for one short string would pull the whole
+ * registration graph into the eager chunk. The build gate caught exactly that and refused it.
+ * `onboarding-copy.test.ts` pins the fee row's shape; the name inside it is a caller's to supply.
+ */
+const APP_NAME = 'Passbook'
+
 function Wallet() {
   const session = useSession()
 
@@ -154,6 +167,8 @@ function WalletAccount({ session }: { session: Extract<SessionState, { status: '
   // that a read failed or was truncated from the rows alone.
   const activity = useActivity(read, session.accountKey)
   const [receiving, setReceiving] = useState(false)
+  const firstRun = useFirstRun()
+  const poolFee = usePoolFee()
 
   // Plain JSON-RPC, no SDK — so the ladder can say where the account stands before the crypto
   // graph has finished loading.
@@ -225,7 +240,52 @@ function WalletAccount({ session }: { session: Extract<SessionState, { status: '
 
             <BalanceHero balance={balance} loading={loading} address={session.address} />
 
-            <ActionRow onReceive={() => setReceiving(true)} disabled={false} />
+            <ActionRow
+              onReceive={() => {
+                // TRIGGER 2 of the brief's three: pressing Receive. It opens conversion only for an
+                // account that cannot yet be paid — a registered account pressing Receive wants the
+                // QR, not a walkthrough.
+                if (accountStatus !== null && accountStatus.rung !== 'ready') {
+                  firstRun.start('receive', { hasAccount: false })
+                  return
+                }
+                setReceiving(true)
+              }}
+              disabled={false}
+            />
+
+            {/*
+              CONVERSION, INLINE AND ABOVE THE LADDER.
+
+              A row on the page rather than a scrimmed dialog, per §1: the page stays interactive and
+              anything the visitor already composed survives. It renders only while it is open, so
+              the ordinary wallet is unchanged for an account that has already registered.
+            */}
+            {firstRun.open ? (
+              <ConversionPanel
+                feeStrk={poolFee}
+                appName={APP_NAME}
+                onGenerateKey={async (label) => {
+                  // The key already exists — the session mints one on first boot — so this names it
+                  // rather than generating it. See the note on `feeStrk` below for why that gap is
+                  // reported rather than papered over.
+                  if (label !== '') await labelAccount(session.address, label)
+                }}
+                onRegister={onRegister}
+                registered={accountStatus?.rung === 'ready'}
+                renderBackup={(onDone) => (
+                  <BackupCeremony
+                    accountKey={session.accountKey}
+                    receiveAddress={session.address}
+                    onComplete={() => {
+                      setBackedUp(true)
+                      onDone()
+                    }}
+                  />
+                )}
+                onDismiss={firstRun.dismiss}
+              />
+            ) : null}
 
             {/*
               WHAT THIS ACCOUNT CAN DO, AND WHAT IT NEEDS NEXT.
