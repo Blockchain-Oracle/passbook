@@ -2,6 +2,10 @@ import { describe, it, expect } from 'vitest'
 
 import {
   MARKET_ACTIVE,
+  MARKET_FIELD,
+  createChainKeeperDeps,
+  decodeMarket,
+  decodeOracle,
   ORACLE_MAX_LAG,
   RESOLVE_WINDOW,
   VOID_AFTER,
@@ -233,5 +237,160 @@ describe('a full pass', () => {
     const pass = await runKeeperPass(deps)
     expect(pass.resolved).toEqual([1])
     expect(pass.voided).toEqual([2])
+  })
+})
+
+// ─────────────────────────────────────────────────────────────────────────────────────────
+// The chain adapter
+// ─────────────────────────────────────────────────────────────────────────────────────────
+
+//
+// THE DECODE IS WHERE A SILENT BUG WOULD HIDE. `Market.k` is a u256 and therefore TWO felts, so
+// every field after it sits one place further along than a naive reading suggests. Get that wrong
+// and `collateral` is read as `state`: every market looks already-settled, the keeper does nothing
+// forever, and nothing errors. This is a hand-built struct in the contract's own field order.
+//
+describe('decoding a Market off the chain', () => {
+  const struct = [
+    '0x4254432f555344',        //  0 pair_id  'BTC/USD'
+    '0x746a5288000',           //  1 strike
+    '0x6553ff10',              //  2 deadline
+    '0xabc',                   //  3 token
+    '0xb6',                    //  4 up
+    '0xdc',                    //  5 down
+    '0x9c40',                  //  6 k.low   ← u256, so it takes
+    '0x0',                     //  7 k.high  ← TWO felts
+    '0xc8',                    //  8 seed
+    '0xdc',                    //  9 collateral
+    '0x1',                     // 10 state = MARKET_ACTIVE
+    '0xff',                    // 11 winner = WINNER_UNSET
+    '0x0',                     // 12 experimental
+  ]
+
+  it('reads the three fields the keeper acts on', () => {
+    expect(decodeMarket(7, struct)).toEqual({
+      marketId: 7,
+      pairId: '0x4254432f555344',
+      deadline: 0x6553ff10,
+      state: MARKET_ACTIVE,
+    })
+  })
+
+  // If the u256 were miscounted, `state` would land on `collateral` (0xdc = 220) — which is not
+  // MARKET_ACTIVE, so every market would read as settled and the keeper would go quietly dead.
+  it('does not mistake collateral for state', () => {
+    expect(decodeMarket(0, struct).state).not.toBe(0xdc)
+    expect(MARKET_FIELD.state).toBe(10)
+  })
+})
+
+describe('decoding a Pragma reading', () => {
+  it('reads price, decimals and the timestamp the guard is about', () => {
+    // price, decimals, last_updated_timestamp, num_sources_aggregated
+    expect(decodeOracle(['0x74a4bdd6045', '0x8', '0x6553ff10', '0xa'])).toEqual({
+      price: 0x74a4bdd6045n,
+      decimals: 8,
+      lastUpdatedTimestamp: 0x6553ff10,
+    })
+  })
+})
+
+describe('the chain adapter', () => {
+  const MARKETS = '0x750ec8'
+  const PRAGMA = '0x2a85bd'
+
+  const market = (deadline: number, state = MARKET_ACTIVE) => [
+    ' 0x4254432f555344'.trim(), '0x1', `0x${deadline.toString(16)}`, '0xabc',
+    '0xb6', '0xdc', '0x9c40', '0x0', '0xc8', '0xdc',
+    `0x${state.toString(16)}`, '0xff', '0x0',
+  ]
+
+  const io = (count: number, states: number[] = []) => {
+    const calls: string[] = []
+    const sent: { entrypoint: string; calldata: string[] }[] = []
+    return {
+      calls,
+      sent,
+      deps: createChainKeeperDeps({
+        markets: MARKETS,
+        pragma: PRAGMA,
+        now: () => DEADLINE + 10,
+        call: async (contractAddress, entrypoint, calldata) => {
+          calls.push(`${entrypoint}(${calldata.join(',')})`)
+          if (entrypoint === 'market_count') return [`0x${count.toString(16)}`]
+          if (entrypoint === 'get_market') {
+            const id = Number(BigInt(calldata[0]!))
+            return market(DEADLINE, states[id] ?? MARKET_ACTIVE)
+          }
+          if (entrypoint === 'get_data_median') return ['0x1', '0x8', `0x${DEADLINE.toString(16)}`, '0xa']
+          throw new Error(`unexpected ${entrypoint}`)
+        },
+        send: async (contractAddress, entrypoint, calldata) => {
+          sent.push({ entrypoint, calldata })
+        },
+      }),
+    }
+  }
+
+  // Ids are assigned sequentially from zero by `op_create`, so the count IS the enumeration —
+  // no block-range pagination, no `from_block` to persist across restarts, and no missed page
+  // silently meaning a market never gets settled.
+  it('enumerates every market from the count', async () => {
+    const { deps } = io(3)
+    expect(await deps.markets()).toHaveLength(3)
+  })
+
+  it('asks Pragma for the SpotEntry variant, which is the recorded calldata shape', async () => {
+    const { deps, calls } = io(1)
+    await deps.readOracle('0x4254432f555344')
+    expect(calls).toContain('get_data_median(0x0,0x4254432f555344)')
+  })
+
+  // A resolved or voided market can never go back to active, so re-reading it every minute is one
+  // wasted RPC call per market this contract has ever held, forever.
+  it('reads a settled market once and caches it', async () => {
+    const { deps, calls } = io(2, [2, MARKET_ACTIVE]) // market 0 is RESOLVED
+    await deps.markets()
+    await deps.markets()
+
+    const reads = calls.filter((c) => c.startsWith('get_market'))
+    expect(reads.filter((c) => c === 'get_market(0x0)')).toHaveLength(1)
+    // The still-active one is re-read, because its state can still change.
+    expect(reads.filter((c) => c === 'get_market(0x1)')).toHaveLength(2)
+  })
+
+  it('sends resolve and void against the Markets contract by market id', async () => {
+    const { deps, sent } = io(1)
+    await deps.send({ kind: 'resolve', marketId: 7 })
+    await deps.send({ kind: 'void', marketId: 9 })
+    expect(sent).toEqual([
+      { entrypoint: 'resolve', calldata: ['0x7'] },
+      { entrypoint: 'void', calldata: ['0x9'] },
+    ])
+  })
+
+  it('drives a whole pass end to end against the fake chain', async () => {
+    const { deps, sent } = io(2)
+    const pass = await runKeeperPass(deps)
+    expect(pass.resolved).toEqual([0, 1])
+    expect(sent.map((s) => s.entrypoint)).toEqual(['resolve', 'resolve'])
+  })
+})
+
+// The pass-level failure the SERVER's `.catch` exists for. A per-market failure is absorbed by
+// `runKeeperPass` itself (above); a chain that cannot be enumerated at all rejects the whole pass,
+// and an unhandled rejection inside a timer takes the relayer down — which has nothing to do with
+// its actual job of submitting other people's transactions. `server.ts` catches this by name.
+describe('when the chain itself cannot be reached', () => {
+  it('rejects the pass rather than pretending there are no markets', async () => {
+    const deps = {
+      markets: async () => {
+        throw new Error('rpc unreachable')
+      },
+      readOracle: async () => null,
+      send: async () => {},
+      now: () => DEADLINE,
+    }
+    await expect(runKeeperPass(deps)).rejects.toThrow(/rpc unreachable/)
   })
 })

@@ -81,6 +81,12 @@ import {
 import { FileSponsorshipStore, isAcceptableSalt } from './sponsorship-store.js'
 import { InviteLedger, normalizeCode, type InviteConfig } from './invite.js'
 import { openDirectory, type Directory } from './directory.js'
+import { createChainKeeperDeps, runKeeperPass } from './keeper.js'
+import {
+  NO_APP_CONTRACTS,
+  parseAppContracts,
+  type AppContracts,
+} from '../../protocol/src/app-contracts.js'
 import { FileInviteStore } from './invite-store.js'
 import {
   createFundingMonitor,
@@ -1806,6 +1812,31 @@ function deployedMessageBook(): string | undefined {
 }
 
 /**
+ * The deployed Markets and Launch contracts, if they exist yet.
+ *
+ * Absent before the Wave 3 declares land, which is not an error and not a reason to refuse to
+ * boot: the allowlist simply never matches a contract it has no address for, and the keeper below
+ * skips cleanly. Failing closed in both places is what makes "not deployed yet" an ordinary state
+ * rather than a special case.
+ */
+function deployedAppContracts(): AppContracts {
+  try {
+    return parseAppContracts(
+      readFileSync(new URL('../../../evidence/markets-launch-deployment.json', import.meta.url), 'utf8'),
+    )
+  } catch {
+    return NO_APP_CONTRACTS
+  }
+}
+
+/**
+ * How often the keeper sweeps. `Markets::resolve` is open for 300 seconds after a deadline, so a
+ * sixty-second pass gets five attempts inside every window — enough that one RPC blip or one
+ * still-stale oracle read does not cost a market its settlement and force it to a void.
+ */
+const KEEPER_INTERVAL_MS = 60_000
+
+/**
  * Opens the durable ledger, honouring an operator-supplied salt.
  *
  * The store mints its own salt on first boot and that is the better default — nobody has to
@@ -1987,6 +2018,7 @@ async function main(): Promise<void> {
   })
 
   const messageBook = deployedMessageBook()
+  const appContracts = deployedAppContracts()
 
   // The chat bus. Nothing to open and nothing to read back: it starts empty on every boot, by
   // design (`rooms.ts`). The sweep is on a timer rather than only on request, because a room's
@@ -2007,7 +2039,7 @@ async function main(): Promise<void> {
       const { transaction_hash } = await account.execute(calls, details)
       return transaction_hash
     },
-    policy: { messageBook },
+    policy: { messageBook, markets: appContracts.markets, launch: appContracts.launch },
     resolveApproveCeiling: async () => approveCeiling((await readPoolConstants()).feeWei),
     allowedOrigins,
     authToken: process.env.RELAYER_AUTH_TOKEN || undefined,
@@ -2031,6 +2063,50 @@ async function main(): Promise<void> {
     directory,
   })
 
+  // ── The settlement keeper ───────────────────────────────────────────────────────────────
+  //
+  // A convenience with no privileges. `resolve` and `void` are permissionless by design, so
+  // nobody's money depends on this process being alive — but "anyone may" is not "someone will",
+  // and a market nobody settles inside its 300-second window can only be voided afterwards, which
+  // refunds everybody and pays out nothing. This is what makes the ordinary case ordinary.
+  //
+  // OFF UNLESS THERE IS SOMETHING TO KEEP. It needs both a deployed Markets and the Pragma address
+  // that Markets was constructed with; without either there is nothing to read and nothing to send,
+  // so it stays dark rather than logging a failure every minute.
+  const keeperWanted = process.env.RELAYER_KEEPER !== 'off'
+  const keeperReady = keeperWanted && appContracts.markets && appContracts.pragma
+  if (keeperReady) {
+    const keeperDeps = createChainKeeperDeps({
+      markets: appContracts.markets!,
+      pragma: appContracts.pragma!,
+      call: (contractAddress, entrypoint, calldata) =>
+        provider.callContract({ contractAddress, entrypoint, calldata }),
+      // Through the same account every submission uses, so a keeper call is subject to the same
+      // allowlist as everything else this key signs — `resolve`, `void` and `graduate` are the
+      // only entrypoints permitted on the app contracts, and `sweep` is refused there by name.
+      send: async (contractAddress, entrypoint, calldata) => {
+        await account.execute([{ contractAddress, entrypoint, calldata }])
+      },
+    })
+
+    // LOG, NEVER THROW. An unhandled rejection inside a timer takes the whole relayer down — and
+    // the relayer's actual job is submitting other people's transactions, which has nothing to do
+    // with whether a market got settled. Every failure here is worth saying out loud and worth
+    // surviving. `runKeeperPass` already contains per-market failures; this catches the pass.
+    const keeperTick = setInterval(() => {
+      void runKeeperPass(keeperDeps)
+        .then((pass) => {
+          for (const id of pass.resolved) console.log(`keeper: resolved market ${id}`)
+          for (const id of pass.voided) console.log(`keeper: voided market ${id}`)
+          for (const f of pass.failed) console.warn(`keeper: market ${f.marketId} failed — ${f.reason}`)
+        })
+        .catch((e: unknown) => console.warn(`keeper: pass failed — ${String(e)}`))
+    }, KEEPER_INTERVAL_MS)
+    // `unref` for the same reason the room sweep has it: a timer must not hold the process open
+    // through a shutdown.
+    keeperTick.unref?.()
+  }
+
   // One read now, then on a timer. The startup read is what turns "we would have noticed
   // eventually" into "we knew before the first submission"; it is awaited so the first line
   // the operator sees already reflects the real balance, and so the gate above is answering
@@ -2042,6 +2118,18 @@ async function main(): Promise<void> {
     console.log(`relayer listening on ${host}:${port}, submitting as ${address} via ${nodeUrl}`)
     console.log(`allowlist: pool ${NET.pool} · STRK approve-to-pool only`)
     console.log(messageBook ? `allowlist: MessageBook ${messageBook}` : 'allowlist: no MessageBook deployed yet')
+    console.log(
+      appContracts.markets
+        ? `allowlist: Markets ${appContracts.markets}${appContracts.launch ? ` · Launch ${appContracts.launch}` : ''}`
+        : 'allowlist: no Markets/Launch deployed yet',
+    )
+    console.log(
+      keeperReady
+        ? `keeper: sweeping every ${KEEPER_INTERVAL_MS / 1000}s via Pragma ${appContracts.pragma}`
+        : keeperWanted
+          ? 'keeper: idle — nothing deployed to keep'
+          : 'keeper: disabled by RELAYER_KEEPER=off',
+    )
     console.log(
       allowedOrigins.size
         ? `origins: ${[...allowedOrigins].join(', ')}`
