@@ -97,10 +97,12 @@ describe('the stored names are a compatibility contract, not an implementation d
     expect(SESSION_KEYS.inviteIntents).toBe('passbook.invite-intents')
   })
 
-  it('and there are still exactly five of them', () => {
+  it('and there are still exactly six of them', () => {
     // A new key is a decision the spec reserves, not a line somebody adds. The fourth was added
     // by story 1.14 with its argument written at `session-invite-store.ts`; the fifth by Wave 1
-    // with its argument at `session-accounts.ts`. A sixth needs one too. The list is spelled out
+    // with its argument at `session-accounts.ts`; the sixth by Wave 3, holding the bearer secrets
+    // that claim positions, with its argument at `session-position-store.ts`. A seventh needs one
+    // too. The list is spelled out
     // rather than counted so a RENAME fails here as loudly as an addition does — a renamed key is
     // a value the next build cannot find, which for `passbook.account-key` means an orphaned
     // account rather than an inconvenience.
@@ -110,6 +112,7 @@ describe('the stored names are a compatibility contract, not an implementation d
       'passbook.backup-cadence',
       'passbook.invite-intents',
       'passbook.accounts',
+      'passbook.position-secrets',
     ])
   })
 })

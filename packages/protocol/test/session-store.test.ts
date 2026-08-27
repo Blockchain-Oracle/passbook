@@ -66,10 +66,23 @@ describe('the session store interface (G1)', () => {
     // account list that does not survive a reload means a user who imports a second account loses
     // it when they close the tab. The full argument is at `session-accounts.ts`.
     //
+    // IT WENT FROM FIVE TO SIX IN WAVE 3, and this is the one that is unambiguously money.
+    // `passbook.position-secrets` holds the bearer secrets that claim market positions and launch
+    // purchases: the contracts store `poseidon(secret)` and pay whoever reveals the secret, with
+    // no address on it and no recovery. It is the same KIND as entry 1 — bearer key material,
+    // covered by `session-key.ts`'s plaintext-at-rest note — and the exposure is unchanged, since
+    // an origin compromise already took the account key.
+    //
+    // It exists because the alternative is not "store less", it is "no positions at all". The
+    // contracts were made bearer precisely so a bet never writes the bettor's address on chain,
+    // and the cost of that is that the client is the only party who can hold the claim. A secret
+    // that does not survive a reload is a bet nobody can ever collect. The full argument, and the
+    // reason it rides the backup ceremony, is at `session-position-store.ts`.
+    //
     // Anyone raising this number again owes the same argument.
     const keys = Object.values(SESSION_KEYS)
-    expect(keys).toHaveLength(5)
-    expect(new Set(keys).size).toBe(5)
+    expect(keys).toHaveLength(6)
+    expect(new Set(keys).size).toBe(6)
     for (const key of keys) expect(key.startsWith('passbook.')).toBe(true)
   })
 })

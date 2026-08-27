@@ -143,8 +143,13 @@ describe('nothing discovered can be written down', () => {
     // already holds, in a list. It is named here because the union grew, and it grew for a reason
     // written at `session-accounts.ts`; what matters to THIS test is that it is not a home for
     // discovery output, which the value check below re-asserts independently of the name.
+    // `positionSecrets` (Wave 3) holds secrets this CLIENT minted — bearer material that was
+    // never read out of the pool, decrypted, or discovered. It is named here because the union
+    // grew, and it grew for a reason written at `session-position-store.ts`; what matters to THIS
+    // test is that nothing discovered can hide in it, which the value check below re-asserts
+    // independently of the name.
     expect(Object.keys(SESSION_KEYS).sort()).toEqual(
-      ['accountKey', 'accounts', 'cadence', 'ceremony', 'inviteIntents'].sort(),
+      ['accountKey', 'accounts', 'cadence', 'ceremony', 'inviteIntents', 'positionSecrets'].sort(),
     )
     // And no key's VALUE mentions this story's material either — a key named `ceremony` whose
     // value drifted to `passbook.notes` would pass a name check and fail the rule.

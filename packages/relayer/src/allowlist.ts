@@ -38,12 +38,45 @@ export interface SubmissionPolicy {
   /** The deployed MessageBook, once evidence/deployment.json exists. */
   messageBook?: string
   /**
+   * The deployed Markets contract, once evidence/markets-launch-deployment.json exists.
+   *
+   * ABSENT MEANS PERMITTED NOTHING, which is the direction that fails safe: before the deploy
+   * lands there is no address to compare against, so every call to it is refused by the closing
+   * `throw refuse(call)` rather than waved through. Same for `launch`.
+   */
+  markets?: string
+  /** The deployed Launch contract, on the same terms. */
+  launch?: string
+  /**
    * Ceiling for a STRK approve, derived from the LIVE fee — never a hardcoded 6 STRK.
    * Absent means no approve may be signed: without a fee to measure against there is
    * no bound, and an unbounded approve is the balance rather than one submission.
    */
   maxApproveWei?: bigint
 }
+
+/**
+ * The direct entrypoints a keeper is allowed to call, per contract.
+ *
+ * ── WHY THESE THREE AND NOTHING ELSE ──────────────────────────────────────────────────────
+ *
+ * All three are permissionless by design, take no value, and compute an answer that is a pure
+ * function of chain state the caller cannot influence: `resolve` reads Pragma and writes the winner
+ * it read, `void` needs a timer to have elapsed, `graduate` needs every unit sold. Signing them
+ * spends gas and nothing else — there is no branch of any of them that can pay the caller.
+ *
+ * That is exactly why they are safe to allowlist and exactly why they are worth allowlisting: a
+ * market nobody settles strands everyone's money until `void` opens, and the honest fix is a keeper
+ * that cannot do anything except settle markets correctly.
+ *
+ * `sweep` is deliberately NOT here. It moves the raise to an address the caller names, and while it
+ * needs the creator's secret to succeed, an allowlisted `sweep` would mean this key signs
+ * transactions carrying somebody's bearer secret in plaintext calldata.
+ */
+const KEEPER_ENTRYPOINTS = {
+  markets: ['resolve', 'void'],
+  launch: ['graduate'],
+} as const
 
 /**
  * A felt in the two encodings that actually reach this server.
@@ -188,6 +221,20 @@ function assertCallAllowed(call: Call, policy: SubmissionPolicy): void {
     return
   }
 
+  // The app contracts. `privacy_invoke` is the pool-facing entrypoint on both; the keeper calls
+  // are the permissionless settlement ones. Everything else — `sweep` above all — is refused.
+  for (const [name, entrypoints] of Object.entries(KEEPER_ENTRYPOINTS) as [
+    'markets' | 'launch',
+    readonly string[],
+  ][]) {
+    const address = policy[name]
+    if (address && sameAddress(to, address)) {
+      if (call.entrypoint === 'privacy_invoke') return
+      if (entrypoints.includes(call.entrypoint)) return
+      throw refuse(call)
+    }
+  }
+
   if (sameAddress(to, STRK_TOKEN)) {
     // `transfer` here would hand the whole relayer balance to the caller. It is the
     // single most important thing this allowlist exists to refuse.
@@ -277,6 +324,41 @@ function isMessageBookInvoke(call: Call, policy: SubmissionPolicy): boolean {
   return policy.messageBook !== undefined && matches(call, policy.messageBook, 'privacy_invoke')
 }
 
+/**
+ * Every `privacy_invoke` in the batch, across the WHOLE app-contract set rather than per contract.
+ *
+ * Counted together on purpose. Per-contract counting would permit one invoke on MessageBook plus
+ * one on Markets plus one on Launch in a single batch — three of the action the one-per-batch rule
+ * exists to bound, each of them individually "at most one". The pool reaches all three through
+ * `InvokeExternal` anyway, so a direct call is already the unusual path and there is no flow that
+ * legitimately needs two.
+ */
+function isAppContractInvoke(call: Call, policy: SubmissionPolicy): boolean {
+  if (isMessageBookInvoke(call, policy)) return true
+  for (const name of ['markets', 'launch'] as const) {
+    const address = policy[name]
+    if (address !== undefined && matches(call, address, 'privacy_invoke')) return true
+  }
+  return false
+}
+
+/**
+ * Every direct keeper call in the batch. Bounded for the same gas reason as the invokes — this
+ * wallet is funded for one batch — and because a loop of `resolve` calls is a way to spend the
+ * relayer's balance on transactions that each do nothing after the first.
+ */
+function isKeeperCall(call: Call, policy: SubmissionPolicy): boolean {
+  for (const [name, entrypoints] of Object.entries(KEEPER_ENTRYPOINTS) as [
+    'markets' | 'launch',
+    readonly string[],
+  ][]) {
+    const address = policy[name]
+    if (address === undefined) continue
+    if (entrypoints.some((entrypoint) => matches(call, address, entrypoint))) return true
+  }
+  return false
+}
+
 function matches(call: Call, address: string, entrypoint: string): boolean {
   return (
     typeof call?.contractAddress === 'string' &&
@@ -336,12 +418,19 @@ export function assertSubmittable(calls: Call[], policy: SubmissionPolicy = {}):
       'each one in a batch is a separate pull from this wallet.',
   )
   assertAtMostOne(
-    calls.filter((call) => isMessageBookInvoke(call, policy)).length,
+    calls.filter((call) => isAppContractInvoke(call, policy)).length,
     'privacy_invoke calls',
-    'this one bounds gas rather than fees — MessageBook has no collect_fee, holds no ' +
-      'value and grants no allowance — but gas is still paid by a wallet funded for a ' +
-      'single batch, and the pool reaches MessageBook through InvokeExternal anyway, so ' +
-      'a direct call is already the unusual path.',
+    'this one bounds gas rather than fees — none of the app contracts has a collect_fee — ' +
+      'but gas is still paid by a wallet funded for a single batch, and the pool reaches all ' +
+      'of them through InvokeExternal anyway, so a direct call is already the unusual path. ' +
+      'Counted across the whole app-contract set rather than per contract, so one invoke each ' +
+      'on three contracts is refused rather than passing as three separate "at most one"s.',
+  )
+  assertAtMostOne(
+    calls.filter((call) => isKeeperCall(call, policy)).length,
+    'keeper calls',
+    'resolve, void and graduate each do their whole job the first time they succeed, so a ' +
+      'batch of them is one useful transaction and the rest reverting at this wallet’s expense.',
   )
 
   for (const call of calls) assertCallAllowed(call, policy)

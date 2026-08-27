@@ -31,7 +31,7 @@ describe('the fourth session key', () => {
   it('is a namespaced key that the closed union accepts', () => {
     expect(SESSION_KEYS.inviteIntents).toBe('passbook.invite-intents')
     // Five since Wave 1 added `passbook.accounts`; `session-store.test.ts` carries the argument.
-    expect(Object.keys(SESSION_KEYS)).toHaveLength(5)
+    expect(Object.keys(SESSION_KEYS)).toHaveLength(6)
     // Every key is namespaced, so an origin shared with something else stays disentangled.
     for (const key of Object.values(SESSION_KEYS)) expect(key).toMatch(/^passbook\./)
   })

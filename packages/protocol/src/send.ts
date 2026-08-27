@@ -109,7 +109,52 @@ export type SubmitMode = 'relayer' | 'self'
  * difference between the two kinds, and it is why `bridge` is its own kind rather than a swap whose
  * buy token happens to be somewhere else.
  */
-export type SendKind = 'transfer' | 'withdraw' | 'swap' | 'bridge'
+export type SendKind =
+  | 'transfer'
+  | 'withdraw'
+  | 'swap'
+  | 'bridge'
+  // ── The app-contract kinds (Wave 3) ─────────────────────────────────────────────────────
+  //
+  // Seven kinds, TWO shapes. Everything below is one of the two action lists this pipeline has
+  // already proven on mainnet, pointed at a contract of ours instead of a venue's:
+  //
+  //   FUNDING  — market-create, market-bet, launch-buy. The bridge shape: spend notes, send change
+  //              back, withdraw the stake to our contract, invoke it. The contract returns an EMPTY
+  //              deposit span, so the transaction creates NO open notes. Money goes in.
+  //
+  //   SETTLING — market-claim, market-cashout, launch-redeem, launch-refund. The swap shape,
+  //              generalised from one open note to N: mint one open note per payout, invoke, and
+  //              the contract's returned deposits fill them. Money comes back.
+  //
+  // They are separate kinds rather than one 'app-invoke' because the two shapes differ in the one
+  // way that matters — whether the user's amount leaves — and collapsing them would put a
+  // `Withdraw` decision behind a boolean nobody reads.
+  | 'market-create'
+  | 'market-bet'
+  | 'market-claim'
+  | 'market-cashout'
+  | 'launch-buy'
+  | 'launch-redeem'
+  | 'launch-refund'
+
+/** The kinds that send value INTO one of our contracts and get an empty span back. */
+const FUNDING_KINDS = ['market-create', 'market-bet', 'launch-buy'] as const
+
+/** The kinds that mint open notes and are paid into them. */
+const SETTLING_KINDS = ['market-claim', 'market-cashout', 'launch-redeem', 'launch-refund'] as const
+
+export function isAppKind(kind: SendKind): boolean {
+  return isFundingKind(kind) || isSettlingKind(kind)
+}
+
+export function isFundingKind(kind: SendKind): boolean {
+  return (FUNDING_KINDS as readonly string[]).includes(kind)
+}
+
+export function isSettlingKind(kind: SendKind): boolean {
+  return (SETTLING_KINDS as readonly string[]).includes(kind)
+}
 
 /**
  * The venue leg of a swap: where the sell token goes, and what to tell it to do.
@@ -191,6 +236,59 @@ export interface BridgeLeg {
   minFinalityThreshold: number
   /** How the destination is named in copy. A parameter for the same reason `symbol` is. */
   chainName: string
+}
+
+/**
+ * The app-contract leg: which of our contracts, which operation, and how many payouts come back.
+ *
+ * ── `openNoteCount` IS THE FIELD THAT COSTS SIX STRK TO GET WRONG ─────────────────────────
+ *
+ * The pool counts the open notes created in a transaction and asserts every one of them was
+ * deposited into (`UNDEPOSITED_OPEN_NOTES`). Its free `compile_actions` view CANNOT catch a
+ * mismatch — Day-0 verification found it no-ops the open-note emission, so three unmatched open
+ * notes compiled cleanly and would have reverted on chain AFTER the fee was taken. The client is
+ * therefore the only party that can check this, and this is where it is checked: the number here
+ * must equal the number of deposits the contract's op will return, which for a settling batch is
+ * one per entry and for a funding op is zero.
+ *
+ * `market-calldata.ts` and `launch-calldata.ts` each export an `expectedOpenNotes` that computes
+ * it from the same payload, so a caller never has to work it out by hand.
+ */
+export interface AppInvokeLeg {
+  /** Our Markets or Launch contract. Read from the deployment, never hardcoded. */
+  contract: string
+  /** The op felt this `privacy_invoke` dispatches on. */
+  op: number
+  /**
+   * The whole `privacy_invoke` calldata — `[op, payload_len, ...payload]` — ALREADY SERIALISED by
+   * the calldata builders.
+   *
+   * Taken pre-built rather than built here for the same reason a swap's route is: the builders are
+   * pure and independently tested against the shapes the Cairo suite asserts, and re-deriving the
+   * layout inside the planner would be a second implementation to keep in step.
+   */
+  calldata: readonly string[]
+  /**
+   * Indices into `calldata` holding an open note's id — the only felts the plan cannot know,
+   * reported by the builder that laid the calldata out.
+   *
+   * This is what generalises the swap's "every felt pinned except the last" to "every felt pinned
+   * except these n". `assertSendSpan` compares everything else byte for byte, so a payload that
+   * changed between the plan and the proof is a local throw rather than a mainnet discovery.
+   */
+  noteIdSlots: readonly number[]
+  /** How many open notes this transaction must mint. See the note above — this one is load-bearing. */
+  openNoteCount: number
+  /**
+   * The token the payouts arrive in. Required whenever `openNoteCount` is non-zero.
+   *
+   * FOR A LAUNCH REDEMPTION THIS IS A TOKEN THAT DID NOT EXIST WHEN THE MARKET OPENED — it is
+   * deployed by `graduate()`. That is legal: Day-0 verification proved the pool has no token
+   * allowlist anywhere in its deposit path, against a phantom token at an address with no contract
+   * deployed. What the pool does require is an `OpenSubchannel` for it in the same transaction,
+   * which the plan emits like any other first-time token.
+   */
+  payoutToken?: string
 }
 
 /** Why a send stopped. Every branch is data a surface can render without inventing a sentence. */
@@ -388,7 +486,14 @@ export interface SendRequest {
    * that rather than trusting the caller to keep them in step.
    */
   recipient: string
-  /** For a swap, the token being SOLD. */
+  /**
+   * For a swap, the token being SOLD.
+   *
+   * FOR A SETTLING APP KIND this is the token the payouts arrive in, and it is informational
+   * rather than spent — nothing of the user's leaves in those transactions. It must equal
+   * `app.payoutToken`, on the same "two fields naming one thing must agree" rule as a swap's
+   * executor.
+   */
   token: string
   /** How the token is named in copy. A parameter: reading a symbol costs a call nobody needs. */
   symbol: string
@@ -399,6 +504,8 @@ export interface SendRequest {
   swap?: SwapLeg
   /** Required when `kind` is `'bridge'`, and refused on every other kind. */
   bridge?: BridgeLeg
+  /** Required on every app kind, and refused on every other. */
+  app?: AppInvokeLeg
 }
 
 /** The relayer's advertised reimbursement leg. Both fields are read live, never assumed. */
@@ -509,7 +616,20 @@ export function planSend(
   if (request.mode !== 'relayer' && request.mode !== 'self') {
     return bad(`refusing submit mode ${JSON.stringify(request.mode)}: expected 'relayer' or 'self'`)
   }
-  if (request.amount <= 0n) return bad(`refusing to send ${request.amount}: an amount must be positive`)
+  // A SETTLING SEND MOVES NOTHING OF THE USER'S, so it is the one kind with no amount. The notes
+  // it spends cover the relayer's fee and nothing else; the value in the transaction is arriving,
+  // not leaving. Requiring a positive amount here would force callers to invent one, and an
+  // invented amount is a `Withdraw` waiting to be built out of it.
+  if (isSettlingKind(request.kind)) {
+    if (request.amount !== 0n) {
+      return bad(
+        `a ${request.kind} sends nothing of yours — the payout is arriving — so its amount must ` +
+          `be 0, and it carried ${request.amount}`,
+      )
+    }
+  } else if (request.amount <= 0n) {
+    return bad(`refusing to send ${request.amount}: an amount must be positive`)
+  }
   if (request.mode === 'relayer' && !fee) {
     return bad('relayer mode needs the advertised fee recipient and the live fee, and got neither')
   }
@@ -635,6 +755,101 @@ export function planSend(
     }
   }
 
+  // ── The app leg, on the same terms as the two above ─────────────────────────────────────
+  if (!isAppKind(request.kind) && request.app !== undefined) {
+    return bad(`a ${request.kind} carried an app leg; it was refused rather than dropped`)
+  }
+  const app = isAppKind(request.kind) ? request.app : undefined
+  if (isAppKind(request.kind)) {
+    if (!app) return bad(`a ${request.kind} needs a contract, an op and a payload, and carried none`)
+
+    const contractFelt = feltOrNull(app.contract)
+    if (contractFelt === null) {
+      return bad(`the contract ${JSON.stringify(app.contract)} is not a felt address`)
+    }
+    if (contractFelt === 0n) {
+      // Before the deploy lands the address is absent, and an absent address reaching here as 0
+      // would withdraw the stake to nowhere. This is the refusal a surface renders as its
+      // coming-state rather than a broken form.
+      return bad('this app contract has no deployed address yet, so there is nothing to invoke')
+    }
+    // THE SAME TWO-ADDRESS RULE THE SWAP AND BRIDGE LEGS CARRY. A funding op withdraws to
+    // `recipient` and invokes `app.contract`; letting them differ hands the stake to one contract
+    // and the instruction to another, which strands it exactly as a mismatched swap would.
+    if (contractFelt !== recipientFelt) {
+      return bad(
+        `this ${request.kind} withdraws to ${request.recipient} and invokes ${app.contract}. Those ` +
+          'must be the same contract.',
+      )
+    }
+    if (!Number.isInteger(app.op) || app.op <= 0) {
+      return bad(`${JSON.stringify(app.op)} is not an operation code`)
+    }
+    if (app.calldata.length < 2) {
+      return bad('the operation carried no calldata, which every op refuses')
+    }
+    for (const [i, f] of app.calldata.entries()) {
+      if (feltOrNull(f) === null) return bad(`calldata felt ${i} is not a felt: ${JSON.stringify(f)}`)
+    }
+    // The leg declares an op AND the calldata opens with one. Two spellings of one fact must
+    // agree, or the stage label says one thing while the contract dispatches on another.
+    if (feltOrNull(app.calldata[0]!) !== BigInt(app.op)) {
+      return bad(
+        `this leg declares op ${app.op} and its calldata opens with ${app.calldata[0]}. Those must ` +
+          'be the same operation.',
+      )
+    }
+    // Every unpinnable slot must be inside the calldata and must be a slot the plan is prepared to
+    // leave blank. An index past the end would blank nothing and pin a note id that cannot be known.
+    for (const slot of app.noteIdSlots) {
+      if (!Number.isInteger(slot) || slot < 0 || slot >= app.calldata.length) {
+        return bad(`note-id slot ${slot} is outside the ${app.calldata.length}-felt calldata`)
+      }
+    }
+    // ONE SLOT PER OPEN NOTE. A settling payload names the note each payout lands in, so a batch
+    // that mints three notes and blanks two slots is a payload with a stale id in it — which the
+    // contract would happily deposit into somebody else's note.
+    if (app.noteIdSlots.length !== app.openNoteCount) {
+      return bad(
+        `this operation mints ${app.openNoteCount} open notes and leaves ${app.noteIdSlots.length} ` +
+          'note-id slots to be filled. Those must be the same number.',
+      )
+    }
+
+    if (!Number.isInteger(app.openNoteCount) || app.openNoteCount < 0) {
+      return bad(`${JSON.stringify(app.openNoteCount)} is not a count of open notes`)
+    }
+    // THE INVARIANT THE POOL CANNOT CHECK. See `AppInvokeLeg.openNoteCount`: a funding op's
+    // contract returns an empty deposit span, so an open note in that transaction is an unmatched
+    // one — and an unmatched open note reverts on chain after the fee, with the free
+    // `compile_actions` view unable to see it coming.
+    if (isFundingKind(request.kind) && app.openNoteCount !== 0) {
+      return bad(
+        `a ${request.kind} is paid nothing back, so it must create no open notes, and this one ` +
+          `asked for ${app.openNoteCount}. An open note nothing deposits into reverts the whole ` +
+          'transaction after the fee is taken.',
+      )
+    }
+    if (isSettlingKind(request.kind)) {
+      if (app.openNoteCount === 0) {
+        return bad(`a ${request.kind} with no open notes has nowhere for its payout to land`)
+      }
+      const payoutFelt = feltOrNull(app.payoutToken ?? '')
+      if (payoutFelt === null || payoutFelt === 0n) {
+        return bad('a payout needs a token to arrive in, and this one named none')
+      }
+      // Two fields naming one token must agree, for the reason the swap leg's two addresses do:
+      // the subchannel and the open notes are planned off one of them and the deposits arrive in
+      // the other.
+      if (payoutFelt !== feltOrNull(request.token)) {
+        return bad(
+          `this ${request.kind} is paid in ${app.payoutToken} and names ${request.token} as its ` +
+            'token. Those must be the same token.',
+        )
+      }
+    }
+  }
+
   if (recipientFelt === 0n) return bad('refusing to send to the zero address')
 
   const sendTokenFelt = feltOrNull(request.token)
@@ -693,13 +908,21 @@ export function planSend(
   const owed = new Map<string, bigint>()
   const add = (token: string, amount: bigint) =>
     owed.set(canonical(token), (owed.get(canonical(token)) ?? 0n) + amount)
-  add(request.token, request.amount)
+  // A SETTLING SEND OWES NOTHING IN ITS OWN TOKEN. Its `request.token` is the token the payout
+  // ARRIVES in, which the user may hold none of and — for a launch redemption — may not have
+  // existed an hour ago. Adding it here would demand notes of a token nobody has yet.
+  if (!isSettlingKind(request.kind)) add(request.token, request.amount)
   if (feeLeg) add(feeToken, feeLeg.feeWei)
 
   // Notes, grouped in the order the token builders will be created: the send token first, then
   // STRK if the fee is a second token. That order decides the emit order of everything that
   // follows, so it is fixed here rather than left to whatever the caller's array happened to be.
-  const tokenOrder = [canonical(request.token)]
+  //
+  // A settling send spends notes ONLY to cover the relayer's fee, so in self mode it spends none
+  // at all and its action list is `[CreateOpenNote × n, InvokeExternal]`. That list still carries
+  // replay protection: `create_open_note` is one of the six actions that produce a `WriteOnce`.
+  const tokenOrder: string[] = []
+  if (!isSettlingKind(request.kind)) tokenOrder.push(canonical(request.token))
   if (feeLeg && !tokenOrder.includes(canonical(feeToken))) tokenOrder.push(canonical(feeToken))
 
   const spend: { token: string; notes: SendNoteData[] }[] = []
@@ -794,6 +1017,10 @@ export function planSend(
     token: r.token,
   }))
   if (swap) noteChannels.push({ address: self, token: swap.buyToken })
+  // The payout token needs its channel and subchannel exactly as a swap's buy token does — and for
+  // a launch redemption it is a token deployed after this wallet last synced, so its subchannel is
+  // essentially always the one this transaction opens.
+  if (app?.payoutToken) noteChannels.push({ address: self, token: app.payoutToken })
 
   /** The public key each note recipient is registered under, in `noteRecipients` order. */
   const noteRecipientKeys: bigint[] = []
@@ -879,6 +1106,20 @@ export function planSend(
       fields: [BigInt(self), buyChannel?.publicKey ?? null, BigInt(swap.buyToken), null, null],
     })
   }
+  // N OPEN NOTES, ONE PER PAYOUT — the generalisation a batch settlement is made of. A swap has
+  // exactly one; a three-strike claim has three, and the pool credits each of them from the
+  // matching deposit the contract returns. Their `index` and `salt` are the compiler's, so both
+  // are `null`; everything else is identical between them, which is correct — they differ only in
+  // the note index the pool assigns.
+  if (app?.payoutToken && app.openNoteCount > 0) {
+    const payoutChannel = wallet.channels.find((c) => same(c.address, self))
+    for (let i = 0; i < app.openNoteCount; i++) {
+      expectedActions.push({
+        variant: CLIENT_ACTION.CreateOpenNote,
+        fields: [BigInt(self), payoutChannel?.publicKey ?? null, BigInt(app.payoutToken), null, null],
+      })
+    }
+  }
   // WithdrawInput { to_addr, token, amount, random }. The user's leg first, then the relayer's
   // reimbursement — the order `proveSend` drives the builder in.
   //
@@ -893,7 +1134,15 @@ export function planSend(
   // sits in a helper with no owner, where the next caller burns it to their own address. They are
   // the same `request.amount` here, and `assertSendSpan` holds both to it.
   //
-  if (request.kind === 'withdraw' || request.kind === 'swap' || request.kind === 'bridge') {
+  if (
+    request.kind === 'withdraw' ||
+    request.kind === 'swap' ||
+    request.kind === 'bridge' ||
+    // A FUNDING OP WITHDRAWS AND A SETTLING ONE DOES NOT. That single difference is the whole
+    // structural split between the two app shapes: money going in leaves the pool here, money
+    // coming back arrives through the open notes above.
+    isFundingKind(request.kind)
+  ) {
     expectedActions.push({
       variant: CLIENT_ACTION.Withdraw,
       fields: [recipientFelt, BigInt(request.token), request.amount, null],
@@ -963,6 +1212,21 @@ export function planSend(
     })
   }
 
+  // The app contract's invoke: every felt pinned EXCEPT the note-id slots the builder named.
+  //
+  // This is the swap's "all but the last" rule generalised. For a funding op there are no blanks at
+  // all — the payload is entirely decided here — which makes a bet or a buy as completely checked
+  // as a crossing is. For a settling op exactly the note ids are blank, and `assertSendSpan` holds
+  // every other felt, including the secrets, the amounts and the op itself.
+  if (app) {
+    const felts: (bigint | null)[] = app.calldata.map((f) => BigInt(f))
+    for (const slot of app.noteIdSlots) felts[slot] = null
+    expectedActions.push({
+      variant: CLIENT_ACTION.InvokeExternal,
+      fields: [BigInt(app.contract), BigInt(app.calldata.length), ...felts],
+    })
+  }
+
   const plan: SendPlan = {
     request,
     fee: feeLeg,
@@ -1021,14 +1285,31 @@ export function planToValidatableActions(plan: SendPlan): ValidatableAction[] {
   if (request.kind === 'swap' && request.swap) {
     out.push({ type: 'CreateOpenNote', token: request.swap.buyToken, amount: 0n })
   }
-  if (request.kind === 'withdraw' || request.kind === 'swap' || request.kind === 'bridge') {
+  // Same rule, N times: each payout's note commits nothing at compile time, so each one carries a
+  // zero amount and the balance invariant closes on the fee alone.
+  if (request.app?.payoutToken && request.app.openNoteCount > 0) {
+    for (let i = 0; i < request.app.openNoteCount; i++) {
+      out.push({ type: 'CreateOpenNote', token: request.app.payoutToken, amount: 0n })
+    }
+  }
+  if (
+    request.kind === 'withdraw' ||
+    request.kind === 'swap' ||
+    request.kind === 'bridge' ||
+    // A FUNDING OP WITHDRAWS AND A SETTLING ONE DOES NOT. That single difference is the whole
+    // structural split between the two app shapes: money going in leaves the pool here, money
+    // coming back arrives through the open notes above.
+    isFundingKind(request.kind)
+  ) {
     out.push({ type: 'Withdraw', token: request.token, amount: request.amount })
   }
   if (fee) out.push({ type: 'Withdraw', token: STRK_TOKEN, amount: fee.feeWei })
   // NO `CreateOpenNote` FOR A CROSSING, and the balance invariant is why it would be wrong to add
   // one for symmetry: an open note declares that this transaction expects a deposit back into the
   // pool, and a burn deposits nothing. The USDC leaves and the books close on the `Withdraw` alone.
-  if (request.kind === 'swap' || request.kind === 'bridge') out.push({ type: 'InvokeExternal' })
+  if (request.kind === 'swap' || request.kind === 'bridge' || request.app) {
+    out.push({ type: 'InvokeExternal' })
+  }
   return out
 }
 
@@ -1552,6 +1833,55 @@ export async function proveSend(input: ProveSendInput): Promise<ProvedSend> {
   // Built here rather than reused from the plan for the reason the swap leg gives: one serialiser,
   // called twice, cannot disagree with itself about layout. Every felt is already pinned in
   // `expectedActions`, so `assertSendSpan` compares this payload byte for byte against it.
+  // ── The app-contract legs: N open notes, then the instruction that fills them ────────────
+  //
+  // Driven AFTER every spend builder, exactly as the swap leg is and for the same reason: within
+  // the compiler's `createNotes` phase the order is builder insertion order, and `planSend` writes
+  // the open notes after the change notes. `builder.with()` returns the SAME builder for a token
+  // it has already seen, so a payout in STRK appends its open notes to the fee builder rather than
+  // creating a second one — which is the ordering the plan assumes either way.
+  const appLeg = plan.request.app
+  if (appLeg) {
+    if (appLeg.payoutToken && appLeg.openNoteCount > 0) {
+      const payout = builder.with(appLeg.payoutToken)
+      for (const s of plan.openSubchannels) {
+        if (same(s.token, appLeg.payoutToken)) payout.setup(s.recipient)
+      }
+      // One `Open` transfer per payout. `Open` is the SDK's marker for a note whose amount a later
+      // deposit writes — a symbol rather than a number, precisely so it cannot be confused with an
+      // amount of zero, which would be a note committing to nothing and staying that way.
+      for (let i = 0; i < appLeg.openNoteCount; i++) {
+        payout.transfer({ recipient: self, amount: Open })
+      }
+    }
+
+    builder.invoke(({ openNotes }) => {
+      // THE COUNT IS CHECKED AGAINST WHAT THE COMPILER ACTUALLY MINTED, not against what was
+      // asked for. The pool asserts every open note in the transaction was deposited into
+      // (`UNDEPOSITED_OPEN_NOTES`) and its free `compile_actions` view cannot see the mismatch —
+      // it no-ops the emission — so an unmatched note reverts on chain AFTER the fee is taken.
+      // This is the last place that can still be caught for nothing.
+      if (openNotes.length !== appLeg.openNoteCount) {
+        throw new Error(
+          `the compiler minted ${openNotes.length} open notes and this operation deposits into ` +
+            `${appLeg.openNoteCount}. Every open note must be deposited into or the pool reverts ` +
+            'the transaction after taking the fee — refusing to invoke.',
+        )
+      }
+
+      // The note ids, dropped into the slots the calldata builder reserved. In payload order, so
+      // entry `i`'s payout lands in the note the payload names for entry `i`.
+      const calldata = [...appLeg.calldata]
+      appLeg.noteIdSlots.forEach((slot, i) => {
+        const note = openNotes[i]
+        if (note === undefined) throw new Error(`no open note was minted for payout ${i + 1}`)
+        calldata[slot] = `0x${BigInt(note.noteId).toString(16)}`
+      })
+
+      return { contractAddress: appLeg.contract, calldata }
+    })
+  }
+
   const bridgeLeg = plan.request.kind === 'bridge' ? plan.request.bridge : undefined
   if (bridgeLeg) {
     builder.invoke(() => {
