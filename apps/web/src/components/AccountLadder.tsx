@@ -14,6 +14,8 @@
 // `register.ts:1067`. Presenting these as an ordered list rather than a set of buttons is that
 // fact expressed as layout.
 //
+import type { ReactNode } from 'react'
+
 import type { AccountStatus, AccountRung } from '../shell/account-status'
 import { cn } from '../lib/cn'
 import { Button } from './ui/Button'
@@ -64,9 +66,22 @@ export interface AccountLadderProps {
   deploying?: boolean
   /** What went wrong with the last attempt, as a sentence. */
   problem?: string | null
+  /**
+   * The backup ceremony, rendered inside the registration rung.
+   *
+   * Passed in rather than constructed here so this component stays a ladder and does not need to
+   * know what an account key is — the same reason `onDeploy` is a callback.
+   */
+  backup?: ReactNode
 }
 
-export function AccountLadder({ status, onDeploy, deploying = false, problem = null }: AccountLadderProps) {
+export function AccountLadder({
+  status,
+  onDeploy,
+  deploying = false,
+  problem = null,
+  backup,
+}: AccountLadderProps) {
   if (status.rung === 'unknown') {
     return (
       <div className="rounded-large border border-solid border-surface3 p-s16">
@@ -113,9 +128,21 @@ export function AccountLadder({ status, onDeploy, deploying = false, problem = n
               ) : null}
 
               {/*
+                THE BACKUP CEREMONY IS PART OF THIS RUNG, not a separate screen.
+
+                `canRegister` defaults to false and stays false until the ceremony reaches its
+                terminal state, so registration is genuinely unreachable without it — putting the
+                ceremony anywhere else would mean a user pressing Register and being refused by
+                something they had never been shown.
+              */}
+              {state === 'current' && rung === 'unregistered' && backup ? (
+                <div className="mt-s8">{backup}</div>
+              ) : null}
+
+              {/*
                 THE ONE RUNG THIS APP CAN CLEAR ITSELF. Funding is someone else's action and
-                registration needs the send pipeline; deployment is a single transaction the
-                account pays for out of what it already holds.
+                registration costs the pool fee; deployment is a single transaction the account
+                pays for out of what it already holds.
               */}
               {state === 'current' && rung === 'undeployed' && onDeploy ? (
                 <div className="mt-s4 flex flex-col gap-s4">
