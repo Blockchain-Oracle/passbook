@@ -55,7 +55,11 @@ ENV PORT=8080
 # between the funded key and a visitor who discovers that redeploying resets their spend cap.
 ENV RELAYER_SPONSOR_STORE=/data/sponsorship.json
 ENV RELAYER_SEND_STORE=/data/send-budget.json
-ENV RELAYER_INVITE_STORE=/data/invites.json
+# NO `RELAYER_INVITE_STORE` HERE, and it is not an omission. `resolveInviteConfig` refuses to start
+# a server that has been given an invite store without `RELAYER_INVITE_ALLOWANCE`, because the
+# feature would be OFF and the setting would quietly have no effect — this image was written with
+# the path and without the allowance, and the first deploy crash-looped on exactly that refusal.
+# Invites are off here, the same as a local run. Turning them on means setting BOTH.
 
 EXPOSE 8080
 
