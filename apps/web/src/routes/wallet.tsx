@@ -13,6 +13,8 @@ import { Text } from '../components/ui/Text'
 import { ResponsiveDialog } from '../shell/ResponsiveDialog'
 import { readAccountStatus, type AccountStatus } from '../shell/account-status'
 import { deployAccount } from '../shell/submit'
+import { registerAccount } from '../shell/register'
+import type { RegistrationStage } from '@strk20/protocol/pipeline-stage'
 import { useBalance } from '../shell/use-balance'
 import { findToken, useTokenList } from '../shell/use-token-list'
 import { useSession, shortenFelt } from '../shell/session'
@@ -60,8 +62,11 @@ function Wallet() {
   const [statusNonce, setStatusNonce] = useState(0)
   const [deploying, setDeploying] = useState(false)
   const [deployProblem, setDeployProblem] = useState<string | null>(null)
-  // The ceremony's terminal state is what `canRegister` will read when registration is wired.
-  const [, setBackedUp] = useState(false)
+  // The ceremony's terminal state IS `canRegister`. Registration reads it and the pipeline
+  // enforces it again — a guard that lives only in the caller is one the next caller forgets.
+  const [backedUp, setBackedUp] = useState(false)
+  const [registering, setRegistering] = useState<RegistrationStage | null>(null)
+  const [registerProblem, setRegisterProblem] = useState<string | null>(null)
 
   useEffect(() => {
     if (!ready) return
@@ -73,6 +78,25 @@ function Wallet() {
       live = false
     }
   }, [ready?.address, statusNonce])
+
+  const onRegister = useCallback(async () => {
+    if (!ready) return
+    setRegisterProblem(null)
+    setRegistering('build')
+    const result = await registerAccount({
+      accountKey: ready.accountKey,
+      address: ready.address,
+      backedUp,
+      onStage: setRegistering,
+    })
+    setRegistering(null)
+    if (!result.ok) {
+      setRegisterProblem(result.because)
+      return
+    }
+    // Re-read rather than assume the rung moved — the ladder reports what it reads.
+    setStatusNonce((n) => n + 1)
+  }, [ready, backedUp])
 
   const onDeploy = useCallback(async () => {
     if (!ready) return
@@ -134,6 +158,10 @@ function Wallet() {
                 onDeploy={onDeploy}
                 deploying={deploying}
                 problem={deployProblem}
+                onRegister={onRegister}
+                registering={registering}
+                registerProblem={registerProblem}
+                canRegister={backedUp}
                 backup={
                   <BackupCeremony
                     accountKey={ready.accountKey}

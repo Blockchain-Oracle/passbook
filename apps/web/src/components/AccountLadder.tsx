@@ -73,6 +73,13 @@ export interface AccountLadderProps {
    * know what an account key is — the same reason `onDeploy` is a callback.
    */
   backup?: ReactNode
+  /** Register with the pool. Rendered only when supplied AND the ceremony has opened the gate. */
+  onRegister?: () => void
+  /** Which of the four stages is running, or `null` when nothing is. */
+  registering?: string | null
+  registerProblem?: string | null
+  /** The ceremony's terminal state. False keeps the button out of reach rather than disabled. */
+  canRegister?: boolean
 }
 
 export function AccountLadder({
@@ -81,6 +88,10 @@ export function AccountLadder({
   deploying = false,
   problem = null,
   backup,
+  onRegister,
+  registering = null,
+  registerProblem = null,
+  canRegister = false,
 }: AccountLadderProps) {
   if (status.rung === 'unknown') {
     return (
@@ -136,7 +147,38 @@ export function AccountLadder({
                 something they had never been shown.
               */}
               {state === 'current' && rung === 'unregistered' && backup ? (
-                <div className="mt-s8">{backup}</div>
+                <div className="mt-s8 flex flex-col gap-s12">
+                  {backup}
+
+                  {/*
+                    THE BUTTON APPEARS ONLY ONCE THE CEREMONY HAS OPENED THE GATE, rather than
+                    sitting there disabled. A disabled Register beside an unfinished ceremony
+                    invites the reading "this is broken"; an absent one reads as "there is a step
+                    above this", which is the truth.
+                  */}
+                  {canRegister && onRegister ? (
+                    <div className="flex flex-col gap-s4">
+                      <Button
+                        variant="primary"
+                        size="md"
+                        fill
+                        onClick={onRegister}
+                        disabled={registering !== null}
+                      >
+                        {registering ? STAGE_LABEL[registering] ?? 'Working…' : 'Register with the pool'}
+                      </Button>
+                      <Text variant="body4" className="text-neutral2">
+                        Costs the pool&rsquo;s fee plus gas, paid from this account. A failed attempt
+                        still costs the gas.
+                      </Text>
+                      {registerProblem ? (
+                        <Text variant="body4" className="text-irreversible">
+                          {registerProblem}
+                        </Text>
+                      ) : null}
+                    </div>
+                  ) : null}
+                </div>
               ) : null}
 
               {/*
@@ -162,6 +204,21 @@ export function AccountLadder({
       })}
     </ol>
   )
+}
+
+/**
+ * What each pipeline stage is called on screen.
+ *
+ * The pipeline's own vocabulary is `build` / `prove` / `relay` / `confirmed`. `relay` is the one
+ * that needs rewording here: this browser is not relaying to anyone, it is signing and
+ * broadcasting, and showing a user the word for the architecture they are NOT using is how copy
+ * ends up describing a different product.
+ */
+const STAGE_LABEL: Record<string, string> = {
+  build: 'Building the registration…',
+  prove: 'Proving…',
+  relay: 'Signing and broadcasting…',
+  confirmed: 'Confirming on chain…',
 }
 
 /**

@@ -29,6 +29,7 @@
 //
 import { NET } from '@strk20/protocol/constants'
 import { OZ_ACCOUNT_CLASS_HASH } from '@strk20/protocol/account-address'
+import type { SubmitResponseBody } from '@strk20/protocol/relayer-wire'
 
 /** What `send.ts` hands an executor: the assembled calls plus the V3 proof fields. */
 export interface SubmitDetails {
@@ -59,6 +60,62 @@ export function makeSelfSubmit(accountKey: string, address: string) {
 
     const { transaction_hash } = await account.execute(calls as never, details as never)
     return transaction_hash
+  }
+}
+
+/**
+ * A `submit` for `registerSponsored` that signs from THIS browser instead of posting to a relayer.
+ *
+ * ── THE SEAM WAS ALREADY THE RIGHT SHAPE, WHICH IS WHY NOTHING IN register.ts CHANGES ────
+ *
+ * `RegisterDeps.submit` receives `(url, body)` where the body already carries the assembled calls,
+ * the proof facts and the proof blob — everything a signer needs. It is described as the relayer
+ * seam, and it is; but "post this somewhere that will sign it" and "sign it here" differ only in
+ * who holds the key. So the url is ignored and the browser signs.
+ *
+ * That matters beyond convenience: `registerSponsored` is proven on mainnet, and modifying it to
+ * add a self-submit branch would put new code in the one pipeline that has actually worked. This
+ * adds none.
+ *
+ * ── IT REPORTS THE RELAYER'S SHAPE HONESTLY, INCLUDING THE DANGEROUS CASE ────────────────
+ *
+ * A 200 means "there is a transaction and here is its hash". If signing throws AFTER the broadcast
+ * left — a timeout, a dropped socket — the transaction may exist and we do not know its hash, which
+ * `RelayResponse` models as `bodyUnreadable` and calls "the single worst state to report as a clean
+ * refusal". A thrown error from `account.execute` cannot distinguish the two, so this reports a
+ * 502 WITHOUT claiming the request never landed, and the pipeline's own retry discipline applies.
+ *
+ * NOTE ON WHAT THIS COSTS. The relayer path is sponsored; this one is not. The user's own account
+ * pays the pool fee and the gas, including on an attempt that reverts.
+ */
+export function makeSelfSubmitRegistration(accountKey: string, address: string) {
+  const sign = makeSelfSubmit(accountKey, address)
+
+  return async (
+    _url: string,
+    body: { calls: unknown[]; proofFacts?: string[]; proof?: string },
+  ): Promise<{ status: number; body: SubmitResponseBody }> => {
+    // BOTH OR NEITHER. The sequencer requires the pair on a v3 invoke and rejects a broadcast
+    // carrying one without the other, so a missing half is refused here rather than paid for.
+    if (!body.proofFacts?.length || !body.proof) {
+      return {
+        status: 400,
+        body: { error: 'refusing to submit without both the proof facts and the proof blob' },
+      }
+    }
+
+    try {
+      const transactionHash = await sign(body.calls as SubmitCall[], {
+        proofFacts: body.proofFacts,
+        proof: body.proof,
+      })
+      return { status: 200, body: { transactionHash } }
+    } catch (error) {
+      return {
+        status: 502,
+        body: { error: error instanceof Error ? error.message : 'the browser could not sign this' },
+      }
+    }
   }
 }
 
