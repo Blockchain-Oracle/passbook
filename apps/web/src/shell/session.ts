@@ -54,6 +54,23 @@ import { useSyncExternalStore } from 'react'
 // written that way. Importing it dynamically here while `submit.ts` imports it statically also
 // defeated both splits — the bundler said so, and the warning contract refused the build.
 import { accountAddressFor } from '@strk20/protocol/account-address'
+//
+// STATIC, AND THE BUILD GATE IS WHY. These were four dynamic imports, on the reasoning that a
+// lifecycle sentence is only needed when a lifecycle action runs. That was wrong in the way the
+// gate names: `AccountDrawer`, `ReceivePanel` and `wallet.tsx` all import this module STATICALLY,
+// so it is already in their chunk and the dynamic form here split a reference rather than any
+// code (`INEFFECTIVE_DYNAMIC_IMPORT`). It costs nothing to take eagerly — `account-copy.ts` is
+// pure strings with no imports of its own, which is exactly what a copy module is for.
+//
+import {
+  IMPORT_CODE_WRONG,
+  IMPORT_DIFFERENT_IDENTITY,
+  IMPORT_FILE_UNREADABLE,
+  IMPORT_NO_KEY,
+  IMPORT_UNSUPPORTED_VERSION,
+  LOCK_NOT_SAVED,
+  UNLOCK_DIFFERENT_IDENTITY,
+} from '@strk20/protocol/account-copy'
 
 /** One account this browser holds, as the drawer's switch list needs it. Never carries a key. */
 export interface AccountSummary {
@@ -347,7 +364,6 @@ async function ensureBooted(): Promise<void> {
         // The stored key no longer derives the address stored beside it. Refuse to open into it —
         // zk-freighter's `App.tsx:107` check, and the reason is the same: an app that quietly
         // adopts a swapped identity would let a user fund and register the wrong account.
-        const { UNLOCK_DIFFERENT_IDENTITY } = await import('@strk20/protocol/account-copy')
         publish({
           status: 'locked',
           address: active.address,
@@ -395,8 +411,6 @@ export async function lockSession(): Promise<SessionOutcome> {
   if (state.status !== 'ready') return { ok: true }
   try {
     const t = await loadTier()
-    const { LOCK_NOT_SAVED } = await import('@strk20/protocol/account-copy')
-
     // RE-READ AFTER THE AWAIT. `state` is a module singleton and both awaits above yield, so a
     // switch that was already in flight can publish in between — and locking against the snapshot
     // taken on entry would put the PREVIOUS account's address on the locked screen while storage
@@ -437,7 +451,6 @@ export async function lockSession(): Promise<SessionOutcome> {
 export async function unlockSession(): Promise<SessionOutcome> {
   try {
     const t = await loadTier()
-    const { UNLOCK_DIFFERENT_IDENTITY } = await import('@strk20/protocol/account-copy')
     const read = t.accounts.load()
     if (read.kind !== 'present') {
       //
@@ -601,7 +614,6 @@ export async function createAccount(label?: string): Promise<SessionOutcome> {
 export async function importAccount(file: string, recoveryCode: string): Promise<ImportOutcome> {
   try {
     const t = await loadTier()
-    const copy = await import('@strk20/protocol/account-copy')
 
     let restored: string
     try {
@@ -612,19 +624,19 @@ export async function importAccount(file: string, recoveryCode: string): Promise
       // of an INTACT file to replace it invites them to delete a key that cannot be reissued.
       const because =
         kind === 'unsupported-version'
-          ? copy.IMPORT_UNSUPPORTED_VERSION
+          ? IMPORT_UNSUPPORTED_VERSION
           : kind === 'not-json' || kind === 'not-an-envelope'
-            ? copy.IMPORT_FILE_UNREADABLE
-            : copy.IMPORT_CODE_WRONG
+            ? IMPORT_FILE_UNREADABLE
+            : IMPORT_CODE_WRONG
       return { ok: false, because }
     }
 
-    if (!t.identity.isStarkPrivateKey(restored)) return { ok: false, because: copy.IMPORT_NO_KEY }
+    if (!t.identity.isStarkPrivateKey(restored)) return { ok: false, because: IMPORT_NO_KEY }
 
     const derived = identityFor(t, restored)
     const header = t.identity.readBackupHeader(file)
     if (header?.receiveAddress && !t.protocol.sameAddress(header.receiveAddress, derived.address)) {
-      return { ok: false, because: copy.IMPORT_DIFFERENT_IDENTITY }
+      return { ok: false, because: IMPORT_DIFFERENT_IDENTITY }
     }
 
     const read = t.accounts.load()
