@@ -80,6 +80,7 @@ import {
 } from './sponsorship.js'
 import { FileSponsorshipStore, isAcceptableSalt } from './sponsorship-store.js'
 import { InviteLedger, normalizeCode, type InviteConfig } from './invite.js'
+import { openDirectory, type Directory } from './directory.js'
 import { FileInviteStore } from './invite-store.js'
 import {
   createFundingMonitor,
@@ -117,6 +118,9 @@ const FEE_RECIPIENT_PATHS = new Set(['/fee-recipient', '/api/fee-recipient'])
 const INVITE_MINT_PATHS = new Set(['/invite/mint', '/api/invite/mint'])
 const INVITE_CLAIM_PATHS = new Set(['/invite/claim', '/api/invite/claim'])
 const INVITE_STATUS_PATHS = new Set(['/invite/status', '/api/invite/status'])
+const DIRECTORY_CLAIM_PATHS = new Set(['/directory/claim', '/api/directory/claim'])
+const DIRECTORY_LIST_PATHS = new Set(['/directory/list', '/api/directory/list'])
+const DIRECTORY_AVATAR_PATHS = new Set(['/directory/avatar', '/api/directory/avatar'])
 
 // The chat transport (B3). Both spellings for the same reason as SUBMIT_PATHS.
 //
@@ -250,9 +254,13 @@ async function handle(req: IncomingMessage, res: ServerResponse, opts: RelayerSe
   // A relayer with no hub answers 404 on both room routes, on the same reasoning as the invite
   // ones: this deployment does not carry chat at all, so there is nothing for a client to retry.
   const isRoom = opts.rooms !== undefined && (ROOM_STREAM_PATHS.has(url) || ROOM_SEND_PATHS.has(url))
+  // Same rule again for the name directory: no ledger, no routes.
+  const isDirectory =
+    opts.directory !== undefined &&
+    (DIRECTORY_CLAIM_PATHS.has(url) || DIRECTORY_LIST_PATHS.has(url) || DIRECTORY_AVATAR_PATHS.has(url))
   if (
     !isFeeRecipient &&
-    (req.method !== 'POST' || !(isSubmit || isInvite || isRoom || QUOTE_PATHS.has(url)))
+    (req.method !== 'POST' || !(isSubmit || isInvite || isRoom || isDirectory || QUOTE_PATHS.has(url)))
   ) {
     send(res, 404, { error: 'not found' })
     return
@@ -308,6 +316,13 @@ async function handle(req: IncomingMessage, res: ServerResponse, opts: RelayerSe
   // stranger spending somebody's invites and probing codes. Same door, same lock.
   if (isInvite) {
     await handleInvite(req, res, url, opts)
+    return
+  }
+  // Same door, same lock, and the directory is the one record that WANTS to be read — the gates
+  // here are about writes (a claim is a durable public statement) and about not being a free
+  // fetch proxy for whoever finds the port.
+  if (isDirectory) {
+    await handleDirectory(req, res, url, opts)
     return
   }
   // BEHIND ALL FOUR GATES, like everything else, and the reason is not that chat spends money —
@@ -444,6 +459,55 @@ async function handleInvite(
   } catch (e) {
     console.warn(`relayer: invite ledger write failed: ${String(e)}`)
     send(res, 500, { error: 'the invite ledger could not be written; refusing to mint or burn' })
+  }
+}
+
+/**
+ * The three directory routes. Wiring only — every rule lives in `directory.ts`, where a test
+ * can execute it without a socket.
+ */
+async function handleDirectory(
+  req: IncomingMessage,
+  res: ServerResponse,
+  url: string,
+  opts: RelayerServerOptions,
+): Promise<void> {
+  const directory = opts.directory!
+
+  if (DIRECTORY_LIST_PATHS.has(url)) {
+    // The body is read and discarded — the route is POST for gate symmetry, but a list takes no
+    // arguments ON PURPOSE: a parameterised search here would tell this process who is looking
+    // for whom, and the client-side match over the whole (small) list is the private version.
+    try {
+      await readJsonBody(req)
+    } catch {
+      // A bare POST with no body is fine for a read.
+    }
+    send(res, 200, { entries: directory.list() })
+    return
+  }
+
+  let parsed: unknown
+  try {
+    parsed = await readJsonBody(req)
+  } catch (e) {
+    send(res, 400, { error: String(e) })
+    return
+  }
+
+  if (DIRECTORY_AVATAR_PATHS.has(url)) {
+    const address = (parsed as { address?: unknown } | null)?.address
+    send(res, 200, { avatar: directory.avatar(address) })
+    return
+  }
+
+  try {
+    const outcome = await directory.claim(parsed)
+    if (outcome.ok) send(res, 200, { ok: true })
+    else send(res, outcome.status, { error: outcome.error })
+  } catch (e) {
+    console.warn(`relayer: directory ledger write failed: ${String(e)}`)
+    send(res, 500, { error: 'the directory could not be written; the claim was not recorded' })
   }
 }
 
@@ -1300,6 +1364,11 @@ export interface RelayerServerOptions {
    */
   invites?: InviteLedger
   /**
+   * The opt-in name directory (see `directory.ts`). Absent means this relayer publishes no
+   * names: all three routes are 404, and search degrades to raw addresses client-side.
+   */
+  directory?: Directory
+  /**
    * The address a client should name in a fee-reimbursement `Withdraw` — this relayer's own.
    * Absent means `GET /fee-recipient` refuses; see `handleFeeRecipient`.
    */
@@ -1886,10 +1955,28 @@ async function main(): Promise<void> {
   const invites = openInviteLedger(sponsorConfig, sponsorship.salt)
 
   const nodeUrl = await pickLiveRpcHost()
+  const provider = new RpcProvider({ nodeUrl })
   const account = new Account({
-    provider: new RpcProvider({ nodeUrl }),
+    provider,
     address,
     signer: privateKey,
+  })
+
+  // The name directory — a fourth ledger file, for the by-now-familiar reason: resetting a
+  // public registry must never be a side effect of maintaining a private one. The key read is
+  // the pool's own view, so a claim verifies against exactly what registration wrote.
+  const directory = openDirectory({
+    file:
+      process.env.RELAYER_DIRECTORY_STORE ||
+      fileURLToPath(new URL('../../../.relayer/directory.json', import.meta.url)),
+    readPublicKey: async (userAddress) => {
+      const result = await provider.callContract({
+        contractAddress: NET.pool,
+        entrypoint: 'get_public_key',
+        calldata: [userAddress],
+      })
+      return BigInt(result[0] ?? '0x0')
+    },
   })
 
   const monitor: FundingMonitor = createFundingMonitor({
@@ -1941,6 +2028,7 @@ async function main(): Promise<void> {
     // while the health is `unknown`, so a failed read cannot turn an RPC blip into an outage.
     relayerState: () => monitor.userState(),
     rooms,
+    directory,
   })
 
   // One read now, then on a timer. The startup read is what turns "we would have noticed
