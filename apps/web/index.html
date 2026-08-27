@@ -4,6 +4,43 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Passbook</title>
+    <meta
+      name="description"
+      content="Private payments, chat and markets on Starknet."
+    />
+
+    <!--
+      INSTALLABILITY.
+
+      `start_url` is `/wallet` rather than `/`, because an installed app opens where the user's own
+      money is. `/` is the surface for somebody arriving cold; a home-screen icon is pressed by
+      somebody who already has an account.
+
+      ── THE THEME COLOUR IS DECLARED TWICE, AND IT HAS TO BE ────────────────────────────────
+
+      `theme_color` in the manifest paints the installed app's title bar, and it is a single value
+      the manifest format has no way to vary. These two `<meta>` tags are what the BROWSER reads,
+      and they carry the light and dark values from `design/tokens.yaml` — `ground` in each mode, so
+      the browser chrome matches the page it sits above instead of framing it in the wrong colour.
+
+      The manifest's own `theme_color` is the dark one, because that is the value an installed
+      standalone window uses before any media query is evaluated.
+    -->
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#ffffff" />
+    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#131313" />
+
+    <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/icon.svg" />
+
+    <!--
+      iOS reads none of the manifest. `apple-mobile-web-app-capable` is what makes an added-to-home-
+      screen Passbook open without Safari's chrome, and `status-bar-style: default` keeps the status
+      bar legible against both themes rather than forcing white-on-white in light mode.
+    -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="Passbook" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <!--
       BLOCKING and INLINE, and it must stay both.
 

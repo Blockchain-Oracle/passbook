@@ -23,7 +23,7 @@ import { ACTIVE_NETWORK, NET } from '@strk20/protocol/constants'
 
 import { MODES, MODE_LABELS, MODE_ROUTES, type Mode } from '../shell/modes'
 import { ERROR_ROUTE_ID, NotFoundSurface, Surface } from '../shell/Surface'
-import { bindPaletteShortcut } from '../shell/palette-binding'
+import { bindPaletteChord, bindPaletteShortcut, bindShortcutsOverlay } from '../shell/palette-binding'
 import type { PaletteCommand } from '../shell/CommandPalette'
 import { PipelineRow } from '../shell/PipelineRow'
 import { getHealth, setHealth, subscribeHealth, watchConnectivity } from '../shell/pool-health'
@@ -47,6 +47,9 @@ import { ToastViewport } from '../shell/ToastViewport'
 // reason it is here.
 //
 const CommandPalette = lazy(() => import('../shell/CommandPalette'))
+const ShortcutsOverlay = lazy(() =>
+  import('../shell/ShortcutsOverlay').then((m) => ({ default: m.ShortcutsOverlay })),
+)
 
 /** Every path the palette can take you to. Literal types, so the router checks each one. */
 type PalettePath = (typeof MODE_ROUTES)[Mode] | '/settings'
@@ -69,11 +72,36 @@ const PALETTE_DESTINATIONS: readonly { readonly to: PalettePath; readonly label:
  * Built once at module scope rather than per render: a new array every render is a new `items`
  * identity, and the list would re-derive its filtered set and drop the highlight on every keystroke.
  */
-const PALETTE_COMMANDS: readonly PaletteCommand[] = PALETTE_DESTINATIONS.map(({ to, label }) => ({
-  id: to,
-  label,
-  detail: to,
-}))
+const PALETTE_COMMANDS: readonly PaletteCommand[] = [
+  //
+  // ACTIONS FIRST, then destinations.
+  //
+  // A palette that can only navigate is a nav menu with a text field in front of it. These two are
+  // what somebody opening it actually wants — and they are ranked above the routes because "Send"
+  // typed into a palette means the verb, not the page it happens to live on.
+  //
+  // Both resolve to a route today, because that is where the form is. They are separate entries
+  // rather than aliases so their LABELS can be the verb while their destinations stay honest.
+  //
+  { id: 'action:send', label: 'Send', detail: 'Pay someone' },
+  { id: 'action:receive', label: 'Receive', detail: 'Show your address' },
+  ...PALETTE_DESTINATIONS.map(({ to, label }) => ({ id: to, label, detail: to })),
+]
+
+/**
+ * Where each action lands.
+ *
+ * Its own union rather than `PalettePath`, because an ACTION is not a nav destination: `/send` is a
+ * real route but not one of the six modes, so it is deliberately absent from the nav type. Widening
+ * `PalettePath` to admit it would have put Send in the navigation bar as a side effect of adding a
+ * palette command.
+ */
+type ActionPath = '/send' | '/wallet'
+
+const PALETTE_ACTIONS: Readonly<Record<string, ActionPath>> = {
+  'action:send': '/send',
+  'action:receive': '/wallet',
+}
 
 export const Route = createRootRoute({
   component: RootLayout,
@@ -99,18 +127,38 @@ function RootLayout() {
   //
   const [open, setOpen] = useState(false)
   const [mounted, setMounted] = useState(false)
+  // Same two-state split as the palette, for the same reason: the overlay's chunk is fetched on the
+  // first `?` and never thrown away afterwards.
+  const [shortcutsOpen, setShortcutsOpen] = useState(false)
+  const [shortcutsMounted, setShortcutsMounted] = useState(false)
 
   const openPalette = useCallback(() => {
     setMounted(true)
     setOpen(true)
   }, [])
 
-  // The `/` shortcut, on keyup and never inside a text field. Both reasons are in
-  // `../shell/palette-binding.ts`; neither is something either palette library provides.
+  const openShortcuts = useCallback(() => {
+    setShortcutsMounted(true)
+    setShortcutsOpen(true)
+  }, [])
+
+  // THREE BINDINGS, TWO EVENT TYPES, and the split is not arbitrary — `palette-binding.ts` has the
+  // full reasoning. `/` and `?` are CHARACTERS and bind on keyup so they cannot leak into the field
+  // the overlay just focused; `⌘K` is a chord that produces no character and must bind on keydown,
+  // because that is the only place the browser's own address-bar shortcut can be taken from it.
   useEffect(() => bindPaletteShortcut(openPalette), [openPalette])
+  useEffect(() => bindPaletteChord(openPalette), [openPalette])
+  useEffect(() => bindShortcutsOverlay(openShortcuts), [openShortcuts])
 
   const runCommand = useCallback(
     (command: PaletteCommand) => {
+      // An action resolves through its own map first; a destination is looked up by id. Two
+      // lookups rather than one merged list, so an action id can never collide with a route path.
+      const action = PALETTE_ACTIONS[command.id]
+      if (action) {
+        void navigate({ to: action })
+        return
+      }
       const destination = PALETTE_DESTINATIONS.find((d) => d.to === command.id)
       // A command whose destination has been deleted does NOTHING rather than navigating somewhere
       // arbitrary. It cannot happen while both lists come from the same array, which is why this is
@@ -253,6 +301,13 @@ function RootLayout() {
             commands={PALETTE_COMMANDS}
             onRun={runCommand}
           />
+        </Suspense>
+      ) : null}
+
+      {/* Same latch, same `fallback={null}` reasoning as the palette above. */}
+      {shortcutsMounted ? (
+        <Suspense fallback={null}>
+          <ShortcutsOverlay open={shortcutsOpen} onOpenChange={setShortcutsOpen} />
         </Suspense>
       ) : null}
 
