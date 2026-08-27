@@ -93,6 +93,7 @@ import {
   PROXY_TARGETS,
   type ProxyTargetName,
 } from './quote-proxy.js'
+import { isWireEnvelope, RoomHub, ROOM_HISTORY, ROOM_IDLE_MS } from './rooms.js'
 
 // R10 names `POST /submit`; the browser posts to the same-origin `/api/submit`, which
 // a dev-server proxy or edge rule normally rewrites. Accepting both means the two
@@ -116,6 +117,22 @@ const FEE_RECIPIENT_PATHS = new Set(['/fee-recipient', '/api/fee-recipient'])
 const INVITE_MINT_PATHS = new Set(['/invite/mint', '/api/invite/mint'])
 const INVITE_CLAIM_PATHS = new Set(['/invite/claim', '/api/invite/claim'])
 const INVITE_STATUS_PATHS = new Set(['/invite/status', '/api/invite/status'])
+
+// The chat transport (B3). Both spellings for the same reason as SUBMIT_PATHS.
+//
+// BOTH ARE POSTS, INCLUDING THE ONE THAT STREAMS, and that is this file's rule showing up rather
+// than a preference. The room id would naturally live in the path or a query string, and either
+// would mean teaching `handle()` to parse a URL — the thing the invite note above refuses for the
+// same reason. It travels in the JSON body instead, which costs the client nothing and keeps
+// every gate matching an exact string.
+//
+// It also keeps the two controls that a `GET` would give away. `EventSource` — the browser API a
+// streaming GET exists for — cannot set a request header at all: not `content-type`, which is
+// what separates a cross-origin page from this port, and not `x-relayer-auth`, which is the only
+// control that survives a proxy. A page on any origin could open an EventSource against a room id
+// it guessed; it cannot open this. The client reads the stream with `fetch` and a reader instead.
+const ROOM_STREAM_PATHS = new Set(['/room/stream', '/api/room/stream'])
+const ROOM_SEND_PATHS = new Set(['/room/send', '/api/room/send'])
 
 // An upstream that will not answer in this long is an upstream the caller has already
 // given up on, and a request left hanging is a socket the relayer keeps paying for.
@@ -230,9 +247,12 @@ async function handle(req: IncomingMessage, res: ServerResponse, opts: RelayerSe
   const isInvite =
     opts.invites !== undefined &&
     (INVITE_MINT_PATHS.has(url) || INVITE_CLAIM_PATHS.has(url) || INVITE_STATUS_PATHS.has(url))
+  // A relayer with no hub answers 404 on both room routes, on the same reasoning as the invite
+  // ones: this deployment does not carry chat at all, so there is nothing for a client to retry.
+  const isRoom = opts.rooms !== undefined && (ROOM_STREAM_PATHS.has(url) || ROOM_SEND_PATHS.has(url))
   if (
     !isFeeRecipient &&
-    (req.method !== 'POST' || !(isSubmit || isInvite || QUOTE_PATHS.has(url)))
+    (req.method !== 'POST' || !(isSubmit || isInvite || isRoom || QUOTE_PATHS.has(url)))
   ) {
     send(res, 404, { error: 'not found' })
     return
@@ -288,6 +308,16 @@ async function handle(req: IncomingMessage, res: ServerResponse, opts: RelayerSe
   // stranger spending somebody's invites and probing codes. Same door, same lock.
   if (isInvite) {
     await handleInvite(req, res, url, opts)
+    return
+  }
+  // BEHIND ALL FOUR GATES, like everything else, and the reason is not that chat spends money —
+  // it cannot, the hub never touches the key. It is that an open broadcast bus on a funded
+  // signer's host is a free anonymous relay pointed at this machine's egress, and the first
+  // symptom would be an abuse report naming an address that also signs transactions.
+  if (isRoom) {
+    await (ROOM_STREAM_PATHS.has(url)
+      ? handleRoomStream(req, res, opts)
+      : handleRoomSend(req, res, opts))
     return
   }
   await (isSubmit ? handleSubmit(req, res, opts) : handleQuote(req, res, opts))
@@ -415,6 +445,158 @@ async function handleInvite(
     console.warn(`relayer: invite ledger write failed: ${String(e)}`)
     send(res, 500, { error: 'the invite ledger could not be written; refusing to mint or burn' })
   }
+}
+
+/**
+ * How often a live stream writes a comment line into the socket.
+ *
+ * Not for the client — it has an open reader and needs no reassurance. It is for everything
+ * BETWEEN: proxies and load balancers close a connection that has been silent, and on a chat
+ * surface that reads as the app being broken rather than as a middlebox being thrifty. Well under
+ * the shortest idle timeout in common use (60s on most, 30s on a few).
+ */
+const ROOM_HEARTBEAT_MS = 20_000
+
+/** The refusals the hub can answer with, mapped to what a client should be told and do. */
+const ROOM_REFUSAL_STATUS: Record<string, number> = {
+  'bad-room-id': 400,
+  'bad-envelope': 400,
+  'envelope-too-large': 413,
+  'too-many-rooms': 503,
+  'room-full': 503,
+  'rate-limited': 429,
+}
+
+/**
+ * `POST /api/room/send` — hand one sealed envelope to the bus.
+ *
+ * WHAT THIS FUNCTION DELIBERATELY DOES NOT DO: look inside. It checks that the body is a small
+ * JSON object with the four envelope fields and a well-formed room id, and then passes the
+ * envelope through as an opaque string. There is no key here to open it with and no field whose
+ * meaning this side is entitled to have an opinion about.
+ */
+async function handleRoomSend(
+  req: IncomingMessage,
+  res: ServerResponse,
+  opts: RelayerServerOptions,
+): Promise<void> {
+  let parsed: unknown
+  try {
+    parsed = await readJsonBody(req)
+  } catch (e) {
+    send(res, 400, { error: String(e) })
+    return
+  }
+  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+    send(res, 400, { error: 'body must be a JSON object' })
+    return
+  }
+
+  const { room, envelope } = parsed as { room?: unknown; envelope?: unknown }
+  if (typeof room !== 'string') {
+    send(res, 400, { error: 'room must be a string' })
+    return
+  }
+  if (!isWireEnvelope(envelope)) {
+    send(res, 400, { error: 'envelope must be {v:1, iv, ct, from}' })
+    return
+  }
+
+  // Re-serialised rather than forwarded verbatim: the string that reaches the hub is then exactly
+  // the four fields it was narrowed to, so a caller cannot smuggle a megabyte of extra keys past
+  // a shape check that only looked at four of them.
+  const wire = JSON.stringify({ v: 1, iv: envelope.iv, ct: envelope.ct, from: envelope.from })
+  const result = opts.rooms!.publish(room, wire)
+  if (!result.ok) {
+    send(res, ROOM_REFUSAL_STATUS[result.reason] ?? 400, { error: result.reason })
+    return
+  }
+  // `delivered` is how many sockets took it, NOT how many people read it. A zero is the ordinary
+  // shape of a shut tab — the envelope is buffered — so a client must not render it as a failure.
+  send(res, 200, { delivered: result.delivered })
+}
+
+/**
+ * `POST /api/room/stream` — subscribe, and keep the socket open.
+ *
+ * The response is `text/event-stream`, so the framing is SSE's even though the request is a POST
+ * (see ROOM_STREAM_PATHS for why it is a POST). That framing is worth keeping rather than
+ * inventing one: `data:` lines, a blank line between events, `:` for a comment. What is dropped is
+ * `EventSource` on the client, which cannot send a header and so cannot be used here anyway.
+ */
+async function handleRoomStream(
+  req: IncomingMessage,
+  res: ServerResponse,
+  opts: RelayerServerOptions,
+): Promise<void> {
+  let parsed: unknown
+  try {
+    parsed = await readJsonBody(req)
+  } catch (e) {
+    send(res, 400, { error: String(e) })
+    return
+  }
+  const room = (parsed as { room?: unknown } | null)?.room
+  if (typeof room !== 'string') {
+    send(res, 400, { error: 'room must be a string' })
+    return
+  }
+
+  const subscriber = {
+    deliver(payload: string) {
+      // A write to a socket the peer has closed throws, and that throw is the hub's signal to
+      // drop this subscriber — so it is deliberately NOT caught here.
+      res.write(`data: ${payload}\n\n`)
+    },
+    end() {
+      res.end()
+    },
+  }
+
+  const attached = opts.rooms!.subscribe(room, subscriber)
+  if (!attached.ok) {
+    send(res, ROOM_REFUSAL_STATUS[attached.reason] ?? 400, { error: attached.reason })
+    return
+  }
+
+  res.writeHead(200, {
+    'content-type': 'text/event-stream',
+    'cache-control': 'no-store',
+    connection: 'keep-alive',
+    // Nginx and several CDNs buffer a response body by default, which for a stream means the
+    // first message arrives when the last one does. This is the header that turns that off, and
+    // it is harmless everywhere it is not understood.
+    'x-accel-buffering': 'no',
+  })
+
+  // The backlog first, then live traffic on the same socket, so the client has exactly one
+  // ordering rule: everything in the order it arrives.
+  for (const payload of attached.history) subscriber.deliver(payload)
+
+  const heartbeat = setInterval(() => {
+    try {
+      res.write(': hb\n\n')
+    } catch {
+      // The socket died between the last write and this tick. `close` below does the cleanup.
+    }
+  }, ROOM_HEARTBEAT_MS)
+  // `unref` so a live stream cannot hold the process open on shutdown — a chat socket is not a
+  // reason to refuse to exit.
+  heartbeat.unref?.()
+
+  // ON THE RESPONSE, NOT THE REQUEST, and the difference is the whole cleanup path. `readJsonBody`
+  // above consumes the request stream to its end, and a fully-read request has ALREADY emitted
+  // 'close' by the time this line runs — a listener attached there never fires, so the subscriber
+  // is never dropped and the room accumulates dead sockets until it hits its cap. The response is
+  // the object that is still open; it closes when this side ends it or when the client goes away,
+  // which are the same event as far as this room is concerned.
+  //
+  // Both must free the timer: a leaked interval per abandoned connection is how a long-lived
+  // process dies of something unrelated to what it does.
+  res.on('close', () => {
+    clearInterval(heartbeat)
+    attached.unsubscribe()
+  })
 }
 
 /**
@@ -1096,6 +1278,13 @@ export interface RelayerServerOptions {
   /** Outbound fetch for the quote proxy. Injected so no unit test touches the network. */
   fetchUpstream?: typeof fetch
   proxyTimeoutMs?: number
+  /**
+   * The chat bus (B3). Absent means this relayer carries no chat: both room routes are 404.
+   *
+   * It is not a ledger and takes no store path on purpose — see `rooms.ts`. Nothing it holds is
+   * worth surviving a restart, and everything it holds is ciphertext it cannot read.
+   */
+  rooms?: RoomHub
 }
 
 export function createRelayerServer(options: RelayerServerOptions): Server {
@@ -1664,6 +1853,18 @@ async function main(): Promise<void> {
   })
 
   const messageBook = deployedMessageBook()
+
+  // The chat bus. Nothing to open and nothing to read back: it starts empty on every boot, by
+  // design (`rooms.ts`). The sweep is on a timer rather than only on request, because a room's
+  // retention window is a promise about wall-clock time — on a quiet host, "we drop it after
+  // thirty minutes" would otherwise mean "we drop it whenever somebody next visits".
+  const rooms = new RoomHub()
+  const roomSweep = setInterval(() => {
+    const dropped = rooms.sweep()
+    if (dropped > 0) console.log(`rooms: swept ${dropped} idle`)
+  }, ROOM_IDLE_MS / 6)
+  roomSweep.unref?.()
+
   const server = createRelayerServer({
     // `details` is undefined for a plain submission, which is what `execute` already
     // defaults to — so a `{calls}`-only body goes out byte-identical to before, and a
@@ -1692,6 +1893,7 @@ async function main(): Promise<void> {
     // revert that still costs gas and reads to the user as our bug. `userState` reports ok
     // while the health is `unknown`, so a failed read cannot turn an RPC blip into an outage.
     relayerState: () => monitor.userState(),
+    rooms,
   })
 
   // One read now, then on a timer. The startup read is what turns "we would have noticed
@@ -1717,6 +1919,12 @@ async function main(): Promise<void> {
     console.log(
       `plain sends: ${sponsorConfig.sendCaps.perVisitor}/visitor · ${sponsorConfig.sendCaps.daily}/day · ` +
         `ledger ${sponsorConfig.sendStorePath} · fee recipient ${address}`,
+    )
+    // Said out loud at startup because it is the one piece of state this process holds that a
+    // user might reasonably assume it does not: ciphertext it cannot read, for a bounded time.
+    console.log(
+      `rooms: ciphertext only, in memory · ${ROOM_HISTORY} messages kept per room · ` +
+        `idle rooms dropped after ${ROOM_IDLE_MS / 60_000} minutes`,
     )
     console.log(
       sponsorConfig.invites

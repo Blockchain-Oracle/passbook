@@ -25,8 +25,23 @@
 // `builtToday: false` and the story that owns it, and nothing here invents a route or an
 // environment variable for work that has not been done.
 
-/** The four jobs AD-17 names. Typed, so a degrade row cannot cite a job that does not exist. */
-export type RelayerJobName = 'submission' | 'sponsored registration' | 'quote proxy' | 'stats'
+/**
+ * The jobs this relayer does. Typed, so a degrade row cannot cite a job that does not exist.
+ *
+ * AD-17 NAMED FOUR; THIS IS FIVE, and the fifth is a recorded deviation rather than a widening.
+ * AD-17 put the chat transport on a Cloudflare Durable Object — a second process, a second host,
+ * a second thing to keep alive during judging. B3 put it on this process instead
+ * (`rooms.ts`): it is a broadcast bus for ciphertext with no key and no ledger, so the argument
+ * for a separate host was never about isolation. `DEMO_CRITICAL.processes` below is corrected to
+ * match, and the correction is the point — a topology document that still named a Durable Object
+ * nobody deployed would be describing an architecture that does not exist.
+ */
+export type RelayerJobName =
+  | 'submission'
+  | 'sponsored registration'
+  | 'quote proxy'
+  | 'chat transport'
+  | 'stats'
 
 /**
  * A key that can sign on behalf of this product, and the discipline attached to it.
@@ -263,6 +278,13 @@ const INVITE_ROUTES = [
   'POST /api/invite/status',
 ] as const
 const QUOTE_ROUTES = ['POST /quote', 'POST /api/quote'] as const
+// Both are POSTs, including the one that streams — see ROOM_STREAM_PATHS in server.ts for why.
+const ROOM_ROUTES = [
+  'POST /room/send',
+  'POST /room/stream',
+  'POST /api/room/send',
+  'POST /api/room/stream',
+] as const
 
 /**
  * The four relayer jobs and their per-job degrade matrix (AD-17).
@@ -300,7 +322,7 @@ export const RELAYER_JOBS: readonly RelayerJob[] = [
         stillServedInThisJob:
           '`GET /fee-recipient` still answers 200 with the address — it signs nothing and reads ' +
           'nothing off-chain, so there is no reason for it to close.',
-        otherJobsUnaffected: ['quote proxy'],
+        otherJobsUnaffected: ['quote proxy', 'chat transport'],
         note:
           'Sponsored registration is closed too, by its own gate on the same shared wallet. Two ' +
           'jobs cannot sign; the relayer is not down.',
@@ -316,7 +338,7 @@ export const RELAYER_JOBS: readonly RelayerJob[] = [
         noticeSource: null,
         affectsRoutes: [],
         stillServedInThisJob: 'Everything. This row exists to say that nothing closes.',
-        otherJobsUnaffected: ['sponsored registration', 'quote proxy'],
+        otherJobsUnaffected: ['sponsored registration', 'quote proxy', 'chat transport'],
         note:
           'DELIBERATELY NOT A REFUSAL, and 1-5 reviewed code. `userState()` reports from the last ' +
           'DEFINITE measurement, so an unreadable balance is an absence of news rather than bad ' +
@@ -335,7 +357,7 @@ export const RELAYER_JOBS: readonly RelayerJob[] = [
         noticeSource: 'SEND_CAP_NOTICE (`packages/protocol/src/relayer-wire.ts`)',
         affectsRoutes: [...SUBMIT_ROUTES],
         stillServedInThisJob: '`GET /fee-recipient` still answers.',
-        otherJobsUnaffected: ['sponsored registration', 'quote proxy'],
+        otherJobsUnaffected: ['sponsored registration', 'quote proxy', 'chat transport'],
         note:
           'A separate ledger in a separate file from the sponsorship budget, so a busy day of ' +
           'sends cannot spend the day\'s free account creations.',
@@ -368,7 +390,7 @@ export const RELAYER_JOBS: readonly RelayerJob[] = [
         stillServedInThisJob:
           'The invite routes still mint, claim and report — they burn no gas, so a wallet that ' +
           'cannot pay a fee can still hand out and account for codes.',
-        otherJobsUnaffected: ['quote proxy'],
+        otherJobsUnaffected: ['quote proxy', 'chat transport'],
         note:
           'This is the row the cold-start caveat is about: see COLD_START_CAVEAT. An invite ' +
           'claimed during a breach stays claimed, and the registration it buys waits for funding.',
@@ -384,7 +406,7 @@ export const RELAYER_JOBS: readonly RelayerJob[] = [
         noticeSource: 'BUDGET_EXHAUSTED_NOTICE (`packages/relayer/src/sponsorship.ts`)',
         affectsRoutes: [...SPONSORED_SUBMIT_ROUTES],
         stillServedInThisJob: 'The invite routes still answer; a code minted today keeps for tomorrow.',
-        otherJobsUnaffected: ['submission', 'quote proxy'],
+        otherJobsUnaffected: ['submission', 'quote proxy', 'chat transport'],
         note:
           'Fails OPEN into pay-your-own-way rather than into a locked door, and the notice says ' +
           'so. A burned invite waives the per-visitor cap and never the daily budget.',
@@ -405,7 +427,7 @@ export const RELAYER_JOBS: readonly RelayerJob[] = [
           '`POST /submit` with `sponsored: true`; only the invite sub-feature is absent. A code ' +
           'presented on the submit path gets a typed 400 `invites-not-offered`, not a 404, ' +
           'because there the client has already built a body around it.',
-        otherJobsUnaffected: ['submission', 'quote proxy'],
+        otherJobsUnaffected: ['submission', 'quote proxy', 'chat transport'],
         note:
           'Scoped to the invite routes, not to the job. The switch removes a door; it does not ' +
           'close the building. Setting any other `RELAYER_INVITE_*` knob without the allowance ' +
@@ -440,7 +462,7 @@ export const RELAYER_JOBS: readonly RelayerJob[] = [
         noticeSource: null,
         affectsRoutes: [...QUOTE_ROUTES],
         stillServedInThisJob: null,
-        otherJobsUnaffected: ['submission', 'sponsored registration'],
+        otherJobsUnaffected: ['submission', 'sponsored registration', 'chat transport'],
         note:
           'A per-request failure against an outside party with no shared state behind it — one ' +
           'bad quote does not poison the next. The read cap is enforced WHILE streaming, not by ' +
@@ -458,7 +480,7 @@ export const RELAYER_JOBS: readonly RelayerJob[] = [
         noticeSource: null,
         affectsRoutes: [...QUOTE_ROUTES],
         stillServedInThisJob: null,
-        otherJobsUnaffected: ['submission', 'sponsored registration'],
+        otherJobsUnaffected: ['submission', 'sponsored registration', 'chat transport'],
         note:
           'Its own counter, and never a budget: charging quotes against the sponsorship budget ' +
           'would let anyone burn a visitor\'s free registration by asking for prices. The ' +
@@ -471,6 +493,80 @@ export const RELAYER_JOBS: readonly RelayerJob[] = [
       'Its counter is in memory, unlike the durable ledgers, because a quote is egress rather ' +
       'than money — handing out fresh quota on restart is cheaper than inheriting a failure mode ' +
       'where an unwritable disk stops price lookups.',
+  },
+  {
+    job: 'chat transport',
+    summary:
+      'A broadcast bus for chat rooms. It routes sealed envelopes by an opaque 128-bit room id ' +
+      'and holds a short ciphertext backlog in memory for a peer whose tab was shut. It has no ' +
+      'signing key, no ledger and no store path, so it is the one job here that cannot spend ' +
+      'anything or lose anything durable.',
+    routes: [...ROOM_ROUTES],
+    degradeStates: [
+      {
+        id: 'chat/room-full',
+        trigger:
+          'A room already holds `MAX_SUBSCRIBERS_PER_ROOM` connections, or the host already holds ' +
+          '`MAX_ROOMS` rooms. Both are concurrency ceilings, not lifetime ones — the idle sweep ' +
+          'returns the slots.',
+        answers: 'refusal',
+        status: 503,
+        reason: 'room-full',
+        noticeSource: null,
+        affectsRoutes: ['POST /room/stream', 'POST /api/room/stream'],
+        stillServedInThisJob:
+          'Sending into an existing room still works: a publish does not need a subscription, and ' +
+          'the backlog is what the other side reads when it reconnects.',
+        otherJobsUnaffected: ['submission', 'sponsored registration', 'quote proxy'],
+        note:
+          'A ceiling reached by an attacker opening rooms, not by a crowd. Two people talking use ' +
+          'one room and a handful of sockets.',
+      },
+      {
+        id: 'chat/rate-limited',
+        trigger:
+          'More than `MAX_PUBLISH_PER_MINUTE` publishes into one room inside a rolling minute. The ' +
+          'window rolls rather than resetting on the minute, so a burst cannot be banked by ' +
+          'waiting for a clock boundary.',
+        answers: 'refusal',
+        status: 429,
+        reason: 'rate-limited',
+        noticeSource: null,
+        affectsRoutes: ['POST /room/send', 'POST /api/room/send'],
+        stillServedInThisJob:
+          'Streams stay open and keep delivering. The room is not closed; one sender is asked to ' +
+          'slow down.',
+        otherJobsUnaffected: ['submission', 'sponsored registration', 'quote proxy'],
+        note:
+          'Scoped to a room rather than to a visitor, because the room id is the only identifier ' +
+          'this job has — and giving it a visitor identity would mean learning who is in a ' +
+          'conversation, which is the one thing the design refuses to know.',
+      },
+      {
+        id: 'chat/restart-loses-backlog',
+        trigger:
+          'The process restarts — a deploy, a crash, a host move. Every room, every open stream ' +
+          'and the whole ciphertext backlog go with it; clients reconnect on their own backoff.',
+        answers: 'normal-service',
+        status: 200,
+        reason: null,
+        noticeSource: null,
+        affectsRoutes: [],
+        stillServedInThisJob: null,
+        otherJobsUnaffected: ['submission', 'sponsored registration', 'quote proxy'],
+        note:
+          'NOT A FAULT, AND NOT SILENTLY FINE EITHER. Nothing durable is lost because nothing here ' +
+          'is durable by design, and a message sent while the peer was away during a restart is ' +
+          'genuinely gone — the transport can drop, and no receiver can detect a drop. Rooms ' +
+          're-derive from the chain on the next load, so the conversation itself survives.',
+      },
+    ],
+    builtToday: true,
+    note:
+      'Ships in this process rather than on a Durable Object (a deviation from AD-17, recorded on ' +
+      '`RelayerJobName`). Because the rooms are in memory, the deployment must run exactly ONE ' +
+      'machine: two would each hold half of every conversation and neither would know. ' +
+      '`fly.toml` pins that with `auto_stop_machines = false` and `min_machines_running = 1`.',
   },
   {
     job: 'stats',
@@ -493,7 +589,7 @@ export const RELAYER_JOBS: readonly RelayerJob[] = [
         noticeSource: null,
         affectsRoutes: [],
         stillServedInThisJob: null,
-        otherJobsUnaffected: ['submission', 'sponsored registration', 'quote proxy'],
+        otherJobsUnaffected: ['submission', 'sponsored registration', 'quote proxy', 'chat transport'],
         note:
           'By construction it cannot take a paying job down: a cache over public reads, with no ' +
           'signing key and no ledger behind it.',
@@ -521,7 +617,15 @@ export const RELAYER_JOBS: readonly RelayerJob[] = [
  */
 export const DEMO_CRITICAL = {
   surfaces: ['Wallet', 'Chat'],
-  processes: ['relayer', 'chat relay Durable Object'],
+  //
+  // ONE PROCESS, NOT TWO — CORRECTED, NOT WIDENED. AD-17 named a Cloudflare Durable Object as the
+  // chat relay and this field was pinned to it. That Durable Object was never built: B3 put the
+  // room transport on the relayer itself (`rooms.ts`), which is a process this list already
+  // required. So the demo-critical set SHRANK. Leaving the old value would have kept a green test
+  // asserting a dependency on something nobody deployed, which is the failure mode a pinned list
+  // is supposed to prevent rather than cause.
+  //
+  processes: ['relayer'],
   offPath: ['market scheduler', 'settlement keeper', 'epoch clearer', 'graduation executor'],
   offPathRationale:
     'permissionless backstops protect funds regardless: permissionless `settle` and ' +

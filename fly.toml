@@ -1,0 +1,85 @@
+#
+# The relayer's one host. `fly deploy` reads this; `Dockerfile` builds what it runs.
+#
+# FIRST, THE SECRETS THIS FILE DELIBERATELY DOES NOT CONTAIN. Set them once, before the first
+# deploy, and never in `[env]` — everything in `[env]` is baked into the machine config and is
+# readable by anyone who can run `fly config show`:
+#
+#   fly secrets set RELAYER_ADDRESS=0x… RELAYER_PRIVATE_KEY=0x… RELAYER_AUTH_TOKEN=$(openssl rand -hex 32)
+#
+# `RELAYER_AUTH_TOKEN` is not optional here. The moment this process is reachable through a proxy,
+# every internet client arrives with no `Origin` header — the exact shape the other controls treat
+# as a trusted same-process caller — and nothing warns you, because the off-host warning keys off
+# `RELAYER_HOST`, which the Dockerfile set. The token is the only control that survives the hop.
+# The browser never holds it: the app posts to its own origin and the proxy in front of this host
+# adds the header server-side.
+#
+app = "passbook-relayer"
+primary_region = "iad"
+
+[build]
+  dockerfile = "Dockerfile"
+
+# Everything here is a fact about this deployment, not a secret. The three store paths point at
+# the volume below; the Dockerfile sets the same values, and they are repeated here so that
+# `fly config show` answers the question "where do the ledgers live" without anyone reading a
+# layer.
+[env]
+  PORT = "8080"
+  RELAYER_HOST = "0.0.0.0"
+  RELAYER_SPONSOR_STORE = "/data/sponsorship.json"
+  RELAYER_SEND_STORE = "/data/send-budget.json"
+  RELAYER_INVITE_STORE = "/data/invites.json"
+
+# The durable half of the process. Two spend ledgers and the salt that keys hashed visitor ids —
+# lose them and every cap resets, which is the same as having no caps for whoever noticed.
+#
+# Create it once, in the app's region, before the first deploy:
+#
+#   fly volumes create relayer_data --region iad --size 1
+#
+[[mounts]]
+  source = "relayer_data"
+  destination = "/data"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+
+  # ONE MACHINE, ALWAYS ON. Three separate reasons, and each one alone is sufficient:
+  #
+  #   1. The chat rooms are in memory (`packages/relayer/src/rooms.ts`). Two machines means two
+  #      halves of the same room, each fanning out to whoever landed on it, and a conversation
+  #      where messages simply do not arrive — with nothing in any log to say why.
+  #   2. The spend ledgers are files on ONE volume. A Fly volume attaches to a single machine, so
+  #      a second machine either has no ledger or a different one.
+  #   3. The funding monitor is a timer, not a request handler. A stopped machine stops watching
+  #      the balance it is supposed to page about, and wakes up to sign with a number it read
+  #      before it slept.
+  #
+  # A suspended machine also drops every open SSE stream, which for a chat surface reads as the
+  # app being broken rather than as a host being thrifty.
+  auto_stop_machines = false
+  auto_start_machines = true
+  min_machines_running = 1
+
+  # A funded signer answering an unbounded number of concurrent requests is a funded signer whose
+  # rate limiting is somebody else's problem. These are low on purpose: the relayer serves one
+  # demo, and the ceiling should be reached by an attack rather than by a crowd.
+  [http_service.concurrency]
+    type = "requests"
+    soft_limit = 40
+    hard_limit = 80
+
+# A TCP check, not an HTTP one, and that is a consequence of the auth gate rather than laziness:
+# every route on this server sits behind `x-relayer-auth`, so an unauthenticated HTTP probe gets a
+# correct 401 that a health checker reads as a dead host. Putting the token in a check config would
+# spread the secret to keep a green tick.
+[[services.tcp_checks]]
+  interval = "30s"
+  timeout = "5s"
+  grace_period = "20s"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"

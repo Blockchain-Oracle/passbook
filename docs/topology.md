@@ -138,9 +138,9 @@ Signs and broadcasts a plain submission — a sealed send or any allowlisted bat
 
 | Trigger | Answer | Routes affected | Same job still serves | Other jobs unaffected |
 |---|---|---|---|---|
-| Funding floor breached — the relayer wallet holds less than `REFUSAL_FEE_MULTIPLE` (two) times the live pool fee, so the next fee transfer would revert. | `503` `relayer-down` | `POST /submit` · `POST /api/submit` | `GET /fee-recipient` still answers 200 with the address — it signs nothing and reads nothing off-chain, so there is no reason for it to close. | quote proxy |
-| Funding health UNKNOWN — the balance read failed, or the live fee read as zero or negative, so the monitor cannot judge the wallet at all. | `200` | *nothing* | Everything. This row exists to say that nothing closes. | sponsored registration, quote proxy |
-| Plain-send cap spent — this visitor or this UTC day has used the send ledger up (`RELAYER_SEND_PER_VISITOR` / `RELAYER_SEND_DAILY`). | `403` `send-cap-reached` | `POST /submit` · `POST /api/submit` | `GET /fee-recipient` still answers. | sponsored registration, quote proxy |
+| Funding floor breached — the relayer wallet holds less than `REFUSAL_FEE_MULTIPLE` (two) times the live pool fee, so the next fee transfer would revert. | `503` `relayer-down` | `POST /submit` · `POST /api/submit` | `GET /fee-recipient` still answers 200 with the address — it signs nothing and reads nothing off-chain, so there is no reason for it to close. | quote proxy, chat transport |
+| Funding health UNKNOWN — the balance read failed, or the live fee read as zero or negative, so the monitor cannot judge the wallet at all. | `200` | *nothing* | Everything. This row exists to say that nothing closes. | sponsored registration, quote proxy, chat transport |
+| Plain-send cap spent — this visitor or this UTC day has used the send ledger up (`RELAYER_SEND_PER_VISITOR` / `RELAYER_SEND_DAILY`). | `403` `send-cap-reached` | `POST /submit` · `POST /api/submit` | `GET /fee-recipient` still answers. | sponsored registration, quote proxy, chat transport |
 
 - **Funding floor breached:** Sponsored registration is closed too, by its own gate on the same shared wallet. Two jobs cannot sign; the relayer is not down.
 - **Funding health UNKNOWN:** DELIBERATELY NOT A REFUSAL, and 1-5 reviewed code. `userState()` reports from the last DEFINITE measurement, so an unreadable balance is an absence of news rather than bad news — classifying an RPC blip as exhausted would turn every read failure into a self-inflicted outage. The failure still pages ops. The stickiness runs the other way too: a failed read after a definite `exhausted` does NOT reopen the gate.
@@ -156,9 +156,9 @@ Pays a cold visitor's first registration out of the relayer's own balance — th
 
 | Trigger | Answer | Routes affected | Same job still serves | Other jobs unaffected |
 |---|---|---|---|---|
-| Funding floor breached — the same shared signing wallet as submission, so the same condition closes this door through this job's own gate. | `503` `relayer-down` | `POST /submit (with `sponsored: true`)` · `POST /api/submit (with `sponsored: true`)` | The invite routes still mint, claim and report — they burn no gas, so a wallet that cannot pay a fee can still hand out and account for codes. | quote proxy |
-| Sponsorship budget exhausted — the per-visitor cap or the UTC-daily budget is spent (`RELAYER_SPONSOR_PER_VISITOR` / `RELAYER_SPONSOR_DAILY`). | `403` `sponsorship-paused` | `POST /submit (with `sponsored: true`)` · `POST /api/submit (with `sponsored: true`)` | The invite routes still answer; a code minted today keeps for tomorrow. | submission, quote proxy |
-| Invites off — `RELAYER_INVITE_ALLOWANCE` unset, the master switch for the whole invite sub-feature. There is no defensible default for how many free registrations one address may hand strangers, so absent means off. | `404` | `POST /invite/mint` · `POST /invite/claim` · `POST /invite/status` · `POST /api/invite/mint` · `POST /api/invite/claim` · `POST /api/invite/status` | THE JOB ITSELF IS UNAFFECTED. Sponsored registration keeps working on `POST /submit` with `sponsored: true`; only the invite sub-feature is absent. A code presented on the submit path gets a typed 400 `invites-not-offered`, not a 404, because there the client has already built a body around it. | submission, quote proxy |
+| Funding floor breached — the same shared signing wallet as submission, so the same condition closes this door through this job's own gate. | `503` `relayer-down` | `POST /submit (with `sponsored: true`)` · `POST /api/submit (with `sponsored: true`)` | The invite routes still mint, claim and report — they burn no gas, so a wallet that cannot pay a fee can still hand out and account for codes. | quote proxy, chat transport |
+| Sponsorship budget exhausted — the per-visitor cap or the UTC-daily budget is spent (`RELAYER_SPONSOR_PER_VISITOR` / `RELAYER_SPONSOR_DAILY`). | `403` `sponsorship-paused` | `POST /submit (with `sponsored: true`)` · `POST /api/submit (with `sponsored: true`)` | The invite routes still answer; a code minted today keeps for tomorrow. | submission, quote proxy, chat transport |
+| Invites off — `RELAYER_INVITE_ALLOWANCE` unset, the master switch for the whole invite sub-feature. There is no defensible default for how many free registrations one address may hand strangers, so absent means off. | `404` | `POST /invite/mint` · `POST /invite/claim` · `POST /invite/status` · `POST /api/invite/mint` · `POST /api/invite/claim` · `POST /api/invite/status` | THE JOB ITSELF IS UNAFFECTED. Sponsored registration keeps working on `POST /submit` with `sponsored: true`; only the invite sub-feature is absent. A code presented on the submit path gets a typed 400 `invites-not-offered`, not a 404, because there the client has already built a body around it. | submission, quote proxy, chat transport |
 
 - **Funding floor breached:** This is the row the cold-start caveat is about: see COLD_START_CAVEAT. An invite claimed during a breach stays claimed, and the registration it buys waits for funding.
 - **Sponsorship budget exhausted:** Fails OPEN into pay-your-own-way rather than into a locked door, and the notice says so. A burned invite waives the per-visitor cap and never the daily budget.
@@ -174,13 +174,31 @@ Fetches third-party prices and bridge attestations server-side (FR-029), so an a
 
 | Trigger | Answer | Routes affected | Same job still serves | Other jobs unaffected |
 |---|---|---|---|---|
-| Upstream dead or misbehaving — the fetch throws or times out, answers a non-2xx, answers something that is not JSON, answers ANY redirect (the request is made with `redirect: 'error'`, so no redirect is ever followed — not merely off-host ones), or exceeds the read cap while streaming. | `502` | `POST /quote` · `POST /api/quote` | *nothing — every route of this job is affected* | submission, sponsored registration |
-| Quote cap hit — the per-visitor daily cap or the global daily ceiling (`RELAYER_QUOTE_DAILY_PER_VISITOR` / `RELAYER_QUOTE_DAILY_GLOBAL`). A visitor here is the same salted, day-scoped hash of the client address the budgets use, not a raw IP. | `429` | `POST /quote` · `POST /api/quote` | *nothing — every route of this job is affected* | submission, sponsored registration |
+| Upstream dead or misbehaving — the fetch throws or times out, answers a non-2xx, answers something that is not JSON, answers ANY redirect (the request is made with `redirect: 'error'`, so no redirect is ever followed — not merely off-host ones), or exceeds the read cap while streaming. | `502` | `POST /quote` · `POST /api/quote` | *nothing — every route of this job is affected* | submission, sponsored registration, chat transport |
+| Quote cap hit — the per-visitor daily cap or the global daily ceiling (`RELAYER_QUOTE_DAILY_PER_VISITOR` / `RELAYER_QUOTE_DAILY_GLOBAL`). A visitor here is the same salted, day-scoped hash of the client address the budgets use, not a raw IP. | `429` | `POST /quote` · `POST /api/quote` | *nothing — every route of this job is affected* | submission, sponsored registration, chat transport |
 
 - **Upstream dead or misbehaving:** A per-request failure against an outside party with no shared state behind it — one bad quote does not poison the next. The read cap is enforced WHILE streaming, not by trusting a content-length the sender chose.
 - **Quote cap hit:** Its own counter, and never a budget: charging quotes against the sponsorship budget would let anyone burn a visitor's free registration by asking for prices. The counter also stops tracking NEW visitors past `MAX_TRACKED_QUOTE_VISITORS` so a rotating address range cannot grow the map without bound.
 
 *Its counter is in memory, unlike the durable ledgers, because a quote is egress rather than money — handing out fresh quota on restart is cheaper than inheriting a failure mode where an unwritable disk stops price lookups.*
+
+#### chat transport
+
+A broadcast bus for chat rooms. It routes sealed envelopes by an opaque 128-bit room id and holds a short ciphertext backlog in memory for a peer whose tab was shut. It has no signing key, no ledger and no store path, so it is the one job here that cannot spend anything or lose anything durable.
+
+*Routes:* `POST /room/send` · `POST /room/stream` · `POST /api/room/send` · `POST /api/room/stream`
+
+| Trigger | Answer | Routes affected | Same job still serves | Other jobs unaffected |
+|---|---|---|---|---|
+| A room already holds `MAX_SUBSCRIBERS_PER_ROOM` connections, or the host already holds `MAX_ROOMS` rooms. Both are concurrency ceilings, not lifetime ones — the idle sweep returns the slots. | `503` `room-full` | `POST /room/stream` · `POST /api/room/stream` | Sending into an existing room still works: a publish does not need a subscription, and the backlog is what the other side reads when it reconnects. | submission, sponsored registration, quote proxy |
+| More than `MAX_PUBLISH_PER_MINUTE` publishes into one room inside a rolling minute. The window rolls rather than resetting on the minute, so a burst cannot be banked by waiting for a clock boundary. | `429` `rate-limited` | `POST /room/send` · `POST /api/room/send` | Streams stay open and keep delivering. The room is not closed; one sender is asked to slow down. | submission, sponsored registration, quote proxy |
+| The process restarts — a deploy, a crash, a host move. Every room, every open stream and the whole ciphertext backlog go with it; clients reconnect on their own backoff. | `200` | *nothing* | *nothing — every route of this job is affected* | submission, sponsored registration, quote proxy |
+
+- **A room already holds `MAX_SUBSCRIBERS_PER_ROOM` connections, or the host already holds `MAX_ROOMS` rooms. Both are concurrency ceilings, not lifetime ones:** A ceiling reached by an attacker opening rooms, not by a crowd. Two people talking use one room and a handful of sockets.
+- **More than `MAX_PUBLISH_PER_MINUTE` publishes into one room inside a rolling minute. The window rolls rather than resetting on the minute, so a burst cannot be banked by waiting for a clock boundary.:** Scoped to a room rather than to a visitor, because the room id is the only identifier this job has — and giving it a visitor identity would mean learning who is in a conversation, which is the one thing the design refuses to know.
+- **The process restarts:** NOT A FAULT, AND NOT SILENTLY FINE EITHER. Nothing durable is lost because nothing here is durable by design, and a message sent while the peer was away during a restart is genuinely gone — the transport can drop, and no receiver can detect a drop. Rooms re-derive from the chain on the next load, so the conversation itself survives.
+
+*Ships in this process rather than on a Durable Object (a deviation from AD-17, recorded on `RelayerJobName`). Because the rooms are in memory, the deployment must run exactly ONE machine: two would each hold half of every conversation and neither would know. `fly.toml` pins that with `auto_stop_machines = false` and `min_machines_running = 1`.*
 
 #### stats — designed, NOT built
 
@@ -190,7 +208,7 @@ DESIGNED, NOT BUILT (AD-14). Cached protocol-wide aggregates — the unbounded-r
 
 | Trigger | Answer | Routes affected | Same job still serves | Other jobs unaffected |
 |---|---|---|---|---|
-| Aggregate refresh fails or is stale. The designed behavior is to serve the last good value with its block stamp — the caption already reads "as of block N", so a stale answer stays honest without new copy. | *not built* | *nothing* | *nothing — every route of this job is affected* | submission, sponsored registration, quote proxy |
+| Aggregate refresh fails or is stale. The designed behavior is to serve the last good value with its block stamp — the caption already reads "as of block N", so a stale answer stays honest without new copy. | *not built* | *nothing* | *nothing — every route of this job is affected* | submission, sponsored registration, quote proxy, chat transport |
 
 - **Aggregate refresh fails or is stale. The designed behavior is to serve the last good value with its block stamp:** By construction it cannot take a paying job down: a cache over public reads, with no signing key and no ledger behind it.
 
@@ -260,7 +278,7 @@ than a trap.
 ## 4. The demo-critical set
 
 <!-- generated:demo-critical -->
-**Surfaces:** Wallet and Chat. **Processes they need:** `relayer` + `chat relay Durable Object`.
+**Surfaces:** Wallet and Chat. **Processes they need:** `relayer`.
 
 **Off the demo-critical path:** market scheduler, settlement keeper, epoch clearer, graduation executor — permissionless backstops protect funds regardless: permissionless `settle` and void-after-timeout (AD-9), permissionless `clear_epoch` plus auto-clear on the next-epoch interaction (AD-2/AD-11), permissionless `graduate()` (AD-2). A stalled worker delays something; it never traps a balance.
 
