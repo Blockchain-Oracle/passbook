@@ -1,0 +1,39 @@
+{
+  "purpose": "Day-0 free verification for the Markets/Launch contracts — every result a view call or source read, zero transactions, zero spend",
+  "executedAt": "2026-08-27T17:48:00Z",
+  "block": 13955303,
+  "rpc": "https://starknet-rpc.publicnode.com",
+  "pool": "0x040337b1af3c663e86e333bab5a4b28da8d4652a15a69beee2b677776ffe812a",
+  "a1ArbitraryDepositToken": {
+    "verdict": "YES — no token allowlist, registry, or token screening exists anywhere in the deployed pool",
+    "sourceTag": "CONTRACT_V2_DEPLOYED_MAINNET_2026-07-08 (74841ca), packages/privacy/src/privacy.cairo",
+    "depositPathChecks": [
+      "privacy.cairo:1014 assert(token.is_non_zero(), ZERO_TOKEN)",
+      "privacy.cairo:1015 assert(amount.is_non_zero(), ZERO_AMOUNT)",
+      "privacy.cairo:1025 assert(token == note_token, TOKEN_MISMATCH) — equality with our own CreateOpenNote, not an allowlist"
+    ],
+    "screening": "address-based only: privacy.cairo:994-997 blocked_open_note_depositors.read(contract_address) — the exposure is OUR contract being blocklisted, never the token",
+    "prerequisite": "an OpenSubchannel per open-note token, emitted in the same transaction (privacy.cairo:734 SUBCHANNEL_NOT_FOUND)",
+    "provenLive": "compile_actions accepted open notes on a PHANTOM token (0x12d02fb028941fb98aba3bbcce111f07202c0f59267e17cae531241da723 — no contract deployed there), 1-3 notes, mixed STRK+phantom subchannels — the graduation case exactly"
+  },
+  "pragma": {
+    "address": "0x2a85bd616f912537c50a49a4076db02c00b29b2cdc8a197ce92ed1837fa875b",
+    "getDataMedianSelector": "0x24b869ce68dd257b370701ca16e4aaf9c6483ff6805d04ba7661f3a0b6ce59",
+    "calldataShape": "[0x0 (SpotEntry discriminant), pair_id]",
+    "reads": {
+      "BTC/USD": { "pairId": "0x4254432f555344", "price": "80711.0481", "decimals": 8, "timestamp": 1787852196, "sources": 10 },
+      "ETH/USD": { "pairId": "0x4554482f555344", "price": "2524.1787", "decimals": 8, "timestamp": 1787852196, "sources": 10 },
+      "STRK/USD": { "pairId": "0x5354524b2f555344", "price": "0.0271", "decimals": 8, "timestamp": 1787852196, "sources": 11 }
+    },
+    "stalenessFinding": "two reads ~11 min apart returned the SAME timestamp (234s old, then 665s old); all pairs share one timestamp. A 120s freshness guard would have voided during the measurement window — the void-and-refund rule is load-bearing, and the resolve window must expect waits"
+  },
+  "actionShapes": {
+    "bet": "[SetViewingKey, OpenChannel, OpenSubchannel, Deposit, CreateEncNote(change), Withdraw, InvokeExternal] — compiles, 15 server actions",
+    "claimNOpenNotes": "compiles with 1, 3, and 5 CreateOpenNotes (17/21/25 server actions); note-creation phase order free; indices must be sequential per channel-and-token (INDEX_NOT_SEQUENTIAL on gaps, NON_ZERO_VALUE on repeats); each token its own subchannel",
+    "useNoteCaveat": "the literal UseNote leg is untestable from a throwaway (NOTE_NOT_FOUND reads real storage); Deposit stand-in exercises identical balance rules — same limitation the existing ACTION_LIST_EVIDENCE records"
+  },
+  "trap": "compile_actions CANNOT catch an unmatched open note (compiler no-ops EmitOpenNoteCreated at privacy.cairo:772; real path counts at :895 and asserts zero at :903 UNDEPOSITED_OPEN_NOTES) — three open notes with no invoke compiled OK and would revert on-chain AFTER the 6 STRK fee. The client must assert open-note count == expected deposits; the pool's free view cannot",
+  "gift": "CreateOpenNote takes no token_balances in dispatch (privacy.cairo:287-290) — open notes are balance-neutral, funded by the invoked contract; the N-strike batch claim genuinely fits one transaction",
+  "encoderNote": "CreateEncNoteInput is six fields ending at salt (actions.cairo:85-101); encodeClientActions in message-book.ts covers only SetViewingKey/OpenChannel/InvokeExternal — the other variants are hand-rolled (see scripts/ops/rehearse.mjs)",
+  "scripts": "scripts/ops/{rehearse,errs,a1}.mjs — copy to repo root to run (they resolve `starknet` from node_modules)"
+}
