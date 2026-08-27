@@ -61,9 +61,20 @@ describe('action-list invariants (FR-060 / AD-3)', () => {
     expect(ok([{ type: 'CreateOpenNote', amount: 1n }])).not.toThrow()
   })
 
-  it('rejects a zero-amount deposit or open note', () => {
+  it('rejects a zero-amount deposit', () => {
     expect(ok([{ type: 'Deposit', amount: 0n }])).toThrow(/ZERO_AMOUNT_DEPOSIT/)
-    expect(ok([{ type: 'CreateOpenNote', amount: 0n }])).toThrow(/ZERO_AMOUNT_DEPOSIT/)
+  })
+
+  it('ACCEPTS a zero-amount open note, because the chain has no amount to reject', () => {
+    // `CreateOpenNoteInput` (privacy.cairo:681) is
+    // `{ recipient_addr, recipient_public_key, token, index, random }` — no amount field — and its
+    // `assert_valid` (actions.cairo:135-145) asserts only those four non-zero. An open note is a
+    // slot a later deposit fills, which is why `BALANCE_SIGN` gives it 0 too.
+    //
+    // This test replaces one asserting the opposite. That rule refused the only list the variant
+    // exists for: a swap's buy-token note, which is planned with nothing committed to it and paid
+    // into by the executor afterwards.
+    expect(ok([{ type: 'CreateOpenNote', amount: 0n }])).not.toThrow()
   })
 
   // The pool names the zero amount first — `deposit()` runs `assert_valid` inside the compile

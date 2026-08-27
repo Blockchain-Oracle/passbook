@@ -35,6 +35,9 @@ import { CallData, cairo, constants, type Call } from 'starknet'
 import {
   AddressMap,
   Channel,
+  // The marker for a note whose amount a later deposit writes. A symbol rather than a number so
+  // it can never be confused with an amount of zero — see the swap leg in `proveSend`.
+  Open,
   Witness,
   createPrivateTransfers,
   type DiscoveryProviderInterface,
@@ -48,6 +51,8 @@ import type { SendStage } from './pipeline-stage.js'
 import { deriveViewingKey } from './identity.js'
 import { CLIENT_ACTION } from './message-book.js'
 import { approveCeiling } from './fee-ceiling.js'
+import { invokeCalldata } from './swap-calldata.js'
+import type { SwapCall } from './quote.js'
 import { getNumOfChannels, getPublicKey, noteExists, readPoolHealth, type PoolHealth } from './pool.js'
 import { assertBalancedActionList, assertActionListValid, type ValidatableAction } from './actions.js'
 import { withFallback } from './rpc.js'
@@ -88,8 +93,57 @@ export type { SendStage } from './pipeline-stage.js'
 /** Who put the transaction on chain. Both are first-class outcomes; neither is a fallback. */
 export type SubmitMode = 'relayer' | 'self'
 
-/** What is being moved. A transfer stays shielded; a withdraw leaves the pool to a public address. */
-export type SendKind = 'transfer' | 'withdraw'
+/**
+ * What is being moved.
+ *
+ * A transfer stays shielded; a withdraw leaves the pool to a public address; a SWAP does both and
+ * comes back — the sell token is withdrawn to a venue's executor, the executor is invoked, and it
+ * deposits the buy token into an open note this same transaction minted. One transaction, and the
+ * value never sits anywhere the user does not control.
+ */
+export type SendKind = 'transfer' | 'withdraw' | 'swap'
+
+/**
+ * The venue leg of a swap: where the sell token goes, and what to tell it to do.
+ *
+ * ── THE EXECUTOR'S SHAPE IS READ FROM THE CHAIN, NOT ASSUMED ─────────────────────────────
+ *
+ * `0x426dcd1a…dbe5e` declares exactly one entrypoint, confirmed against mainnet on 2026-08-27:
+ *
+ *     privacy_invoke(buy_token: ContractAddress, calls: Span<Call>, note_id: felt252)
+ *
+ * That matters because the SDK ships a DIFFERENT swap recipe in
+ * `simple-private-transfers.ts`, whose executor takes four flat felts
+ * `[fromToken, toToken, amount, noteId]` and does its own routing. Copying that shape onto this
+ * executor would serialise a `Span<Call>` position as a token address. `swap-calldata.ts` builds
+ * the layout this contract actually declares.
+ */
+export interface SwapLeg {
+  /** The venue's privacy executor. The sell token is withdrawn HERE, not to the exchange. */
+  executor: string
+  /** What comes back. An open note is minted for it and the executor deposits into that note. */
+  buyToken: string
+  /** How the buy token is named in copy. A parameter for the same reason `symbol` is. */
+  buySymbol: string
+  /**
+   * The route as the venue returned it, un-serialised.
+   *
+   * BOTH `planSend` AND `proveSend` SERIALISE IT, and that is deliberate rather than wasteful.
+   * The open note's id is minted inside `createProofInvocation`, so the finished calldata cannot
+   * exist at plan time — but everything BEFORE the note id can, and pinning it is what lets
+   * `assertSendSpan` catch a route that changed between the plan and the proof. The plan holds
+   * every felt with `null` in the note id's place; the prover fills it in.
+   */
+  calls: readonly SwapCall[]
+  /**
+   * The floor the route was quoted against, in the buy token's smallest unit.
+   *
+   * NOT ENFORCED HERE — the venue's own `multi_route_swap` carries the minimum and reverts below
+   * it, which is the only enforcement that binds the actual swap. Carried so the receipt can say
+   * what was promised, and so a surface can refuse a quote that moved.
+   */
+  minOutWei: bigint
+}
 
 /** Why a send stopped. Every branch is data a surface can render without inventing a sentence. */
 export type SendFailure =
@@ -322,13 +376,25 @@ export async function preflightRecipient(
 
 export interface SendRequest {
   kind: SendKind
-  /** A shielded account for a transfer; any public address for a withdraw. */
+  /**
+   * A shielded account for a transfer; any public address for a withdraw.
+   *
+   * FOR A SWAP THIS IS THE EXECUTOR, and it is required to equal `swap.executor`. Two fields
+   * naming one address is redundancy on purpose: the withdraw leg reads `recipient` and the
+   * invoke leg reads `swap.executor`, so letting them differ would withdraw to one contract and
+   * instruct another — funds delivered somewhere nothing is going to call. `planSend` refuses
+   * that rather than trusting the caller to keep them in step.
+   */
   recipient: string
+  /** For a swap, the token being SOLD. */
   token: string
   /** How the token is named in copy. A parameter: reading a symbol costs a call nobody needs. */
   symbol: string
+  /** For a swap, the amount being SOLD. What comes back is the venue's business. */
   amount: bigint
   mode: SubmitMode
+  /** Required when `kind` is `'swap'`, and refused on every other kind. */
+  swap?: SwapLeg
 }
 
 /** The relayer's advertised reimbursement leg. Both fields are read live, never assumed. */
@@ -447,6 +513,58 @@ export function planSend(
 
   const recipientFelt = feltOrNull(request.recipient)
   if (recipientFelt === null) return bad(`${JSON.stringify(request.recipient)} is not a felt address`)
+
+  // ── The swap leg, checked before anything is grouped ────────────────────────────────────
+  //
+  // A swap leg on a non-swap kind is refused rather than ignored. An ignored field is a caller
+  // who believes something is happening that is not, and here that belief is "my funds are being
+  // routed somewhere" — the one misunderstanding this module must never leave standing.
+  if (request.kind !== 'swap' && request.swap !== undefined) {
+    return bad(`a ${request.kind} carried a swap leg; it was refused rather than dropped`)
+  }
+  const swap = request.kind === 'swap' ? request.swap : undefined
+  if (request.kind === 'swap') {
+    if (!swap) return bad('a swap needs an executor, a buy token and a route, and carried none')
+    const executorFelt = feltOrNull(swap.executor)
+    if (executorFelt === null) {
+      return bad(`the swap executor ${JSON.stringify(swap.executor)} is not a felt address`)
+    }
+    if (executorFelt === 0n) {
+      return bad('the swap executor is address 0, which would burn the sell amount')
+    }
+    // THE TWO ADDRESSES MUST AGREE. See `SendRequest.recipient`: the withdraw reads one and the
+    // invoke reads the other, so a mismatch delivers the funds somewhere nothing will call.
+    if (executorFelt !== recipientFelt) {
+      return bad(
+        `this swap withdraws to ${request.recipient} and invokes ${swap.executor}. Those must be ` +
+          'the same contract — withdrawing to one and instructing another strands the sell amount.',
+      )
+    }
+    const buyFelt = feltOrNull(swap.buyToken)
+    if (buyFelt === null) {
+      return bad(`the buy token ${JSON.stringify(swap.buyToken)} is not a felt address`)
+    }
+    if (buyFelt === 0n) return bad('the buy token is address 0')
+    // Selling a token for itself is not a swap; it is a withdraw to a contract that has been
+    // handed a route with nothing to route. Caught here rather than by the venue, after the fee.
+    //
+    // COMPARED AS FELTS, not through `canonical`, which returns UNPREFIXED hex — `BigInt()` of
+    // it throws a raw SyntaxError from the middle of a planner whose whole contract is to return
+    // typed refusals. Two addresses are the same address when their numbers match, whatever
+    // padding or prefix either one was written with, and that is what `feltOrNull` answers.
+    const sellFelt = feltOrNull(request.token)
+    if (sellFelt === null) {
+      return bad(`the sell token ${JSON.stringify(request.token)} is not a felt address`)
+    }
+    if (buyFelt === sellFelt) {
+      return bad(`this swap sells ${request.symbol} for ${request.symbol}, which does nothing`)
+    }
+    if (swap.minOutWei <= 0n) {
+      // A floor of zero is a route that may return nothing at all and still succeed. `quote.ts`
+      // already refuses to compute one; this refuses to execute one that arrived anyway.
+      return bad(`this swap accepts a minimum of ${swap.minOutWei}, which is no floor at all`)
+    }
+  }
   if (recipientFelt === 0n) return bad('refusing to send to the zero address')
 
   const sendTokenFelt = feltOrNull(request.token)
@@ -591,9 +709,25 @@ export function planSend(
   }
   for (const c of change) noteRecipients.push({ address: self, token: c.token, amount: c.amount })
 
+  /**
+   * Every (recipient, token) pair this transaction mints a note into, INCLUDING the swap's open
+   * note — which is not in `noteRecipients` because it is not a `CreateEncNote`.
+   *
+   * The distinction is why this is a second list rather than an extra entry in the first. Both
+   * kinds of note need their channel and subchannel to exist, and only one of them contributes a
+   * `CreateEncNote` to the span; folding the open note into `noteRecipients` would put a
+   * `CreateEncNote` in the plan for a note the compiler emits as `CreateOpenNote`, and
+   * `assertSendSpan` would refuse the send it just planned.
+   */
+  const noteChannels: { address: string; token: string }[] = noteRecipients.map((r) => ({
+    address: r.address,
+    token: r.token,
+  }))
+  if (swap) noteChannels.push({ address: self, token: swap.buyToken })
+
   /** The public key each note recipient is registered under, in `noteRecipients` order. */
   const noteRecipientKeys: bigint[] = []
-  for (const { address, token } of noteRecipients) {
+  for (const [index, { address, token }] of noteChannels.entries()) {
     const channel = wallet.channels.find((c) => same(c.address, address))
     if (!channel) {
       return bad(
@@ -604,7 +738,11 @@ export function planSend(
     if (channel.publicKey === 0n) {
       return bad(`the channel data for ${address} carries a public key of 0`)
     }
-    noteRecipientKeys.push(channel.publicKey)
+    // KEYED BY INDEX AGAINST `noteRecipients`, not by push order. The swap's open note rides in
+    // `noteChannels` for its channel setup and contributes no `CreateEncNote`, so pushing
+    // unconditionally would append a key that belongs to no note. It happens to be harmless while
+    // the open note is last — which is exactly the kind of accident that stops being true.
+    if (index < noteRecipients.length) noteRecipientKeys.push(channel.publicKey)
     if (channel.key === undefined && !openChannels.some((a) => same(a, address))) {
       openChannels.push(address)
     }
@@ -654,9 +792,31 @@ export function planSend(
       fields: [BigInt(address), noteRecipientKeys[i]!, BigInt(token), amount, null, null],
     })
   })
+  // CreateOpenNoteInput { recipient_addr, recipient_public_key, token, index, salt }.
+  //
+  // NO AMOUNT FIELD, and that absence is the whole mechanism: an open note is a slot whose value
+  // is written by whatever deposits into it later. Here that is the executor, which is handed this
+  // note's id and pays the swap proceeds straight in. `actions.ts` gives the variant a balance
+  // sign of 0 for the same reason — nothing has been committed at compile time.
+  //
+  // EMITTED AFTER the change notes because both are in the compiler's `createNotes` phase and
+  // within a phase the order is builder insertion order — `proveSend` drives the sell token's
+  // builder first and reaches `.with(buyToken)` after it.
+  if (swap) {
+    const buyChannel = wallet.channels.find((c) => same(c.address, self))
+    expectedActions.push({
+      variant: CLIENT_ACTION.CreateOpenNote,
+      fields: [BigInt(self), buyChannel?.publicKey ?? null, BigInt(swap.buyToken), null, null],
+    })
+  }
   // WithdrawInput { to_addr, token, amount, random }. The user's leg first, then the relayer's
   // reimbursement — the order `proveSend` drives the builder in.
-  if (request.kind === 'withdraw') {
+  //
+  // A SWAP WITHDRAWS TOO, and to the executor. This is the leg that puts real value in a contract
+  // this app does not control, which is why `recipientFelt` is pinned here and cross-checked
+  // against `swap.executor` above: the whole safety of the sandwich is that the same transaction
+  // that hands the funds over also contains the instruction to give them back.
+  if (request.kind === 'withdraw' || request.kind === 'swap') {
     expectedActions.push({
       variant: CLIENT_ACTION.Withdraw,
       fields: [recipientFelt, BigInt(request.token), request.amount, null],
@@ -666,6 +826,37 @@ export function planSend(
     expectedActions.push({
       variant: CLIENT_ACTION.Withdraw,
       fields: [feeRecipientFelt!, BigInt(feeToken), feeLeg.feeWei, null],
+    })
+  }
+  // InvokeExternalInput { contract_address, calldata_len, ...calldata }.
+  //
+  // EVERY FELT IS PINNED EXCEPT THE LAST. The route is known now; only the open note's id is the
+  // compiler's, so it is the one `null`. That means a venue or a compiler that rewrote a call
+  // target, a selector or an amount between the plan and the proof is caught by `assertSendSpan`
+  // before a fee is paid — which matters more here than anywhere else in this file, because these
+  // are the felts that decide what a contract holding real withdrawn funds is told to do.
+  //
+  // Serialised through the same `invokeCalldata` the prover uses, with a placeholder note id, so
+  // the two cannot disagree about layout. Its refusals are the closed-selector safety property:
+  // an entrypoint this app has not verified never reaches a plan at all.
+  if (swap) {
+    const shape = invokeCalldata({
+      buyToken: swap.buyToken,
+      calls: swap.calls,
+      // A stand-in purely to make the array the right length. Its VALUE is discarded below —
+      // the felt it occupies becomes `null`, which is what tells `assertSendSpan` not to compare.
+      openNoteId: '0x0',
+    })
+    if (shape.state === 'refused') return bad(shape.because)
+
+    const felts: (bigint | null)[] = shape.calldata.map((felt) => BigInt(felt))
+    // The note id, blanked. `pop`-then-push rather than index arithmetic: `invokeCalldata`
+    // guarantees it is last and nothing here should re-derive where "last" is.
+    felts[felts.length - 1] = null
+
+    expectedActions.push({
+      variant: CLIENT_ACTION.InvokeExternal,
+      fields: [BigInt(swap.executor), BigInt(shape.calldata.length), ...felts],
     })
   }
 
@@ -720,10 +911,18 @@ export function planToValidatableActions(plan: SendPlan): ValidatableAction[] {
     out.push({ type: 'CreateEncNote', token: request.token, amount: request.amount })
   }
   for (const c of change) out.push({ type: 'CreateEncNote', token: c.token, amount: c.amount })
-  if (request.kind === 'withdraw') {
+  // Amount ZERO, and it has to be. An open note commits nothing at compile time — the executor
+  // writes its value later — so `actions.ts` gives the variant a balance sign of 0 and its
+  // zero-amount rule expects exactly this. Putting the expected proceeds here instead would make
+  // the buy token look like it arrived out of nowhere and fail the balance invariant.
+  if (request.kind === 'swap' && request.swap) {
+    out.push({ type: 'CreateOpenNote', token: request.swap.buyToken, amount: 0n })
+  }
+  if (request.kind === 'withdraw' || request.kind === 'swap') {
     out.push({ type: 'Withdraw', token: request.token, amount: request.amount })
   }
   if (fee) out.push({ type: 'Withdraw', token: STRK_TOKEN, amount: fee.feeWei })
+  if (request.kind === 'swap') out.push({ type: 'InvokeExternal' })
   return out
 }
 
@@ -1179,6 +1378,9 @@ export async function proveSend(input: ProveSendInput): Promise<ProvedSend> {
       if (plan.request.kind === 'transfer') {
         t.transfer({ recipient: plan.request.recipient, amount: plan.request.amount })
       } else {
+        // A SWAP TAKES THIS BRANCH TOO. Its recipient is the executor, checked in `planSend` to
+        // be the same contract the invoke leg names — so this is the leg that hands the sell
+        // amount over, and the invoke below is the instruction to give it back.
         t.withdraw({ recipient: plan.request.recipient, amount: plan.request.amount })
       }
     }
@@ -1188,6 +1390,50 @@ export async function proveSend(input: ProveSendInput): Promise<ProvedSend> {
       // constant here, and the relayer cannot add either one itself after the fact.
       t.withdraw({ recipient: plan.fee.recipient, amount: plan.fee.feeWei })
     }
+  }
+
+  // ── The swap sandwich: the open note, then the instruction to fill it ────────────────────
+  //
+  // Driven AFTER every spend builder so the compiler's `createNotes` phase sees the buy token's
+  // builder last, which is the order `planSend` writes the open note into `expectedActions`.
+  // Within a phase the compiler preserves builder insertion order, so these two orders are the
+  // same statement made twice — and `assertSendSpan` refuses the send if they ever stop being.
+  const swapLeg = plan.request.kind === 'swap' ? plan.request.swap : undefined
+  if (swapLeg) {
+    const buy = builder.with(swapLeg.buyToken)
+    for (const s of plan.openSubchannels) {
+      if (same(s.token, swapLeg.buyToken)) buy.setup(s.recipient)
+    }
+    // `Open` is the SDK's marker for a note whose amount is written by a later deposit — here,
+    // the executor's. It is a symbol rather than a number precisely so it cannot be confused with
+    // an amount of zero, which would be a note committing to nothing and staying that way.
+    buy.transfer({ recipient: self, amount: Open })
+
+    // ONE INVOKE PER TRANSACTION — the SDK enforces it (`builders.ts:214`) and this is that one.
+    // The callback runs inside the compiler, after the open note has an id, which is the only
+    // moment the calldata can be completed.
+    builder.invoke(({ openNotes }) => {
+      const note = openNotes[0]
+      if (note === undefined) {
+        // The compiler produced no open note despite being asked for one. Nothing downstream can
+        // recover from that: an invoke naming a note id that does not exist withdraws the sell
+        // amount to a contract with no way to return it.
+        throw new Error(
+          'the compiler minted no open note for the buy token, so there is nowhere for the swap ' +
+            'proceeds to land — refusing to invoke.',
+        )
+      }
+      const built = invokeCalldata({
+        buyToken: swapLeg.buyToken,
+        calls: swapLeg.calls,
+        // `invokeCalldata` normalises through `BigInt` itself, so the note id goes over as the
+        // decimal a bigint stringifies to rather than being hand-formatted here. One conversion,
+        // in one place, is the whole reason that function does its own normalising.
+        openNoteId: String(note.noteId),
+      })
+      if (built.state === 'refused') throw new Error(built.because)
+      return { contractAddress: swapLeg.executor, calldata: [...built.calldata] }
+    })
   }
 
   const invocation = await builder.createProofInvocation({ provingBlockId: input.provingBlockId })
