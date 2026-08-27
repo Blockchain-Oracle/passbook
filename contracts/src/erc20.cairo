@@ -8,6 +8,10 @@
 //! `approve` is how payouts leave: we do not push tokens to the pool, we authorise it to pull
 //! exactly the batch total, and it does so while crediting the open notes.
 //!
+//! `transfer` is the one path that does NOT go through the pool — a launch creator sweeping their
+//! raise to an address they name. That leg is public by construction, so it pushes directly
+//! rather than pretending otherwise.
+//!
 //! snake_case only. STRK's mainnet class exposes both casings, and picking the snake ones keeps
 //! this interface readable next to the rest of the Cairo 1 ecosystem.
 
@@ -17,4 +21,5 @@ use starknet::ContractAddress;
 pub trait IERC20<TContractState> {
     fn balance_of(self: @TContractState, account: ContractAddress) -> u256;
     fn approve(ref self: TContractState, spender: ContractAddress, amount: u256) -> bool;
+    fn transfer(ref self: TContractState, recipient: ContractAddress, amount: u256) -> bool;
 }

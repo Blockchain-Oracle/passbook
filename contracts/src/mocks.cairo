@@ -6,7 +6,8 @@
 //! nothing but disk.
 //!
 //! `MockPool` is the important one. It does not merely call us — it PULLS the approved sum
-//! afterwards, exactly as the real pool does while crediting open notes. Without that pull the
+//! afterwards, exactly as the real pool does while crediting open notes. It reaches its target
+//! through `IPrivacyInvoke`, so one double serves both `Markets` and `Launch`. Without that pull the
 //! batch-claim tests would pass against a contract that approves nothing, which is precisely the
 //! bug (StarkWare's own anonymizer approving inside its loop) the batch path exists to avoid.
 
@@ -21,6 +22,7 @@ pub trait IMockERC20<TContractState> {
     fn allowance(
         self: @TContractState, owner: ContractAddress, spender: ContractAddress,
     ) -> u256;
+    fn transfer(ref self: TContractState, recipient: ContractAddress, amount: u256) -> bool;
     fn transfer_from(
         ref self: TContractState,
         sender: ContractAddress,
@@ -83,6 +85,17 @@ pub mod MockERC20 {
             self.allowances.read((owner, spender))
         }
 
+        /// The one leg that does not go through the pool: a launch creator sweeping their raise
+        /// to an address they name.
+        fn transfer(ref self: ContractState, recipient: ContractAddress, amount: u256) -> bool {
+            let sender = get_caller_address();
+            let from_balance = self.balances.read(sender);
+            assert(from_balance >= amount, 'INSUFFICIENT_BALANCE');
+            self.balances.write(sender, from_balance - amount);
+            self.balances.write(recipient, self.balances.read(recipient) + amount);
+            true
+        }
+
         fn transfer_from(
             ref self: ContractState,
             sender: ContractAddress,
@@ -115,7 +128,7 @@ pub mod MockERC20 {
 pub mod MockPool {
     use starknet::storage::{Map, StorageMapReadAccess, StorageMapWriteAccess};
     use starknet::{ContractAddress, get_contract_address};
-    use strk20_app::markets::{IMarketsDispatcher, IMarketsDispatcherTrait};
+    use strk20_app::batch::{IPrivacyInvokeDispatcher, IPrivacyInvokeDispatcherTrait};
     use strk20_app::pool_types::OpenNoteDeposit;
     use super::{IMockERC20Dispatcher, IMockERC20DispatcherTrait};
 
@@ -129,7 +142,7 @@ pub mod MockPool {
         fn invoke(
             ref self: ContractState, target: ContractAddress, op: felt252, payload: Span<felt252>,
         ) -> Span<OpenNoteDeposit> {
-            let deposits = IMarketsDispatcher { contract_address: target }
+            let deposits = IPrivacyInvokeDispatcher { contract_address: target }
                 .privacy_invoke(op, payload);
 
             // The pull. Each returned deposit is money the invoked contract has authorised us to

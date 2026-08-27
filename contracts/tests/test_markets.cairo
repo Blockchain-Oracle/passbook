@@ -2,6 +2,7 @@ use core::poseidon::poseidon_hash_span;
 use snforge_std::{
     declare, start_cheat_block_timestamp_global, ContractClassTrait, DeclareResultTrait,
 };
+use strk20_app::batch;
 use strk20_app::markets::{IMarketsDispatcher, IMarketsDispatcherTrait, Markets};
 use strk20_app::mocks::{
     IMockERC20Dispatcher, IMockERC20DispatcherTrait, IMockPoolDispatcher, IMockPoolDispatcherTrait,
@@ -874,7 +875,7 @@ fn a_batch_beyond_the_pools_note_ceiling_is_refused() {
     let ctx = setup();
     // Asserted through OP_BET rather than OP_CLAIM: claiming checks its caller first, so a
     // direct call there would be refused as ONLY_POOL before the batch size was ever read.
-    ctx.markets.privacy_invoke(Markets::OP_BET, array![(Markets::MAX_BATCH + 1).into()].span());
+    ctx.markets.privacy_invoke(Markets::OP_BET, array![(batch::MAX_BATCH + 1).into()].span());
 }
 
 // Quotes render into the UI, so they must never panic — an unknown market is 0 tickets, not a
