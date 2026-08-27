@@ -117,12 +117,24 @@ export function assertActionListValid(actions: readonly ValidatableAction[]): vo
   //    asserted after the loop finishes. Live evidence: `[Deposit(0), Withdraw(0)]` returns
   //    ZERO_AMOUNT, not NO_REPLAY_PROTECTION. Deposits keep their historic ZERO_AMOUNT_DEPOSIT
   //    code so 1-2-era callers keep the name they matched on.
+  //
+  //    `CreateOpenNote` IS EXEMPT, and that is a correction rather than a loophole. The pool's
+  //    `CreateOpenNoteInput` (privacy.cairo:681) is
+  //    `{ recipient_addr, recipient_public_key, token, index, random }` — it has NO amount field,
+  //    and its `assert_valid` (actions.cairo:135-145) asserts exactly four things non-zero:
+  //    recipient_addr, recipient_public_key, token, random. There is no ZERO_AMOUNT check for
+  //    this variant because there is no amount to check. An open note is a SLOT whose value a
+  //    later deposit writes, which is the same fact `BALANCE_SIGN` records by giving it 0.
+  //
+  //    Requiring an amount above zero here refused the one list this variant exists for: a swap
+  //    plans an open note for the buy token with nothing committed to it, and the executor
+  //    deposits the proceeds in afterwards. The rule as first written made that plan unbuildable
+  //    while citing a chain error the chain does not raise.
   for (const a of actions) {
+    if (a.type === 'CreateOpenNote') continue
     const amount = (a as { amount?: bigint }).amount
     if (amount === undefined || amount > 0n) continue
-    if (a.type === 'Deposit' || a.type === 'CreateOpenNote') {
-      throw new Error(`ZERO_AMOUNT_DEPOSIT at ${a.type}`)
-    }
+    if (a.type === 'Deposit') throw new Error(`ZERO_AMOUNT_DEPOSIT at ${a.type}`)
     throw new Error(`ZERO_AMOUNT at ${a.type}`)
   }
 
