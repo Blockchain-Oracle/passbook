@@ -29,6 +29,7 @@ import { PipelineRow } from '../shell/PipelineRow'
 import { getHealth, setHealth, subscribeHealth, watchConnectivity } from '../shell/pool-health'
 import { AccountChip } from '../components/AccountChip'
 import { DegradedStrip } from '../components/DegradedStrip'
+import { ThemeToggle } from '../components/ThemeToggle'
 
 //
 // THE PALETTE IS CODE-SPLIT, AND NOT FOR THE BYTE GATE.
@@ -186,6 +187,7 @@ function RootLayout() {
           <Link to="/settings" className="nav-item focus-ring">
             Settings
           </Link>
+          <ThemeToggle />
           {/*
             The network the artifact actually resolved to. The mainnet guard asserts both of these
             values reach the mounted DOM — one assertion covering the whole chain, from the protocol

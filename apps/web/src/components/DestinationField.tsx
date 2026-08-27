@@ -25,6 +25,7 @@ import type { BridgeDestination } from '@strk20/protocol/bridge'
 
 import { cn } from '../lib/cn'
 import { Text } from './ui/Text'
+import { ChainLogo, isKnownChain } from './ChainLogo'
 import { TokenLogo } from './TokenLogo'
 
 export interface DestinationFieldProps {
@@ -74,7 +75,11 @@ export function DestinationField({
         <div className="flex items-center gap-s12">
           {/* 36px identity row. No avatar service and no ENS — the mark is the CHAIN, because on a
               crossing the chain is the half of the destination a person cannot verify by eye. */}
-          <TokenLogo url={null} symbol={chain.name} name={chain.name} size={36} />
+          {isKnownChain(chain.key) ? (
+            <ChainLogo chainKey={chain.key} size={36} />
+          ) : (
+            <TokenLogo url={null} symbol={chain.name} name={chain.name} size={36} />
+          )}
           <span className="flex min-w-0 flex-1 flex-col">
             <Text variant="body2" className="numeric truncate text-neutral1">
               {value.trim()}
@@ -146,7 +151,11 @@ function ChainPill({ chain, onPress }: { chain: BridgeDestination; onPress: () =
       )}
     >
       <span className="-ml-s8">
-        <TokenLogo url={null} symbol={chain.name} name={chain.name} size={28} />
+        {isKnownChain(chain.key) ? (
+          <ChainLogo chainKey={chain.key} size={28} />
+        ) : (
+          <TokenLogo url={null} symbol={chain.name} name={chain.name} size={28} />
+        )}
       </span>
       <Text variant="buttonLabel2">{chain.name}</Text>
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true" className="-mr-s2">

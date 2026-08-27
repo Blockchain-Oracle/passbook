@@ -20,6 +20,7 @@ import { DESTINATIONS, type BridgeDestination } from '@strk20/protocol/bridge'
 import { cn } from '../lib/cn'
 import { ResponsiveDialog } from '../shell/ResponsiveDialog'
 import { Text } from './ui/Text'
+import { ChainLogo, isKnownChain } from './ChainLogo'
 import { TokenLogo } from './TokenLogo'
 
 export interface ChainSelectorProps {
@@ -95,7 +96,11 @@ function ChainRow({
         selected && 'bg-inset',
       )}
     >
-      <TokenLogo url={null} symbol={chain.name} name={chain.name} size={40} />
+      {isKnownChain(chain.key) ? (
+        <ChainLogo chainKey={chain.key} size={40} />
+      ) : (
+        <TokenLogo url={null} symbol={chain.name} name={chain.name} size={40} />
+      )}
 
       <span className="flex min-w-0 flex-1 flex-col gap-s2">
         <Text variant="body2" className="truncate text-neutral1">
