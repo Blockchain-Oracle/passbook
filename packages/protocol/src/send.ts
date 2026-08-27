@@ -1817,6 +1817,13 @@ export async function sendShielded(input: SendInput, deps: SendDeps = {}): Promi
       symbol: input.symbol,
       amount: input.amount,
       mode: input.mode,
+      // FORWARDED EXPLICITLY, because this object is rebuilt field by field rather than spread.
+      // That is deliberate — it keeps `SendInput` from smuggling keys into a plan — but it means
+      // a new field is dropped in silence until it is named here, and dropping this one would
+      // turn a swap into a plain withdraw to the executor, with no instruction to give anything
+      // back. `planSend` refuses a swap with no leg, so the failure is loud; this is what makes
+      // it never happen.
+      swap: input.swap,
     },
     input.wallet,
     self,

@@ -12,12 +12,14 @@ import { describe, expect, it } from 'vitest'
 import { planSend, planToValidatableActions, expectedSpanFelts } from '../src/send.js'
 import type { SendWalletData, SwapLeg } from '../src/send.js'
 import { NET, STRK_TOKEN } from '../src/constants.js'
+import { generateIdentity } from '../src/identity.js'
 import { CLIENT_ACTION } from '../src/message-book.js'
 import { assertActionListValid, assertBalancedActionList } from '../src/actions.js'
 import type { SwapCall } from '../src/quote.js'
 
 const FEE_WEI = 6_000_000_000_000_000_000n
 const SELF = '0x0123456789abcdef'
+const ACCOUNT_KEY = generateIdentity().privateKey
 const USDC = '0x053c91253bc9682c04929ca02ed00b3e423f6710d2ee7e0d5ebb06f3ecf368a8'
 
 /**
@@ -248,5 +250,48 @@ describe('the executor address this app ships is the one that was read from chai
     // A guard against the copy-paste that would send a route to the pool itself.
     expect(BigInt(EXECUTOR)).not.toBe(BigInt(NET.pool))
     expect(BigInt(EXECUTOR)).not.toBe(BigInt(STRK_TOKEN))
+  })
+})
+
+describe('the swap leg survives the sendShielded boundary', () => {
+  it('reaches the prover as an InvokeExternal, rather than a bare withdraw to the executor', async () => {
+    // THE REGRESSION THIS EXISTS FOR. `sendShielded` rebuilds its `SendRequest` field by field
+    // rather than spreading `input`, which keeps stray keys out of a plan — and means a new field
+    // is dropped in silence until it is named. Dropping THIS one turns a swap into a plain
+    // withdraw to the executor: the sell amount handed over with no instruction to give anything
+    // back, and a transaction that succeeds while losing the funds.
+    const { sendShielded } = await import('../src/send.js')
+
+    let plannedVariants: number[] = []
+    const result = await sendShielded(
+      {
+        accountKey: ACCOUNT_KEY,
+        account: { address: SELF, signer: {} as never },
+        ...swap(),
+        wallet: wallet(),
+      },
+      {
+        acquireSubmitLock: async () => () => {},
+        readHealth: async () => ({
+          state: 'ok',
+          feeWei: FEE_WEI,
+          proofValidityBlocks: 100,
+          blockNumber: 1_000_000,
+        }),
+        readBlockNumber: async () => 1_000_000,
+        readChannelCount: async () => 1,
+        prove: async (input) => {
+          plannedVariants = input.plan.expectedActions.map((a) => a.variant)
+          // Stopping here is the point: the plan is what this test is about, and going further
+          // would need a real compiler and a real prover.
+          throw new Error('stop after planning')
+        },
+      },
+    )
+
+    expect(plannedVariants).toContain(CLIENT_ACTION.InvokeExternal)
+    expect(plannedVariants).toContain(CLIENT_ACTION.CreateOpenNote)
+    // And it did not silently succeed as something else.
+    expect(result.ok).toBe(false)
   })
 })
