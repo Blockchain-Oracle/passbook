@@ -193,3 +193,105 @@ export async function runKeeperPass(deps: KeeperDeps): Promise<KeeperPass> {
 
   return pass
 }
+
+// ─────────────────────────────────────────────────────────────────────────────────────────
+// The chain adapter — turning a provider and an account into `KeeperDeps`
+// ─────────────────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Where each field sits in a serialised `Market`, from `markets.cairo`'s struct order:
+ *
+ *   pair_id, strike, deadline, token, up, down, k(u256 = TWO felts), seed, collateral,
+ *   state, winner, experimental
+ *
+ * Pinned as named constants rather than inline numbers because `k` being two felts is exactly
+ * the kind of off-by-one that would read `collateral` as `state` and silently decide every
+ * market was already settled — a keeper that then does nothing, forever, without erroring.
+ * `keeper.test.ts` decodes a hand-built struct to hold these.
+ */
+export const MARKET_FIELD = { pairId: 0, deadline: 2, state: 10 } as const
+
+/** `PragmaPricesResponse`: price, decimals, last_updated_timestamp, num_sources_aggregated, … */
+export const ORACLE_FIELD = { price: 0, decimals: 1, lastUpdated: 2 } as const
+
+/** `DataType::SpotEntry` is variant 0 — the calldata shape banked in the Day-0 evidence. */
+export const SPOT_ENTRY_VARIANT = '0x0'
+
+export interface KeeperChainIO {
+  /** The deployed Markets contract. */
+  markets: string
+  /** Pragma, as the deployment recorded it — the oracle `Markets` was CONSTRUCTED with. */
+  pragma: string
+  /** A read-only contract call. */
+  call: (contractAddress: string, entrypoint: string, calldata: string[]) => Promise<string[]>
+  /** Sign and submit. The caller owns the account, the allowlist and the retry policy. */
+  send: (contractAddress: string, entrypoint: string, calldata: string[]) => Promise<void>
+  now?: () => number
+}
+
+export function decodeMarket(marketId: number, felts: readonly string[]): KeeperMarket {
+  return {
+    marketId,
+    pairId: felts[MARKET_FIELD.pairId] ?? '0x0',
+    deadline: Number(BigInt(felts[MARKET_FIELD.deadline] ?? '0x0')),
+    state: Number(BigInt(felts[MARKET_FIELD.state] ?? '0x0')),
+  }
+}
+
+export function decodeOracle(felts: readonly string[]): OracleReading {
+  return {
+    price: BigInt(felts[ORACLE_FIELD.price] ?? '0x0'),
+    decimals: Number(BigInt(felts[ORACLE_FIELD.decimals] ?? '0x0')),
+    lastUpdatedTimestamp: Number(BigInt(felts[ORACLE_FIELD.lastUpdated] ?? '0x0')),
+  }
+}
+
+/**
+ * Build `KeeperDeps` against a live chain.
+ *
+ * ── MARKETS ARE ENUMERATED FROM `market_count`, NOT FROM EVENTS ───────────────────────────
+ *
+ * The design said "scan MarketCreated". Ids are assigned sequentially from zero by
+ * `Markets::op_create`, so `market_count()` plus `get_market(i)` reaches exactly the same set
+ * with no block-range pagination, no `from_block` to persist across restarts, and no risk of a
+ * missed page silently meaning a market never gets settled. Events remain the right tool for the
+ * UI's history; for "what exists right now", the count IS the answer.
+ *
+ * ── AND SETTLED MARKETS ARE READ ONCE ─────────────────────────────────────────────────────
+ *
+ * A market that is resolved or voided can never go back to active, so once seen in a terminal
+ * state it is cached and never re-read. Without that, every pass costs one RPC call per market
+ * this contract has ever held, forever.
+ */
+export function createChainKeeperDeps(io: KeeperChainIO): KeeperDeps {
+  const settled = new Map<number, KeeperMarket>()
+
+  return {
+    now: io.now ?? (() => Math.floor(Date.now() / 1000)),
+
+    markets: async () => {
+      const countFelts = await io.call(io.markets, 'market_count', [])
+      const count = Number(BigInt(countFelts[0] ?? '0x0'))
+
+      const out: KeeperMarket[] = []
+      for (let id = 0; id < count; id++) {
+        const cached = settled.get(id)
+        if (cached) {
+          out.push(cached)
+          continue
+        }
+        const market = decodeMarket(id, await io.call(io.markets, 'get_market', [`0x${id.toString(16)}`]))
+        if (market.state !== MARKET_ACTIVE) settled.set(id, market)
+        out.push(market)
+      }
+      return out
+    },
+
+    readOracle: async (pairId) =>
+      decodeOracle(await io.call(io.pragma, 'get_data_median', [SPOT_ENTRY_VARIANT, pairId])),
+
+    send: async ({ kind, marketId }) => {
+      await io.send(io.markets, kind, [`0x${marketId.toString(16)}`])
+    },
+  }
+}
