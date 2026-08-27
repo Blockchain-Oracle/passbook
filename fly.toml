@@ -29,6 +29,11 @@ primary_region = "iad"
   RELAYER_HOST = "0.0.0.0"
   RELAYER_SPONSOR_STORE = "/data/sponsorship.json"
   RELAYER_SEND_STORE = "/data/send-budget.json"
+  # The name directory is a PUBLIC ledger, and it was writing inside the container — so every
+  # deploy silently dropped every claimed name while the two private ledgers beside it survived.
+  # Found while verifying a README sentence that asserted it was durable. It is a public registry
+  # people point other people at; losing it is worse than losing a cap, not better.
+  RELAYER_DIRECTORY_STORE = "/data/directory.json"
   # `RELAYER_INVITE_STORE` is deliberately absent — see the Dockerfile. A store path without
   # `RELAYER_INVITE_ALLOWANCE` is a refusal to start, not a default, and invites are off here.
 

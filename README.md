@@ -1,159 +1,198 @@
-# STRK20 — a multi-surface app on Starknet's privacy pool
+# Passbook — a private account on Starknet's STRK20 pool
 
-Starknet has a live privacy pool called STRK20, and almost nobody is building on it. This
-repository is one application that does: a single place to hold, send, message, swap, bridge,
-bet and launch tokens through that pool. What distinguishes it is not a privacy claim — every
-project in this space makes those. It is that each screen names which parties can see what,
-before you act, including the parties you did not choose.
+Open [passbook-zeta.vercel.app](https://passbook-zeta.vercel.app) and you have an account. No
+wallet to connect, nothing to install, nothing to paste. The key is generated in your browser on
+first load, and everything below runs from it: hold and send shielded value, chat with anyone who
+has registered, swap, bridge out.
 
-That inversion is the product. A privacy tool that overstates what it hides is worse than no
-privacy tool at all, because its users act on the difference. Not all of what follows is built
-yet, so the inventory of what actually exists today sits above the build instructions rather
-than buried under them.
+What distinguishes this from every other privacy product is not the privacy claim. It is that
+each screen names which parties can see what, **before** you act — including the parties you did
+not choose. A privacy tool that overstates what it hides is worse than none at all, because its
+users act on the difference.
 
----
-
-## Why privacy is necessary here, specifically
-
-Starknet is public by default. Every balance, every transfer, every counterparty and every
-amount is readable by anyone, forever, and attributable to an address that is usually reused.
-That is fine for a test transaction and unworkable for the ordinary things people do with
-money: paying a contractor, sizing an OTC trade, taking a position before others see it,
-holding a treasury a competitor would like to read.
-
-STRK20 is StarkWare's own answer — a pool that breaks the link between an address and what it
-does. But the protection it gives is partial in ways that matter, and the parts it does not
-cover are exactly the parts most products quietly imply they do. Two of them are structural:
-
-- **Privacy is a crowd property.** A pool with few active users gives little cover no matter
-  how good the cryptography is. So the binding design commitment here is to put the real
-  anonymity-set number on screen at the moment of decision, rather than the word "private".
-  None of the shipped privacy products we checked does this — Railgun, Privacy Pools, Railway.
-- **Some things are public and cannot be made otherwise here.** Deposits into the pool are
-  public. Amounts in any leg that touches an open note — a swap, a launch, a market bet — are
-  public. The section at the bottom of this file states these plainly, and it is not an
-  appendix; it is the part of this project we would most like a judge to read.
+So the inventory of what actually exists sits above the build instructions rather than under them,
+and the section listing what this project refuses to claim is the one we would most like a judge
+to read.
 
 ---
 
-## Surfaces
+## Where each surface actually stands
 
-Six surfaces, one pool. This is the design, not the inventory — the next section says which
-parts exist.
+Six surfaces, one pool. This table is the inventory, not the design.
 
-| Surface | What it is |
+| Surface | State today |
 |---|---|
-| **Wallet** | The substrate, not a tab. Register a key, publish a receive address, run discovery, send. No new contracts. |
-| **Chat** | Key agreement rooted in keys already on the pool, so it costs nothing extra. The chain carries room-open, seals, and money-with-message. |
-| **Swap** | A router that approves a pinned venue, executes, measures output by balance delta and returns the deposit. |
-| **Bridge** | Outbound only, via CCTP v2, with Circle's Forwarding Service paying destination gas. |
-| **Markets** | Binary UP/DOWN FPMM, Pragma-resolved. |
-| **Launch** | Epoch-clearing auction with public denominations and router-owned LP on graduation. |
+| **Wallet** | **Live end to end.** Balance read from the pool, four honest states, send, deploy, register, QR receive, account lifecycle (create / import / unlock / lock / switch), history. |
+| **Chat** | **Live end to end.** Multi-conversation, one multiplexed socket, sealed messages, money attached to a message, opt-in public name directory. |
+| **Swap** | **Live end to end.** Real route priced through an on-chain aggregator, executed in one transaction, proceeds land back in the pool. |
+| **Bridge** | **Live, outbound only.** Shielded USDC to another chain through StarkWare's deployed `OutboundAnonymizer`. See the limits below — they are real. |
+| **Markets** | **Contract written and tested; not deployed.** 52 snforge tests. The surface is built and the prices on it are live from Pragma — the same oracle a market will settle against. There are no markets to bet on until the declare lands. |
+| **Launch** | **Contract written and tested; not deployed.** 47 snforge tests. The surface explains the epoch mechanism; nothing can be created until the declare lands. |
 
-Chat is deliberately first. A zero-deposit invoke sets no compliance-screening subject, which
-makes it the one surface immune to the pool's coming default-deny screening policy, and its
-zero-value calls cannot revert on a balance mid-demo.
+**Markets and Launch say exactly that on their own screens.** No fixture rows, no greyed-out
+mock with plausible odds in it — a screenshot of invented markets is indistinguishable from a
+working product, which is the one thing that would make everything else here untrustworthy.
+`packages/protocol/src/app-contracts.ts` reads `evidence/markets-launch-deployment.json`; that
+file does not exist yet, so the addresses are absent, and absent means the controls that would
+submit are **not rendered at all** rather than rendered and disabled. The deploy is staged at
+`scripts/ops/deploy-markets-launch.ts` and waits on funding the declares.
 
-## What is actually built, today
+### What is live on Markets today, with zero deployment
 
-Being precise about this is cheaper than being caught.
+Pragma's `get_data_median` is a free view call on a contract that has been on mainnet for years,
+so the price strip and the chart are real reads from first paint. A live read taken while writing
+this: **BTC/USD 80,025.38, 10 sources, last updated 342 seconds earlier.**
 
-| Component | State |
-|---|---|
-| `packages/protocol` | Live pool reads with RPC fallback, local identity generation with encrypted backup, registration pre-flight with the `ForeignKey` collision guard. Tested. |
-| `packages/relayer` | Paymaster, submission server and the chat room bus. **Proven on mainnet** — it signed and broadcast the sponsored registration below. **Hosted** at `passbook-relayer.fly.dev`, one machine, always on; it binds loopback by default and only this deployment does otherwise. |
-| `contracts/MessageBook` | **Deployed on mainnet**, class hash verified against the running contract. |
-| Mainnet transactions touching the pool | **1 of the 3 the submission gate requires.** |
-| Web app | Live at **https://passbook-zeta.vercel.app** — no login, no wallet to connect. |
+That staleness is why the strip has a stale state at all. The day-0 probe watched this feed hold
+one value for eleven minutes, so a surface that always renders a bright number would be claiming
+an immediacy the oracle does not have.
 
-**What works end to end today.** Open the app and an account is derived in your browser on first
-load; nothing is connected and nothing is pasted. The wallet reads your shielded balance straight
-from the pool and tells you which of four states it is in — including "the pool could not be read",
-which is deliberately not shown as a zero. An account funded in the browser can deploy itself and
-then register its viewing key with the pool, both real mainnet transactions the product sends on
-its own. Send moves a shielded note to another pool account: the asset list is what this account
-actually holds rather than a catalogue, and the recipient's address is checked against the pool
-while it is still being typed — for free, before a fee is spent — because a transfer to an address
-that never registered a viewing key is one the protocol refuses. Chat derives a room from two
-addresses' pool keys with no handshake and no directory, streams sealed messages through a relay
-that holds no key and cannot read them, and can attach a real transfer to a message; the payment
-card appears only after that transaction has confirmed, so a card in a thread is never a claim
-about money that did not move. Swap prices a real route through an on-chain aggregator and executes it in one
-transaction: the sell token is withdrawn to the venue's privacy executor, the executor is invoked,
-and the proceeds land back in the pool as a note — the value never touches a public address of
-yours. Bridge sends shielded USDC out to another chain through StarkWare's own deployed
-`OutboundAnonymizer`, on the same withdraw-then-invoke sandwich, with Circle's fee read live and
-the exact arriving amount shown before you commit.
+### What does not work, stated plainly
 
-**What does not work yet, stated plainly.** There is no invite. An address that has never registered
-with the pool is named as exactly that and nothing is offered to fix it — paying a stranger's
-registration so they can be paid is a feature this repository has copy for and no implementation of,
-and a button that opened nothing would be worse than the sentence. Markets and launch are not built;
-each says so on its own screen, along with what is already working underneath it. The bridge is
-**outbound only** — bringing value back needs a second
-contract, a relayer that has to stay alive, and a fund-stranding failure path nobody here has
-rehearsed. And while the bridge's helper has hundreds of successful mainnet burns behind it, the
-crossing this app builds has been pinned against a real one felt-for-felt in tests rather than run:
-no crossing has been sent from this code. Solana is offered and says on its own row that a
-destination with no existing USDC account is a path nobody here has tested.
+- **There is no invite.** An address that has never registered with the pool is named as exactly
+  that and nothing is offered to fix it. Paying a stranger's registration so they can be paid is a
+  feature this repository has copy for and no implementation of, and a button that opened nothing
+  would be worse than the sentence.
+- **The bridge is outbound only.** Bringing value back needs a second contract, a relayer that has
+  to stay alive, and a fund-stranding failure path nobody here has rehearsed.
+- **No crossing has been sent from this code.** The helper has hundreds of successful mainnet
+  burns behind it; the crossing this app builds has been pinned against a real one felt-for-felt
+  in tests rather than run. Solana says on its own row that a destination with no existing USDC
+  account is a path nobody here has tested.
+- **Depositing into the pool is public** — depositor and amount are both visible. What the pool
+  hides is which notes are yours afterwards.
 
-This app does not claim that your address is hidden from the public record. Depositing into the
-pool is public: the depositor and the amount are both visible. What the pool hides is which notes
-are yours afterwards. The honest sentence is the one it ships with — the pool sees your
-transaction, not your notes.
+---
+
+## The honesty machinery
+
+This is the part that is actually unusual, and it is enforced rather than promised.
+
+**One privacy row, not four widgets.** Every review used to stack a disclosure panel, a visibility
+matrix, a linkability meter and a 320px dot-canvas, permanently open, above the confirm button.
+Four privacy widgets shown at once do not add up to four times the understanding — they add up to
+noise a reader scrolls past, which means the honest disclosure gets skipped along with the
+decoration. `PrivacyRow` collapses them into a headline sentence and a chevron. The collapsed
+headline **is** `disclosure.lines[0]`, reproduced byte-for-byte; expanding renders the same panel
+and the same meter, unmodified. Severity stays visible while collapsed, because a row that hid a
+warning until you opened it would be worse than the noise it replaced.
+
+**User-facing sentences live in the protocol package, with tests.** Copy is not written inline in
+components. It lives in `packages/protocol/src/*-copy.ts` and is pinned byte-exact, so rewording a
+claim is a diff a reviewer sees rather than a string somebody edited in a component.
+
+**Ten phrases are false about STRK20 as deployed, and a test enforces their absence.** They are
+data in `packages/protocol/src/forbidden-claims.ts`, each with the reason it is false written
+beside it. This is not decorative: it caught a sentence in this very sprint. The Launch surface
+first said *"your address never appears on the launch"* — which is on the list, and correctly,
+because the address **does** appear on the deposit and on any public withdrawal. The true claim is
+narrower and still worth making: *the launch records no buyer address.*
+
+**What the relayer sees, said on the surface.** It exists so that its address rather than yours is
+the visible submitter. That is a real service and a real trust assumption: it sees your IP and the
+timing of your request. For chat it holds a short in-memory backlog of ciphertext — 50 messages
+per room, dropped 30 minutes after a room goes quiet — and it holds no key and cannot read them.
+Your conversations live in your browser and nowhere else; the app says so, and says that anything
+sent while that browser was closed past the window was never stored anywhere it could be fetched
+from later.
+
+**One socket carries every conversation, and that is disclosed.** A multiplexed subscribe tells the
+relayer explicitly that those rooms share one participant. It could already infer that from N
+subscribes arriving on one IP at one instant — so the copy says what is true now rather than
+pretending the previous shape was hiding it.
+
+**The name directory is public by construction.** Claiming a name publishes name → address for
+anyone to read; that is its entire function. Two things make it narrower than it could be: nobody
+has to claim one, and **search is private** — the client fetches the whole (small) list and matches
+locally, so the relayer never learns who you looked for. A claim is signed with the viewing key
+registration already anchored on chain and verified against `get_public_key`, so a name cannot be
+pointed at an address whose key the claimant does not hold. Taking a name back removes it from the
+list rather than from anyone who already read it, and the copy says that too.
+
+---
+
+## Architecture
+
+**The account is an embedded key.** Derived in the browser on first load — no wallet, no email, no
+seed phrase before anything works. That is also what makes the hosted demo work without login: a
+consequence, not a waiver. The key sits in `localStorage` in plaintext, which is an accepted and
+argued risk written down at `packages/protocol/src/session-key.ts` rather than a detail nobody
+mentioned. "Lock" therefore means a screen lock, and the app says so in those words instead of
+implying encryption it does not perform.
+
+**The relayer, reached through a same-origin proxy.** The browser never holds the relayer's auth
+token; it posts to `/api/*` and the app host injects the token. That is why every relayer route
+matches an exact path and why the streaming endpoint is a POST — an `EventSource` can set neither
+a `content-type` nor an auth header.
+
+**The invoke sandwich.** Swap and bridge are the same shape: withdraw the input to the venue's
+privacy executor, invoke the executor, and the proceeds land back in the pool as a note. Value
+never touches a public address of yours in between.
+
+**Every action list is rehearsed against a free view before a funded transaction.** The pool's
+`compile_actions` is a view, so a malformed list can be caught for nothing — and it must be,
+because a malformed list burns the fee even when it reverts. What that view does *not* catch is
+recorded in `evidence/day0-markets-launch-checks.json`: an unmatched open note reverts **after**
+the fee, so the client asserts the open-note count equals the expected deposits.
+
+**The build gate reads the artifact.** `vite build` exiting 0 is not evidence the app works — with
+the privacy SDK's `/testing` alias missing it exits 0, writes a bundle, and the page dies at load
+with `ReferenceError: Buffer is not defined`. So the wrapper scans the emitted chunks for Node-only
+module names, holds the generated route tree against the route files on disk, reads the emitted
+stylesheet to prove the design system shipped and re-themes, caps first-paint bytes, and refuses
+any bundler warning that is not on an explicit allowlist. That last check earns its place
+constantly: it caught five ineffective dynamic imports during this sprint, each one a module that
+looked lazily loaded and was not.
+
+**`evidence/` is the audit trail**, and only a probe that actually measured something may write
+into it. Proof wall-time has never been measured by anyone on this protocol, so no duration appears
+anywhere in this repository — including in this file.
 
 ---
 
 ## Running it
 
-Requires Node 24 (see `.nvmrc`), plus `scarb` 2.8.2 and `snforge` 0.31.0 for the contract.
-pnpm is the package manager — `corepack enable` provisions the pinned version.
+Node 24 (see `.nvmrc`), pnpm 11.24.0 (pinned in `packageManager`), plus `scarb` 2.8.2 and
+`snforge` 0.31.0 for the contracts.
 
 ```bash
 nvm use
 corepack enable
 pnpm install
 
-pnpm test                # TypeScript suite
-
-cd contracts && scarb build && snforge test && cd ..
-```
-
-### The web app
-
-No browser install, no extra setup step — `pnpm install` gives you everything the gates need.
-
-The build wrapper exists because "`vite build` exited 0" is not evidence the app works: with the
-privacy SDK's `/testing` alias missing, the build exits 0, writes a 684 kB bundle, and the page
-dies at load with `ReferenceError: Buffer is not defined`. The wrapper catches that by **reading
-the artifact** — scanning the emitted chunks for the Node-only module names that put it there,
-holding the generated route tree against the route files on disk, and reading the emitted
-stylesheet to prove the design system shipped and re-themes. Earlier versions loaded the bundle in
-headless Chromium to learn the same things; that cost a 130 MB binary and a postinstall step no
-install performs, in exchange for information already written in the output.
-
-```bash
-pnpm run typecheck            # root + apps/web; the root config alone does not cover the app
-pnpm run build:web            # builds, holds the warning contract, reads the artifact
-pnpm run verify:mainnet-guard # flips the tree off mainnet and back, proving the guard both ways
+pnpm test                      # 2,565 tests across 102 files
+pnpm run typecheck             # root + apps/web; the root config alone does not cover the app
+pnpm run build:web             # builds, holds the warning contract, reads the artifact
+pnpm run verify:mainnet-guard  # flips the tree off mainnet and back, proving the guard both ways
 ```
 
 `pnpm run build:web` from the repository root is the only supported way to build the app. There is
 deliberately no `build` script in `apps/web/package.json`: a bare `vite build` skips the warning
-contract, the eager-bundle budget and the artifact reads, and produces something nothing has
-checked.
+contract, the byte budget and the artifact reads, and produces something nothing has checked.
 
 `verify:mainnet-guard` rewrites `packages/protocol/src/constants.ts` in your working tree for a few
-seconds. Do not run it alongside other work in the same checkout. If it is killed with `SIGKILL`
-mid-run it leaves a `.guard-verify-backup` sidecar; the next run finds it, restores from it, and
-says so.
+seconds. Do not run it alongside other work in the same checkout. Killed with `SIGKILL` mid-run it
+leaves a `.guard-verify-backup` sidecar; the next run finds it, restores from it, and says so.
 
-`evidence/` is the audit trail for every number this project asserts, and only a probe that
-actually measured something is allowed to write into it.
+### The contracts
 
-Proof wall-time has never been measured by anyone on this protocol, and a probe that reported
-zeros would put a false number into the audit trail. That is why no duration appears anywhere in
-this repository, including in this README.
+```bash
+export PATH="$HOME/.foundry/bin:$HOME/.local/bin:$PATH"
+cd contracts && scarb build && snforge test    # 109 tests
+```
+
+`contracts/README.md` carries the toolchain pins, the constructor arguments, and the known failure
+signatures — including one worth reading before a fresh machine: the snforge plugin build fix lives
+in scarb's global **cache**, not in this repository, so a cache wipe hits it again.
+
+### Checking our own submission the way the judges will
+
+```bash
+npx tsx scripts/ops/verify-strk20.ts
+```
+
+Read-only, nothing signed. It runs the judges' own verification logic against our `strk20.json`
+before they do — see the mine rule below.
 
 ### Running the relayer, and the one setting you must not skip
 
@@ -168,7 +207,7 @@ npx tsx packages/relayer/src/server.ts
 
 **If this server is reachable through a proxy, `RELAYER_AUTH_TOKEN` is mandatory.** The browser
 posts to the same-origin relative path `/api/submit`, and the server accepts that path so a proxy
-can forward it. The moment that rewrite exists loopback has stopped being a boundary — and nothing
+can forward it. The moment that rewrite exists, loopback has stopped being a boundary — and nothing
 warns you, because the off-host warning keys off `RELAYER_HOST`, which you never changed. Behind a
 proxy every internet client arrives with no `Origin` header, which is exactly the shape the other
 checks treat as a trusted same-process caller.
@@ -191,49 +230,30 @@ In development, `apps/web/vite.config.ts` forwards `/api/*` to `127.0.0.1:8787` 
 `Origin` header, so the app's same-origin paths reach a relayer started the ordinary way. Point it
 somewhere else with `RELAYER_ORIGIN`.
 
-### The chat bus, and the one deployment rule it imposes
-
-The relayer also routes chat: `POST /room/send` hands it one sealed envelope, and `POST
-/room/stream` holds a connection open and streams that room's traffic back. Both are POSTs,
-including the streaming one — the room id travels in the body so that every security gate keeps
-matching an exact path, and so that the `content-type` and `x-relayer-auth` controls still apply
-(an `EventSource` can set neither).
-
-It holds no key and cannot read a message. What it does hold is a short in-memory backlog of
-ciphertext per room — 50 messages, dropped 30 minutes after a room goes quiet — so that a message
-sent while the other person's tab was shut is still there when they come back. Nothing is written
-to disk and nothing survives a restart.
-
 **Rooms live in memory, so the deployment must run exactly one machine.** Two would each hold half
 of every conversation and neither would know. `fly.toml` pins that with `auto_stop_machines =
-false` and `min_machines_running = 1`; it also mounts a volume at `/data` for the two spend
-ledgers, which unlike the chat backlog must survive a deploy.
+false` and `min_machines_running = 1`; it also mounts a volume at `/data` for the two spend ledgers
+and the name directory, which unlike the chat backlog must survive a deploy.
+
+Writing this sentence is what found a bug: `RELAYER_DIRECTORY_STORE` was missing from `fly.toml`,
+so the name directory — a **public** ledger people point other people at — was writing inside the
+container and being dropped on every deploy, while the two private ledgers beside it survived. The
+path is in `fly.toml` now and takes effect on the next relayer deploy.
 
 ### No protocol number is hardcoded, in the code or in this file
 
-The pool's fee is mutable and has been changed before, and the pool has no upgrade delay, so it
-can change between two page loads. It is read at call time, every time. The most recent
-measurement was **6 STRK at block 13,650,965**, recorded in `evidence/constants.json`; if you
-are reading this later, re-run the probe rather than trusting that line.
-
-### The claims list, and what enforces it
-
-Ten phrases are false about STRK20 as deployed, and this project does not use them. They live as
-data in `packages/protocol/src/forbidden-claims.ts`, each with the reason it is false written beside
-it, and the copy modules that ship user-facing sentences are held to that list by tests — a surface
-cannot introduce one of them without a test going red.
-
-**There is no lint scanning this file.** A standalone `lint-claims.mjs` used to, and it was removed
-on purpose; the list is product knowledge rather than tooling, so it moved into the package the copy
-lives in instead of dying with the script. The disclosure section at the bottom carries a
-`claims-lint:disable` marker from that era, which is now a note to a human: everything inside it
-states a claim in order to refuse it, and it must be read as a whole or not at all.
+The pool's fee is mutable, has been changed before, and the pool has no upgrade delay — so it can
+change between two page loads. It is read at call time, every time. The most recent measurement was
+**6 STRK at block 13,650,965**, recorded in `evidence/constants.json`; if you are reading this
+later, re-run the probe rather than trusting that line.
 
 ---
 
-## Mainnet addresses
+## Mainnet record
 
-Network is `SN_MAIN`. Every filled row here is independently checkable with one RPC call.
+Network is `SN_MAIN`. Every filled row is independently checkable with one RPC call, and every one
+was read back off the chain rather than copied from a deployment log — "the transaction succeeded"
+is a weaker claim than "the class is there now".
 
 | What | Address |
 |---|---|
@@ -241,28 +261,34 @@ Network is `SN_MAIN`. Every filled row here is independently checkable with one 
 | Pool class hash this code was tested against | `0x67dddd89d80fedadc06b6f160798f94800a4a70164e5a24301cd0d6076b554d` |
 | `MessageBook` (ours) | `0x3105b6a327ba11f5464335f480046348a4052be2c12df726f37633d50ae35bc` |
 | `MessageBook` class hash | `0x52c432b3751ef6e61aa742e6b04a75bd929f2c85e1f2e632df812d424e4460f` |
+| Pragma oracle (read live by Markets) | `0x2a85bd616f912537c50a49a4076db02c00b29b2cdc8a197ce92ed1837fa875b` |
 
-Every row is filled and every one was read back off the chain rather than copied from a deployment
-log — "the transaction succeeded" is a weaker claim than "the class is there now", and only the
-second is worth printing here.
-
-**Transactions this project has landed on mainnet**, each checkable on Voyager:
+**Transactions this project has landed on mainnet:**
 
 | What | Transaction |
 |---|---|
 | Sponsored registration, through our own relayer | `0x4fbbf9aa7992a95d313554bc17b2fff311b35a5974271defc6672f57abfe27d` |
 | `MessageBook` deploy | `0x1df2698443f4bf7d49f802aae3180674394d3e339c31666780c1e640562569` |
 
-The first is the one that touches the pool. The submission gate asks for three such transactions,
-so this project currently meets one third of that requirement — said plainly here because a reader
-who checks will find out in thirty seconds either way.
+The first is the one that touches the pool. **The submission gate asks for three, so this project
+currently meets one third of that requirement** — said plainly here because a reader who checks
+will find out in thirty seconds either way.
 
-**The pool class hash is pinned on purpose.** The pool is upgradeable with zero delay and can
-be paused, including during judging week — StarkWare can swap the implementation instantly and
-owes nobody notice. If the running pool's class hash stops matching the pinned one, the
-implementation is no longer the one this code was tested against — so the app must say so and
-stop, rather than guess. That, and keeping a lane that still works while the pool is paused,
-are design requirements here rather than niceties.
+**The mine rule, and why it changes which transactions count.** The judges' indexer applies a rule
+that has already zeroed real projects: *if `strk20.json` declares any `contracts`, every declared
+transaction must also run through one of them.* While `contracts` is empty the check is skipped
+entirely. Ours is empty today and the registration passes. The moment Markets and Launch are
+declared and listed, that registration stops counting — it touches the pool, not our contracts —
+so the three evidence transactions are planned to be contract-touching from the start: a batched
+bet, a batch claim, and a launch buy. `scripts/ops/verify-strk20.ts` runs that exact check locally
+so we find out before the judges do.
+
+**The pool class hash is pinned on purpose.** The pool is upgradeable with zero delay and can be
+paused, including during judging week — StarkWare can swap the implementation instantly and owes
+nobody notice. If the running pool's class hash stops matching the pinned one, the implementation
+is no longer the one this code was tested against, so the app must say so and stop rather than
+guess. That, and keeping a lane that still works while the pool is paused, are design requirements
+here rather than niceties.
 
 ---
 
@@ -272,34 +298,39 @@ are design requirements here rather than niceties.
 This section names the claims this project refuses, which is why it may write them down. Every
 statement here is checkable from mainnet.
 
-**The recipient of a private transfer sees the sender.** Private does not mean anonymous to
-your counterparty. It never has here.
+**The recipient of a private transfer sees the sender.** Private does not mean anonymous to your
+counterparty. It never has here.
 
 **Anonymity sets on this pool are small.** The app shows you the real number at the moment you
-decide, because that number — not the cryptography — is what actually determines how much cover
-you get.
+decide, because that number — not the cryptography — is what determines how much cover you get. A
+bet or a send at a size nobody else is using is identifiable by its amount, and the app says so
+where you choose the amount.
 
 **Our relayer sees network metadata.** It exists so that its address, rather than yours, is the
-visible submitter on the public record. That is a real service and a real trust assumption: it
-sees your IP and the timing of your request.
+visible submitter on the public record. That is a real service and a real trust assumption: it sees
+your IP and the timing of your request.
 
 **Your viewing private key is escrowed on-chain, to a StarkWare auditor, permanently.**
-Registering encrypts your viewing private key to an auditor public key stored in the pool
-contract and writes it on-chain — in storage and in the registration event. Anyone can read
-that record with a single permissionless view call, `get_enc_private_key(address)`. The live
-auditor key is `0x1eed60b8d483b3bede62d1cc0f32874aea30747e6943437c858359b41801bf7`. It is
-written once, and there is **no rotation path and no opt-out**. Whoever holds the matching
-private key can recover both parties' keys and therefore every pool-rooted shared secret,
-retroactively, without your cooperation. This protocol is compliance-compatible by design, and
-so we do not describe anything in it as end-to-end encrypted.
+Registering encrypts your viewing private key to an auditor public key stored in the pool contract
+and writes it on-chain — in storage and in the registration event. Anyone can read that record with
+a single permissionless view call, `get_enc_private_key(address)`. The live auditor key is
+`0x1eed60b8d483b3bede62d1cc0f32874aea30747e6943437c858359b41801bf7`. It is written once, and there
+is **no rotation path and no opt-out**. Whoever holds the matching private key can recover both
+parties' keys and therefore every pool-rooted shared secret, retroactively, without your
+cooperation. Chat room keys are derived from those same viewing keys, so the auditor can read any
+conversation here without asking. This protocol is compliance-compatible by design, and so we do
+not describe anything in it as end-to-end encrypted.
 
 **The same key reads your notes and signs your spending.** There is no watch-only or view-only
 version of it to hand to an accountant, and this repository will never offer one, because the
 protocol does not have one.
 
-**The audit does not cover the current code.** The OpenZeppelin audit of the underlying
-protocol is scoped to commit `c5e2fb5` (May 2026). Anything newer than that commit, including
-everything in this repository, is unaudited.
+**Amounts are public on any leg that touches an open note.** A swap, a launch buy and a market bet
+all publish their size. What is hidden is who.
+
+**The audit does not cover the current code.** The OpenZeppelin audit of the underlying protocol is
+scoped to commit `c5e2fb5` (May 2026). Anything newer than that commit, including everything in
+this repository, is unaudited.
 
 **Compliance is not automatic and not ours.** Deposits are mandatorily screened by a third-party
 provider that the pool operator chose. We cannot self-host it, override it, or find out why a
@@ -307,8 +338,8 @@ particular address was refused — and a refusal is silent, so it will look like
 
 We will not say: *fully anonymous* · *untraceable* · *your amounts are private* on any leg that
 touches an open note · *your deposit is hidden* · *end-to-end encrypted* · *watch-only* ·
-*unlinkable* for a bridge crossing · that a bridge crossing can be timed out and reclaimed ·
-that compliance is handled for you.
+*unlinkable* for a bridge crossing · that a bridge crossing can be timed out and reclaimed · that
+compliance is handled for you.
 
 The sponsor wrote the one-line version of this before we did, and it is the rule we build to:
 
