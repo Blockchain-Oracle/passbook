@@ -61,7 +61,7 @@ Being precise about this is cheaper than being caught.
 | Component | State |
 |---|---|
 | `packages/protocol` | Live pool reads with RPC fallback, local identity generation with encrypted backup, registration pre-flight with the `ForeignKey` collision guard. Tested. |
-| `packages/relayer` | Paymaster and submission server. **Proven on mainnet** — it signed and broadcast the sponsored registration below. Not hosted anywhere; it binds loopback by design. |
+| `packages/relayer` | Paymaster, submission server and the chat room bus. **Proven on mainnet** — it signed and broadcast the sponsored registration below. It binds loopback by default; `Dockerfile` and `fly.toml` are the hosting path, and no deployment of it is live yet. |
 | `contracts/MessageBook` | **Deployed on mainnet**, class hash verified against the running contract. |
 | Mainnet transactions touching the pool | **1 of the 3 the submission gate requires.** |
 | Web app | Live at **https://passbook-zeta.vercel.app** — no login, no wallet to connect. |
@@ -177,6 +177,28 @@ Requiring `content-type: application/json` is a CSRF control. It is not authenti
 both an `Origin` and `application/json` is by definition cross-origin, so it is preflighted, and
 this server answers no CORS headers — the request never arrives. Setting an origin does not let a
 web app in. It is not a substitute for `RELAYER_AUTH_TOKEN`.
+
+In development, `apps/web/vite.config.ts` forwards `/api/*` to `127.0.0.1:8787` and strips the
+`Origin` header, so the app's same-origin paths reach a relayer started the ordinary way. Point it
+somewhere else with `RELAYER_ORIGIN`.
+
+### The chat bus, and the one deployment rule it imposes
+
+The relayer also routes chat: `POST /room/send` hands it one sealed envelope, and `POST
+/room/stream` holds a connection open and streams that room's traffic back. Both are POSTs,
+including the streaming one — the room id travels in the body so that every security gate keeps
+matching an exact path, and so that the `content-type` and `x-relayer-auth` controls still apply
+(an `EventSource` can set neither).
+
+It holds no key and cannot read a message. What it does hold is a short in-memory backlog of
+ciphertext per room — 50 messages, dropped 30 minutes after a room goes quiet — so that a message
+sent while the other person's tab was shut is still there when they come back. Nothing is written
+to disk and nothing survives a restart.
+
+**Rooms live in memory, so the deployment must run exactly one machine.** Two would each hold half
+of every conversation and neither would know. `fly.toml` pins that with `auto_stop_machines =
+false` and `min_machines_running = 1`; it also mounts a volume at `/data` for the two spend
+ledgers, which unlike the chat backlog must survive a deploy.
 
 ### No protocol number is hardcoded, in the code or in this file
 

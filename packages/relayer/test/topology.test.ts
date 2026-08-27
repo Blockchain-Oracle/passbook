@@ -29,6 +29,7 @@ import { InviteLedger, type InviteConfig } from '../src/invite.js'
 import { MemoryInviteStore, emptyInvites } from '../src/invite-store.js'
 import { createFundingMonitor } from '../src/funding-monitor.js'
 import { createQuoteCounter, createRelayerServer, type RelayerServerOptions } from '../src/server.js'
+import { MAX_PUBLISH_PER_MINUTE, MAX_SUBSCRIBERS_PER_ROOM, RoomHub } from '../src/rooms.js'
 import {
   COLD_START_CAVEAT,
   DEMO_CRITICAL,
@@ -103,9 +104,10 @@ function ledgers(caps: { sponsor?: BudgetCaps; send?: BudgetCaps } = {}) {
 }
 
 /**
- * A relayer with ALL FOUR JOBS WIRED — both budgets, the invite ledger, the quote counter, a fee
- * recipient and a healthy funding state. Every scenario starts from this and breaks exactly one
- * thing, so "the others still answer" is a claim about a relayer that could have failed.
+ * A relayer with EVERY JOB WIRED — both budgets, the invite ledger, the quote counter, the room
+ * hub, a fee recipient and a healthy funding state. Every scenario starts from this and breaks
+ * exactly one thing, so "the others still answer" is a claim about a relayer that could have
+ * failed.
  */
 async function fullRelayer(over: Partial<RelayerServerOptions> = {}) {
   const base = ledgers()
@@ -121,6 +123,7 @@ async function fullRelayer(over: Partial<RelayerServerOptions> = {}) {
     fetchUpstream: okUpstream(),
     feeRecipient: FEE_RECIPIENT,
     relayerState: () => 'ok',
+    rooms: new RoomHub(),
     ...over,
   })
   // A listen() failure — a port that cannot be bound, a permissions problem — must REJECT rather
@@ -295,13 +298,20 @@ describe('the signer set is four, each with a host and a discipline (AD-17)', ()
   })
 })
 
-describe('the relayer has exactly four jobs, each with its own degrade states (AD-17)', () => {
-  it('is exactly {submission, sponsored registration, quote proxy, stats}', () => {
-    expect(RELAYER_JOBS).toHaveLength(4)
+describe('the relayer has five jobs, each with its own degrade states (AD-17 + B3)', () => {
+  //
+  // FIVE, NOT AD-17's FOUR. `chat transport` is the room bus, which B3 put on this process
+  // instead of on the Cloudflare Durable Object AD-17 named — see `RelayerJobName`. The list is
+  // still pinned exactly, because the point of pinning it is that a job cannot appear or vanish
+  // without somebody deciding to change this line.
+  //
+  it('is exactly {submission, sponsored registration, quote proxy, chat transport, stats}', () => {
+    expect(RELAYER_JOBS).toHaveLength(5)
     expect(JOB_NAMES).toEqual([
       'submission',
       'sponsored registration',
       'quote proxy',
+      'chat transport',
       'stats',
     ])
   })
@@ -412,9 +422,13 @@ describe('the relayer has exactly four jobs, each with its own degrade states (A
 })
 
 describe('the demo-critical set and the cold-start caveat ship as data (AD-17)', () => {
-  it('needs only the relayer and the chat DO for Wallet and Chat', () => {
+  //
+  // The set SHRANK when chat's transport moved onto the relayer (B3). One process now serves both
+  // demo-critical surfaces, which is one fewer thing that has to be alive during judging.
+  //
+  it('needs only the relayer for Wallet and Chat', () => {
     expect(DEMO_CRITICAL.surfaces).toEqual(['Wallet', 'Chat'])
-    expect(DEMO_CRITICAL.processes).toEqual(['relayer', 'chat relay Durable Object'])
+    expect(DEMO_CRITICAL.processes).toEqual(['relayer'])
   })
 
   it('puts the scheduler/keeper/clearer/graduation stack off the demo-critical path', () => {
@@ -795,6 +809,81 @@ const SCENARIOS: Record<string, Scenario> = {
       expect((await sponsoredSubmit(port)).status).toBe(200)
       expect((await submit(port)).status).toBe(200)
     }
+  },
+
+  // ── The chat bus. Every refusal here is a ceiling, and none of them can spend anything. ──
+  //
+  // THE ROOM IS FILLED THROUGH THE HUB, NOT THROUGH THE ROUTE, and that is forced rather than
+  // convenient: `call` resolves when a response ENDS, and a subscription that ends is not a
+  // subscription. Filling the room with in-process listeners and then asking the ROUTE what it
+  // answers proves the same thing without a helper that would hang by design.
+  'chat/room-full': async () => {
+    const state = row('chat/room-full')
+    const rooms = new RoomHub()
+    const { port } = await fullRelayer({ rooms })
+    const room = 'a'.repeat(32)
+
+    for (let i = 0; i < MAX_SUBSCRIBERS_PER_ROOM; i += 1) {
+      expect(rooms.subscribe(room, { deliver() {}, end() {} }).ok).toBe(true)
+    }
+
+    const refused = await call(port, 'POST', '/api/room/stream', { room })
+    expect(refused.status).toBe(state.status)
+    expect(refused.body.error).toBe(state.reason)
+
+    // What the row says still works: sending into the full room, and every other job.
+    const sent = await call(port, 'POST', '/api/room/send', {
+      room,
+      envelope: { v: 1, iv: 'iv', ct: 'ct', from: '0x1' },
+    })
+    expect(sent.status).toBe(200)
+    expect((await submit(port)).status).toBe(200)
+    expect((await sponsoredSubmit(port)).status).toBe(200)
+    expect((await quote(port)).status).toBe(200)
+  },
+
+  'chat/rate-limited': async () => {
+    const state = row('chat/rate-limited')
+    const { port } = await fullRelayer()
+    const room = 'b'.repeat(32)
+    const envelope = { v: 1, iv: 'iv', ct: 'ct', from: '0x1' }
+
+    for (let i = 0; i < MAX_PUBLISH_PER_MINUTE; i += 1) {
+      expect((await call(port, 'POST', '/api/room/send', { room, envelope })).status).toBe(200)
+    }
+    const refused = await call(port, 'POST', '/api/room/send', { room, envelope })
+    expect(refused.status).toBe(state.status)
+    expect(refused.body.error).toBe(state.reason)
+
+    // Scoped to the ROOM, which is the whole claim of the row: another conversation is untouched.
+    const elsewhere = await call(port, 'POST', '/api/room/send', { room: 'c'.repeat(32), envelope })
+    expect(elsewhere.status).toBe(200)
+    expect((await submit(port)).status).toBe(200)
+  },
+
+  // `normal-service`: a restart is not a refusal. What it loses is the backlog, and the row says
+  // so rather than implying a conversation survives a deploy untouched.
+  'chat/restart-loses-backlog': async () => {
+    const state = row('chat/restart-loses-backlog')
+    const room = 'd'.repeat(32)
+    const envelope = { v: 1, iv: 'iv', ct: 'ct', from: '0x1' }
+
+    const before = new RoomHub()
+    const first = await fullRelayer({ rooms: before })
+    expect((await call(first.port, 'POST', '/api/room/send', { room, envelope })).status).toBe(200)
+    expect(before.stats().buffered).toBe(1)
+
+    // The restart: a new process is a new hub, with nothing carried across and no store to read.
+    const after = new RoomHub()
+    const second = await fullRelayer({ rooms: after })
+    expect(after.stats()).toEqual({ rooms: 0, subscribers: 0, buffered: 0 })
+
+    // And it answers normally — the row's `status`, on a route that is not refusing anything.
+    expect((await call(second.port, 'POST', '/api/room/send', { room, envelope })).status).toBe(
+      state.status,
+    )
+    const rejoined = after.subscribe(room, { deliver() {}, end() {} })
+    expect(rejoined.ok && rejoined.history).toHaveLength(1)   // only what arrived after the restart
   },
 }
 

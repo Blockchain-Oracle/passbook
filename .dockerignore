@@ -1,0 +1,46 @@
+# What the relayer image does NOT get, and why each exclusion is load-bearing.
+#
+# `docker build` tars the working directory and sends it to the daemon. Unfiltered that is ~600 MB
+# here, same as the Vercel upload that produced `.vercelignore` — this file is its sibling and the
+# two must stay in agreement about `reference/`, which is the bulk of it.
+#
+# THE FIRST ENTRY IS THE SECURITY ONE. `.env` holds a funded signer's private key. The relayer
+# reads its key from the process environment (server.ts's header explains why), and on Fly that
+# environment comes from `fly secrets set`, never from a file baked into a layer. An image layer is
+# not a secret: it is content-addressed, cached, pullable by anyone with registry access, and it
+# survives every later `rm`. Excluding it here is what keeps the key out of the image.
+.env
+.env.*
+
+# Runtime state of THIS machine's relayer — a hashed-visitor salt and two spend ledgers. The
+# deployed relayer keeps its own on a Fly volume (`/data`, see fly.toml); shipping the local copy
+# would seed production with a developer's counters and, worse, with a salt that has been on a
+# laptop.
+.relayer/
+
+# 366 MB of upstream clones read by humans and research, never by the build.
+reference/
+
+# Reinstalled inside the image from the lockfile — a macOS `node_modules` is not a Linux one.
+node_modules/
+**/node_modules/
+
+# Planning artifacts, research, and the workflow engine. Not build inputs.
+_bmad/
+_bmad-output/
+context/
+docs/
+evidence/
+
+# The web app builds and deploys elsewhere (Vercel). The relayer image only needs the two
+# packages, the root manifest and `vendor/`.
+apps/web/dist/
+.vercel/
+.git/
+.claude/
+.agents/
+
+# Never a build input, and `*.log` is already gitignored — it exists so a stray local log cannot
+# change the build context hash and bust the layer cache.
+*.log
+.DS_Store
