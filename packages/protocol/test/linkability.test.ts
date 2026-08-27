@@ -19,6 +19,9 @@ import {
   provenanceCaption,
   spellOut,
   verdictSentence,
+  FIELD_DOT_MEANING,
+  FIELD_DOT_YOURS,
+  PRIVACY_ROW_LABEL,
 } from '../src/linkability-copy.js'
 import { forbiddenClaimsIn } from '../src/forbidden-claims.js'
 import { ctaSeverity, getPrivacyColor } from '../src/privacy.js'
@@ -326,5 +329,36 @@ describe('the number speller', () => {
     expect(() => spellOut(10_000)).toThrow(/0–9999/)
     expect(() => spellOut(-1)).toThrow(/0–9999/)
     expect(() => spellOut(1.5)).toThrow(/0–9999/)
+  })
+})
+
+//
+// The dot-scatter explainer (Wave 4). The picture survived the furniture collapse on condition
+// that it says what it is, so these sentences are the condition.
+//
+describe('the note field explains itself', () => {
+  it('says what a dot is, in terms of deposits rather than nodes', () => {
+    expect(FIELD_DOT_MEANING).toBe(
+      'Each dot is one deposit that could be the source of this transaction.',
+    )
+  })
+
+  // The honest answer to "which one is mine" is that nobody can tell — which is not a hedge, it is
+  // the property being sold. Copy that pointed at a dot would be claiming the opposite.
+  it('does not point at the reader’s own dot, because nothing can', () => {
+    expect(FIELD_DOT_YOURS).toBe(
+      'Yours is one of them. Nothing on this page, and nothing on chain, says which.',
+    )
+    expect(FIELD_DOT_YOURS).not.toMatch(/highlight|circled|marked|shown in/i)
+  })
+
+  // It must not invent a measurement. Every number the meter says is derived and parameterised;
+  // a literal in the explainer would be the hardcoded claim FR-052 bans.
+  it('carries no number of its own', () => {
+    expect(`${FIELD_DOT_MEANING} ${FIELD_DOT_YOURS}`).not.toMatch(/\d/)
+  })
+
+  it('labels the collapsed row without making a claim in the label', () => {
+    expect(PRIVACY_ROW_LABEL).toBe('Privacy')
   })
 })

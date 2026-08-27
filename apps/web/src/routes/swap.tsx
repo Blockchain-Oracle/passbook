@@ -1,6 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { useCallback, useMemo, useState, useSyncExternalStore } from 'react'
 
+import { disclosureFor } from '@strk20/protocol/disclosure'
 import { meterFor } from '@strk20/protocol/linkability'
 import { maxSeverity } from '@strk20/protocol/privacy'
 import { parseAmountInput, toPlainText } from '@strk20/protocol/amount'
@@ -244,6 +245,20 @@ function Swap() {
     (quote.result?.state === 'no-route' ? 'No route for this pair' : null) ??
     (quoted === null ? 'Enter an amount' : null)
 
+  //
+  // WHAT THE STATUS LINE SAYS. Ordered by how much the reader can act on it: a problem they can
+  // fix, then the fact that we are asking, then the price itself. `rateLabel` is the live rate the
+  // detail rows already show, so the line is never inventing a number of its own.
+  //
+  const quoteStatus =
+    parsed.problem ??
+    (parsed.wei === null || parsed.wei === 0n ? 'Enter an amount' : null) ??
+    (quote.loading ? (quote.stale ? 'Refreshing quote…' : 'Getting live quote…') : null) ??
+    (quote.result?.state === 'unavailable' ? quote.result.because : null) ??
+    (quote.result?.state === 'no-route' ? 'No route for this pair' : null) ??
+    rateLabel ??
+    'Enter an amount'
+
   return (
     <Surface routeId={Route.fullPath}>
       {/* The 480px column Uniswap uses for every value form. `mx-auto` so it centres on a desktop
@@ -314,7 +329,23 @@ function Swap() {
           The picture earns its space where `C08:229` puts it — at the moment of action and during
           the wait — which is the review step below.
         */}
-        <LinkabilityMeter meter={meter} variant="row" />
+        {/*
+          THE QUOTE STATUS LINE. One line, always present, that says where the price stands —
+          "Enter an amount" before there is one, "Getting live quote…" while the venue is being
+          asked, and the live rate once there is one. Uniswap's pattern, and the reason it is worth
+          copying is that a form which goes blank between states makes the user wonder whether they
+          broke it.
+
+          It reserves its height in every state so the panel stack above it never shifts when the
+          sentence changes.
+        */}
+        <div className="flex min-h-s20 items-baseline justify-between gap-s12 px-s4">
+          <Text variant="body4" className="text-neutral2">
+            {quoteStatus}
+          </Text>
+          {/* The crowd, still on the form, still one line — the picture lives in the review. */}
+          <LinkabilityMeter meter={meter} variant="row" />
+        </div>
 
         <BlockedButton
           blocker={reviewBlocker}
@@ -340,6 +371,7 @@ function Swap() {
           }
           route={quoted.routes.map((r) => r.name).join(' · ') || null}
           meter={meter}
+          disclosure={disclosureFor('swap')}
           onConfirm={onConfirm}
           //
           // THE BUTTON SAYS WHAT IS HAPPENING, or why it cannot.

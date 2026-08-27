@@ -342,3 +342,45 @@ export function priceImpact(quote: Quote): number | null {
   if (sellAmountUsd === null || buyAmountUsd === null || sellAmountUsd <= 0) return null
   return (sellAmountUsd - buyAmountUsd) / sellAmountUsd
 }
+
+/**
+ * The bounds a hand-typed slippage tolerance has to fall inside.
+ *
+ * 0.01% is one basis point, the smallest thing the unit can express. 50% is not a protocol limit —
+ * it is a judgement that beyond it the number is far likelier to be a typo than an intention.
+ */
+export const MIN_SLIPPAGE_BPS = 1
+export const MAX_SLIPPAGE_BPS = 5000
+
+/**
+ * Parse a typed percentage into basis points, or say why it will not.
+ *
+ * ── WHY THIS REFUSES INSTEAD OF CLAMPING ──────────────────────────────────────────────────
+ *
+ * Clamping silently is the worst available behaviour: the user believes they set one tolerance and
+ * the swap executes against another. A refusal with a sentence is the only version where what is
+ * on screen and what is in the transaction are the same number.
+ *
+ * ── AND WHY IT LIVES HERE RATHER THAN IN THE POPOVER ──────────────────────────────────────
+ *
+ * It decides what tolerance reaches a real swap, which makes it protocol logic wearing a form
+ * control's clothes. In `apps/web` it would also be untestable — the suite collects
+ * `packages/*​/test` only.
+ */
+export function parseSlippage(input: string): { bps: Bps } | { problem: string } {
+  // Whitespace stripped THROUGHOUT, not just at the ends, and the percent sign taken off after —
+  // "0.5 %" is a thing people type and trimming alone leaves an inner space the pattern rejects.
+  const trimmed = input.replace(/\s+/g, '').replace(/%$/, '')
+  if (trimmed === '') return { problem: 'Enter a percentage.' }
+  if (!/^\d*\.?\d*$/.test(trimmed)) return { problem: 'That is not a percentage.' }
+
+  const percent = Number(trimmed)
+  if (!Number.isFinite(percent)) return { problem: 'That is not a percentage.' }
+
+  // Rounded to nearest and THEN range-checked. Rounding up would hand back a tolerance looser than
+  // the one typed; refusing a value that rounds to zero stops "0.001%" becoming "no slippage".
+  const bps = Math.round(percent * 100)
+  if (bps < MIN_SLIPPAGE_BPS) return { problem: 'The smallest step is 0.01%.' }
+  if (bps > MAX_SLIPPAGE_BPS) return { problem: 'Above 50% is almost always a typo.' }
+  return { bps: bps as Bps }
+}

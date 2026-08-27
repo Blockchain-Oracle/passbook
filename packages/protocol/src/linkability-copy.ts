@@ -189,3 +189,33 @@ export function spellOut(n: number): string {
 export function capitalize(text: string): string {
   return text.length === 0 ? text : text[0]!.toUpperCase() + text.slice(1)
 }
+
+//
+// ── THE DOT-SCATTER EXPLAINER (Wave 4) ────────────────────────────────────────────────────
+//
+// The note field draws one dot per member of the anonymity set and has, until now, been captioned
+// only "N possible sources, including yours". Abu's verdict on it was "nodes I don't even
+// understand" — and he was right: a scatter of dots with no legend is decoration wearing the
+// costume of information.
+//
+// So the picture keeps its place, behind a chevron, and earns it with a sentence that says what a
+// dot IS. Two sentences, not one, because there are two facts and they are different in kind: what
+// every dot means, and which one is the reader's.
+//
+// NEWLY AUTHORED HERE. It makes no claim the meter was not already making — the count, the
+// membership and the provenance are unchanged — it only names what the reader is looking at.
+//
+
+/** What every dot in the scatter is. */
+export const FIELD_DOT_MEANING =
+  'Each dot is one deposit that could be the source of this transaction.'
+
+/** Which dot is theirs — and the honest answer is that nobody can tell, which IS the point. */
+export const FIELD_DOT_YOURS =
+  'Yours is one of them. Nothing on this page, and nothing on chain, says which.'
+
+/**
+ * The collapsed row's label. Not a claim — the CLAIM is the disclosure headline beside it, which
+ * is authored elsewhere and reproduced byte-exact. This is furniture.
+ */
+export const PRIVACY_ROW_LABEL = 'Privacy'
