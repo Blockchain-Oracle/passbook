@@ -1,0 +1,22 @@
+{
+  "step": "market",
+  "describe": "seed 2 into a 15-minute BTC/USD market, strike 80075.04162312",
+  "transactionHash": "0x77fceec7b1dab186b6f6121db07aca62c727dedae35b3a9db22c17b9716f978",
+  "executionStatus": "SUCCEEDED",
+  "block": 13964478,
+  "actualFee": "0x28f2e6ad196c8310",
+  "executionResources": {
+    "l1_data_gas": 2400,
+    "l1_gas": 0,
+    "l2_gas": 90532240
+  },
+  "revertReason": null,
+  "eventCount": 10,
+  "markets": "0x7905ba4e7535a3e7c1f9f4045762cc7ce83cfb120fe916f97a0dc512d72a783",
+  "submittedBy": "the deployer, self-submitted — the relayer wire cannot carry resourceBounds yet",
+  "strike": "8007504162312",
+  "deadline": 1787869561,
+  "seederSecret": "0x3fa6bf24bc99c6623691e5f41f17d1b03cf6e0d17dde1d93f22b5d32a36d92",
+  "seederCommitment": "0x75535b7afb575d0399f3ce01cbe66d3e4f22a2f4dd76aedf19c50ea00f653aa",
+  "verifiedAt": "2026-08-27T22:06:22.398Z"
+}

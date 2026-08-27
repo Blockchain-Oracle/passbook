@@ -1,0 +1,15 @@
+{
+  "purpose": "the SECOND relayer funding \u2014 float and deposit principal for the Markets/Launch evidence sequence",
+  "whyItIsItsOwnFile": "fund-relayer.ts refuses to overwrite evidence/relayer-funding.json on the stated grounds that 'a second funding leg is a second decision, not a re-run'. This IS that second decision, taken deliberately by the team lead, so it is recorded as its own artifact rather than by defeating that guardrail. The transfer itself went through scripts/ops/fund-address.ts, the generic door, which writes no evidence of its own by design.",
+  "transactionHash": "0x25a07590a500e8b7ab7b87d485f75a41a46b983a5f8dae6e2e64afd898a1b83",
+  "from": "0x10fe91ce9947fdfb2b8dbfcb146560176ab3bf5ec15f3fc501170a5880f4b97",
+  "to": "0x6e1c309456733fa40d17a560e4802b4ca65464cec172571b8883881bb6a0389",
+  "amountStrk": 35,
+  "balancesAfter": {
+    "relayer": 59.346627,
+    "deployer": 90.044973
+  },
+  "whatItPaysFor": "the relayer submits every transaction in the evidence sequence, so it needs the 25 STRK deposit principal (the pool's transferFrom pulls from the CALLER) plus float for four pool fees. Each relayed submission carries a fee-reimbursement Withdraw, so the fees are float rather than spend.",
+  "network": "mainnet",
+  "fundedAt": "2026-08-27T21:39:00Z"
+}

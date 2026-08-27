@@ -259,6 +259,88 @@ function assertCallAllowed(call: Call, policy: SubmissionPolicy): void {
  * one megabyte of `"0x1",` is roughly fifteen thousand felts, all of them signed into a
  * transaction this wallet pays the gas for. A real prove returns nine.
  */
+
+/**
+ * The worst case this wallet will ever agree to pay in gas for one submission.
+ *
+ * Resource bounds are CEILINGS, and a ceiling is spending authority in exactly the sense the
+ * allowlist is: a caller free to name an unbounded one could drain the relayer through gas without
+ * ever touching a call the allowlist inspects. 20 STRK is chosen to match
+ * `ABSOLUTE_MAX_APPROVE_WEI` — the same "one careless submission cannot cost more than this"
+ * reasoning, applied to the other half of what a transaction spends.
+ */
+export const MAX_RESOURCE_BOUNDS_WEI = 20_000_000_000_000_000_000n
+
+/** The three lanes a v3 transaction prices separately. */
+const GAS_LANES = ['l1_gas', 'l2_gas', 'l1_data_gas'] as const
+
+/**
+ * BIGINTS, not hex strings — starknet.js's `ResourceBoundsBN` is what `execute` consumes, and a
+ * hex string throws inside transaction-hash construction before signing. Learned on mainnet.
+ */
+export interface ResourceBounds {
+  l1_gas: { max_amount: bigint; max_price_per_unit: bigint }
+  l2_gas: { max_amount: bigint; max_price_per_unit: bigint }
+  l1_data_gas: { max_amount: bigint; max_price_per_unit: bigint }
+}
+
+/**
+ * Validates caller-supplied v3 resource bounds.
+ *
+ * ── WHY THE RELAYER ACCEPTS THESE AT ALL ──────────────────────────────────────────────────
+ *
+ * `Account.execute` forwards the proof only to the broadcast, never to `prepareInvoke` — so when no
+ * bounds are given, the fee ESTIMATE simulates the transaction with the proof absent,
+ * `apply_actions` reverts for want of one, and the estimate throws before anything is signed.
+ * Bounds make `prepareInvoke` skip estimation entirely. Without this field the relayer could not
+ * submit any value-moving pool transaction; its single mainnet success was a registration, which
+ * needs no proof and estimates cleanly.
+ *
+ * ── AND WHY EVERY NUMBER IS CHECKED ───────────────────────────────────────────────────────
+ *
+ * Shape before value, like every other check here, then the product of all three lanes against one
+ * hard cap. It REFUSES rather than clamping: a clamped ceiling would sign a transaction whose bound
+ * the caller did not choose, and a resulting out-of-gas revert would be one they could not have
+ * predicted and still paid for.
+ */
+export function assertResourceBounds(value: unknown): ResourceBounds {
+  if (typeof value !== 'object' || value === null) {
+    throw new Error(`refusing resourceBounds: ${describe(value)} is not an object`)
+  }
+  const raw = value as Record<string, unknown>
+  const out = {} as ResourceBounds
+  let worstCase = 0n
+
+  for (const lane of GAS_LANES) {
+    const entry = raw[lane]
+    if (typeof entry !== 'object' || entry === null) {
+      throw new Error(`refusing resourceBounds: ${lane} is missing or not an object`)
+    }
+    const fields = entry as Record<string, unknown>
+    const parse = (field: 'max_amount' | 'max_price_per_unit'): bigint => {
+      const v = fields[field]
+      if (typeof v === 'bigint') return v
+      if (typeof v !== 'string' || !FELT.test(v)) {
+        throw new Error(`refusing resourceBounds ${lane}.${field}: ${describe(v)} is not a number`)
+      }
+      return BigInt(v)
+    }
+    const amount = parse('max_amount')
+    const price = parse('max_price_per_unit')
+    worstCase += amount * price
+    out[lane] = { max_amount: amount, max_price_per_unit: price }
+  }
+
+  if (worstCase > MAX_RESOURCE_BOUNDS_WEI) {
+    throw new Error(
+      `refusing resourceBounds whose worst case is ${worstCase} wei: the ceiling is ` +
+        `${MAX_RESOURCE_BOUNDS_WEI}. Bounds are spending authority over this wallet, and raising ` +
+        'this number to clear the error removes the only thing bounding it.',
+    )
+  }
+  return out
+}
+
 export function assertProofFacts(value: unknown): string[] {
   if (!Array.isArray(value)) {
     throw new Error(`refusing proofFacts: ${describe(value)} is not an array`)

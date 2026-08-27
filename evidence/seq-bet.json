@@ -1,0 +1,37 @@
+{
+  "step": "bet",
+  "describe": "THE LADDER — 3 bets of 0.3 on market 0, one transaction, one fee",
+  "transactionHash": "0x16933dd6edd5ade29c3b3cb3954da2c3b5bb806f85040fe42810f73acd72523",
+  "executionStatus": "SUCCEEDED",
+  "block": 13964500,
+  "actualFee": "0x29294a981da0bd90",
+  "executionResources": {
+    "l1_data_gas": 1952,
+    "l1_gas": 0,
+    "l2_gas": 91084240
+  },
+  "revertReason": null,
+  "eventCount": 12,
+  "markets": "0x7905ba4e7535a3e7c1f9f4045762cc7ce83cfb120fe916f97a0dc512d72a783",
+  "submittedBy": "the deployer, self-submitted — the relayer wire cannot carry resourceBounds yet",
+  "marketId": 0,
+  "rungs": [
+    {
+      "rung": 1,
+      "secret": "0xb076a05d41963a299b0d89948010f3a09326d27fedcb615f61711fddac8e01",
+      "commitment": "0x6f43365518a0b227c1eeb35e14b93d27b0f4a1dc11a941473d470bba2ae52be"
+    },
+    {
+      "rung": 2,
+      "secret": "0xb446c6ce1d3c64229c865d551a9bb82dcaea5edc135b36848d9d9509d01b38",
+      "commitment": "0x3a935430c980850d3cc199e63e2c77232fbe34370fc9a83faa1beed02d59e8f"
+    },
+    {
+      "rung": 3,
+      "secret": "0x564bbf79df74387d67f1671c14558152656833f51245a93ffb4ad11e5a375f",
+      "commitment": "0x77330770df8006e7e6370b66148a188d8aea5755a5d1fe148dd3d0aafea00c7"
+    }
+  ],
+  "headline": "three bets, one pool transaction, one 6 STRK fee — nothing in the protocol’s history has batched like this",
+  "verifiedAt": "2026-08-27T22:07:02.307Z"
+}

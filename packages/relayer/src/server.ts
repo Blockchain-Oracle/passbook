@@ -64,6 +64,8 @@ import {
   needsApproveCeiling,
   approveCeiling,
   type SubmissionPolicy,
+  assertResourceBounds,
+  type ResourceBounds,
 } from './allowlist.js'
 import type {
   InviteClaimResponse,
@@ -178,6 +180,24 @@ const MAX_BODY_BYTES = 1_000_000
  * caller finding a way around it.
  */
 export interface SubmitDetails {
+  /**
+   * Explicit v3 resource bounds, so the submitter SKIPS fee estimation.
+   *
+   * ── WHY THIS FIELD HAD TO EXIST ─────────────────────────────────────────────────────────
+   *
+   * `Account.execute` forwards `proofFacts`/`proof` to `invokeFunction` — the broadcast — and to
+   * NOTHING else. `prepareInvoke` runs first, and when no bounds are supplied it calls
+   * `starknet_estimateFee`, which therefore simulates the transaction with the proof ABSENT.
+   * `apply_actions` reverts for want of a proof and the estimate throws before anything is signed.
+   *
+   * Registration is the one proven case that escapes it: a zero-deposit `SetViewingKey` needs no
+   * proof, so its unproven estimate succeeds. Every value-moving pool transaction dies there — which
+   * is why, until this field, the relayer could not submit one at all.
+   *
+   * Supplying bounds makes `prepareInvoke` skip the estimate entirely (`if (!resourceBounds)`).
+   * They are CEILINGS, not charges: the transaction pays what it uses.
+   */
+  resourceBounds?: ResourceBounds
   proofFacts?: string[]
   /**
    * The proof blob the facts belong to. Present exactly when `proofFacts` is — the
@@ -833,6 +853,12 @@ async function handleSubmit(
         )
       }
       details = { proofFacts: assertProofFacts(body.proofFacts), proof: body.proof }
+      // Bounds ride ONLY with a proof, because that is the only case that needs them: an
+      // unproven submission estimates cleanly and should keep doing so rather than trusting a
+      // caller's ceiling. Validated the same way everything else here is — shape before value.
+      if (body.resourceBounds !== undefined) {
+        details.resourceBounds = assertResourceBounds(body.resourceBounds)
+      }
     } else if (body.proof !== undefined) {
       throw new Error(
         'refusing a proof without its proofFacts: the sequencer takes both or neither, ' +

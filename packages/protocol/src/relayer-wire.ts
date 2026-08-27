@@ -87,6 +87,28 @@ export interface SubmitBody {
    * server validates it, because these ride in the V3 transaction details rather than in
    * any call's calldata and so never pass the allowlist.
    */
+  /**
+   * Explicit v3 resource bounds, so the submitter SKIPS fee estimation.
+   *
+   * ── WHY THIS FIELD HAD TO EXIST ─────────────────────────────────────────────────────────
+   *
+   * `Account.execute` forwards `proofFacts`/`proof` to `invokeFunction` — the broadcast — and to
+   * NOTHING else. `prepareInvoke` runs first, and when no bounds are supplied it calls
+   * `starknet_estimateFee`, which therefore simulates the transaction with the proof ABSENT.
+   * `apply_actions` reverts for want of a proof and the estimate throws before anything is signed.
+   *
+   * Registration is the one proven case that escapes it: a zero-deposit `SetViewingKey` needs no
+   * proof, so its unproven estimate succeeds. Every value-moving pool transaction dies there — which
+   * is why, until this field, the relayer could not submit one at all.
+   *
+   * Supplying bounds makes `prepareInvoke` skip the estimate entirely (`if (!resourceBounds)`).
+   * They are CEILINGS, not charges: the transaction pays what it uses.
+   */
+  resourceBounds?: {
+    l1_gas: { max_amount: string | bigint; max_price_per_unit: string | bigint }
+    l2_gas: { max_amount: string | bigint; max_price_per_unit: string | bigint }
+    l1_data_gas: { max_amount: string | bigint; max_price_per_unit: string | bigint }
+  }
   proofFacts?: string[]
   /**
    * The proof blob the facts belong to — the prover's `proof` string (~300KB of base64),

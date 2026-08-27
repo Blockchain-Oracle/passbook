@@ -1,0 +1,63 @@
+{
+  "step": "claim",
+  "describe": "THE BATCH CLAIM — 3 of 4 positions settled in one transaction, 2.9 home",
+  "transactionHash": "0x15eb0939a124cbe8fc6a0e5825004f665f031e0d6abb80088bab0a8466561c0",
+  "executionStatus": "SUCCEEDED",
+  "block": 13967128,
+  "actualFee": "0x29a46ca06e282be0",
+  "executionResources": {
+    "l1_data_gas": 1280,
+    "l1_gas": 0,
+    "l2_gas": 91184480
+  },
+  "revertReason": null,
+  "eventCount": 21,
+  "markets": "0x7905ba4e7535a3e7c1f9f4045762cc7ce83cfb120fe916f97a0dc512d72a783",
+  "submittedBy": "THE RELAYER — whoever this position belongs to never appears on chain as the sender",
+  "marketId": 0,
+  "settlement": {
+    "transactionHash": "0x6dc4d81c7e1e7b03b1e5b78f50541c8a1998bdd6281c8fe6f722ca9600ab73d",
+    "block": 13965187,
+    "sender": "0x6e1c309456733fa40d17a560e4802b4ca65464cec172571b8883881bb6a0389",
+    "senderIs": "the relayer — its KEEPER, unprompted. The local relayer runs with RELAYER_KEEPER=off, so this was the deployed one on Fly, which could only see the Markets address because the image finally ships evidence/ (commits 44c0909, 6eea5ce).",
+    "call": "resolve(0)",
+    "winner": "UP",
+    "strike": 80075.04162312,
+    "settlePrice": 80318.34235095,
+    "oracleTs": 1787869524,
+    "deadline": 1787869561,
+    "note": "resolve is permissionless by design — settlement reads a public oracle and writes an answer that is a pure function of chain state, so a keeper that goes down cannot strand anyone's money. Nobody had to be trusted for this to happen, and nobody was asked."
+  },
+  "positions": [
+    {
+      "position": "rung 1",
+      "commitment": "0x6f43365518a0b227c1eeb35e14b93d27b0f4a1dc11a941473d470bba2ae52be",
+      "payoutWei": "560869565217391304",
+      "settled": true
+    },
+    {
+      "position": "rung 2",
+      "commitment": "0x3a935430c980850d3cc199e63e2c77232fbe34370fc9a83faa1beed02d59e8f",
+      "payoutWei": "500668896321070234",
+      "settled": true
+    },
+    {
+      "position": "rung 3",
+      "commitment": "0x77330770df8006e7e6370b66148a188d8aea5755a5d1fe148dd3d0aafea00c7",
+      "payoutWei": "0",
+      "settled": false
+    },
+    {
+      "position": "seeder",
+      "commitment": "0x75535b7afb575d0399f3ce01cbe66d3e4f22a2f4dd76aedf19c50ea00f653aa",
+      "payoutWei": "1838461538461538462",
+      "settled": true
+    }
+  ],
+  "totalOwedWei": "2900000000000000000",
+  "excluded": [
+    "rung 3"
+  ],
+  "headline": "one transaction, one fee, three positions settled — and the losing rung filtered out before it could revert the batch and burn the fee for everyone in it",
+  "verifiedAt": "2026-08-27T23:20:42.301Z"
+}

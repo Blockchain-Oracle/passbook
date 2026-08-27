@@ -1,0 +1,33 @@
+{
+  "purpose": "the bare-deposit probe \u2014 can this project land ANY proof-requiring transaction? tx A could not, and four causes were ruled out for free first.",
+  "transactionHash": "0x5e1b101b5577a11971f47b38c750c6fc4b08914c4da9c4008106a6e6aa969f",
+  "executionStatus": "SUCCEEDED",
+  "block": 13964031,
+  "actualFee": "0x27d98d1fd4c70790",
+  "executionResources": {
+    "l1_data_gas": 1760,
+    "l1_gas": 0,
+    "l2_gas": 88071920
+  },
+  "revertReason": null,
+  "list": "register + OpenChannel + OpenSubchannel + Deposit-to-note \u2014 four actions, one value-moving",
+  "depositWei": "1000000000000000000",
+  "resourceBounds": {
+    "l2_gas": {
+      "max_amount": "150000000",
+      "max_price_per_unit": "50000000000"
+    },
+    "note": "sized from the 78,047,360 l2 that tx A actually consumed, not guessed"
+  },
+  "submittedBy": "the deployer, self-submitted",
+  "whyNotRelayed": "the relayer wire has no resourceBounds field, so every relayer submission goes through a fee estimate that cannot see the proof and reverts. It is structurally unable to submit a value-moving pool transaction today. Keeping the same self-submit mechanism as tx A also makes the shorter list the only changed variable.",
+  "verifiedAt": "2026-08-27T21:53:46.863Z",
+  "result": "LANDED \u2014 the first proof-requiring transaction this project has ever put on mainnet",
+  "stateCreated": {
+    "deployerRegistered": true,
+    "channels": 1,
+    "shieldedNoteStrk": 1
+  },
+  "gasComparison": "the SUCCESSFUL probe consumed 88,071,920 l2 gas \u2014 MORE than the reverted tx A consumed (78,047,360) \u2014 under a 150M bound. Independent reconfirmation that tx A did not run out of gas: it stopped 22M short of its own cap while a heavier list succeeded.",
+  "leadingCauseForTxA": "tx A used `.deposit({ amount })` with NO recipient. The SDK's own swap example uses the recipient-less form to declare an OPEN note \u2014 a note whose amount a LATER deposit writes. So tx A most likely created an unmatched open note that nothing deposited into, which is the pool's UNDEPOSITED_OPEN_NOTES trap. Day-0 verification recorded that `compile_actions` CANNOT catch this \u2014 it no-ops the open-note emission \u2014 which is exactly why the client compiler and the prover both accepted a list the chain rejected. The probe used `.deposit({ recipient, amount })`, a real note, and succeeded."
+}
