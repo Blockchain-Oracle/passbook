@@ -18,6 +18,7 @@ import { Text } from '../components/ui/Text'
 import { currentBlocker, getHealth, subscribeHealth } from '../shell/pool-health'
 import { useBalance } from '../shell/use-balance'
 import { useCrowd } from '../shell/use-crowd'
+import { maybeAddress, toFeltHex } from '@strk20/protocol/address'
 import { useRecipient } from '../shell/use-recipient'
 import { useSend } from '../shell/use-send'
 import { useSession, shortenFelt } from '../shell/session'
@@ -25,6 +26,23 @@ import { findToken, useTokenList } from '../shell/use-token-list'
 import { Surface } from '../shell/Surface'
 
 export const Route = createFileRoute('/send')({
+  /**
+   * `?to=<address>` — the recipient, prefilled.
+   *
+   * WHERE IT COMES FROM: `/pay/$address`, which is the page somebody's camera lands on after
+   * scanning a payment QR. Carrying the address through the URL is what stops the person paying
+   * from retyping a 64-character felt they have no way to proof-read; a single wrong character
+   * belongs to a different account, or to none, and the money is gone either way.
+   *
+   * VALIDATED HERE, NOT TRUSTED. `maybeAddress` returns `null` for anything that is not a felt —
+   * including the literal `"$address"` the build gate walks — so a malformed link seeds an empty
+   * form rather than a plausible-looking wrong one. It is also only a SEED: the field stays fully
+   * editable, because a prefill nobody can correct is a prefill that has to be right every time.
+   */
+  validateSearch: (search: Record<string, unknown>): { to?: string } => {
+    const to = maybeAddress(typeof search.to === 'string' ? search.to : null)
+    return to === null ? {} : { to: toFeltHex(to) }
+  },
   component: Send,
 })
 
@@ -68,7 +86,11 @@ function Send() {
   const sending = useSend(read, ready)
 
   const [amount, setAmount] = useState('')
-  const [recipient, setRecipient] = useState('')
+  // Seeded from `?to=`, then owned by the field. `useState`'s initialiser rather than an effect:
+  // an effect that wrote the search param into state would fight the user every time the URL
+  // changed under them, and would overwrite something they had already typed.
+  const { to } = Route.useSearch()
+  const [recipient, setRecipient] = useState(to ?? '')
   const [chosen, setChosen] = useState<string | null>(null)
   const [picking, setPicking] = useState(false)
   // ONE FLAG FOR THE WHOLE REVIEW FLOW, not one per dialog — the bumps take their turn while any
