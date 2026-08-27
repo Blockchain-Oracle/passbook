@@ -1,6 +1,9 @@
 pub mod pool_types;
 pub mod erc20;
+pub mod batch;
 pub mod pragma;
 pub mod message_book;
 pub mod markets;
+pub mod launch;
+pub mod launch_token;
 pub mod mocks;
