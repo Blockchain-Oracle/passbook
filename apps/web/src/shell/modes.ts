@@ -84,6 +84,20 @@ export const ANCILLARY_PATHS = [
   '/send',
   '/activity/$id',
   '/pay/$address',
+  // The thread. Chat stays the MODE — `/chat/$peer` is a conversation inside it, not a seventh
+  // surface — so the nav item highlights for both, which is what a user reading the header expects
+  // when they are three levels into a chat.
+  '/chat/$peer',
+  //
+  // AND THE INDEX PANE, WHICH THE GENERATOR EMITS AS ITS OWN PATH.
+  //
+  // `chat.tsx` became a layout with an `<Outlet/>`, so `chat.index.tsx` exists to fill it — and the
+  // router publishes that as `/chat/`, distinct from the layout's `/chat`. It is not a page anybody
+  // navigates to by name; it is what `/chat` renders into. Naming it here is what keeps
+  // `EveryRouteIsClassified` true, and leaving it out fails that assertion rather than shipping a
+  // route nobody decided on.
+  //
+  '/chat/',
 ] as const satisfies readonly Paths[]
 
 /** Every route path this file accounts for. Compared against the tree in `route-contract.ts`. */

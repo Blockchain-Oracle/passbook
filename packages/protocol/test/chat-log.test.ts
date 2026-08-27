@@ -133,3 +133,49 @@ describe('the conversation log', () => {
     expect(log.list()).toBe(log.list()) // same reference until the next mutation
   })
 })
+
+//
+// The failed-send marker (Wave 2).
+//
+// It exists as its own door because `insert` returns early on a repeated id — the replay dedupe,
+// and the load-bearing line of this module. The bug it closes is silent by construction: the
+// obvious implementation (re-insert with `undelivered` set) does nothing, and the message sits in
+// the thread looking delivered.
+//
+describe('marking a sent message undelivered', () => {
+  it('annotates in place, and a re-insert of the same id would NOT have', () => {
+    const log = openChatLog('0x1', memoryStorage())
+    log.insert(PEER, text('iv1', 1, true))
+    log.insert(PEER, text('iv2', 2, true))
+
+    // The trap, asserted directly so nobody re-introduces it: insert ignores the repeat.
+    log.insert(PEER, { ...text('iv1', 1, true), undelivered: 'nope' })
+    expect(log.thread(PEER)[0]!.undelivered).toBeUndefined()
+
+    log.markUndelivered(PEER, 'iv1', 'Not delivered — the relay could not be reached.')
+    const thread = log.thread(PEER)
+    expect(thread[0]!.undelivered).toBe('Not delivered — the relay could not be reached.')
+    // In place: a failed message must not jump to the bottom past ones sent after it.
+    expect(thread.map((e) => e.id)).toEqual(['iv1', 'iv2'])
+    expect(thread[1]!.undelivered).toBeUndefined()
+  })
+
+  it('is a no-op for an unknown peer or id, never a throw', () => {
+    const log = openChatLog('0x1', memoryStorage())
+    log.insert(PEER, text('iv1', 1, true))
+    expect(() => log.markUndelivered(OTHER, 'iv1', 'x')).not.toThrow()
+    expect(() => log.markUndelivered(PEER, 'no-such-iv', 'x')).not.toThrow()
+    expect(log.thread(PEER)[0]!.undelivered).toBeUndefined()
+  })
+
+  it('survives a reload, because a failure the user saw must not un-happen', () => {
+    const storage = memoryStorage()
+    const log = openChatLog('0x1', storage)
+    log.insert(PEER, text('iv1', 1, true))
+    log.markUndelivered(PEER, 'iv1', 'Not delivered — the relay refused it (rate-limited).')
+
+    expect(openChatLog('0x1', storage).thread(PEER)[0]!.undelivered).toBe(
+      'Not delivered — the relay refused it (rate-limited).',
+    )
+  })
+})

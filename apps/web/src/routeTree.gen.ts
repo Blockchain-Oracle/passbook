@@ -19,6 +19,8 @@ import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as SwapRouteImport } from './routes/swap'
 import { Route as WalletRouteImport } from './routes/wallet'
 import { Route as ActivityIdRouteImport } from './routes/activity.$id'
+import { Route as ChatIndexRouteImport } from './routes/chat.index'
+import { Route as ChatPeerRouteImport } from './routes/chat.$peer'
 import { Route as PayAddressRouteImport } from './routes/pay.$address'
 
 const IndexRoute = IndexRouteImport.update({
@@ -71,6 +73,16 @@ const ActivityIdRoute = ActivityIdRouteImport.update({
   path: '/activity/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ChatIndexRoute = ChatIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => ChatRoute,
+} as any)
+const ChatPeerRoute = ChatPeerRouteImport.update({
+  id: '/$peer',
+  path: '/$peer',
+  getParentRoute: () => ChatRoute,
+} as any)
 const PayAddressRoute = PayAddressRouteImport.update({
   id: '/pay/$address',
   path: '/pay/$address',
@@ -80,7 +92,7 @@ const PayAddressRoute = PayAddressRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/bridge': typeof BridgeRoute
-  '/chat': typeof ChatRoute
+  '/chat': typeof ChatRouteWithChildren
   '/launch': typeof LaunchRoute
   '/markets': typeof MarketsRoute
   '/send': typeof SendRoute
@@ -88,12 +100,13 @@ export interface FileRoutesByFullPath {
   '/swap': typeof SwapRoute
   '/wallet': typeof WalletRoute
   '/activity/$id': typeof ActivityIdRoute
+  '/chat/$peer': typeof ChatPeerRoute
   '/pay/$address': typeof PayAddressRoute
+  '/chat/': typeof ChatIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/bridge': typeof BridgeRoute
-  '/chat': typeof ChatRoute
   '/launch': typeof LaunchRoute
   '/markets': typeof MarketsRoute
   '/send': typeof SendRoute
@@ -101,13 +114,15 @@ export interface FileRoutesByTo {
   '/swap': typeof SwapRoute
   '/wallet': typeof WalletRoute
   '/activity/$id': typeof ActivityIdRoute
+  '/chat/$peer': typeof ChatPeerRoute
   '/pay/$address': typeof PayAddressRoute
+  '/chat': typeof ChatIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/bridge': typeof BridgeRoute
-  '/chat': typeof ChatRoute
+  '/chat': typeof ChatRouteWithChildren
   '/launch': typeof LaunchRoute
   '/markets': typeof MarketsRoute
   '/send': typeof SendRoute
@@ -115,7 +130,9 @@ export interface FileRoutesById {
   '/swap': typeof SwapRoute
   '/wallet': typeof WalletRoute
   '/activity/$id': typeof ActivityIdRoute
+  '/chat/$peer': typeof ChatPeerRoute
   '/pay/$address': typeof PayAddressRoute
+  '/chat/': typeof ChatIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -130,12 +147,13 @@ export interface FileRouteTypes {
     | '/swap'
     | '/wallet'
     | '/activity/$id'
+    | '/chat/$peer'
     | '/pay/$address'
+    | '/chat/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/bridge'
-    | '/chat'
     | '/launch'
     | '/markets'
     | '/send'
@@ -143,7 +161,9 @@ export interface FileRouteTypes {
     | '/swap'
     | '/wallet'
     | '/activity/$id'
+    | '/chat/$peer'
     | '/pay/$address'
+    | '/chat'
   id:
     | '__root__'
     | '/'
@@ -156,13 +176,15 @@ export interface FileRouteTypes {
     | '/swap'
     | '/wallet'
     | '/activity/$id'
+    | '/chat/$peer'
     | '/pay/$address'
+    | '/chat/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   BridgeRoute: typeof BridgeRoute
-  ChatRoute: typeof ChatRoute
+  ChatRoute: typeof ChatRouteWithChildren
   LaunchRoute: typeof LaunchRoute
   MarketsRoute: typeof MarketsRoute
   SendRoute: typeof SendRoute
@@ -245,6 +267,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ActivityIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/chat/': {
+      id: '/chat/'
+      path: '/'
+      fullPath: '/chat/'
+      preLoaderRoute: typeof ChatIndexRouteImport
+      parentRoute: typeof ChatRoute
+    }
+    '/chat/$peer': {
+      id: '/chat/$peer'
+      path: '/$peer'
+      fullPath: '/chat/$peer'
+      preLoaderRoute: typeof ChatPeerRouteImport
+      parentRoute: typeof ChatRoute
+    }
     '/pay/$address': {
       id: '/pay/$address'
       path: '/pay/$address'
@@ -255,10 +291,22 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface ChatRouteChildren {
+  ChatPeerRoute: typeof ChatPeerRoute
+  ChatIndexRoute: typeof ChatIndexRoute
+}
+
+const ChatRouteChildren: ChatRouteChildren = {
+  ChatPeerRoute: ChatPeerRoute,
+  ChatIndexRoute: ChatIndexRoute,
+}
+
+const ChatRouteWithChildren = ChatRoute._addFileChildren(ChatRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   BridgeRoute: BridgeRoute,
-  ChatRoute: ChatRoute,
+  ChatRoute: ChatRouteWithChildren,
   LaunchRoute: LaunchRoute,
   MarketsRoute: MarketsRoute,
   SendRoute: SendRoute,

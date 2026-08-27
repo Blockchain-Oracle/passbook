@@ -20,23 +20,31 @@
 //
 import { ec, hash, shortString } from 'starknet'
 
-/** Lowercase handle, 3–20 of [a-z0-9_]. Enforced on BOTH sides; normalize before testing. */
-export const DIRECTORY_NAME_PATTERN = /^[a-z0-9_]{3,20}$/
+//
+// THE PURE HALF LIVES IN `directory-name.ts` AND IS RE-EXPORTED HERE.
+//
+// The pattern, the normalizer and the wire types have no crypto edge, and a caller that only
+// wants to validate a handle as somebody types it must not pull `starknet` in to do it. The
+// split is `activity-entry.ts`'s, for its reason; the re-export is what keeps every existing
+// import of this module working unchanged.
+//
+export {
+  AVATAR_PATTERN,
+  DIRECTORY_NAME_PATTERN,
+  MAX_AVATAR_CHARS,
+  normalizeDirectoryName,
+  type ClaimSignature,
+  type DirectoryClaimRequest,
+  type DirectoryEntry,
+} from './directory-name.js'
 
-export function normalizeDirectoryName(raw: string): string {
-  return raw.trim().toLowerCase()
-}
+import type { ClaimSignature } from './directory-name.js'
 
 /** The one hash both sides sign and verify: Poseidon over (name-as-short-string, address). */
 export function claimMessageHash(name: string, address: string): bigint {
   return BigInt(
     hash.computePoseidonHashOnElements([shortString.encodeShortString(name), BigInt(address)]),
   )
-}
-
-export interface ClaimSignature {
-  readonly r: string
-  readonly s: string
 }
 
 /** Sign a claim with the viewing key — the key registration anchored on-chain. */
@@ -91,24 +99,3 @@ export function verifyClaim(
 
 // ── Wire shapes ──────────────────────────────────────────────────────────────────────────
 
-export interface DirectoryClaimRequest {
-  readonly name: string
-  readonly address: string
-  readonly signature: ClaimSignature
-  /** Optional profile picture as a size-capped image data URI; absence is the identicon. */
-  readonly avatar?: string
-}
-
-export interface DirectoryEntry {
-  readonly name: string
-  readonly address: string
-  /** The list is deliberately lean — avatars are fetched per-address, not shipped in bulk. */
-  readonly hasAvatar: boolean
-}
-
-/** `data:image/(png|jpeg|webp);base64,…` and nothing else. */
-export const AVATAR_PATTERN = /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/]+=*$/
-
-/** ~9 kB of image — a 96px avatar, not a photo library. The relayer enforces it; the client
- * downscales before ever hitting the cap. */
-export const MAX_AVATAR_CHARS = 12_000

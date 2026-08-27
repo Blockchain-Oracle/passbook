@@ -28,6 +28,8 @@ import type { PaletteCommand } from '../shell/CommandPalette'
 import { PipelineRow } from '../shell/PipelineRow'
 import { getHealth, setHealth, subscribeHealth, watchConnectivity } from '../shell/pool-health'
 import { AccountChip } from '../components/AccountChip'
+import { UnreadBadge } from '../components/ConversationList'
+import { useTotalUnread } from '../shell/chat-bus'
 import { DegradedStrip } from '../components/DegradedStrip'
 import { ThemeToggle } from '../components/ThemeToggle'
 import { ToastViewport } from '../shell/ToastViewport'
@@ -157,6 +159,14 @@ function RootLayout() {
           {MODES.map((mode) => (
             <Link key={mode} to={MODE_ROUTES[mode]} className="nav-item focus-ring">
               {MODE_LABELS[mode]}
+              {/*
+                THE UNREAD COUNT, and it is honest about being a local count. Messages that arrive
+                while chat is unmounted sit in the relayer's bounded buffer rather than here, so
+                this reports what this browser has actually received and catches up when chat opens.
+                The alternative — a badge fed by a background subscription — would mean holding a
+                socket open on every surface for a number.
+              */}
+              {mode === 'chat' ? <ChatUnread /> : null}
             </Link>
           ))}
         </nav>
@@ -294,6 +304,39 @@ function ShellHealth() {
     />
   )
 }
+
+/**
+ * The chat nav item's unread count.
+ *
+ * Its own component so the badge's subscription re-renders the badge rather than the whole shell:
+ * `useTotalUnread` fires on every message that arrives in any conversation, and the header holds
+ * the palette, the theme toggle and the account chip.
+ */
+function ChatUnread() {
+  const unread = useTotalUnread()
+
+  //
+  // THE COUNT ALSO GOES IN THE TAB TITLE, which is the only place it is visible when the tab is
+  // in the background — and a background tab is exactly when an unread count is worth having.
+  //
+  // THE BASE TITLE IS CAPTURED ONCE, at module scope rather than per effect run. Reading it inside
+  // the effect would read back a title this effect had already prefixed, so the count would
+  // compound — `(1) (2) (3) Passbook` — the classic version of this bug.
+  //
+  useEffect(() => {
+    document.title = unread > 0 ? `(${unread > 99 ? '99+' : unread}) ${BASE_TITLE}` : BASE_TITLE
+    // Restored on unmount so a shell that is being torn down does not leave a stale count in a
+    // tab title nothing is updating any more.
+    return () => {
+      document.title = BASE_TITLE
+    }
+  }, [unread])
+
+  return <UnreadBadge count={unread} />
+}
+
+/** The document's own title, read before anything has had a chance to prefix it. */
+const BASE_TITLE = typeof document === 'undefined' ? 'Passbook' : document.title
 
 /**
  * The root's own failure. Reserved marker, never `/` — a fallback that wears a route's own identity

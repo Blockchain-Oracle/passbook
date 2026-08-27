@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
 
 import {
-  roomEndpoint, sendEnvelope, openRoomStream, type RoomStreamState,
+  roomEndpoint, sendEnvelope, openRoomStream, streamBody, type RoomStreamState,
 } from '../src/room-transport.js'
 import type { RoomEnvelope } from '../src/room.js'
 
@@ -223,5 +223,61 @@ describe('openRoomStream', () => {
     await new Promise((r) => setTimeout(r, 700))
     // At most the attempt that was already in flight when close() landed.
     expect(fetchImpl.mock.calls.length).toBeLessThanOrEqual(after + 1)
+  })
+})
+
+//
+// The multiplexed form (Wave 2). The relayer has accepted `{rooms: []}` since the multi-room
+// stream landed; this is the client half, and what it must not break is the single-room caller.
+//
+describe('one socket, many rooms', () => {
+  it('sends every room in one body, and the single-room form still works', () => {
+    expect(streamBody({ rooms: ['a', 'b', 'c'] })).toEqual({ rooms: ['a', 'b', 'c'] })
+    // The old shape becomes a one-element list rather than a second wire format. The relayer
+    // accepts both, but a client that emitted two shapes would need both tested forever.
+    expect(streamBody({ room: 'a' })).toEqual({ rooms: ['a'] })
+  })
+
+  it('de-duplicates, because a repeated room would double every message it carries', () => {
+    // The iv dedupe downstream would HIDE this, which is exactly why it is caught here: a
+    // conversation list holding one peer twice would look fine and subscribe twice.
+    expect(streamBody({ rooms: ['a', 'b', 'a'] })).toEqual({ rooms: ['a', 'b'] })
+  })
+
+  it('refuses a stream that names nothing, and one that names both forms', () => {
+    expect(() => streamBody({})).toThrow(/at least one room/)
+    expect(() => streamBody({ rooms: [] })).toThrow(/at least one room/)
+    // Not merged: two sources disagreeing about which conversations a socket carries is how a
+    // thread silently stops receiving.
+    expect(() => streamBody({ room: 'a', rooms: ['b'] })).toThrow(/never both/)
+  })
+
+  it('opens with the multiplexed body and delivers into one callback', async () => {
+    const received: RoomEnvelope[] = []
+    const fetchImpl = vi.fn(async () =>
+      streamResponse([
+        `data: ${JSON.stringify(envelope('iv-a'))}\n\n`,
+        `data: ${JSON.stringify(envelope('iv-b'))}\n\n`,
+      ]),
+    )
+
+    const handle = openRoomStream({
+      rooms: [ROOM, 'beef'],
+      onEnvelope: (e) => received.push(e),
+      deps: { fetch: fetchImpl },
+    })
+    await until(() => received.length === 2)
+    handle.close()
+
+    const [, init] = fetchImpl.mock.calls[0] as unknown as [string, RequestInit]
+    expect(JSON.parse(String(init.body))).toEqual({ rooms: [ROOM, 'beef'] })
+    // ONE callback for every room. Routing to the right conversation is the caller's job, done on
+    // the envelope's `from` — the protocol's own routing hint — so the transport stays room-blind.
+    expect(received.map((e) => e.iv)).toEqual(['iv-a', 'iv-b'])
+  })
+
+  it('throws on the call rather than inside a silent reconnect', () => {
+    // The body is built before the loop, so a malformed input fails where a caller can see it.
+    expect(() => openRoomStream({ rooms: [], onEnvelope: () => {} })).toThrow(/at least one room/)
   })
 })

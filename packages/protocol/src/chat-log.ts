@@ -123,6 +123,22 @@ export interface ChatLog {
   /** Create the conversation row before any message exists — the new-message flow's first step. */
   ensure(peer: string): void
   markRead(peer: string): void
+  /**
+   * Mark a message this browser sent as not delivered.
+   *
+   * ── IT IS A SEPARATE DOOR BECAUSE `insert` IS A NO-OP ON A REPEATED ID ─────────────────
+   *
+   * `insert` returns early on an id it already holds — that early return is the replay dedupe, and
+   * it is the single most load-bearing line in this file. So the obvious way to record a failed
+   * send, re-inserting the same entry with `undelivered` set, silently does nothing: the message
+   * sits in the thread looking delivered, which is the one thing an optimistic render must never
+   * be allowed to do.
+   *
+   * Unknown peers and unknown ids are no-ops rather than errors: a send whose conversation was
+   * dropped between the seal and the failure has nothing to annotate, and throwing there would
+   * turn a delivery failure into an exception inside a `catch`.
+   */
+  markUndelivered(peer: string, id: string, because: string): void
   setNickname(peer: string, nickname: string | null): void
   totalUnread(): number
   subscribe(listener: () => void): () => void
@@ -206,6 +222,17 @@ export function openChatLog(account: string, storage: ChatLogStorage | null): Ch
       const c = conversations.get(peer)
       if (!c || c.unread === 0) return
       c.unread = 0
+      mutated()
+    },
+
+    markUndelivered(peer: string, id: string, because: string) {
+      const c = conversations.get(peer)
+      if (!c) return
+      const at = c.entries.findIndex((e) => e.id === id)
+      if (at === -1) return
+      // Replaced in place rather than removed and re-pushed: the entry keeps its position in the
+      // thread, so a failed message does not jump to the bottom past ones sent after it.
+      c.entries[at] = { ...c.entries[at]!, undelivered: because }
       mutated()
     },
 
