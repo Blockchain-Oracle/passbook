@@ -114,6 +114,33 @@ export function recordLocal(transaction: Transaction): void {
 }
 
 /**
+ * Returns the store to UNREAD because the account changed underneath it.
+ *
+ * ── THIS IS NOT `resetActivityStore`, AND THE DIFFERENCE IS THE LISTENER SET ─────────────
+ *
+ * That one is a test seam and it clears the listeners, which under mounted components leaves every
+ * subscriber registered-but-forgotten and their unsubscribe closures pointing at a set they are no
+ * longer in. This runs in production, with components mounted, so it moves the VALUE and leaves the
+ * subscriptions exactly where they are.
+ *
+ * ── WHY THE FEED MUST GO BLANK RATHER THAN KEEP ITS ROWS ─────────────────────────────────
+ *
+ * `mine` is computed against ONE account's registry, so every row's Personal/Global classification
+ * belongs to the account that was active when the read ran. After a switch those flags describe
+ * somebody else — the Personal tab would show the previous account's transactions underneath the
+ * new account's address, which is the most misleading thing this surface could render.
+ *
+ * UNREAD rather than an empty published read, because the two are different claims and the whole
+ * `initialized` flag exists to keep them apart: "we have not looked at this account yet" is true
+ * the instant after a switch, and "this account has no history" is not something anybody checked.
+ */
+export function forgetActivityForAccountChange(): void {
+  if (state === UNREAD) return
+  state = UNREAD
+  emit()
+}
+
+/**
  * Test seam. Production code never needs this; a suite that leaked state into the next case does.
  *
  * It clears the listener set, which is why it is a seam and not a runtime reset: under mounted

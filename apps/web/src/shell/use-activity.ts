@@ -46,14 +46,14 @@
 // a narrowed-but-complete read holds everything in its window, while a still-truncated one does
 // not reach the present and must not be called "recent".
 //
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { DiscoveryResult } from '@strk20/protocol/discovery'
 // STATIC, unlike everything else this file reaches for. `ActivityFeed` and the receipt route both
 // import the store statically and both are in the eager graph, so a dynamic import here would be
 // the `INEFFECTIVE_DYNAMIC_IMPORT` the build gate rejects — the module is already in that chunk and
 // asking for it lazily only splits the reference, never the code. It costs nothing to take it
 // eagerly: the store's own imports are one `type`, so its runtime graph is empty.
-import { publishRead } from '@strk20/protocol/activity-store'
+import { forgetActivityForAccountChange, publishRead } from '@strk20/protocol/activity-store'
 
 export interface ActivityReadState {
   /** True while a read is in flight. The store keeps the previous rows meanwhile. */
@@ -87,6 +87,37 @@ export function useActivity(
   const [nonce, setNonce] = useState(0)
 
   const refresh = useCallback(() => setNonce((n) => n + 1), [])
+
+  //
+  // THE FEED BELONGS TO ONE ACCOUNT, SO A SWITCH EMPTIES IT FIRST.
+  //
+  // `buildActivity` sets `mine` from the active account's registry, so after `switchAccount` every
+  // row in the store is classified for the PREVIOUS identity — and the walk that will fix it takes
+  // seconds. Without this, the Personal tab renders one account's transactions underneath another
+  // account's address for the whole of that window.
+  //
+  // A separate effect from the read below, and deliberately so: it must run on the render the key
+  // changed on, not after the dynamic imports the read waits for.
+  //
+  // ── A LOCK IS NOT AN ACCOUNT CHANGE, AND THE `null` GUARD IS WHAT SAYS SO ───────────────
+  //
+  // The caller passes `ready?.accountKey ?? null`, so locking sends this `A → null` and unlocking
+  // sends it `null → A`. Neither is a change of identity: the account is the same one throughout,
+  // and treating them as changes would throw away a perfectly good feed on every lock and force a
+  // full discovery walk to get it back. It would also delete any optimistic row `recordLocal`
+  // wrote — currently latent, since nothing calls it yet, but it would silently eat in-flight
+  // sends the day something does.
+  //
+  const previousKey = useRef<string | null>(null)
+  useEffect(() => {
+    if (accountKey === null) return
+    if (previousKey.current !== null && previousKey.current !== accountKey) {
+      forgetActivityForAccountChange()
+      setWindow(null)
+      setProblem(null)
+    }
+    previousKey.current = accountKey
+  }, [accountKey])
 
   useEffect(() => {
     // A walk that did not complete has no registry, so there is nothing to tell ours from anyone

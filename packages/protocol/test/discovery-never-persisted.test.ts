@@ -139,8 +139,12 @@ describe('nothing discovered can be written down', () => {
     // `SESSION_KEYS` is closed by doctrine. A new key is how discovery output would acquire a
     // legitimate-looking home, so the count is pinned and growing it is a deliberate act with
     // a failing test attached.
+    // `accounts` (Wave 1) holds root KEYS and nothing else — the same material `accountKey`
+    // already holds, in a list. It is named here because the union grew, and it grew for a reason
+    // written at `session-accounts.ts`; what matters to THIS test is that it is not a home for
+    // discovery output, which the value check below re-asserts independently of the name.
     expect(Object.keys(SESSION_KEYS).sort()).toEqual(
-      ['accountKey', 'cadence', 'ceremony', 'inviteIntents'].sort(),
+      ['accountKey', 'accounts', 'cadence', 'ceremony', 'inviteIntents'].sort(),
     )
     // And no key's VALUE mentions this story's material either — a key named `ceremony` whose
     // value drifted to `passbook.notes` would pass a name check and fail the rule.

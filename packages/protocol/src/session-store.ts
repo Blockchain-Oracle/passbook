@@ -85,6 +85,26 @@ export const SESSION_KEYS = {
    * note-to-self about money that has not moved. See `session-invite-store.ts` and `session.ts`.
    */
   inviteIntents: 'passbook.invite-intents',
+  /**
+   * Every account this browser holds, which one is active, and whether the screen is locked
+   * (Wave 1, `session-accounts.ts`).
+   *
+   * THE FIFTH ENTRY, and it carries its argument like the fourth did. It holds ROOT KEYS, which
+   * is the one thing on the "may be persisted" list already — entry 1 — so this widens the SHAPE
+   * of what is stored, not the KIND. The exposure is unchanged: an origin compromise took the
+   * account key before this key existed and takes it now, and `session-key.ts`'s plaintext note
+   * covers both.
+   *
+   * It is here because the alternative is not "store less", it is "one browser, one account
+   * forever": there is no server-side account list by design, so the browser is the only party
+   * that can hold one, and a list that does not survive a reload means a user who imports a
+   * second account loses it the moment they close the tab — with the first account's key still
+   * sitting in `accountKey`, which reads exactly like the import silently failed.
+   *
+   * `passbook.account-key` KEEPS MIRRORING the active account's key rather than being superseded,
+   * so nothing that reads the old slot breaks. See `session-accounts.ts`'s header.
+   */
+  accounts: 'passbook.accounts',
 } as const
 
 /** An in-memory store: real semantics, no durability. The default for tests. */

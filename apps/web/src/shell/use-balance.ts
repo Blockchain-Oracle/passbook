@@ -21,9 +21,11 @@
 // could not look. That is the single most damaging thing this screen could do, so the state
 // travels intact all the way to the render.
 //
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ShieldedBalance } from '@strk20/protocol/balances'
 import type { DiscoveryResult } from '@strk20/protocol/discovery'
+
+import { publishBalance } from './balance-store'
 
 export interface BalanceState {
   /** `null` until the first walk completes or fails. */
@@ -61,6 +63,27 @@ export function useBalance(address: string | null, accountKey: string | null): B
 
   const refresh = useCallback(() => setNonce((n) => n + 1), [])
 
+  //
+  // THE PREVIOUS ACCOUNT'S BALANCE IS DROPPED BEFORE THE NEW WALK STARTS.
+  //
+  // A walk takes seconds. Keeping the last reading across an account SWITCH would put one account's
+  // number under another account's address for the whole of that window — so the reading is cleared
+  // when the address changes.
+  //
+  // ONLY WHEN THE ADDRESS CHANGES, which is why this is a ref and not just the effect below. That
+  // effect also runs on `nonce`, and clearing there would blank the hero on every manual Refresh —
+  // destroying the one property `BalanceState` documents: "a walk is in flight, the previous
+  // reading is still in `balance`".
+  //
+  const walked = useRef<string | null>(null)
+  useEffect(() => {
+    if (walked.current !== null && walked.current !== address) {
+      setBalance(null)
+      setRead(null)
+    }
+    walked.current = address
+  }, [address])
+
   useEffect(() => {
     if (!address || !accountKey) return
 
@@ -79,8 +102,12 @@ export function useBalance(address: string | null, accountKey: string | null): B
       // from the outside an exhausted RPC and a half-finished walk are the same fact.
       const result = await discoverWallet(address, accountKey)
       if (!live) return
-      setBalance(balancesFrom(result))
+      const reading = balancesFrom(result)
+      setBalance(reading)
       setRead(result)
+      // Published so the account drawer can show a balance line without walking the pool a second
+      // time. Keyed by the address it was taken for — see `balance-store.ts`.
+      publishBalance(address, reading)
       setLoading(false)
     })().catch(() => {
       // A failed CHUNK load, which `discoverWallet`'s own guarantee cannot cover. Same honest
