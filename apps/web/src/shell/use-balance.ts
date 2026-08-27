@@ -23,10 +23,23 @@
 //
 import { useCallback, useEffect, useState } from 'react'
 import type { ShieldedBalance } from '@strk20/protocol/balances'
+import type { DiscoveryResult } from '@strk20/protocol/discovery'
 
 export interface BalanceState {
   /** `null` until the first walk completes or fails. */
   balance: ShieldedBalance | null
+  /**
+   * The walk itself, for readings this hook does not take.
+   *
+   * ── ONE WALK, TWO READINGS ─────────────────────────────────────────────────────────────
+   *
+   * The activity feed needs this walk's REGISTRY to tell its own rows from the pool's, and a
+   * second `discoverWallet` would be a second sweep of pool storage for data already in memory —
+   * and worse, a sweep taken at a different height, so the feed and the balance beside it would
+   * describe two different moments. Exposed rather than duplicated for that reason. `useActivity`
+   * is the only consumer.
+   */
+  read: DiscoveryResult | null
   /** A walk is in flight. The previous reading, if any, is still in `balance`. */
   loading: boolean
   /** Re-walk. The user asking is the only refresh this screen has. */
@@ -42,6 +55,7 @@ export interface BalanceState {
  */
 export function useBalance(address: string | null, accountKey: string | null): BalanceState {
   const [balance, setBalance] = useState<ShieldedBalance | null>(null)
+  const [read, setRead] = useState<DiscoveryResult | null>(null)
   const [loading, setLoading] = useState(false)
   const [nonce, setNonce] = useState(0)
 
@@ -66,6 +80,7 @@ export function useBalance(address: string | null, accountKey: string | null): B
       const result = await discoverWallet(address, accountKey)
       if (!live) return
       setBalance(balancesFrom(result))
+      setRead(result)
       setLoading(false)
     })().catch(() => {
       // A failed CHUNK load, which `discoverWallet`'s own guarantee cannot cover. Same honest
@@ -78,5 +93,5 @@ export function useBalance(address: string | null, accountKey: string | null): B
     }
   }, [address, accountKey, nonce])
 
-  return { balance, loading, refresh }
+  return { balance, read, loading, refresh }
 }

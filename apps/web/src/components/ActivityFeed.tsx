@@ -52,9 +52,26 @@ export interface ActivityFeedProps {
    * see `ActivityRow`. Whoever gains the ability to resubmit passes it from there.
    */
   onRetry?: (transaction: Transaction) => void
+  /**
+   * Why the last read failed, if it did.
+   *
+   * THREADED RATHER THAN DERIVED, because it cannot be derived. A failed read leaves the store
+   * exactly as it found it — that is `publishRead`'s contract — so from in here a read that
+   * errored and a read that never ran are the same `initialized: false`, and the five-state
+   * grammar above has no arm for "we tried and could not". This is that arm.
+   */
+  problem?: string | null
+  /**
+   * Set when the rows are a window rather than the whole history.
+   *
+   * `PoolEventPage.complete` is where this comes from and its comment is the requirement: a feed
+   * built on an incomplete page "is showing a window, not a history, and must say so". The rows
+   * themselves carry no trace of what was left off the end, so the reader is told here.
+   */
+  windowNote?: string | null
 }
 
-export function ActivityFeed({ onRetry }: ActivityFeedProps) {
+export function ActivityFeed({ onRetry, problem = null, windowNote = null }: ActivityFeedProps) {
   const { transactions, initialized } = useSyncExternalStore(subscribe, getActivity)
   const [tab, setTab] = useState<FeedTab>('global')
   const [showSystemNotes, setShowSystemNotes] = useState(true)
@@ -88,6 +105,20 @@ export function ActivityFeed({ onRetry }: ActivityFeedProps) {
         crosses before the rows, rather than in a warning that fires after they have read them.
       */}
       <p className="text-body4 text-neutral2">{SURFACES_STANDING_LINE}</p>
+
+      {/*
+        BOTH SIT ABOVE THE TABS, crossed on the way to the rows rather than parked under them. A
+        reader who has already concluded "there is nothing here" does not go looking for the line
+        that would have corrected them.
+      */}
+      {problem ? (
+        <p className="text-body3 text-exposed" role="status">
+          {problem}
+        </p>
+      ) : null}
+      {/* Named `windowNote`, not `window` — this is a browser module and shadowing that global
+          inside a component is a trap set for whoever next reaches for `window.location`. */}
+      {windowNote ? <p className="text-body4 text-neutral2">{windowNote}</p> : null}
 
       <Tabs.Root
         value={tab}
@@ -131,7 +162,12 @@ export function ActivityFeed({ onRetry }: ActivityFeedProps) {
               screen reader lands in after activating a tab — content outside it is announced as
               belonging to neither.
             */}
-            <FeedNote view={views[key]} />
+            {/*
+              `silenced` when a problem is already on screen: the unread note says "nothing has
+              looked yet", which beside "the record could not be read" reads as two different
+              explanations for one blank. The specific sentence wins.
+            */}
+            <FeedNote view={views[key]} silenced={problem !== null} />
 
             {views[key].rows.length ? (
               // A LIST, not a run of anchors. The rows are peers of one another and a reader
@@ -163,7 +199,11 @@ export function ActivityFeed({ onRetry }: ActivityFeedProps) {
  * The Personal-empty note is keyed on `showing !== tab` rather than on the state name, which makes
  * `FeedView.showing` the thing that decides the fallback rather than a field nobody reads.
  */
-function FeedNote({ view }: { view: FeedView }) {
+function FeedNote({ view, silenced = false }: { view: FeedView; silenced?: boolean }) {
+  // ONLY the unread arm is silenced. `empty` and `filtered-empty` are facts a completed read
+  // established, and a failed later read does not retract them.
+  if (silenced && view.state === 'unread') return null
+
   const text =
     view.state === 'unread'
       ? FEED_UNREAD
