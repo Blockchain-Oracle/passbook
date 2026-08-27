@@ -31,7 +31,8 @@ describe('the session barrel loads and surfaces the four adapters (G6)', () => {
       expect(typeof session[name], name).toBe('function')
     }
     expect(typeof session.REFUSING_SESSION_STORE).toBe('object')
-    expect(Object.values(session.SESSION_KEYS)).toHaveLength(4)
+    // Five since Wave 1 added `passbook.accounts`; `session-store.test.ts` carries the argument.
+    expect(Object.values(session.SESSION_KEYS)).toHaveLength(5)
   })
 
   it('surfaces the invite-intent store, so epic 6 wires it from the one import', () => {

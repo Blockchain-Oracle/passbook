@@ -48,7 +48,7 @@ describe('the session store interface (G1)', () => {
     expect(inMemorySessionStore({ [SESSION_KEYS.accountKey]: '0x1' }).read(SESSION_KEYS.accountKey)).toBe('0x1')
   })
 
-  it('there are exactly four keys, and every one of them is namespaced', () => {
+  it('there are exactly five keys, and every one of them is namespaced', () => {
     // The list is closed on purpose — see `session.ts`'s storage boundary. A new value arriving
     // here is a decision, not a detail, so the count is asserted.
     //
@@ -56,11 +56,20 @@ describe('the session store interface (G1)', () => {
     // decision was surfaced for review. `passbook.invite-intents` holds what the SENDER TYPED
     // when they attached money to an invite — a recipient, a token, an amount, a state. It is
     // not on the MUST-NEVER list because nothing in it is decrypted, discovered or read out of
-    // the pool; the full argument is at `session-invite-store.ts`. Anyone raising this number
-    // again owes the same argument.
+    // the pool; the full argument is at `session-invite-store.ts`.
+    //
+    // IT WENT FROM FOUR TO FIVE IN WAVE 1, and the argument is the one the mechanism is for.
+    // `passbook.accounts` holds ROOT KEYS — which is entry 1 on the may-persist list already, so
+    // this widens the SHAPE of what is stored rather than the KIND, and `session-key.ts`'s
+    // plaintext-at-rest note covers the exposure unchanged. It exists because there is no
+    // server-side account list by design: the browser is the only party that can hold one, and an
+    // account list that does not survive a reload means a user who imports a second account loses
+    // it when they close the tab. The full argument is at `session-accounts.ts`.
+    //
+    // Anyone raising this number again owes the same argument.
     const keys = Object.values(SESSION_KEYS)
-    expect(keys).toHaveLength(4)
-    expect(new Set(keys).size).toBe(4)
+    expect(keys).toHaveLength(5)
+    expect(new Set(keys).size).toBe(5)
     for (const key of keys) expect(key.startsWith('passbook.')).toBe(true)
   })
 })

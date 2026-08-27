@@ -143,7 +143,32 @@ export {
   type StoredInviteIntents,
 } from './session-invite-store.js'
 
-// 6. The copy. Byte-exact, and imported rather than retyped by whatever renders it.
+// 6. The account list (Wave 1) — more than one identity in one browser.
+//
+// It sits BESIDE `session-key.ts` rather than replacing it: the single-key slot keeps mirroring
+// the active account, so `loadOrCreateAccountKey` remains the first-boot path and remains correct
+// for a browser that has never seen this record. See `session-accounts.ts`'s header.
+export {
+  ACCOUNTS_RECORD_VERSION,
+  MAX_ACCOUNT_LABEL_LENGTH,
+  activeAccount,
+  findAccount,
+  parseStoredAccounts,
+  sameAddress,
+  seedFrom,
+  serializeAccounts,
+  sessionAccountStore,
+  withAccount,
+  withActive,
+  withLabel,
+  withLocked,
+  type AccountRecordStore,
+  type StoredAccount,
+  type StoredAccounts,
+  type StoredAccountsRead,
+} from './session-accounts.js'
+
+// 7. The copy. Byte-exact, and imported rather than retyped by whatever renders it.
 export {
   ACCOUNT_OPEN_IN_ANOTHER_TAB,
   SESSION_STORAGE_UNAVAILABLE,

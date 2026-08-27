@@ -10,6 +10,20 @@
 // the same door and gets the same treatment. `feedFor` returns which applies, so the decision is
 // data with a test behind it rather than a chain of ternaries in here.
 //
+// ── AND THE TWO TABS NOW SAY DIFFERENT THINGS WHEN THEY ARE EMPTY ────────────────────────
+//
+// Both used to print "No activity yet", which is one sentence for two facts: a Global tab with
+// nothing in it means the pool published nothing in the blocks we read, and a Personal tab with
+// nothing in it means none of what it published was ours. Only the second has an action attached,
+// and `history-copy.ts` carries both.
+//
+// ── THE ROWS ARE GROUPED, AND THE HEADERS ARE NOT DATES ──────────────────────────────────
+//
+// `activitySections` cuts the ordered list on block distance from the head, because a pool event
+// carries a block number and no timestamp — `transaction.ts:387` refuses to invent the second from
+// the first and this feed keeps that refusal. `HISTORY_GROUPING_NOTE` states the mechanism above
+// the list, so nobody reads "About the last day" as a calendar claim.
+//
 // ── THE HEADER LINE IS THE AMENDED ONE, AND IT IS IMPORTED ───────────────────────────────
 //
 // `SURFACES_STANDING_LINE` says the six surfaces are unlinkable TO OTHER USERS, that this view is
@@ -22,19 +36,28 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 import { Tabs } from '@base-ui/react/tabs'
 
 import {
-  ACTIVITY_EMPTY_NOTHING,
   FEED_UNREAD,
-  FILTERED_ALL_HIDDEN,
-  PERSONAL_FEED_EMPTY,
   SURFACES_STANDING_LINE,
   SYSTEM_NOTES_HIDDEN,
   SYSTEM_NOTES_SHOWN,
 } from '@strk20/protocol/activity-copy'
+import {
+  HISTORY_FILTERED_EMPTY,
+  HISTORY_GLOBAL_EMPTY,
+  HISTORY_GROUPING_NOTE,
+  HISTORY_GROUP_IN_PROGRESS,
+  HISTORY_GROUP_OLDER,
+  HISTORY_GROUP_RECENT,
+  HISTORY_GROUP_WEEK,
+  HISTORY_PERSONAL_EMPTY,
+} from '@strk20/protocol/history-copy'
 import { getActivity, subscribe } from '@strk20/protocol/activity-store'
 import {
   FEED_TAB_LABELS,
+  activitySections,
   feedFor,
   visibleTransactions,
+  type ActivityGroup,
   type FeedTab,
   type FeedView,
   type Transaction,
@@ -45,6 +68,14 @@ import { ActivityRow } from './ActivityRow'
 const TABS: readonly FeedTab[] = ['global', 'personal']
 
 const isTab = (value: unknown): value is FeedTab => value === 'global' || value === 'personal'
+
+/** The header for each section, from the copy module. Never derived from a date. */
+const GROUP_LABEL: Record<ActivityGroup, string> = {
+  'in-progress': HISTORY_GROUP_IN_PROGRESS,
+  recent: HISTORY_GROUP_RECENT,
+  week: HISTORY_GROUP_WEEK,
+  older: HISTORY_GROUP_OLDER,
+}
 
 export interface ActivityFeedProps {
   /**
@@ -69,9 +100,21 @@ export interface ActivityFeedProps {
    * themselves carry no trace of what was left off the end, so the reader is told here.
    */
   windowNote?: string | null
+  /**
+   * The height the record was read beside — `ShieldedBalance.blockNumber`.
+   *
+   * The section boundaries are distances FROM this, so a feed given `null` puts every settled row
+   * in the last group rather than inventing a distance from a number nobody read.
+   */
+  headBlock?: number | null
 }
 
-export function ActivityFeed({ onRetry, problem = null, windowNote = null }: ActivityFeedProps) {
+export function ActivityFeed({
+  onRetry,
+  problem = null,
+  windowNote = null,
+  headBlock = null,
+}: ActivityFeedProps) {
   const { transactions, initialized } = useSyncExternalStore(subscribe, getActivity)
   const [tab, setTab] = useState<FeedTab>('global')
   const [showSystemNotes, setShowSystemNotes] = useState(true)
@@ -97,7 +140,7 @@ export function ActivityFeed({ onRetry, problem = null, windowNote = null }: Act
   const { settling, onSettleShown } = useSettleCue(transactions)
 
   return (
-    <section className="flex flex-col gap-s8">
+    <section className="flex min-w-0 flex-col gap-s8">
       <h2 className="text-heading3">Activity</h2>
 
       {/*
@@ -156,7 +199,7 @@ export function ActivityFeed({ onRetry, problem = null, windowNote = null }: Act
         </div>
 
         {TABS.map((key) => (
-          <Tabs.Panel key={key} value={key} className="flex flex-col gap-s4">
+          <Tabs.Panel key={key} value={key} className="flex flex-col gap-s8">
             {/*
               Rendered inside the panel rather than once outside, because the tab panel is what a
               screen reader lands in after activating a tab — content outside it is announced as
@@ -170,21 +213,39 @@ export function ActivityFeed({ onRetry, problem = null, windowNote = null }: Act
             <FeedNote view={views[key]} silenced={problem !== null} />
 
             {views[key].rows.length ? (
-              // A LIST, not a run of anchors. The rows are peers of one another and a reader
-              // arriving by keyboard is told how many there are; `OptionRow.tsx`'s header works
-              // through the same question for the palette and lands on explicit roles.
-              <ul className="activity-list">
-                {views[key].rows.map((transaction) => (
-                  <ActivityRow
-                    key={transaction.id}
-                    transaction={transaction}
-                    now={now}
-                    settling={settling === transaction.id}
-                    onSettleShown={onSettleShown}
-                    onRetry={onRetry}
-                  />
+              <>
+                <p className="text-body4 text-neutral3">{HISTORY_GROUPING_NOTE}</p>
+                {activitySections(views[key].rows, headBlock).map((section) => (
+                  <div key={section.group} className="flex flex-col gap-s2">
+                    {/*
+                      NOT STICKY, and that is a decision rather than an omission. `.app-header` is
+                      `position: sticky; top: 0` and it WRAPS — measured 165px at 320, 97px at 640,
+                      57px at 1280 — so a section header pinned at `top: 0` would come to rest
+                      underneath it at every width, which is worse than not pinning at all. Pinning
+                      it correctly needs a per-breakpoint offset for a header whose height is a
+                      function of the viewport; the sections are short enough that it buys little.
+                    */}
+                    <h3 className="py-s4 text-body4 text-neutral2">{GROUP_LABEL[section.group]}</h3>
+                    {/*
+                      A LIST, not a run of anchors. The rows are peers of one another and a reader
+                      arriving by keyboard is told how many there are; `OptionRow.tsx`'s header
+                      works through the same question for the palette and lands on explicit roles.
+                    */}
+                    <ul className="flex flex-col">
+                      {section.rows.map((transaction) => (
+                        <ActivityRow
+                          key={transaction.id}
+                          transaction={transaction}
+                          now={now}
+                          settling={settling === transaction.id}
+                          onSettleShown={onSettleShown}
+                          onRetry={onRetry}
+                        />
+                      ))}
+                    </ul>
+                  </div>
                 ))}
-              </ul>
+              </>
             ) : null}
           </Tabs.Panel>
         ))}
@@ -196,8 +257,9 @@ export function ActivityFeed({ onRetry, problem = null, windowNote = null }: Act
 /**
  * One left-aligned neutral sentence (§5's empty grammar). Never an illustration, never centred.
  *
- * The Personal-empty note is keyed on `showing !== tab` rather than on the state name, which makes
- * `FeedView.showing` the thing that decides the fallback rather than a field nobody reads.
+ * The Personal-empty note is keyed on the VIEW STATE rather than on the tab, which is what keeps
+ * the two facts apart: `empty` means the window held nothing at all — a claim about the pool's
+ * blocks, true on either tab — and `personal-empty` means the window held rows and none were ours.
  */
 function FeedNote({ view, silenced = false }: { view: FeedView; silenced?: boolean }) {
   // ONLY the unread arm is silenced. `empty` and `filtered-empty` are facts a completed read
@@ -208,11 +270,11 @@ function FeedNote({ view, silenced = false }: { view: FeedView; silenced?: boole
     view.state === 'unread'
       ? FEED_UNREAD
       : view.state === 'empty'
-        ? ACTIVITY_EMPTY_NOTHING
+        ? HISTORY_GLOBAL_EMPTY
         : view.state === 'filtered-empty'
-          ? FILTERED_ALL_HIDDEN
-          : view.showing !== view.tab
-            ? PERSONAL_FEED_EMPTY
+          ? HISTORY_FILTERED_EMPTY
+          : view.state === 'personal-empty'
+            ? HISTORY_PERSONAL_EMPTY
             : null
 
   return text === null ? null : <p className="text-body3 text-neutral2">{text}</p>

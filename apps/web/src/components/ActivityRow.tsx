@@ -1,25 +1,30 @@
 //
 // THE activity row — one renderer for every entry in the book (story 6.6, EXPERIENCE §4.8).
 //
-// It is `OptionRowBody` with a state in the right slot, and that is not a shortcut. The design
-// authority states the activity row's own geometry as `{ radius: 16, py: 8, gap: 12, icon: 40 }`
-// (`tokens.yaml` `components.activityRow`) and `.option-row-inner` already ships all four — so the
-// two rows are the same row, and building a second one would have meant two ellipsis behaviours,
-// two truncation bugs and two places to fix each.
+// ── REBUILT ONTO ITS OWN ANATOMY, AND HERE IS WHY IT LEFT `OptionRowBody` ────────────────
 //
-// ── THE ROW IS NOT A LINK, AND THAT IS A CORRECTION ──────────────────────────────────────
+// It used to BE the selector row with a state in the right slot, which was the correct call while
+// the two rows wanted the same three columns. A wallet-grade history wants five things the option
+// row has no slot for and should not grow one for: a tinted category disc, a counterparty line, a
+// signed amount, a status chip, and a whole row that is a link to the receipt. Widening the shared
+// anatomy to carry them would have pushed six unrelated lists — tokens, contacts, routes — into
+// carrying an activity row's vocabulary. So the row owns its own layout in utilities, and
+// `OptionRow` goes back to being the row a SELECTOR uses.
 //
-// The first version wrapped the whole row in a `<Link>`. Two of the five slot states put an `<a>`
-// or a `<button>` inside it, and interactive content may not nest inside an anchor: the parser
-// hoists the inner `<a>` out on any hydrated path, the tab order stops matching the visual order,
-// and `preventDefault` patches the click while leaving the semantics broken. So the row is a
-// container, its TITLE is the link to the receipt, and the slot's own controls are siblings.
+// ── THE ROW IS NOT A LINK, AND THAT IS A CORRECTION THAT STILL STANDS ────────────────────
 //
-// ── THE SLOT SWAP IS THE WHOLE GRAMMAR ───────────────────────────────────────────────────
+// Two of the five slot states put an `<a>` or a `<button>` inside the row, and interactive content
+// may not nest inside an anchor: the parser hoists the inner `<a>` out on any hydrated path, the
+// tab order stops matching the visual order, and `preventDefault` patches the click while leaving
+// the semantics broken. So the row is a container, its TITLE is the link to the receipt, and the
+// slot's own controls are siblings.
+//
+// ── THE SLOT SWAP IS STILL THE GRAMMAR ───────────────────────────────────────────────────
 //
 // §4.8: "pending/confirmed is a slot-swap at the right edge (timestamp ↔ spinner ↔ static ring)".
 // One reserved box whose contents change, never a conditional element that appears and pushes. The
-// reserve is `.activity-right`'s `min-width`, and `build:web` resolves it to a number.
+// reserve is `.activity-right`'s `min-width`, and `build:web` resolves it to a number — which is
+// why that class survives the rebuild while the rest of the row's styling became utilities.
 //
 // ── AND THE STILL RING IS A CLAIM ────────────────────────────────────────────────────────
 //
@@ -29,10 +34,26 @@
 // ages. `.activity-ring-static` is the same geometry with no animation, and both the build gate and
 // `activity-gate.test.ts` fail if one is ever given to the other.
 //
-import { activityRowModel, rightSlot, type RightSlot, type Transaction } from '@strk20/protocol/transaction'
-import { CHECK_ON_VOYAGER } from '@strk20/protocol/activity-copy'
+import { Link } from '@tanstack/react-router'
 
-import { OptionRowBody } from './OptionRow'
+import {
+  activityCategory,
+  amountDirection,
+  rightSlot,
+  rowAmountWei,
+  rowCounterparty,
+  rowTitle,
+  type RightSlot,
+  type Transaction,
+} from '@strk20/protocol/transaction'
+import { CHECK_ON_VOYAGER } from '@strk20/protocol/activity-copy'
+import { AMOUNT_UNREADABLE, AMOUNT_UNREADABLE_WHY } from '@strk20/protocol/history-copy'
+import { MINUS, toPlainText } from '@strk20/protocol/amount'
+
+import { cn } from '../lib/cn'
+import { findToken, useTokenList } from '../shell/use-token-list'
+import { shortenFelt } from '../shell/session'
+import { CategoryDisc } from './CategoryDisc'
 
 export interface ActivityRowProps {
   transaction: Transaction
@@ -61,18 +82,111 @@ export interface ActivityRowProps {
 
 export function ActivityRow({ transaction, now, settling, onSettleShown, onRetry }: ActivityRowProps) {
   const slot = rightSlot(transaction, now)
+  const category = activityCategory(transaction)
+  const counterparty = rowCounterparty(transaction)
+  const failedReason = transaction.chain.state === 'failed' ? transaction.chain.reason : null
 
   return (
     <li
-      className={`option-row activity-row${settling ? ' attention-highlight' : ''}`}
+      className={cn(
+        'group flex items-center gap-s12 rounded-card px-s12 py-s8',
+        'transition-colors duration-[var(--transition-duration-fastHeavy)] ease-glide',
+        // ONE STATE FROM EITHER INPUT (§6), and the focus half is `focus-within` because the thing
+        // that takes focus is the title link inside the row. Without it, tabbing through the feed
+        // moves a ring around inside rows that never change, which reads as nothing happening.
+        'hover:bg-inset focus-within:bg-inset',
+        settling ? 'attention-highlight' : '',
+      )}
       onAnimationEnd={settling ? onSettleShown : undefined}
     >
-      <OptionRowBody
-        row={activityRowModel(transaction, now)}
-        titleTo={{ to: '/activity/$id', params: { id: transaction.id } }}
-        rightSlot={<span className="activity-right">{renderSlot(slot, transaction, onRetry)}</span>}
-      />
+      <CategoryDisc category={category} />
+
+      <div className="flex min-w-0 flex-1 flex-col gap-s2">
+        {/*
+          The TITLE is the link, not the row. See the header — this is the one element in the row
+          that is unambiguously the thing being named, and it keeps the inner controls legal.
+        */}
+        <Link
+          to="/activity/$id"
+          params={{ id: transaction.id }}
+          className="focus-ring truncate text-body2 text-neutral1 no-underline hover:underline"
+        >
+          {rowTitle(transaction)}
+        </Link>
+
+        {/*
+          THE SECOND LINE, in priority order: why it failed, then who the other party was, then
+          nothing. A failure reason outranks a counterparty because it is the only line that tells
+          the reader what to do next.
+        */}
+        {failedReason ? (
+          <span className="truncate text-body4 text-exposed">{failedReason}</span>
+        ) : counterparty ? (
+          <span className="truncate font-mono text-mono text-neutral3">
+            {category === 'received' ? 'from ' : category === 'sent' ? 'to ' : ''}
+            {shortenFelt(counterparty, 8, 6)}
+          </span>
+        ) : null}
+      </div>
+
+      <div className="flex shrink-0 flex-col items-end gap-s2">
+        <Amount transaction={transaction} />
+        <span className="activity-right flex items-center justify-end gap-s6">
+          {renderSlot(slot, transaction, onRetry)}
+        </span>
+      </div>
     </li>
+  )
+}
+
+/**
+ * The amount, signed, or an honest dash.
+ *
+ * ── THE SIGN IS A CLAIM AND IT IS ONLY MADE WHERE IT IS TRUE ─────────────────────────────
+ *
+ * `amountDirection` answers `none` for a stranger's note movement, a registration and a system
+ * note, and this renders those without a sign — a `+` on somebody else's note-created would say
+ * that value arrived here, which is precisely the attribution the record refuses to make.
+ *
+ * ── AND THE COLOUR NEVER CARRIES IT ALONE ────────────────────────────────────────────────
+ *
+ * The `+`/`−` glyph is the channel that survives greyscale and every form of colour blindness;
+ * `settled` green is the second one, spent only on value that ARRIVED. Outgoing value is plain
+ * ink, not red: `irreversible` is reserved for the genuinely irreversible, and an ordinary send is
+ * not that.
+ */
+function Amount({ transaction }: { transaction: Transaction }) {
+  const { tokens } = useTokenList()
+  const wei = rowAmountWei(transaction)
+  const direction = amountDirection(transaction)
+
+  if (wei === null) {
+    return (
+      <span className="numeric text-body3 text-neutral3" title={AMOUNT_UNREADABLE_WHY}>
+        {AMOUNT_UNREADABLE}
+      </span>
+    )
+  }
+
+  const token = transaction.chain.state === 'settled' ? transaction.chain.entry.token : null
+  const known = token ? findToken(tokens, token) : null
+  // An unverified scale is shown in raw units and said so, for `HoldingRow`'s reason: a guessed 18
+  // on a 6-decimal token misplaces the value by a factor of a million, in the direction that looks
+  // like dust.
+  const amount = known?.decimals != null ? toPlainText(wei, known.decimals) : `${wei.toString()} raw`
+  const sign = direction === 'in' ? '+' : direction === 'out' ? MINUS : ''
+
+  return (
+    <span
+      className={cn(
+        'numeric text-body3',
+        direction === 'in' ? 'text-settled' : 'text-neutral1',
+      )}
+    >
+      {sign}
+      {amount}
+      {known ? <span className="text-neutral2"> {known.symbol}</span> : null}
+    </span>
   )
 }
 
@@ -87,7 +201,7 @@ function renderSlot(
       // block counts and timestamps explicitly. The dotted underline is the channel that survives
       // greyscale and colour blindness; `neutral3` alone measures 2.12–2.18:1 and may never carry
       // the meaning by itself.
-      return <span className="numeric text-neutral3 not-yet-real">{slot.text}</span>
+      return <span className="numeric text-body4 text-neutral3 not-yet-real">{slot.text}</span>
 
     case 'spinner':
       return (
@@ -100,7 +214,7 @@ function renderSlot(
     case 'static-ring':
       return (
         <>
-          <span className="numeric text-neutral3 not-yet-real">{slot.text}</span>
+          <span className="numeric text-body4 text-neutral3 not-yet-real">{slot.text}</span>
           <span className="activity-ring-static" role="presentation" />
         </>
       )
@@ -115,8 +229,8 @@ function renderSlot(
 
             AND IT SHIPS ITS WORD. The epic's enforced rule is that semantic colour never carries
             meaning as hue alone — so the mark is decorative and the word beside it is what a
-            screen reader and a greyscale reader both get. The row's subtitle already carries the
-            reason; this says what KIND of thing the reason is.
+            screen reader and a greyscale reader both get. The row's second line already carries
+            the reason; this says what KIND of thing the reason is.
           */}
           <span className="activity-failed-mark" aria-hidden="true">
             ▲
@@ -137,8 +251,8 @@ function renderSlot(
     case 'not-indexed':
       // NEVER VANISHES (§11 checklist 9). A transaction we submitted and cannot find is the row a
       // user most needs to keep looking at. The FACT — "Submitted, not yet indexed" — is the row's
-      // subtitle, because a sentence in this slot sizes the slot to the sentence and collapses the
-      // title column; what is left here is the action, which is two words wide.
+      // second line, because a sentence in this slot sizes the slot to the sentence and collapses
+      // the title column; what is left here is the action, which is two words wide.
       return slot.href === null ? null : (
         <span className="activity-not-indexed">
           <a className="focus-ring" href={slot.href} target="_blank" rel="noreferrer">

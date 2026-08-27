@@ -467,3 +467,200 @@ export function rowTitle(tx: Transaction): string {
   if (tx.label !== null) return tx.label
   return tx.chain.state === 'settled' ? ACTIVITY_KIND_LABELS[tx.chain.entry.kind] : 'Submitted'
 }
+
+// ── The wallet-grade presentation: category, direction, group ─────────────────────────────
+
+/**
+ * What KIND of thing a row is, for the tinted disc at its left edge.
+ *
+ * ── THIS IS THE ONE PLACE SURFACE ATTRIBUTION IS ALLOWED, AND ONLY ONE WAY ───────────────
+ *
+ * The file header's rule stands: a settled row reconstructed from the record carries
+ * `surface: null` and MUST NOT be labelled `Swap`, because inferring intent from a nullifier is
+ * exactly the linkage the standing line says does not exist. So the settled branch below reads
+ * only `kind` and `mine` — both facts the chain published or this browser's own registry proved —
+ * and never `label`.
+ *
+ * The unsettled branch is the opposite case and it is safe for the opposite reason: an
+ * `optimistic` row exists because THIS browser submitted it, so its `surface` is a record of what
+ * we did rather than a guess about what somebody else did. `wallet` resolves to `sent` because
+ * sending is the only value movement the wallet surface submits; registration drives the pipeline
+ * store, not this one, so it never arrives here wearing that surface.
+ */
+export type ActivityCategory =
+  | 'sent'
+  | 'received'
+  | 'deposit'
+  | 'withdrawal'
+  | 'registration'
+  | 'swap'
+  | 'bridge'
+  | 'message'
+  | 'system'
+  | 'note'
+
+export function activityCategory(tx: Transaction): ActivityCategory {
+  if (isSystemNote(tx)) return 'system'
+
+  if (tx.chain.state !== 'settled') {
+    switch (tx.surface) {
+      case 'swap':
+        return 'swap'
+      case 'bridge':
+        return 'bridge'
+      case 'chat':
+        return 'message'
+      case 'wallet':
+        return 'sent'
+      // `markets` and `launch` submit through the pool the same way everything else does, and
+      // neither has a disc of its own yet. `note` is the honest placeholder: it claims nothing.
+      default:
+        return 'note'
+    }
+  }
+
+  const { entry } = tx.chain
+  switch (entry.kind) {
+    case 'registration':
+      return 'registration'
+    case 'deposit':
+      return 'deposit'
+    case 'withdrawal':
+      return 'withdrawal'
+    case 'note-spent':
+      return entry.mine ? 'sent' : 'note'
+    case 'note-created':
+    case 'open-note-created':
+    case 'open-note-deposited':
+      return entry.mine ? 'received' : 'note'
+  }
+}
+
+/**
+ * Which way the value moved, from this account's point of view.
+ *
+ * `none` is not "zero" — it is the answer for a row where a sign would be a claim. Somebody
+ * else's note movement has no direction relative to us, and a registration moves no value at all.
+ * Rendering `+` on those would put a number on the wrong side of a ledger.
+ */
+export type AmountDirection = 'in' | 'out' | 'none'
+
+export function amountDirection(tx: Transaction): AmountDirection {
+  switch (activityCategory(tx)) {
+    case 'received':
+    case 'deposit':
+      return 'in'
+    case 'sent':
+    case 'withdrawal':
+    case 'swap':
+    case 'bridge':
+    case 'message':
+      return 'out'
+    case 'registration':
+    case 'system':
+    case 'note':
+      return 'none'
+  }
+}
+
+/**
+ * The amount this row moved, when the chain published one we can read.
+ *
+ * `null` covers two different situations that render the same way and must not be collapsed into
+ * a zero: an encrypted note whose amount is ciphertext to everyone but its owner, and a row that
+ * has not settled and therefore has no published amount at all.
+ */
+export function rowAmountWei(tx: Transaction): bigint | null {
+  return tx.chain.state === 'settled' ? tx.chain.entry.amount : null
+}
+
+/** The other party, when the event named one. Never inferred — `activity-entry.ts`'s rule. */
+export function rowCounterparty(tx: Transaction): string | null {
+  return tx.chain.state === 'settled' ? tx.chain.entry.counterparty : null
+}
+
+/**
+ * Mainnet's measured block cadence, in seconds.
+ *
+ * DUPLICATED FROM `activity-window.ts` RATHER THAN IMPORTED, and the duplication is deliberate:
+ * that module reaches `pool-events.js`, which imports `starknet` for the selector hash, and this
+ * one is in the eager graph of the cold-open route. Importing it here is a 268 kB regression that
+ * compiles clean — the exact trap this file's header names.
+ *
+ * `test/activity-presentation.test.ts` asserts the two constants are the same number, so the copy
+ * cannot drift silently. When Starknet's block time falls again, both move together or the suite
+ * fails.
+ */
+export const BLOCK_SECONDS = 1.7
+
+/** One day, in blocks. The boundary between the first group and the second. */
+export const BLOCKS_PER_DAY = Math.round((24 * 60 * 60) / BLOCK_SECONDS)
+
+/** One week, in blocks — the read window's own span, and the last group boundary. */
+export const BLOCKS_PER_WEEK = BLOCKS_PER_DAY * 7
+
+/**
+ * Which section of the history a row belongs in.
+ *
+ * ── WHY THESE ARE DISTANCES AND NOT DATES ────────────────────────────────────────────────
+ *
+ * A pool event carries a block number and nothing else. `blockLabel` already refuses to render
+ * "3 days ago" from a height nobody timed, and that refusal is right — so grouping by calendar day
+ * is not available at any price short of a second chain read per block.
+ *
+ * What IS available is distance from the head, which is a measurement. `describeSpan` already
+ * converts block counts to "about 3 days" in the window note, so the vocabulary is one a user of
+ * this app has already met. `history-copy.ts`'s `HISTORY_GROUPING_NOTE` states the mechanism on
+ * screen, because a reader who mistakes these for dates misreads every row underneath them.
+ *
+ * @param headBlock the height the record was read beside, or `null` when no read has completed.
+ *                  A `null` head puts every settled row in `older` rather than inventing a
+ *                  distance from a number we do not have.
+ */
+export type ActivityGroup = 'in-progress' | 'recent' | 'week' | 'older'
+
+export const ACTIVITY_GROUP_ORDER: readonly ActivityGroup[] = [
+  'in-progress',
+  'recent',
+  'week',
+  'older',
+]
+
+export function activityGroup(tx: Transaction, headBlock: number | null): ActivityGroup {
+  if (tx.chain.state !== 'settled') return 'in-progress'
+  if (headBlock === null || !Number.isFinite(headBlock)) return 'older'
+
+  // A row from a block AHEAD of the head is not an error worth a state of its own: the walk and
+  // the event read are two reads a beat apart, so a row can legitimately be newer than the height
+  // the balance was taken at. `Math.max` puts it in the newest group, which is where it belongs.
+  const behind = Math.max(0, headBlock - tx.chain.entry.blockNumber)
+  if (behind <= BLOCKS_PER_DAY) return 'recent'
+  if (behind <= BLOCKS_PER_WEEK) return 'week'
+  return 'older'
+}
+
+/** One section of the rendered history. */
+export interface ActivitySection {
+  group: ActivityGroup
+  rows: Transaction[]
+}
+
+/**
+ * The feed's rows, in order, cut into sections.
+ *
+ * ORDER IS PRESERVED, NOT RE-SORTED. `orderTransactions` already decided the one order this feed
+ * is read in, and its header explains why a record whose rows move between renders is not a
+ * record. This only inserts the boundaries — every group's rows arrive in the order they came in,
+ * and an empty group is omitted rather than rendered as a header with nothing under it.
+ */
+export function activitySections(
+  transactions: readonly Transaction[],
+  headBlock: number | null,
+): ActivitySection[] {
+  const sections: ActivitySection[] = []
+  for (const group of ACTIVITY_GROUP_ORDER) {
+    const rows = transactions.filter((tx) => activityGroup(tx, headBlock) === group)
+    if (rows.length) sections.push({ group, rows })
+  }
+  return sections
+}

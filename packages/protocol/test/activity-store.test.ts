@@ -11,6 +11,7 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 
 import {
+  forgetActivityForAccountChange,
   getActivity,
   publishRead,
   recordLocal,
@@ -159,5 +160,47 @@ describe('the snapshot contract useSyncExternalStore depends on', () => {
     unsubscribe()
     publishRead([])
     expect(count).toBe(2)
+  })
+})
+
+describe('an account switch empties the store back to UNREAD (Wave 1)', () => {
+  it('drops every row and un-initializes, rather than publishing an empty read', () => {
+    publishRead([settled('a-0', 'a')])
+    recordLocal(inFlight('local-1', null))
+    expect(getActivity().initialized).toBe(true)
+
+    forgetActivityForAccountChange()
+
+    // UNREAD, not "read and empty". `mine` was computed against the previous account's registry,
+    // so keeping the rows would classify one account's history under another's address — and
+    // publishing an empty read instead would claim the new account has no history, which nobody
+    // has checked. The `initialized` flag exists precisely to keep those two apart.
+    expect(getActivity()).toEqual({ transactions: [], initialized: false })
+  })
+
+  it('keeps its listeners, unlike the test seam', () => {
+    // `resetActivityStore` clears the listener set, which under mounted components leaves every
+    // subscriber registered-but-forgotten. This runs in production with components mounted.
+    let count = 0
+    const unsubscribe = subscribe(() => {
+      count += 1
+    })
+    publishRead([settled('a-0', 'a')])
+    forgetActivityForAccountChange()
+    publishRead([settled('b-0', 'b')])
+    expect(count).toBe(3)
+    unsubscribe()
+  })
+
+  it('is a no-op on a store that is already unread, so it cannot loop a subscriber', () => {
+    let count = 0
+    const unsubscribe = subscribe(() => {
+      count += 1
+    })
+    const before = getActivity()
+    forgetActivityForAccountChange()
+    expect(getActivity()).toBe(before)
+    expect(count).toBe(0)
+    unsubscribe()
   })
 })

@@ -60,6 +60,9 @@ importers:
       clsx:
         specifier: 2.1.1
         version: 2.1.1
+      qrcode.react:
+        specifier: 4.2.0
+        version: 4.2.0(react@19.2.8)
       react:
         specifier: 19.2.8
         version: 19.2.8
@@ -1443,6 +1446,11 @@ packages:
   proxy-from-env@2.1.0:
     resolution: {integrity: sha512-cJ+oHTW1VAEa8cJslgmUZrc+sjRKgAKl3Zyse6+PV38hZe/V6Z14TbCuXcan9F9ghlz4QrFr2c92TNF82UkYHA==}
     engines: {node: '>=10'}
+
+  qrcode.react@4.2.0:
+    resolution: {integrity: sha512-QpgqWi8rD9DsS9EP3z7BT+5lY5SFhsqGjpgW5DY/i3mK4M9DTBNz3ErMi8BWYEfI3L0d8GIbGmcdFAS1uIRGjA==}
+    peerDependencies:
+      react: ^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
 
   quicvarint@0.1.7:
     resolution: {integrity: sha512-CW401DjRCKUS5fIq/s/qHhcm+kEwc097R8hN+ORngT2biSRsz5JIoAF7hMbdG/XRvEBVpuySmhmSJeJMxdoG8g==}
@@ -3016,6 +3024,10 @@ snapshots:
   process-nextick-args@2.0.1: {}
 
   proxy-from-env@2.1.0: {}
+
+  qrcode.react@4.2.0(react@19.2.8):
+    dependencies:
+      react: 19.2.8
 
   quicvarint@0.1.7: {}
 

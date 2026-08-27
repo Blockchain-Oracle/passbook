@@ -1192,31 +1192,21 @@
   /*
    * ── The activity feed (§2.3, §4.8) ─────────────────────────────────────────────────────
    *
-   * THE ROW IS `.option-row`. There is no `.activity-row-inner`, and that is the point: the design
-   * authority states this row's own geometry as `components.activityRow: { radius: 16, py: 8,
-   * gap: 12, icon: 40 }` and `.option-row-inner` above already ships every one of those four. A
-   * second recipe would be four numbers that agree today.
+   * `.activity-list`, `.activity-row` and their hover/focus pair LIVED HERE AND ARE GONE. The feed
+   * row was `.option-row` with a state in the right slot, on the argument that the design
+   * authority's `components.activityRow` geometry — radius 16, py 8, gap 12, icon 40 — was already
+   * shipped by `.option-row-inner`. Wave 1 gave the history its own anatomy (a tinted category
+   * disc, a counterparty line, a signed amount) which the selector row must not grow, so
+   * `ActivityRow.tsx` now carries those same four values as utilities and its header says so.
+   *
+   * WHAT SURVIVED THE MOVE, because both are load-bearing rather than decorative: the hover and
+   * keyboard-focus pair is one state (§6) and the focus half is `focus-within` — the thing that
+   * takes focus is the title link INSIDE the row, so without it tabbing through the feed moves a
+   * ring around inside rows that never change. Both are now `hover:` / `focus-within:` on the row.
+   *
+   * `.activity-right`, `.activity-tab`, `.activity-ring-static` and `.attention-highlight` stay
+   * authored below: the build gate resolves each of them out of the emitted stylesheet.
    */
-  .activity-list {
-    display: flex;
-    flex-direction: column;
-    gap: var(--spacing-s4);
-  }
-
-  .activity-row {
-    display: block;
-  }
-
-  /*
-   * Hover and keyboard focus are ONE state (§6), so the row lights up from either — and the focus
-   * half is `:focus-within` because the thing that takes focus is the title link inside the row,
-   * not the row itself. Without it, tabbing through the feed moves a ring around inside rows that
-   * never change, which reads as nothing happening.
-   */
-  .activity-row:hover .option-row-inner,
-  .activity-row:focus-within .option-row-inner {
-    background-color: var(--color-raisedHovered);
-  }
 
   /* The link is the title, not the row — see `OptionRowBody`'s `titleTo` on why. */
   .option-row-title-link {
