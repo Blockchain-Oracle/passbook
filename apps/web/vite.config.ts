@@ -107,6 +107,38 @@ export default defineConfig((configEnv) => {
       // with a green build, which is why every component lives under `apps/web/src`.
       tailwindcss(),
     ],
+    //
+    // DEV ONLY, AND IT IS THE REWRITE THE RELAYER'S HEADER WARNS ABOUT — deliberately, here.
+    //
+    // The browser posts to the SAME-ORIGIN relative paths `/api/submit`, `/api/room/send` and
+    // `/api/room/stream` (`register.ts`'s `DEFAULT_RELAYER_URL` and the endpoints derived from
+    // it), because that is what lets the app work behind one hostname in production. In `vite dev`
+    // there is nothing on those paths at all, so every relayer-backed feature — chat's transport
+    // included — 404s, and chat looks broken for a reason that has nothing to do with chat.
+    //
+    // This forwards them to a relayer running the ordinary way (`npx tsx
+    // packages/relayer/src/server.ts`, loopback, port 8787). It is a DEV SERVER setting: it does
+    // not exist in `dist/`, and the production deployment does the same job with a proxy that
+    // adds `x-relayer-auth` server-side.
+    //
+    // THE ORIGIN HEADER IS STRIPPED, and that is fidelity rather than a shortcut. A browser sends
+    // `Origin` on every POST, same-origin included, and the relayer refuses any origin it was not
+    // configured with — so forwarding it verbatim would 403 every request until someone set
+    // `RELAYER_ALLOWED_ORIGINS` to whatever port Vite picked today. In production the proxy makes
+    // its own server-side request and no Origin exists at all, which is the shape the relayer
+    // treats as same-process. Removing it here makes dev match that instead of a third case.
+    //
+    server: {
+      proxy: {
+        '/api': {
+          target: process.env.RELAYER_ORIGIN ?? 'http://127.0.0.1:8787',
+          changeOrigin: false,
+          configure: (proxy) => {
+            proxy.on('proxyReq', (proxyReq) => proxyReq.removeHeader('origin'))
+          },
+        },
+      },
+    },
     resolve: {
       alias: {
         '@starkware-libs/starknet-privacy-sdk/testing': SDK_TESTING_BROWSER,
