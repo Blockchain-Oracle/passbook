@@ -25,6 +25,28 @@
  */
 @import '@fontsource-variable/ibm-plex-sans/wght.css';
 
+/*
+ * The layering vocabulary — Uniswap's z-index scale (their theme.css `--z-index-*`, ui zIndexes
+ * parity), adopted 2026-08-27 as the revamp's stacking contract. Until now this app had NO
+ * z-index at all and stacked by paint order; that discipline breaks the moment a chat sidebar,
+ * a docked ticket, a toast stack and a modal can coexist on one desktop screen. `--z-index-*`
+ * is Tailwind's z namespace, so each name below is a `z-<name>` utility. The paint-order
+ * comments elsewhere in this file describe the pre-scale world and remain true for components
+ * that still rely on document order.
+ */
+@theme {
+  --z-index-dropdown: 970;
+  --z-index-header: 980;
+  --z-index-sidebar: 990;
+  --z-index-sticky: 1020;
+  --z-index-fixed: 1030;
+  --z-index-modal-backdrop: 1040;
+  --z-index-modal: 1060;
+  --z-index-popover: 1070;
+  --z-index-tooltip: 1080;
+  --z-index-toast: 100020;
+}
+
 @layer base {
   /*
    * One global block, per the design authority. `text-wrap: pretty` on body and `balance` on
