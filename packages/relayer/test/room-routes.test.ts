@@ -58,7 +58,11 @@ function post(
  * point of the route, and a test written with the ordinary request helper above would hang until
  * its timeout and then report a transport bug that does not exist.
  */
-function openStream(port: number, room: string, headers: Record<string, string> = { 'content-type': 'application/json' }) {
+function openStream(
+  port: number,
+  room: string | { rooms: string[] },
+  headers: Record<string, string> = { 'content-type': 'application/json' },
+) {
   const events: string[] = []
   let status = 0
   let raw = ''
@@ -79,7 +83,7 @@ function openStream(port: number, room: string, headers: Record<string, string> 
   // destroyed client request emits ECONNRESET. Unhandled, it surfaces as an uncaught exception
   // attributed to whatever test happened to be running.
   req.on('error', () => {})
-  req.end(JSON.stringify({ room }))
+  req.end(JSON.stringify(typeof room === 'string' ? { room } : room))
 
   return {
     events,
@@ -238,5 +242,74 @@ describe('POST /room/stream', () => {
   it('rejects a stream request with no room', async () => {
     const port = await start()
     expect((await post(port, '/room/stream', {})).status).toBe(400)
+  })
+})
+
+describe('the multiplexed stream — one socket, N rooms', () => {
+  it('carries live traffic for every subscribed room on one socket', async () => {
+    const port = await start()
+    const stream = openStream(port, { rooms: [ROOM, OTHER_ROOM] })
+    await settle()
+    await post(port, '/room/send', { room: ROOM, envelope: { ...ENVELOPE, ct: 'b25l' } })
+    await post(port, '/room/send', { room: OTHER_ROOM, envelope: { ...ENVELOPE, ct: 'dHdv' } })
+    await stream.waitFor(2)
+    expect(stream.events.map((e) => JSON.parse(e).ct).sort()).toEqual(['b25l', 'dHdv'])
+    stream.close()
+  })
+
+  it('delivers every room’s backlog on attach', async () => {
+    const port = await start()
+    await post(port, '/room/send', { room: ROOM, envelope: { ...ENVELOPE, ct: 'b25l' } })
+    await post(port, '/room/send', { room: OTHER_ROOM, envelope: { ...ENVELOPE, ct: 'dHdv' } })
+    const stream = openStream(port, { rooms: [ROOM, OTHER_ROOM] })
+    await stream.waitFor(2)
+    expect(stream.events.map((e) => JSON.parse(e).ct).sort()).toEqual(['b25l', 'dHdv'])
+    stream.close()
+  })
+
+  it('deduplicates a repeated room id rather than double-delivering its history', async () => {
+    const hub = new RoomHub()
+    const port = await start({ rooms: hub })
+    await post(port, '/room/send', { room: ROOM, envelope: ENVELOPE })
+    const stream = openStream(port, { rooms: [ROOM, ROOM, ROOM] })
+    await stream.waitFor(1)
+    await settle()
+    expect(stream.events).toHaveLength(1)
+    expect(hub.stats().subscribers).toBe(1)
+    stream.close()
+  })
+
+  it('refuses the whole request when any room id is bad, detaching what already attached', async () => {
+    const hub = new RoomHub()
+    const port = await start({ rooms: hub })
+    const bad = await post(port, '/room/stream', { rooms: [ROOM, 'not a room id!'] })
+    expect(bad.status).toBe(400)
+    expect(JSON.parse(bad.body)).toMatchObject({ error: 'bad-room-id', room: 'not a room id!' })
+    // All-or-nothing: the good room's subscriber must not linger.
+    expect(hub.stats().subscribers).toBe(0)
+  })
+
+  it('caps the room list and says so', async () => {
+    const port = await start()
+    const rooms = Array.from({ length: 33 }, (_, i) => String(i + 1).padStart(32, 'a'))
+    const r = await post(port, '/room/stream', { rooms })
+    expect(r.status).toBe(400)
+    expect(JSON.parse(r.body).error).toMatch(/32/)
+  })
+
+  it('refuses an empty room list', async () => {
+    const port = await start()
+    expect((await post(port, '/room/stream', { rooms: [] })).status).toBe(400)
+  })
+
+  it('drops every room’s subscriber when the one socket goes away', async () => {
+    const hub = new RoomHub()
+    const port = await start({ rooms: hub })
+    const stream = openStream(port, { rooms: [ROOM, OTHER_ROOM] })
+    await settle()
+    expect(hub.stats().subscribers).toBe(2)
+    stream.close()
+    await settle()
+    expect(hub.stats().subscribers).toBe(0)
   })
 })

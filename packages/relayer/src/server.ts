@@ -457,6 +457,13 @@ async function handleInvite(
  */
 const ROOM_HEARTBEAT_MS = 20_000
 
+/**
+ * The most rooms one stream may multiplex. A conversation list needs one per open thread;
+ * thirty-two is far past any real sidebar and low enough that a hostile client cannot use one
+ * socket to hold a subscriber slot in every room the hub has.
+ */
+export const MAX_ROOMS_PER_STREAM = 32
+
 /** The refusals the hub can answer with, mapped to what a client should be told and do. */
 const ROOM_REFUSAL_STATUS: Record<string, number> = {
   'bad-room-id': 400,
@@ -536,9 +543,37 @@ async function handleRoomStream(
     send(res, 400, { error: String(e) })
     return
   }
-  const room = (parsed as { room?: unknown } | null)?.room
-  if (typeof room !== 'string') {
-    send(res, 400, { error: 'room must be a string' })
+
+  //
+  // ONE SOCKET, N ROOMS. A conversation list holds every room open at once, and N parallel
+  // proxied streams from one browser both burn a serverless connection each and collide with
+  // HTTP/1.1's per-host cap — so the stream multiplexes. `{room}` (one string) remains accepted
+  // verbatim: it is the wire shape every deployed client speaks today.
+  //
+  // WHAT THIS TELLS THE RELAYER, stated because the room design's whole argument is what the
+  // relayer cannot see: a multiplexed subscribe says explicitly that these N rooms share one
+  // participant. N separate streams arriving on one connection at one instant already said the
+  // same thing — this makes the linkage plain rather than pretending it away. The relayer still
+  // cannot read a byte of any of them.
+  //
+  const body = parsed as { room?: unknown; rooms?: unknown } | null
+  let roomIds: string[]
+  if (typeof body?.room === 'string') {
+    roomIds = [body.room]
+  } else if (Array.isArray(body?.rooms) && body.rooms.every((r): r is string => typeof r === 'string')) {
+    // Deduplicated rather than refused: a client that lists a room twice wants it once, and
+    // double-subscribing would double-deliver fifty envelopes of history.
+    roomIds = [...new Set(body.rooms)]
+  } else {
+    send(res, 400, { error: 'room must be a string, or rooms an array of strings' })
+    return
+  }
+  if (roomIds.length === 0) {
+    send(res, 400, { error: 'rooms must name at least one room' })
+    return
+  }
+  if (roomIds.length > MAX_ROOMS_PER_STREAM) {
+    send(res, 400, { error: `at most ${MAX_ROOMS_PER_STREAM} rooms per stream` })
     return
   }
 
@@ -553,10 +588,18 @@ async function handleRoomStream(
     },
   }
 
-  const attached = opts.rooms!.subscribe(room, subscriber)
-  if (!attached.ok) {
-    send(res, ROOM_REFUSAL_STATUS[attached.reason] ?? 400, { error: attached.reason })
-    return
+  // All-or-nothing: a stream that silently carried 31 of 32 requested rooms would present as
+  // one conversation mysteriously frozen, with the cause nowhere near the symptom. On the first
+  // refusal, everything already attached detaches and the refusal names the room.
+  const attachments: Array<{ history: readonly string[]; unsubscribe: () => void }> = []
+  for (const id of roomIds) {
+    const attached = opts.rooms!.subscribe(id, subscriber)
+    if (!attached.ok) {
+      for (const a of attachments) a.unsubscribe()
+      send(res, ROOM_REFUSAL_STATUS[attached.reason] ?? 400, { error: attached.reason, room: id })
+      return
+    }
+    attachments.push(attached)
   }
 
   res.writeHead(200, {
@@ -570,8 +613,12 @@ async function handleRoomStream(
   })
 
   // The backlog first, then live traffic on the same socket, so the client has exactly one
-  // ordering rule: everything in the order it arrives.
-  for (const payload of attached.history) subscriber.deliver(payload)
+  // ordering rule: everything in the order it arrives. Per-room order is preserved; order
+  // BETWEEN rooms is subscription order, which is fine — the client dedupes by envelope iv and
+  // sorts threads by their own timestamps.
+  for (const attached of attachments) {
+    for (const payload of attached.history) subscriber.deliver(payload)
+  }
 
   const heartbeat = setInterval(() => {
     try {
@@ -595,7 +642,7 @@ async function handleRoomStream(
   // process dies of something unrelated to what it does.
   res.on('close', () => {
     clearInterval(heartbeat)
-    attached.unsubscribe()
+    for (const attached of attachments) attached.unsubscribe()
   })
 }
 

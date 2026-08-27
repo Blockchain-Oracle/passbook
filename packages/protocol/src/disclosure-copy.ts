@@ -159,7 +159,8 @@ export const REGISTRATION_NO_VALUE =
  */
 export const CHAT_RELAY_METADATA =
   'The relay that carries this room sees who is talking to whom, when, how often, and how big each ' +
-  'message is. What is inside them stays ciphertext.'
+  'message is — and, because your conversation list rides one connection, which conversations ' +
+  'share you. What is inside them stays ciphertext.'
 
 /**
  * EXPERIENCE §C1.3's room disclosure, REWORDED IN ITS LAST CLAUSE AND NOWHERE ELSE.

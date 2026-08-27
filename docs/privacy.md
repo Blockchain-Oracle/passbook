@@ -14,7 +14,7 @@ requirement: the app and the document cannot ship apart, and a test would only p
 the moment the suite ran.
 
 <!-- generated:source -->
-*Generated from `packages/protocol/src/visibility-matrix.ts` and `packages/protocol/src/disclosure-copy.ts` — sha256 2c127a7062688fc9381be7531db05bf5c66cc075f7fdd61bf212a7c04db18c83. Regenerate with `pnpm run render:privacy`; do not hand-edit anything between the generated markers.*
+*Generated from `packages/protocol/src/visibility-matrix.ts` and `packages/protocol/src/disclosure-copy.ts` — sha256 aa0590efa8b83a06384c2b5b54750844f1af26978b17430fe5ce00bb968b954b. Regenerate with `pnpm run render:privacy`; do not hand-edit anything between the generated markers.*
 <!-- /generated:source -->
 
 ---
@@ -125,7 +125,7 @@ no tokens, which is why two whole rows have nothing in them.
 <!-- generated:chat-payment -->
 ### Paying inside a chat room
 
-> The relay that carries this room sees who is talking to whom, when, how often, and how big each message is. What is inside them stays ciphertext.
+> The relay that carries this room sees who is talking to whom, when, how often, and how big each message is — and, because your conversation list rides one connection, which conversations share you. What is inside them stays ciphertext.
 
 |  | You | Relayer | Everyone | Auditor |
 |---|---|---|---|---|
