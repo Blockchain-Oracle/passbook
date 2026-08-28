@@ -33,12 +33,17 @@
 // rather than in requests: what an operator needs to reason about is how much of their wallet a
 // bad day can cost.
 //
-// ── AND IT RUNS AFTER REGISTRATION, NOT BEFORE ────────────────────────────────────────────
+// ── DRIP FIRST, AND IT STAKES THE WHOLE JOURNEY — THE ONE-SUBSIDY RULE ────────────────────
 //
-// Registration is already sponsored — the relayer pays that fee — so a new account reaches the
-// pool holding nothing and needing nothing. The drip is what makes the NEXT action possible: a
-// swap, a bet, a send. Ordering it the other way would spend real STRK on visitors who never
-// finish the flow.
+// M8's ruling, verbatim intent: "if we're already giving them money, we cannot then see the
+// relayer sponsoring their transaction again." So the drip is the ONLY subsidy, it fires FIRST
+// (a plain transfer lands on a counterfactual address), and it is sized to pay for everything
+// that follows: the account deploys itself from it, registration runs SELF-PAID (`collect_fee`
+// pulls from whoever submits — the user, now holding the drip), and what remains is the starter.
+// Sponsored registration demotes to the fallback for when this faucet is off or dry — never a
+// locked door, never a second subsidy on top of a drip.
+//
+// The daily cap is therefore the whole acquisition budget: cap ÷ drip = new users a day.
 //
 import type { Call } from 'starknet'
 
@@ -46,14 +51,14 @@ import { STRK_TOKEN } from '../../protocol/src/constants.js'
 import { asAddress, toFeltHex } from '../../protocol/src/address.js'
 
 /**
- * What a new account is given, in wei. 1 STRK.
+ * What a new account is given, in wei — 10 STRK by default, `RELAYER_FAUCET_DRIP_WEI` to retune
+ * without a release (the exact number is the operator's call at flip-on).
  *
- * ENOUGH FOR A HANDFUL OF ACTIONS AND NOT ENOUGH TO BE WORTH FARMING, which is the only property
- * that matters. A number large enough to be attractive on its own is a number that attracts
- * scripts; a number too small to cover a swap and a bet leaves the user stuck at exactly the
- * moment the drip existed to get them past.
+ * SIZED TO THE JOURNEY, NOT TO A TASTE OF IT: account-deploy gas (~0.5) + the pool's 6 STRK
+ * registration fee + approve headroom + a couple of STRK of starter. The old 1 STRK drip left a
+ * cold visitor exactly one screen short — funded enough to exist, too poor to register.
  */
-export const DRIP_WEI = 1_000_000_000_000_000_000n
+export const DRIP_WEI = 10_000_000_000_000_000_000n
 
 /** The refusal a spent per-address claim answers with. */
 export const DRIP_ALREADY_CLAIMED =
@@ -82,15 +87,15 @@ export const DRIP_BAD_ADDRESS = 'That is not a Starknet address.'
  * the ERC-20 reads the next calldata slot as the high half and the transfer either reverts or
  * moves an amount nobody intended.
  */
-export function dripCall(recipient: string): Call {
+export function dripCall(recipient: string, amountWei: bigint = DRIP_WEI): Call {
   const address = toFeltHex(asAddress(recipient))
   return {
     contractAddress: STRK_TOKEN,
     entrypoint: 'transfer',
     calldata: [
       address,
-      toFeltHex(DRIP_WEI & 0xffffffffffffffffffffffffffffffffn),
-      toFeltHex(DRIP_WEI >> 128n),
+      toFeltHex(amountWei & 0xffffffffffffffffffffffffffffffffn),
+      toFeltHex(amountWei >> 128n),
     ],
   }
 }

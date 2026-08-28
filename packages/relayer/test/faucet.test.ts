@@ -67,8 +67,17 @@ describe('the address gate', () => {
   })
 })
 
-describe('the amount is a starter amount', () => {
-  it('is 1 STRK — enough for a few actions, not enough to farm', () => {
-    expect(DRIP_WEI).toBe(10n ** 18n)
+describe('the amount stakes the whole journey (M8, one subsidy)', () => {
+  it('defaults to 10 STRK — deploy gas + the 6 STRK self-paid registration fee + headroom + starter', () => {
+    // The old 1 STRK drip left a cold visitor funded enough to exist and too poor to register.
+    // Under the one-subsidy rule the drip is the ONLY money the house gives, so it must cover
+    // the journey; `RELAYER_FAUCET_DRIP_WEI` retunes it at flip-on without a release.
+    expect(DRIP_WEI).toBe(10n * 10n ** 18n)
+  })
+
+  it('dripCall carries a caller-chosen amount when one is given', () => {
+    const call = dripCall('0xabc', 3n * 10n ** 18n)
+    expect(BigInt((call.calldata as string[])[1]!)).toBe(3n * 10n ** 18n)
+    expect(BigInt((call.calldata as string[])[2]!)).toBe(0n)
   })
 })

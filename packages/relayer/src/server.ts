@@ -960,6 +960,23 @@ async function handleChainStream(
 }
 
 /**
+ * The drip, tunable at flip-on without a release: `RELAYER_FAUCET_DRIP_WEI` overrides the
+ * 10 STRK default. Read per request rather than at boot so a `fly secrets set` retune takes
+ * effect on the machine restart it triggers, with nothing else to redeploy. A value that does
+ * not parse falls back to the default rather than dripping garbage.
+ */
+function faucetDripWei(): bigint {
+  const raw = process.env.RELAYER_FAUCET_DRIP_WEI
+  if (!raw) return DRIP_WEI
+  try {
+    const parsed = BigInt(raw)
+    return parsed > 0n ? parsed : DRIP_WEI
+  } catch {
+    return DRIP_WEI
+  }
+}
+
+/**
  * `POST /api/faucet` — the starter drip.
  *
  * ── THE REQUEST CONTRIBUTES ONE VALUE, AND IT IS NORMALISED BEFORE IT IS USED ─────────────
@@ -1064,9 +1081,10 @@ async function handleFaucet(req: IncomingMessage, res: ServerResponse, opts: Rel
   }
 
   try {
-    const txHash = await opts.submit([dripCall(address)])
-    console.log(`relayer: dripped ${DRIP_WEI} wei to ${address} — ${txHash}`)
-    send(res, 200, { txHash, amountWei: DRIP_WEI.toString() })
+    const dripWei = faucetDripWei()
+    const txHash = await opts.submit([dripCall(address, dripWei)])
+    console.log(`relayer: dripped ${dripWei} wei to ${address} — ${txHash}`)
+    send(res, 200, { txHash, amountWei: dripWei.toString() })
   } catch (e) {
     // The claim and the budget unit are already spent, deliberately — see the header. What the
     // caller gets is the honest outcome: nothing arrived, and this is not retryable here.
@@ -2177,20 +2195,16 @@ export function resolveSponsorshipCaps(env: NodeJS.ProcessEnv = process.env): Sp
     // ONE PER VISITOR PER DAY, and the per-address claim behind it is once EVER — so this number
     // is the anti-rotation limit rather than the honest-user limit.
     //
-    // `daily` IS AN AMOUNT OF MONEY, NOT A RATE LIMIT. At `DRIP_WEI` of 1 STRK, 15 is 15 STRK a
-    // day the relayer must be funded to lose, and that is the whole reason to think about it.
-    // Abu's call 2026-08-28, down from a first pass at 50.
-    //
-    // WHAT 1 STRK BUYS, since the obvious worry is that it is too little: the pool's flat fee is
-    // 6 STRK per private operation (read live from `get_fee_amount` on mainnet, 2026-08-28), and
-    // that fee is paid by whoever SUBMITS — the relayer, on every sponsored registration and every
-    // send inside the send budget. The user's own STRK is for gas on what they sign themselves:
-    // the account deploy, a swap, a bet, a launch buy. Starknet gas is fractions of a cent, so
-    // 1 STRK is hundreds of those. It is a generous starter, not a tight one.
+    // `daily` IS AN AMOUNT OF MONEY, NOT A RATE LIMIT: `daily` × the drip is the acquisition
+    // budget — how much STRK a day the relayer is funded to hand out, which under M8's
+    // one-subsidy rule is the WHOLE cost of a new user (the drip stakes the journey; the user
+    // then self-pays their registration from it, and sponsorship is only the faucet-off
+    // fallback). At the 10 STRK default drip, `daily: 2` is ~20 STRK/day — the operator sets
+    // both numbers at flip-on; `faucet.ts` carries the doctrine.
     //
     faucetCaps: {
       perVisitor: positiveInt(env, 'RELAYER_FAUCET_PER_VISITOR', 1),
-      daily: positiveInt(env, 'RELAYER_FAUCET_DAILY', 15),
+      daily: positiveInt(env, 'RELAYER_FAUCET_DAILY', 2),
     },
     // A THIRD FILE, on `sendStorePath`'s argument and with more force: this ledger's claim set is
     // the once-per-address record, and folding it into another file would mean an operator
@@ -2768,6 +2782,14 @@ async function main(): Promise<void> {
         ? `groundskeeper: standing markets on, seed ${process.env.RELAYER_GROUNDSKEEPER_SEED_WEI || '2000000000000000000'} wei · ` +
             `store ${process.env.RELAYER_GROUNDSKEEPER_STORE ?? '.relayer/groundskeeper.json'} — REAL STRK per market`
         : 'groundskeeper: off — set RELAYER_GROUNDSKEEPER=on to keep the board planted (spends real STRK)',
+    )
+    // The subsystem was invisible at boot — an operator could not tell a 404-by-design from a
+    // misconfiguration without curling the route. One line, either way.
+    console.log(
+      faucet
+        ? `faucet: ON — drip ${faucetDripWei()} wei, ${sponsorConfig.faucetCaps.perVisitor}/visitor/day, ` +
+            `${sponsorConfig.faucetCaps.daily}/day global · ledger ${sponsorConfig.faucetStorePath} — the drip IS the subsidy (M8)`
+        : 'faucet: off — set RELAYER_FAUCET=on to drip starter STRK (spends principal; the drip stakes the whole journey)',
     )
     console.log(
       sponsorConfig.invites
