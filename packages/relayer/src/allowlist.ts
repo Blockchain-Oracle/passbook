@@ -47,6 +47,8 @@ export interface SubmissionPolicy {
   markets?: string
   /** The deployed Launch contract, on the same terms. */
   launch?: string
+  /** The deployed Governance contract (Houses), on the same terms. */
+  governance?: string
   /**
    * Ceiling for a STRK approve, derived from the LIVE fee — never a hardcoded 6 STRK.
    * Absent means no approve may be signed: without a fee to measure against there is
@@ -76,6 +78,22 @@ export interface SubmissionPolicy {
 const KEEPER_ENTRYPOINTS = {
   markets: ['resolve', 'void'],
   launch: ['graduate'],
+  //
+  // The Governor's five, in two families that both pass the inclusion rule:
+  //
+  //   `publish_tally`, `execute`, `void_proposal` are the keeper family — permissionless, no
+  //   value to the caller, and for the tally THE CONTRACT is the authority: the accumulator
+  //   equation refuses wrong sums whoever signs them (governance.cairo §6.3), so signing one
+  //   spends gas on numbers the curve already vouched for.
+  //
+  //   `create_house` and `propose` are the sponsorable-creator family, the `create_launch`
+  //   precedent: the creator is a commitment, not an address, so this key signing a creation
+  //   identifies nobody and pays nobody.
+  //
+  // `publish_key` is deliberately NOT here — the `sweep` rule again: the tally key is Teller
+  // material, and it reaches the chain through the Teller's own path, never a user submission.
+  //
+  governance: ['create_house', 'propose', 'publish_tally', 'execute', 'void_proposal'],
 } as const
 
 /**
@@ -221,15 +239,26 @@ function assertCallAllowed(call: Call, policy: SubmissionPolicy): void {
     return
   }
 
-  // The app contracts. `privacy_invoke` is the pool-facing entrypoint on both; the keeper calls
-  // are the permissionless settlement ones. Everything else — `sweep` above all — is refused.
+  // The app contracts. The pool-facing entrypoints ride every one of them — `privacy_invoke`,
+  // plus the ComputeAndInvoke pair on the Governor — and the listed direct entrypoints are the
+  // permissionless/sponsorable ones. Everything else — `sweep` and `publish_key` above all — is
+  // refused.
   for (const [name, entrypoints] of Object.entries(KEEPER_ENTRYPOINTS) as [
-    'markets' | 'launch',
+    'markets' | 'launch' | 'governance',
     readonly string[],
   ][]) {
     const address = policy[name]
     if (address && sameAddress(to, address)) {
       if (call.entrypoint === 'privacy_invoke') return
+      if (
+        call.entrypoint === 'privacy_compute' ||
+        call.entrypoint === 'privacy_invoke_with_computation'
+      ) {
+        // The pool calls these mid-transaction; a submission naming them directly would be a
+        // caller impersonating the pool, which the contract's own ONLY_POOL assert refuses —
+        // but refusing here is free and does not spend the gas to find that out.
+        throw refuse(call)
+      }
       if (entrypoints.includes(call.entrypoint)) return
       throw refuse(call)
     }
@@ -417,7 +446,7 @@ function isMessageBookInvoke(call: Call, policy: SubmissionPolicy): boolean {
  */
 function isAppContractInvoke(call: Call, policy: SubmissionPolicy): boolean {
   if (isMessageBookInvoke(call, policy)) return true
-  for (const name of ['markets', 'launch'] as const) {
+  for (const name of ['markets', 'launch', 'governance'] as const) {
     const address = policy[name]
     if (address !== undefined && matches(call, address, 'privacy_invoke')) return true
   }
@@ -431,7 +460,7 @@ function isAppContractInvoke(call: Call, policy: SubmissionPolicy): boolean {
  */
 function isKeeperCall(call: Call, policy: SubmissionPolicy): boolean {
   for (const [name, entrypoints] of Object.entries(KEEPER_ENTRYPOINTS) as [
-    'markets' | 'launch',
+    'markets' | 'launch' | 'governance',
     readonly string[],
   ][]) {
     const address = policy[name]

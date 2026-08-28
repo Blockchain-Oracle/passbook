@@ -42,6 +42,8 @@ export interface AppContracts {
   pragma?: string
   /** The `LaunchToken` class hash. Declared, never deployed — `graduate()` deploys from it. */
   launchTokenClassHash?: string
+  /** The Governance contract (Houses). Absent until deployed. */
+  governance?: string
 }
 
 /** Nothing is deployed. The state the app starts life in, and runs in perfectly well. */
@@ -108,6 +110,9 @@ export function parseAppContracts(raw: string | null | undefined): AppContracts 
   const tokenClass = nested(record, 'LaunchToken', 'classHash')
   if (tokenClass) contracts.launchTokenClassHash = tokenClass
 
+  const governance = nested(record, 'Governance', 'contractAddress')
+  if (governance) contracts.governance = governance
+
   return contracts
 }
 
@@ -126,5 +131,7 @@ export function appContractsFromEnv(env: Record<string, string | undefined>): Ap
   if (launch) contracts.launch = launch
   const pragma = address(env.PASSBOOK_PRAGMA_ADDRESS)
   if (pragma) contracts.pragma = pragma
+  const governance = address(env.PASSBOOK_GOVERNANCE_ADDRESS)
+  if (governance) contracts.governance = governance
   return contracts
 }
