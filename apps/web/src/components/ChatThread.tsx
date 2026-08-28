@@ -113,7 +113,9 @@ function MessageBody({ message, mine }: { message: RoomMessage; mine: boolean })
     )
   }
 
-  if (message.kind === 'unsupported') {
+  // A 'post' belongs to open Talk rooms and never rides a pairwise thread; one arriving here is
+  // a client speaking the wrong room's dialect, shown as unsupported rather than invented around.
+  if (message.kind === 'unsupported' || message.kind === 'post') {
     return (
       <Text variant="body4" className={mine ? 'opacity-80' : 'text-neutral2'}>
         A message this version cannot show yet.

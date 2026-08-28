@@ -4,7 +4,10 @@ import { UNITS_PER_EPOCH } from '@strk20/protocol/app-reads'
 import { toPlainText } from '@strk20/protocol/amount'
 import { logoDisplayUrl } from '@strk20/protocol/token-media'
 
+import { launchTalkTag } from '@strk20/protocol/open-room-tags'
+
 import { ActivityTape } from '../components/launch/ActivityTape'
+import { TalkThread } from '../components/launch/TalkThread'
 import { Text } from '../components/ui/Text'
 import { TokenLogo, accentFor } from '../components/TokenLogo'
 import { shortenFelt } from '../shell/session'
@@ -123,16 +126,25 @@ function TokenPage() {
             ) : null}
 
             {born ? (
-              <section className="flex flex-col gap-s8 rounded-large border border-solid border-surface3 p-s16">
-                <Text variant="kicker">Its history</Text>
-                <ActivityTape
-                  items={feed.tape}
-                  markets={feed.markets}
-                  launches={read.launches}
-                  scope={{ launchId: born.id }}
-                  emptyLine="Nothing from this token's sale is inside the feed's window — its full history stays on chain."
-                />
-              </section>
+              <>
+                <section className="flex flex-col gap-s8 rounded-large border border-solid border-surface3 p-s16">
+                  <Text variant="kicker">Its history</Text>
+                  <ActivityTape
+                    items={feed.tape}
+                    markets={feed.markets}
+                    launches={read.launches}
+                    scope={{ launchId: born.id }}
+                    emptyLine="Nothing from this token's sale is inside the feed's window — its full history stays on chain."
+                  />
+                </section>
+                <section className="flex flex-col gap-s8 rounded-large border border-solid border-surface3 p-s16">
+                  <Text variant="kicker">Talk</Text>
+                  <TalkThread
+                    tag={launchTalkTag(born.id)}
+                    emptyLine="Nobody has said anything about this token yet. The room is open."
+                  />
+                </section>
+              </>
             ) : (
               <section className="flex flex-col gap-s8 rounded-large border border-solid border-surface3 p-s16">
                 <Text variant="kicker">What this app knows</Text>
