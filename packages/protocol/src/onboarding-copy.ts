@@ -98,22 +98,22 @@ export const DEADLOCK_TITLE = 'Someone has to go first'
  * its siblings are constants.
  */
 export function deadlockBody(feeStrk: string | null): string {
-  // A FAILED FEE READ OMITS THE NUMBER RATHER THAN GUESSING ONE. "We are paying it" is true
-  // whether or not the RPC answered, and the rest of the paragraph — the deadlock itself — does not
-  // depend on the amount. Inventing a figure to keep the sentence tidy would be exactly the
-  // hardcoded fee the brief's governing rule bans, on the one screen where a stranger is deciding
-  // whether to trust this app about money.
+  // A FAILED FEE READ OMITS THE NUMBER RATHER THAN GUESSING ONE — inventing a figure to keep the
+  // sentence tidy would be exactly the hardcoded fee the brief's governing rule bans, on the one
+  // screen where a stranger is deciding whether to trust this app about money. M8 rewrote the
+  // payer: the STAKE pays, through the user's own signature — one subsidy, spent once.
   const cost = feeStrk === null ? 'one pool transaction' : `one pool transaction — currently ~${feeStrk} STRK`
-  return `Registering costs ${cost}. We are paying it. A new account cannot pay this fee itself: the fee is taken from a shielded balance, and nobody may give you a shielded balance until you are registered. Someone has to go first.`
+  return `Registering costs ${cost}. A new account cannot pay it from nothing — the fee comes from real STRK, and nobody may give you a shielded balance until you are registered. Someone has to stake you first. That is the next screen: we send you the STRK, and your own account signs and pays its own way with it.`
 }
 
 /** The fee row, same rule: the app's name and the live fee are both parameters. */
 export function deadlockFeeRow(appName: string, feeStrk: string | null): string {
-  // Same rule. The row still names WHO is paying, which is the accountability half of it, and drops
-  // only the half the chain would not tell us.
+  // The row still names WHO pays, which is the accountability half of it. `appName` stays a
+  // parameter for the staker's name; the signer is the user — that is the one-subsidy claim,
+  // written where the payment happens.
   return feeStrk === null
-    ? `Submitted by ${appName} relayer · paid by us`
-    : `Submitted by ${appName} relayer · ${feeStrk} STRK · paid by us`
+    ? `Staked by ${appName} · signed and paid by your own account`
+    : `Staked by ${appName} · ${feeStrk} STRK · signed and paid by your own account`
 }
 
 /**
@@ -126,7 +126,47 @@ export function deadlockInvitedTitle(inviter: string): string {
   return `${inviter} is covering your registration.`
 }
 
-// ── Screen 5 — Register ───────────────────────────────────────────────────────────────────
+// ── Screen 5 — The stake (the drip, FIRST) ────────────────────────────────────────────────
+//
+// WHY THIS COMES BEFORE REGISTRATION NOW — M8's one-subsidy rule, inverting the old order.
+//
+// The old flow gave twice: a sponsored registration AND a starter drip. Now the drip is the ONLY
+// gift and it arrives first, sized to stake the whole journey — the account deploys itself from
+// it, the registration is signed and paid by the USER's own account (`collect_fee` pulls from
+// whoever submits), and what remains is the starter. Sponsorship still exists, demoted to the
+// fallback for when the faucet is off or dry: never a locked door, never a second subsidy.
+//
+// IT MAY STILL FAIL HARMLESSLY. A refused drip does not end the flow — the register screen's
+// fallback covers the fee — so the copy reads as a detour, never as a failed setup.
+
+export const FUND_TITLE = 'Your stake arrives first'
+
+/** Said while the transfer is in flight. Never promises the amount before it has landed. */
+export const FUND_PENDING = 'Sending the STRK that pays your way…'
+
+/** The success line. `amount` is rendered by the caller so the number is never hardcoded here. */
+export function fundArrived(amount: string): string {
+  return (
+    `${amount} STRK is on its way — give it a few seconds to land. It pays for your ` +
+    'registration, signed by your own account, and what remains covers your first swaps, bets ' +
+    'and sends.'
+  )
+}
+
+/**
+ * The refusal wrapper.
+ *
+ * `because` is the relayer's own sentence, which already says which limit bound and what to do
+ * instead. This adds the ONE thing the relayer cannot say: the door ahead still opens — the
+ * sponsored fallback covers a registration the drip could not stake.
+ */
+export function fundRefused(because: string): string {
+  return `${because} You can still continue — when the faucet cannot stake you, the registration fee is covered for you instead.`
+}
+
+export const FUND_CTA = 'Continue — register my key'
+
+// ── Screen 6 — Register (the terminal screen) ─────────────────────────────────────────────
 
 export const REGISTER_TITLE = 'Register your key'
 export const REGISTER_CTA = 'Create your account'
@@ -136,43 +176,12 @@ export const REGISTER_CTA = 'Create your account'
  */
 export const REGISTER_STEPS = ['Build', 'Prove', 'Relay', 'Confirmed'] as const
 
-// ── Screen 6 — The starter STRK ───────────────────────────────────────────────────────────
-//
-// WHY THIS COMES AFTER REGISTRATION AND NOT BEFORE, which is the opposite of most wallets.
-//
-// Registration is sponsored — the relayer pays that fee — so an account reaches the pool needing
-// nothing. What it cannot do is the NEXT thing: a swap, a bet, a send, all of which need gas the
-// account does not have. So the drip is not a precondition for the flow, it is the removal of the
-// wall the flow ends at. Running it earlier would spend real mainnet STRK on visitors who never
-// reach screen five.
-//
-// AND IT IS THE LAST SCREEN BECAUSE IT IS THE ONLY ONE THAT MAY FAIL HARMLESSLY. Every other step
-// gates the one after it; this one can be refused — a spent daily budget, a deployment with no
-// faucet configured — and the account is still complete. The copy is written so that outcome
-// reads as a detour rather than a failed setup.
-
-export const FUND_TITLE = 'You’re in'
-
-/** Said while the transfer is in flight. Never promises the amount before it has landed. */
-export const FUND_PENDING = 'Sending you some STRK to get started…'
-
-/** The success line. `amount` is rendered by the caller so the number is never hardcoded here. */
-export function fundArrived(amount: string): string {
-  return `${amount} STRK is on its way. It covers the gas for your first swaps, bets and sends.`
-}
-
-/**
- * The refusal wrapper.
- *
- * `because` is the relayer's own sentence, which already says which limit bound and what to do
- * instead. This adds the ONE thing the relayer cannot say: that the account is finished and works.
- * Without it a refused drip reads as a failed sign-up.
- */
-export function fundRefused(because: string): string {
-  return `Your account is ready and registered. ${because}`
-}
-
-export const FUND_CTA = 'Open my wallet'
+/** The terminal state, rendered on the register screen once the write confirms. */
+export const REGISTERED_TITLE = 'You’re in'
+export const REGISTERED_BODY =
+  'Registered, on-chain, and usable. Anything sent to you shows up in your record; your shielded ' +
+  'balance is nobody else’s to read.'
+export const REGISTERED_CTA = 'Open my wallet'
 
 // ── After ─────────────────────────────────────────────────────────────────────────────────
 

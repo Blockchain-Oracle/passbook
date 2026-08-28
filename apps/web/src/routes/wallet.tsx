@@ -206,6 +206,22 @@ function WalletAccount({ session }: { session: Extract<SessionState, { status: '
   const onRegister = useCallback(async () => {
     setRegisterProblem(null)
     setRegistering('build')
+    //
+    // THE JOURNEY IS ONE BUTTON NOW — M8's drip-first order means the account arrives here
+    // funded but possibly undeployed, and registration SRC5-probes the address, so a
+    // counterfactual account cannot register (verified live 2026-08-24). Deploying from the
+    // drip is part of what the stake paid for; a deploy failure reports as the register
+    // problem, because to the user it is one action.
+    //
+    const standing = await readAccountStatus(session.address)
+    if (standing.rung === 'undeployed') {
+      const deployed = await deployAccount(session.accountKey, session.address)
+      if (!deployed.ok) {
+        setRegistering(null)
+        setRegisterProblem(deployed.because)
+        return
+      }
+    }
     const result = await registerAccount({
       accountKey: session.accountKey,
       address: session.address,
@@ -262,6 +278,9 @@ function WalletAccount({ session }: { session: Extract<SessionState, { status: '
     return {
       ok: true as const,
       amount: toPlainText(BigInt(result.amountWei), KNOWN_TOKEN_DECIMALS[STRK_TOKEN] ?? 18),
+      // "Where's the transaction pointing to the funding?" — the drip's own receipt, rendered
+      // on the screen that announced it.
+      txHash: result.txHash,
     }
   }, [session.address, refresh])
 

@@ -49,6 +49,9 @@ import {
   REGISTER_CTA,
   REGISTER_STEPS,
   REGISTER_TITLE,
+  REGISTERED_BODY,
+  REGISTERED_CTA,
+  REGISTERED_TITLE,
   deadlockBody,
   deadlockFeeRow,
   deadlockInvitedTitle,
@@ -63,13 +66,14 @@ import { Text } from '../ui/Text'
 //
 // The six screens, in order. A `gate` step cannot be advanced past until it says it is done.
 //
-// `fund` IS NOT REACHABLE BY PRESSING ANYTHING. Screen five's button is the registration, and this
-// one is what the registration lands on — so there is no Continue out of `register` and no way
-// into `fund` except a confirmed on-chain write. That is why it can be the screen that says
-// "you're in" without checking anything itself.
+// `fund` COMES BEFORE `register` — M8's one-subsidy inversion. The drip stakes the journey, so
+// it must land before the registration it pays for; the register screen is the terminal one,
+// showing "you're in" only after the confirmed on-chain write. The drip still fires by ARRIVAL
+// on its screen, not by a button: a re-render must not re-ask, and pressing it is not a decision
+// anybody would make differently.
 //
-type ScreenId = 'name' | 'custody' | 'backup' | 'deadlock' | 'register' | 'fund'
-const SCREENS: readonly ScreenId[] = ['name', 'custody', 'backup', 'deadlock', 'register', 'fund']
+type ScreenId = 'name' | 'custody' | 'backup' | 'deadlock' | 'fund' | 'register'
+const SCREENS: readonly ScreenId[] = ['name', 'custody', 'backup', 'deadlock', 'fund', 'register']
 
 export interface ConversionPanelProps {
   /**
@@ -95,7 +99,7 @@ export interface ConversionPanelProps {
    * either way. A rejection here would take out the panel on the one screen whose whole job is
    * to say that everything worked.
    */
-  onFund: () => Promise<{ ok: boolean; amount?: string; because?: string }>
+  onFund: () => Promise<{ ok: boolean; amount?: string; because?: string; txHash?: string }>
   /** Renders the ceremony. Calls `onDone` when the code is confirmed and the file is saved. */
   renderBackup: (onDone: () => void) => React.ReactNode
   /** Renders the four-step pipeline once registration is in flight. */
@@ -122,7 +126,7 @@ export function ConversionPanel({
   const [claimPublicly, setClaimPublicly] = useState(false)
   const [backupDone, setBackupDone] = useState(false)
   const [registering, setRegistering] = useState(false)
-  const [funding, setFunding] = useState<{ done: boolean; message: string }>({
+  const [funding, setFunding] = useState<{ done: boolean; message: string; txHash?: string }>({
     done: false,
     message: FUND_PENDING,
   })
@@ -159,7 +163,9 @@ export function ConversionPanel({
   // out of the funding screen it is already on.
   //
   useEffect(() => {
-    if (registered) setIndex((i) => Math.max(i, SCREENS.indexOf('fund')))
+    // The terminal screen is `register` now — a confirmed write lands there and renders the
+    // "you're in" state; it never pulls the panel backwards.
+    if (registered) setIndex((i) => Math.max(i, SCREENS.indexOf('register')))
   }, [registered])
 
   //
@@ -181,6 +187,7 @@ export function ConversionPanel({
         message: result.ok
           ? fundArrived(result.amount ?? '')
           : fundRefused(result.because ?? 'Starter STRK is not available right now.'),
+        txHash: result.txHash,
       })
     })
     return () => {
@@ -216,7 +223,7 @@ export function ConversionPanel({
           where the account already exists. "Skip for now" there would offer to skip something
           that has already happened, beside a button that does the same thing and says so.
         */}
-        {registering || screen === 'fund' ? null : (
+        {registering || registered ? null : (
           <button
             type="button"
             onClick={onDismiss}
@@ -233,7 +240,11 @@ export function ConversionPanel({
       <div className="m-auto flex w-full max-w-[560px] flex-col gap-s12 px-s20 py-s36">
         <span className="kicker">{`Step ${index + 1} of ${SCREENS.length}`}</span>
         <Text variant="display2" as="h2" className="display text-neutral1 md:text-display1">
-          {screen === 'deadlock' && inviter ? deadlockInvitedTitle(inviter) : TITLES[screen]}
+          {screen === 'deadlock' && inviter
+            ? deadlockInvitedTitle(inviter)
+            : screen === 'register' && registered
+              ? REGISTERED_TITLE
+              : TITLES[screen]}
         </Text>
         <div className="flex flex-col gap-s12">
         {screen === 'name' ? (
@@ -317,19 +328,39 @@ export function ConversionPanel({
             <Text variant="body3" className="text-neutral2" aria-live="polite">
               {funding.message}
             </Text>
+            {funding.txHash ? (
+              <a
+                href={`https://voyager.online/tx/${funding.txHash}`}
+                target="_blank"
+                rel="noreferrer"
+                className="focus-ring self-start font-mono text-mono text-neutral3 underline hover:text-neutral1"
+              >
+                the funding transaction ↗
+              </a>
+            ) : null}
             {/*
-              THE BUTTON IS LIVE WHILE THE TRANSFER IS STILL IN FLIGHT, deliberately. The account
-              is already registered and usable; the STRK is a convenience arriving behind it. A
-              disabled button here would hold somebody on a screen waiting for money they do not
-              need in order to leave it.
+              CONTINUE UNLOCKS WHEN THE REQUEST RESOLVES — success OR refusal. The next screen
+              is the registration this money pays for, so leaving before the answer exists would
+              race the payer decision; but a REFUSED drip must not trap anybody, because the
+              register screen's sponsored fallback covers exactly that case.
             */}
-            <Button variant="primary" size="lg" fill onClick={onDismiss}>
-              {FUND_CTA}
+            <Button variant="primary" size="lg" fill aria-disabled={!funding.done} onClick={() => funding.done && advance()}>
+              {funding.done ? FUND_CTA : 'Asking for your stake…'}
             </Button>
           </>
         ) : null}
 
         {screen === 'register' ? (
+          registered ? (
+            <>
+              <Text variant="body3" className="text-neutral2">
+                {REGISTERED_BODY}
+              </Text>
+              <Button variant="primary" size="lg" fill onClick={onDismiss}>
+                {REGISTERED_CTA}
+              </Button>
+            </>
+          ) : (
           <>
             {registering && renderPipeline ? (
               renderPipeline()
@@ -340,8 +371,8 @@ export function ConversionPanel({
             )}
             {/*
               THE LAST STEP IS THE ACTION. Yosuku's final screen sets a preference and ends in Done;
-              ours ends in the irreversible thing, so the button IS the registration and there is no
-              Done anywhere in this component.
+              ours ends in the irreversible thing — the Done above only exists once the chain
+              confirmed it.
             */}
             <Button
               variant="primary"
@@ -363,6 +394,7 @@ export function ConversionPanel({
               {registering ? 'Registering…' : REGISTER_CTA}
             </Button>
           </>
+          )
         ) : null}
         </div>
       </div>

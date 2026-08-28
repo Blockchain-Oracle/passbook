@@ -13,19 +13,30 @@
 //   submit       self-submission from the embedded key, instead of a post to a relayer.
 //   onStage      so the surface can show which of the four stages is running.
 //
-// ── WHY SELF-SUBMIT RATHER THAN THE RELAYER ──────────────────────────────────────────────
+// ── WHO PAYS: SELF FIRST, SPONSORED AS THE FALLBACK — M8's ONE-SUBSIDY RULE ──────────────
 //
-// The relayer sponsors the fee, which is the better experience — and it refuses every submission
-// while its balance is under twice the live pool fee (`fundingFloor`, currently 12 STRK against a
-// 4.35 balance). It is also not hosted. Self-submission needs neither, and the account already
-// holds STRK because it paid for its own deployment.
+// The drip stakes the whole journey now (deploy gas + the 6 STRK pool fee + starter), so an
+// account that HOLDS enough pays its own registration — `collect_fee` pulls from whoever
+// submits, and a dripped user submitting themselves is the subsidy being spent exactly once.
+// Only an account that genuinely cannot cover the fee falls back to the relayer's sponsored
+// path (`postSubmitToRelayer`, the pipeline's own default), so onboarding is never a locked
+// door when the faucet is off or dry — and never a double subsidy when it is on.
 //
-// What it costs is stated on the surface rather than here: the user pays the pool's fee and the
-// gas, including on an attempt that reverts.
+// What self-pay costs is stated on the surface rather than here: the user pays the pool's fee
+// and the gas, including on an attempt that reverts.
 //
 import type { RegistrationStage } from '@strk20/protocol/pipeline-stage'
 
+import { readAccountStatus } from './account-status'
 import { makeSelfSubmitRegistration } from './submit'
+
+/**
+ * What self-paying needs in hand: the 6 STRK pool fee plus gas headroom. Deliberately above the
+ * live fee rather than read from it — this only picks the PAYER, and a threshold that guesses
+ * high sends a borderline account to the sponsored door rather than into a failed self-payment
+ * that still burned its gas.
+ */
+const SELF_PAY_FLOOR_WEI = 7n * 10n ** 18n
 
 export type RegisterOutcome =
   | { readonly ok: true; readonly transactionHash: string; readonly block: number | null }
@@ -68,6 +79,12 @@ export async function registerAccount(options: RegisterOptions): Promise<Registe
     const provider = new RpcProvider({ nodeUrl: NET.rpc[0]! })
     const account = new Account({ provider, address, signer: accountKey })
 
+    // M8's payer decision: the one balance read that keeps the subsidy singular. An unreadable
+    // balance selects SELF — the path that spends nobody's budget on an unknown — and its
+    // failure sentence is honest about money.
+    const status = await readAccountStatus(address)
+    const selfPays = status.strkWei !== null && status.strkWei >= SELF_PAY_FLOOR_WEI
+
     const result = await registerSponsored(
       {
         accountKey,
@@ -80,7 +97,9 @@ export async function registerAccount(options: RegisterOptions): Promise<Registe
         // The ceremony's gate, already checked above — passed anyway so the pipeline enforces it
         // too. A guard that lives only in the caller is a guard the next caller forgets.
         canRegister: () => backedUp,
-        submit: makeSelfSubmitRegistration(accountKey, address),
+        // Self-paid when the drip (or any funding) covers it; omitting the override selects the
+        // pipeline's own sponsored relay — the fallback door, never the default subsidy.
+        ...(selfPays ? { submit: makeSelfSubmitRegistration(accountKey, address) } : {}),
         onStage,
       },
     )

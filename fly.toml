@@ -45,6 +45,11 @@ primary_region = "iad"
   # Money, not history: a lost secret is a seed nobody can ever reclaim, so it lives on the
   # volume. The job itself stays off until `fly secrets set RELAYER_GROUNDSKEEPER=on`.
   RELAYER_GROUNDSKEEPER_STORE = "/data/groundskeeper.json"
+  # The faucet's once-per-address claim ledger. WITHOUT THIS on the volume, every deploy resets
+  # the caps and re-opens the drip for every address ever funded. The faucet itself stays off
+  # until `fly secrets set RELAYER_FAUCET=on` — flipping it spends real principal (M8: the drip
+  # stakes the whole journey; the daily cap is the acquisition budget).
+  RELAYER_FAUCET_STORE = "/data/faucet.json"
   # After `deploy-governance.ts --execute`, set this to the blockNumber it prints — the Teller's
   # event-scan floor:
   #   fly secrets set RELAYER_GOVERNANCE_FROM_BLOCK=<block>

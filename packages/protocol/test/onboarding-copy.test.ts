@@ -129,12 +129,12 @@ describe('the fee is a parameter, never a literal', () => {
   // fallback figure would be a hardcoded fee wearing a disguise.
   it('omits the amount entirely when the chain could not be asked', () => {
     const body = deadlockBody(null)
-    expect(body).toContain('Registering costs one pool transaction. We are paying it.')
+    expect(body).toContain('Registering costs one pool transaction.')
     expect(body).not.toMatch(/\d/)
-    expect(body).toContain('Someone has to go first')
+    expect(body).toContain('Someone has to stake you first')
 
     const row = deadlockFeeRow('Passbook', null)
-    expect(row).toBe('Submitted by Passbook relayer · paid by us')
+    expect(row).toBe('Staked by Passbook · signed and paid by your own account')
     expect(row).not.toMatch(/STRK/)
   })
 
@@ -145,8 +145,10 @@ describe('the fee is a parameter, never a literal', () => {
     expect(deadlockFeeRow('Passbook', '')).not.toMatch(/\d/)
   })
 
-  it('names the app and the payer in the fee row', () => {
-    expect(deadlockFeeRow('Passbook', '6.0')).toBe('Submitted by Passbook relayer · 6.0 STRK · paid by us')
+  it('names the app and the payer in the fee row — the staker and the self-paying signer (M8)', () => {
+    expect(deadlockFeeRow('Passbook', '6.0')).toBe(
+      'Staked by Passbook · 6.0 STRK · signed and paid by your own account',
+    )
   })
 })
 
@@ -154,7 +156,9 @@ describe('the deadlock is named rather than hidden', () => {
   it('explains why a new account cannot pay for itself', () => {
     const body = deadlockBody('6.0')
     expect(body).toContain('nobody may give you a shielded balance until you are registered')
-    expect(body).toContain('Someone has to go first')
+    // M8's inversion, in the copy: the stake goes first and the user's own account pays with it.
+    expect(body).toContain('Someone has to stake you first')
+    expect(body).toContain('your own account signs and pays its own way')
   })
 
   // §2: attribution is the accountability mechanism — a named inviter is one of the five abuse
