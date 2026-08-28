@@ -1,0 +1,12 @@
+{
+  "step": "create-house",
+  "describe": "activate House 0 — \"Passbook Founders\", open, STRK-weighted, 1 STRK quorum",
+  "transactionHash": "0x11981995373bac3baf023588bb60e0e09652de7bda335decf54dee2bb3be3c5",
+  "executionStatus": "SUCCEEDED",
+  "block": 13989600,
+  "governance": "0xdbe265829e0f1c859f3a8c1bd8fcfb0a774836b9e07191c6a624a59e37f9bf",
+  "note": "a DIRECT call — no pool, no fee, no proof. Gas only.",
+  "verifiedAt": "2026-08-28T09:56:08.165Z",
+  "founderSecret": "0x12f543195ee0b32db8ca6227ab50bc2aa5ec4e34d2009de2f78528a351f42b",
+  "founderCommitment": "0x6ab3045ff47c79aed284046a596cbd9da9f86ec66968fa650df86a96a263681"
+}
