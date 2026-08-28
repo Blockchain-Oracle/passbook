@@ -86,7 +86,7 @@ export default function ReceivePanel({ address }: ReceivePanelProps) {
   return (
     <div className="flex w-full min-w-0 flex-col gap-s16">
       <div className="flex flex-col gap-s4">
-        <Text variant="subheading1" as="h2">
+        <Text variant="display3" as="h2" className="text-neutral1">
           Receive
         </Text>
         <Text variant="body3" className="text-neutral2">

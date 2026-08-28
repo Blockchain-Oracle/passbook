@@ -140,8 +140,9 @@ export function ActivityFeed({
   const { settling, onSettleShown } = useSettleCue(transactions)
 
   return (
-    <section className="flex min-w-0 flex-col gap-s8">
-      <h2 className="text-heading3">Activity</h2>
+    <section className="flex min-w-0 flex-col gap-s8 rounded-large border border-solid border-surface3 bg-raised p-s16">
+      {/* STUDIO's name for this panel. The record is what a passbook holds; "Activity" was a tab. */}
+      <h2 className="display text-display3 text-neutral1">The record</h2>
 
       {/*
         Disclosure as FURNITURE: the consequence is stated on the way past, in the header a reader
