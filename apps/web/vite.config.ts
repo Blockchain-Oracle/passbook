@@ -92,11 +92,46 @@ export default defineConfig((configEnv) => {
     console.log(`[mainnet guard] ACTIVE_NETWORK=${active} — production build permitted`)
   }
 
+  //
+  // THE DEPLOYMENT'S ADDRESSES, READ FROM THE EVIDENCE FILE THE DEPLOY SCRIPT WROTE.
+  //
+  // `evidence/markets-launch-deployment.json` is the single source of truth for where Markets and
+  // Launch live — the relayer reads it at boot, and the browser cannot, so this is where the file's
+  // contents become build-time env. Without this the surfaces rendered "not deployed" against
+  // contracts that have been live on mainnet since 2026-08-27, which is the one kind of
+  // understatement this app treats as a defect: the honest-absence copy was itself dishonest.
+  //
+  // Explicit env ALWAYS WINS — a CI that sets `VITE_PASSBOOK_MARKETS_ADDRESS` is overriding the
+  // file on purpose. A missing or unparsable file defines nothing, and the surfaces fail closed to
+  // their coming-states exactly as before.
+  //
+  const contractDefines: Record<string, string> = {}
+  try {
+    const evidence = JSON.parse(
+      readFileSync(resolve(REPO_ROOT, 'evidence/markets-launch-deployment.json'), 'utf8'),
+    ) as {
+      Markets?: { contractAddress?: string }
+      Launch?: { contractAddress?: string }
+      pragma?: string
+    }
+    const wire = (key: string, value: string | undefined) => {
+      if (typeof value === 'string' && value !== '' && process.env[key] === undefined) {
+        contractDefines[`import.meta.env.${key}`] = JSON.stringify(value)
+      }
+    }
+    wire('VITE_PASSBOOK_MARKETS_ADDRESS', evidence.Markets?.contractAddress)
+    wire('VITE_PASSBOOK_LAUNCH_ADDRESS', evidence.Launch?.contractAddress)
+    wire('VITE_PASSBOOK_PRAGMA_ADDRESS', evidence.pragma)
+  } catch {
+    // Pre-deployment is an ordinary state; the app runs in it and says so honestly.
+  }
+
   return {
     // No `.env` file loading. Note what this does NOT do: shell/CI `VITE_*` variables are still
     // inlined by Vite regardless. Closing that hole needs an unused `envPrefix` or a post-build
     // dist assertion, and is logged in deferred-work.md.
     envDir: false,
+    define: contractDefines,
     plugins: [
       // Codegen must run before the React transform sees the route files.
       tanstackRouter({ target: 'react', autoCodeSplitting: true }),

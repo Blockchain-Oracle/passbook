@@ -93,18 +93,15 @@ function Markets() {
               </Text>
             </div>
 
-            {series.length < 2 ? (
-              //
-              // TWO POINTS ARE THE MINIMUM FOR A LINE, and until the second reading lands there is
-              // genuinely nothing to draw. Reserved at the chart's own height so the panel does not
-              // jump when it arrives.
-              //
+            {series.length === 0 ? (
+              // Nothing has been read at all yet. Reserved at the chart's own height so the panel
+              // does not jump when the first reading lands a beat after paint.
               <div
                 className="flex items-center justify-center rounded-card bg-inset"
                 style={{ height: 220 }}
               >
                 <Text variant="body4" className="text-neutral3">
-                  Watching for a second reading — the line starts once the price moves.
+                  Reading the oracle…
                 </Text>
               </div>
             ) : (
@@ -118,8 +115,15 @@ function Markets() {
               // a true reference: the reader watched it arrive, and it exercises exactly the path
               // a real strike will use. `CHART_REFERENCE_IS_SESSION_OPEN` says which it is.
               //
+              //
+              // ONE READING ALREADY DRAWS THE DIAGRAM. A single point is duplicated into a flat
+              // line — the drawer's flat-series fallback gives it headroom — so the first paint is
+              // a chart with its grid and reference, not a grey box promising one. The prototype's
+              // page opened onto a picture, and "watching for a second reading" opened onto an
+              // apology; the reading on screen is real either way.
+              //
               <PriceChart
-                series={series}
+                series={series.length === 1 ? [series[0]!, series[0]!] : series}
                 target={series[0] ?? null}
                 height={220}
                 label={`${pair} since this page opened`}

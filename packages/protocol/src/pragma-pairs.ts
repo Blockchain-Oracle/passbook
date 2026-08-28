@@ -110,7 +110,15 @@ export function ageSeconds(price: PragmaPrice, nowMs: number): number {
  * claiming immediacy the feed does not have. The contract's own freshness guard is separate and
  * stricter; this is when the UI stops implying "now".
  */
-export const STALE_AFTER_SECONDS = 120
+//
+// MATCHED TO THE ORACLE'S OWN CADENCE, not to a wish. The day-0 checks watched this feed hold one
+// value for eleven minutes, and a live read during the markets build came back 342 seconds old —
+// on a feed behaving perfectly normally. At the old 120 the strip was amber almost always, which
+// spends the warning on the ordinary case; a warning that is always on is one nobody reads. This
+// clears the measured worst ordinary gap, so amber now means "older than this feed ever sits when
+// healthy" — a fact worth interrupting someone with.
+//
+export const STALE_AFTER_SECONDS = 900
 
 export function isStale(price: PragmaPrice, nowMs: number): boolean {
   return ageSeconds(price, nowMs) > STALE_AFTER_SECONDS

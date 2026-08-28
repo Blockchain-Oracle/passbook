@@ -57,6 +57,9 @@ function Settings() {
 
   return (
     <Surface routeId={Route.fullPath}>
+      {/* [STUDIO] Settings is a 600px column, centred — cards stretched across a desktop read as
+          a dashboard, and this page is a form. */}
+      <div className="mx-auto flex w-full max-w-[600px] flex-col gap-s12">
       <Text variant="kicker">08 — controls</Text>
       <Text variant="display2" as="h1" className="text-neutral1">
         Settings
@@ -128,6 +131,7 @@ function Settings() {
           We will not say: {FORBIDDEN_CLAIMS.join(' · ')}
         </Text>
       </section>
+      </div>
     </Surface>
   )
 }

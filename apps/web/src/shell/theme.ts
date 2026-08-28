@@ -100,7 +100,10 @@ export function pinTheme(choice: ThemeChoice, io: ThemeIo = {}): ThemePinResult 
   const storage = resolve(io.storage, defaultStorage)
   if (!storage) return 'dom-only'
   try {
-    if (choice === null) storage.removeItem(THEME_STORAGE_KEY)
+    // "Follow system" is STORED as the sentinel `'system'` rather than cleared. The boot script in
+    // `index.html` defaults an ABSENT key to the dark pin ([STUDIO] — the app opens dark), so a
+    // cleared key would silently convert a follow-system choice back into dark on the next load.
+    if (choice === null) storage.setItem(THEME_STORAGE_KEY, 'system')
     else storage.setItem(THEME_STORAGE_KEY, choice)
     return true
   } catch {
@@ -141,6 +144,9 @@ export function storedChoice(io: ThemeIo = {}): ThemeChoice | 'unreadable' {
   } catch {
     return 'unreadable'
   }
+  // `'system'` maps to the same `null` an absent key does: both mean a reload follows the OS —
+  // except that an absent key is rewritten to the dark default by the boot script, which is
+  // exactly why the sentinel exists.
   return value === 'light' || value === 'dark' ? value : null
 }
 

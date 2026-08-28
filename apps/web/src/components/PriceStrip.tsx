@@ -70,7 +70,10 @@ function PriceCell({
   onSelect?: (pair: PragmaPair) => void
 }) {
   const price = priceOf(state, pair)
-  const series = state.series[pair]?.points ?? []
+  const raw = state.series[pair]?.points ?? []
+  // One reading still draws the shape — a flat run — instead of an empty corner. Same move the
+  // main chart makes, for the same reason: the first paint should already look like the product.
+  const series = raw.length === 1 ? [raw[0]!, raw[0]!] : raw
 
   if (state.loading && price === null) {
     return (

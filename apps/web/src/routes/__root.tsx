@@ -31,7 +31,6 @@ import { AccountChip } from '../components/AccountChip'
 import { UnreadBadge } from '../components/ConversationList'
 import { useTotalUnread } from '../shell/chat-bus'
 import { DegradedStrip } from '../components/DegradedStrip'
-import { ThemeToggle } from '../components/ThemeToggle'
 import { ToastViewport } from '../shell/ToastViewport'
 import { Icon } from '../components/icons'
 import { MobileTabBar } from '../shell/MobileTabBar'
@@ -253,13 +252,17 @@ function RootLayout() {
           <Link to="/settings" aria-label="Settings" className="icon-pill focus-ring">
             <Icon name="sliders" />
           </Link>
-          <ThemeToggle />
+          {/*
+            NO THEME TOGGLE HERE — [STUDIO] the header carries search, settings and the account,
+            and the theme is a Settings control. The toggle's row cost was also real: it is what
+            pushed the right rail into the pill nav at 1280.
+          */}
           {/*
             The network the artifact actually resolved to. The mainnet guard asserts both of these
             values reach the mounted DOM — one assertion covering the whole chain, from the protocol
             package through the router to a committed render — so this line is load-bearing.
           */}
-          <span data-testid="network" className="numeric hidden font-mono text-body4 text-neutral3 lg:inline">
+          <span data-testid="network" className="numeric hidden font-mono text-body4 text-neutral3 xl:inline">
             {ACTIVE_NETWORK} · {NET.chainId}
           </span>
           {/*

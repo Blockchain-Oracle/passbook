@@ -64,8 +64,18 @@ import {
 } from '@strk20/protocol/transaction'
 
 import { ActivityRow } from './ActivityRow'
+import { ActivityReceipt } from './ActivityReceipt'
+import { ResponsiveDialog } from '../shell/ResponsiveDialog'
 
 const TABS: readonly FeedTab[] = ['global', 'personal']
+
+/**
+ * How many rows a panel shows before asking. [STUDIO feedback 2026-08-28] The record used to
+ * render its whole window at once — hundreds of rows on a busy pool — and "Show more" is the
+ * difference between a record and a wall. The count is rows, not sections: sections are derived
+ * from whatever slice is showing, so a partially-shown group is simply a shorter group.
+ */
+const FEED_PAGE = 10
 
 const isTab = (value: unknown): value is FeedTab => value === 'global' || value === 'personal'
 
@@ -118,6 +128,13 @@ export function ActivityFeed({
   const { transactions, initialized } = useSyncExternalStore(subscribe, getActivity)
   const [tab, setTab] = useState<FeedTab>('global')
   const [showSystemNotes, setShowSystemNotes] = useState(true)
+  const [shown, setShown] = useState(FEED_PAGE)
+  //
+  // THE OPEN RECEIPT, HELD BY ID AND RESOLVED LIVE. Holding the transaction object would freeze a
+  // row that the store then updates — a modal open across a settle would keep saying "submitted".
+  //
+  const [openId, setOpenId] = useState<string | null>(null)
+  const openTransaction = openId === null ? null : (transactions.find((t) => t.id === openId) ?? null)
 
   const visible = useMemo(
     () => visibleTransactions(transactions, showSystemNotes),
@@ -216,7 +233,7 @@ export function ActivityFeed({
             {views[key].rows.length ? (
               <>
                 <p className="text-body4 text-neutral3">{HISTORY_GROUPING_NOTE}</p>
-                {activitySections(views[key].rows, headBlock).map((section) => (
+                {activitySections(views[key].rows.slice(0, shown), headBlock).map((section) => (
                   <div key={section.group} className="flex flex-col gap-s2">
                     {/*
                       NOT STICKY, and that is a decision rather than an omission. `.app-header` is
@@ -241,16 +258,51 @@ export function ActivityFeed({
                           settling={settling === transaction.id}
                           onSettleShown={onSettleShown}
                           onRetry={onRetry}
+                          onOpen={(t) => setOpenId(t.id)}
                         />
                       ))}
                     </ul>
                   </div>
                 ))}
+                {/*
+                  The rest of the window, on request. The button says HOW MANY remain, because
+                  "Show more" over an unnamed remainder makes the reader guess whether it is three
+                  rows or three hundred.
+                */}
+                {views[key].rows.length > shown ? (
+                  <button
+                    type="button"
+                    onClick={() => setShown((s) => s + FEED_PAGE * 2)}
+                    className="focus-ring self-start rounded-control border border-solid border-surface3 px-s12 py-s8 text-buttonLabel4 text-neutral2 hover:bg-inset hover:text-neutral1"
+                  >
+                    Show more · {views[key].rows.length - shown} older
+                  </button>
+                ) : null}
               </>
             ) : null}
           </Tabs.Panel>
         ))}
       </Tabs.Root>
+
+      {/*
+        THE RECEIPT, IN PLACE [STUDIO]. Same component as `/activity/$id` — the modal is the way
+        the feed opens it, and the route is the way a link does. Non-modal is deliberate: the
+        record behind it stays live and scrollable, per DESIGN §7.11's default.
+      */}
+      <ResponsiveDialog
+        open={openTransaction !== null}
+        onOpenChange={(next) => {
+          if (!next) setOpenId(null)
+        }}
+        label="Receipt"
+        modal
+      >
+        {openTransaction ? (
+          <div className="flex min-h-0 flex-col gap-s8 overflow-y-auto">
+            <ActivityReceipt transaction={openTransaction} />
+          </div>
+        ) : null}
+      </ResponsiveDialog>
     </section>
   )
 }

@@ -58,6 +58,16 @@
     <script>
       try {
         var t = localStorage.getItem('passbook-theme')
+        // [STUDIO] Passbook OPENS DARK. A first visit stores the dark pin rather than following
+        // the OS — the ratified direction is mint-on-black, and a bone-light first paint reads as
+        // a different product. Light and follow-system remain one Settings click away; an explicit
+        // 'system' sentinel (written by Settings when the user chooses it) clears the default.
+        if (t !== 'dark' && t !== 'light' && t !== 'system') {
+          t = 'dark'
+          try {
+            localStorage.setItem('passbook-theme', 'dark')
+          } catch (e) {}
+        }
         if (t === 'dark' || t === 'light') document.documentElement.dataset.theme = t
       } catch (e) {}
     </script>
