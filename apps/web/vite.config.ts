@@ -23,6 +23,7 @@ import { tanstackRouter } from '@tanstack/router-plugin/vite'
 // exactly why the pattern is anchored and counted — read it before touching this.
 //
 import { requireSingleActiveNetwork } from '../../scripts/active-network.mjs'
+import { passbookGates } from './vite/gates.mjs'
 
 /** `apps/web/` -> repository root. Never cwd-relative: `npm run dev -w apps/web` runs from here. */
 const REPO_ROOT = resolve(import.meta.dirname, '../..')
@@ -156,6 +157,8 @@ export default defineConfig((configEnv) => {
       // i.e. `apps/web`: a class written in `packages/*` generates NO rule and renders unstyled
       // with a green build, which is why every component lives under `apps/web/src`.
       tailwindcss(),
+      // The gates. Inside the config there is no door that bypasses them — see vite/gates.mjs.
+      passbookGates({ repoRoot: REPO_ROOT, outDir: resolve(import.meta.dirname, 'dist') }),
     ],
     //
     // DEV ONLY, AND IT IS THE REWRITE THE RELAYER'S HEADER WARNS ABOUT — deliberately, here.
