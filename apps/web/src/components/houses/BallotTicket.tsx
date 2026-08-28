@@ -24,6 +24,7 @@ import { currentBlocker, getHealth, subscribeHealth } from '../../shell/pool-hea
 import { toast } from '../../shell/toast-store'
 import { useBalance } from '../../shell/use-balance'
 import { addPosition } from '../../shell/use-positions'
+import { stageLabels } from '../../shell/stage-labels'
 import { useSend } from '../../shell/use-send'
 import { useSession, shortenFelt } from '../../shell/session'
 import { findToken, useTokenList } from '../../shell/use-token-list'
@@ -32,13 +33,7 @@ import { AmountInput, useAmountField } from '../AmountInput'
 import { BlockedButton } from '../BlockedButton'
 import { Text } from '../ui/Text'
 
-const STAGE_LABEL: Record<string, string> = {
-  build: 'Building the ballot…',
-  prove: 'Proving…',
-  relay: 'Signing and broadcasting…',
-  mature: 'Waiting for the pool to accept it…',
-  confirmed: 'Confirming on chain…',
-}
+const STAGE_LABEL: Record<string, string> = stageLabels('Building the ballot…')
 
 export function BallotTicket({
   house,

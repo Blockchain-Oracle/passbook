@@ -18,7 +18,6 @@ import {
 
 import { AccountLadder } from '../components/AccountLadder'
 import { Icon } from '../components/icons'
-import { ConnectWallet } from '../components/ConnectWallet'
 import { ConversionPanel } from '../components/onboarding/ConversionPanel'
 import { BackupCeremony } from '../components/BackupCeremony'
 import { ActivityFeed } from '../components/ActivityFeed'
@@ -372,20 +371,12 @@ function WalletAccount({ session }: { session: Extract<SessionState, { status: '
             ) : null}
 
             {/*
-              THE FUNDING RAIL, UNDER THE LADDER AND NEVER IN THE ONBOARDING FLOW.
-
-              Abu's ruling and the right shape: the conversion flow must not ask anybody to connect
-              anything — that is the wallet-connect interstitial the whole embedded-key design
-              exists to avoid, and it would be asking for a wallet before the account it funds even
-              exists. It belongs here, where somebody who already HAS an account is looking at a
-              rung that says they need money.
-
-              Eager rather than lazy, unlike `ReceivePanel`: the card itself is markup, and every
-              byte of SDK behind it is already deferred inside `funding-wallet.ts` until Connect is
-              pressed. A lazy boundary here would split the wrapper and leave the payload where it
-              was, which is the `INEFFECTIVE_DYNAMIC_IMPORT` the build gate names.
+              THE FUNDING RAIL MOVED INTO THE ACCOUNT MODAL (AccountDrawer's connect view) — the
+              28-Aug review's ruling superseding the earlier placement: "it's supposed to be in
+              the modal… it is called Connect to Ready Wallet." The onboarding rule survives the
+              move: the conversion flow still never asks anybody to connect anything; the verb
+              sits behind the account chip, where somebody managing their account looks for it.
             */}
-            <ConnectWallet />
           </>
         }
         feed={

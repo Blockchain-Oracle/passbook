@@ -297,6 +297,41 @@ export { MIN_WALLET_API }
 export type DepositOutcome = { ok: true; txHash: string } | { ok: false; because: string }
 
 /**
+ * The connected wallet as a SUBMIT EXECUTOR — Ready signs, Ready pays — or null.
+ *
+ * ── THE SUBMITTER IS NOT THE IDENTITY, AND THIS SEAM IS WHERE THAT LINE HOLDS ─────────────
+ *
+ * A shielded send's viewing key and proofs derive from the EMBEDDED key (`send.ts:input.accountKey`)
+ * — the connected wallet can only take over the submission: it signs the batch, its account pays
+ * the gas and the pool fee (`collect_fee` pulls from whoever submits). That satisfies "if I'm
+ * using Ready, Ready pops up and signs" without ever moving the identity out of this browser.
+ *
+ * Only a wallet whose Wallet API is `'supported'` (≥ MIN_WALLET_API) qualifies: the batch rides
+ * v3 proof fields, and an older wallet would drop them at signing — a broadcast the sequencer
+ * rejects AFTER the user approved it in their extension. Returning null routes those sends back
+ * to the embedded key, which always works.
+ */
+export function walletSubmitter():
+  | ((calls: unknown[], details?: { proofFacts: string[]; proof: string }) => Promise<string>)
+  | null {
+  const live = account
+  if (!live || !connected || connected.support !== 'supported') return null
+  return async (calls, details) => {
+    // `executeWithProof` is the Wallet API ≥ 0.10.3 door for a SNIP-36 proven submission —
+    // the reason `support === 'supported'` gates this function at all. A plain `execute`
+    // would drop the proof pair and buy a sequencer rejection after the user approved.
+    const { transaction_hash } = details
+      ? await live.executeWithProof(calls as never, {
+          data: details.proof,
+          output: [],
+          proof_facts: details.proofFacts,
+        } as never)
+      : await live.execute(calls as never)
+    return transaction_hash
+  }
+}
+
+/**
  * Send tokens from the connected wallet to this browser's Passbook address.
  *
  * ── THIS IS A PUBLIC TRANSFER AND THE UI MUST SAY SO BEFORE IT RUNS ───────────────────────

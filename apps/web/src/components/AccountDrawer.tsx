@@ -61,13 +61,14 @@ import {
   type AccountSummary,
 } from '../shell/session'
 import { BackupCeremony } from './BackupCeremony'
+import { ConnectWallet } from './ConnectWallet'
 import { IdentityDisc } from './IdentityDisc'
 import { PasswordField } from './PasswordField'
 import { Button } from './ui/Button'
 import { Text } from './ui/Text'
 
-/** Which panel is showing. `main` is the account list; the other two are one job each. */
-type View = 'main' | 'import' | 'export'
+/** Which panel is showing. `main` is the account list; the others are one job each. */
+type View = 'main' | 'import' | 'export' | 'connect'
 
 export interface AccountDrawerProps {
   open: boolean
@@ -151,7 +152,9 @@ function DrawerBody(props: BodyProps) {
             ? IMPORT_TITLE
             : props.view === 'export'
               ? EXPORT_ROW_LABEL
-              : 'This browser holds'}
+              : props.view === 'connect'
+                ? 'Connect Ready Wallet'
+                : 'This browser holds'}
         </Text>
         {/*
           The prototype's × sits in the header row rather than floating over the content. A
@@ -190,6 +193,8 @@ function DrawerBody(props: BodyProps) {
           receiveAddress={session.address}
           onComplete={() => undefined}
         />
+      ) : props.view === 'connect' ? (
+        <ConnectWallet />
       ) : (
         <MainPanel
           address={session.address}
@@ -205,11 +210,13 @@ function DrawerBody(props: BodyProps) {
 // ── The list ──────────────────────────────────────────────────────────────────────────────
 
 /**
- * The account list and the four verbs, in the prototype's order.
+ * The account list and the verbs, in the prototype's order.
  *
- * There is no "Disconnect" and there never was one to remove: this is an embedded key, so there is
- * no wallet to disconnect from. Lock is what people reach for when they want that, and the footnote
- * says in plain words what it does and does not do.
+ * There is no "Disconnect" for the ACCOUNT and there never was one to remove: it is an embedded
+ * key, so there is no wallet to disconnect from — Lock is that verb, and the footnote says what
+ * it does. "Connect Ready Wallet" below is a different thing entirely: an EXTERNAL wallet,
+ * connected as a funding source and optional fee-payer, never as the identity. Its own view
+ * carries the copy that keeps those apart; its Disconnect belongs to it.
  */
 function MainPanel({
   address,
@@ -317,6 +324,15 @@ function MainPanel({
       */}
       <VerbButton fill disabled={busy !== null} onClick={() => onView('export')}>
         {EXPORT_ROW_LABEL}
+      </VerbButton>
+
+      {/*
+        THE CONNECT VERB LIVES HERE — the review's ruling: "it's supposed to be in the modal…
+        it is called Connect to Ready Wallet." The wallet surface no longer carries the card;
+        the account popup is where somebody managing their account expects to find it.
+      */}
+      <VerbButton fill disabled={busy !== null} onClick={() => onView('connect')}>
+        Connect Ready Wallet
       </VerbButton>
 
       {/*

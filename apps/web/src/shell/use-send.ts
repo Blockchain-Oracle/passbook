@@ -28,8 +28,16 @@
 import { useCallback, useState } from 'react'
 import type { DiscoveryResult } from '@strk20/protocol/discovery'
 import type { AppInvokeLeg, BridgeLeg, SendFailure, SendResult, SwapLeg } from '@strk20/protocol/send'
-import type { SendStage } from '@strk20/protocol/pipeline-stage'
+import { SEND_STAGES, type SendStage } from '@strk20/protocol/pipeline-stage'
 
+import { walletSubmitter } from './funding-wallet'
+import {
+  clearPipeline,
+  failPipeline,
+  getPipeline,
+  reachStage,
+  startPipeline,
+} from './pipeline-store'
 import { makeSelfSubmit } from './submit'
 
 export interface SendAsk {
@@ -113,6 +121,37 @@ export function useSend(read: DiscoveryResult | null, session: {
       setResult(null)
       setStage('build')
 
+      //
+      // THE SHELL ROW LIGHTS UP — `PipelineRow` has been mounted above the outlet since 6.5 and
+      // nothing ever called `startPipeline`, so every send ran with its narrator dark. A finished
+      // or failed pipeline clears on the next send; a genuinely LIVE one keeps the row (its
+      // transaction is still paying for itself), and this send simply narrates through the
+      // button's own stage label instead.
+      //
+      const existing = getPipeline()
+      if (existing && (existing.failedAt !== null || existing.reached.includes('confirmed'))) {
+        clearPipeline()
+      }
+      let narrating = false
+      try {
+        startPipeline({
+          label: `Sending ${ask.symbol}`,
+          stages: SEND_STAGES,
+          startedAt: Date.now(),
+          cancel: null,
+        })
+        narrating = true
+      } catch {
+        // A live pipeline holds the row. Not an error for THIS send.
+      }
+      let lastStage: SendStage = 'build'
+      const onStage = (stage: SendStage) => {
+        lastStage = stage
+        setStage(stage)
+        if (narrating) reachStage(stage)
+      }
+      if (narrating) reachStage('build')
+
       try {
         const [{ sendShielded }, { Account, RpcProvider }, { NET }] = await Promise.all([
           import('@strk20/protocol/send'),
@@ -122,6 +161,14 @@ export function useSend(read: DiscoveryResult | null, session: {
 
         const provider = new RpcProvider({ nodeUrl: NET.rpc[0]! })
         const account = new Account({ provider, address: session.address, signer: session.accountKey })
+
+        //
+        // WHO SIGNS: the connected Ready wallet when it can carry a proven submission, the
+        // embedded key otherwise. The identity never moves — viewing key and proofs derive from
+        // `accountKey` either way; the external wallet only signs and pays. `walletSubmitter`
+        // answers null for no wallet AND for one whose API would drop the proof fields.
+        //
+        const external = walletSubmitter()
 
         const outcome = await sendShielded(
           {
@@ -136,7 +183,8 @@ export function useSend(read: DiscoveryResult | null, session: {
             amount: ask.amount,
             // SELF, ALWAYS, for now. Relayer mode needs a hosted relayer holding twice the live
             // pool fee, and `fundingFloor` refuses below it — so offering it here would be an
-            // option that cannot work. The account pays its own fee instead, which it can.
+            // option that cannot work. The submitter pays its own fee instead, which it can —
+            // the embedded account, or the connected wallet when one is signing.
             mode: 'self',
             ...(ask.swap ? { swap: ask.swap } : {}),
             ...(ask.bridge ? { bridge: ask.bridge } : {}),
@@ -144,19 +192,21 @@ export function useSend(read: DiscoveryResult | null, session: {
             wallet: read.wallet,
           },
           {
-            selfSubmit: makeSelfSubmit(session.accountKey, session.address),
-            onStage: setStage,
+            selfSubmit: external ?? makeSelfSubmit(session.accountKey, session.address),
+            onStage,
           },
         )
 
         setResult(outcome)
         setStage(null)
+        if (narrating && !outcome.ok) failPipeline(lastStage)
         return outcome
       } catch (error) {
         // Everything `sendShielded` models arrives as a typed failure; this catches what it
         // cannot — a chunk that would not load, an account constructor that threw. Reported as a
         // refusal rather than swallowed, because a send that vanished silently is one the user
         // will retry into a double-spend.
+        if (narrating) failPipeline(lastStage)
         return refuse({
           kind: 'bad-input',
           reason: error instanceof Error ? error.message : 'The send could not be started.',
