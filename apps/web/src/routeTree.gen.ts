@@ -21,7 +21,9 @@ import { Route as WalletRouteImport } from './routes/wallet'
 import { Route as ActivityIdRouteImport } from './routes/activity.$id'
 import { Route as ChatIndexRouteImport } from './routes/chat.index'
 import { Route as ChatPeerRouteImport } from './routes/chat.$peer'
+import { Route as LaunchIdRouteImport } from './routes/launch_.$id'
 import { Route as PayAddressRouteImport } from './routes/pay.$address'
+import { Route as TokenAddressRouteImport } from './routes/token.$address'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -83,9 +85,19 @@ const ChatPeerRoute = ChatPeerRouteImport.update({
   path: '/$peer',
   getParentRoute: () => ChatRoute,
 } as any)
+const LaunchIdRoute = LaunchIdRouteImport.update({
+  id: '/launch_/$id',
+  path: '/launch/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const PayAddressRoute = PayAddressRouteImport.update({
   id: '/pay/$address',
   path: '/pay/$address',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TokenAddressRoute = TokenAddressRouteImport.update({
+  id: '/token/$address',
+  path: '/token/$address',
   getParentRoute: () => rootRouteImport,
 } as any)
 
@@ -101,7 +113,9 @@ export interface FileRoutesByFullPath {
   '/wallet': typeof WalletRoute
   '/activity/$id': typeof ActivityIdRoute
   '/chat/$peer': typeof ChatPeerRoute
+  '/launch/$id': typeof LaunchIdRoute
   '/pay/$address': typeof PayAddressRoute
+  '/token/$address': typeof TokenAddressRoute
   '/chat/': typeof ChatIndexRoute
 }
 export interface FileRoutesByTo {
@@ -115,7 +129,9 @@ export interface FileRoutesByTo {
   '/wallet': typeof WalletRoute
   '/activity/$id': typeof ActivityIdRoute
   '/chat/$peer': typeof ChatPeerRoute
+  '/launch/$id': typeof LaunchIdRoute
   '/pay/$address': typeof PayAddressRoute
+  '/token/$address': typeof TokenAddressRoute
   '/chat': typeof ChatIndexRoute
 }
 export interface FileRoutesById {
@@ -131,7 +147,9 @@ export interface FileRoutesById {
   '/wallet': typeof WalletRoute
   '/activity/$id': typeof ActivityIdRoute
   '/chat/$peer': typeof ChatPeerRoute
+  '/launch_/$id': typeof LaunchIdRoute
   '/pay/$address': typeof PayAddressRoute
+  '/token/$address': typeof TokenAddressRoute
   '/chat/': typeof ChatIndexRoute
 }
 export interface FileRouteTypes {
@@ -148,7 +166,9 @@ export interface FileRouteTypes {
     | '/wallet'
     | '/activity/$id'
     | '/chat/$peer'
+    | '/launch/$id'
     | '/pay/$address'
+    | '/token/$address'
     | '/chat/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -162,7 +182,9 @@ export interface FileRouteTypes {
     | '/wallet'
     | '/activity/$id'
     | '/chat/$peer'
+    | '/launch/$id'
     | '/pay/$address'
+    | '/token/$address'
     | '/chat'
   id:
     | '__root__'
@@ -177,7 +199,9 @@ export interface FileRouteTypes {
     | '/wallet'
     | '/activity/$id'
     | '/chat/$peer'
+    | '/launch_/$id'
     | '/pay/$address'
+    | '/token/$address'
     | '/chat/'
   fileRoutesById: FileRoutesById
 }
@@ -192,7 +216,9 @@ export interface RootRouteChildren {
   SwapRoute: typeof SwapRoute
   WalletRoute: typeof WalletRoute
   ActivityIdRoute: typeof ActivityIdRoute
+  LaunchIdRoute: typeof LaunchIdRoute
   PayAddressRoute: typeof PayAddressRoute
+  TokenAddressRoute: typeof TokenAddressRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -281,11 +307,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ChatPeerRouteImport
       parentRoute: typeof ChatRoute
     }
+    '/launch_/$id': {
+      id: '/launch_/$id'
+      path: '/launch/$id'
+      fullPath: '/launch/$id'
+      preLoaderRoute: typeof LaunchIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/pay/$address': {
       id: '/pay/$address'
       path: '/pay/$address'
       fullPath: '/pay/$address'
       preLoaderRoute: typeof PayAddressRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/token/$address': {
+      id: '/token/$address'
+      path: '/token/$address'
+      fullPath: '/token/$address'
+      preLoaderRoute: typeof TokenAddressRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
@@ -314,7 +354,9 @@ const rootRouteChildren: RootRouteChildren = {
   SwapRoute: SwapRoute,
   WalletRoute: WalletRoute,
   ActivityIdRoute: ActivityIdRoute,
+  LaunchIdRoute: LaunchIdRoute,
   PayAddressRoute: PayAddressRoute,
+  TokenAddressRoute: TokenAddressRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

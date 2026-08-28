@@ -1,4 +1,5 @@
-import { createFileRoute } from '@tanstack/react-router'
+import { Link, createFileRoute } from '@tanstack/react-router'
+import { useEffect, useState } from 'react'
 
 import {
   LAUNCH_BUYER_HIDDEN,
@@ -9,57 +10,163 @@ import {
   LAUNCH_STANDING_LINE,
   LAUNCH_TITLE,
 } from '@strk20/protocol/markets-copy'
+import type { OnChainLaunch } from '@strk20/protocol/app-reads'
 
-import { LaunchPanel } from '../components/LaunchPanel'
+import { ActivityTape } from '../components/launch/ActivityTape'
+import { BuyTicket } from '../components/launch/BuyPanel'
+import { CreateLaunch } from '../components/launch/CreateLaunch'
+import { LaunchCard } from '../components/launch/LaunchCard'
+import { TokenTable } from '../components/launch/TokenTable'
+import { YourPositions } from '../components/launch/YourPositions'
+import { Button } from '../components/ui/Button'
 import { Text } from '../components/ui/Text'
 import { cn } from '../lib/cn'
 import { LAUNCH_DEPLOYED } from '../shell/app-contracts'
+import { useChainFeed } from '../shell/chain-feed'
+import { useLaunches } from '../shell/use-app-reads'
 import { Surface } from '../shell/Surface'
 
+type LaunchTab = 'launches' | 'tokens' | 'activity'
+
+const TABS: ReadonlyArray<{ id: LaunchTab; label: string }> = [
+  { id: 'launches', label: 'Launches' },
+  { id: 'tokens', label: 'Tokens' },
+  { id: 'activity', label: 'Activity' },
+]
+
 export const Route = createFileRoute('/launch')({
+  // The tab travels in the URL so a view is linkable — Uniswap's tabs-are-routes intent, carried
+  // by a search param because three views of one surface are not three surfaces.
+  validateSearch: (search: Record<string, unknown>): { tab?: LaunchTab } => ({
+    tab: search.tab === 'tokens' || search.tab === 'activity' ? search.tab : undefined,
+  }),
   component: Launch,
 })
 
 //
-// LAUNCH — the surface, and the three contract facts it exists to teach.
+// LAUNCH — the launchpad, whole: what is selling, what has become a token, and what just happened.
 //
-// ── WHY THIS SHOWS RULES AND NOT A FAKE SALE ─────────────────────────────────────────────
-//
-// `launch.cairo` is written, tested and committed; it is not deployed. A card grid of invented
-// tokens with plausible progress bars would look exactly like a working product in a screenshot,
-// which is precisely why it is not here. What IS here is the mechanism — because the mechanism is
-// the differentiator, it is true before any deployment, and it is the part a reader most needs
-// explained before the first real launch appears.
-//
-// ── THE EPOCH RULE IS THE HEADLINE, AND IT CONTRADICTS EVERY OTHER LAUNCH ────────────────
-//
-// Everyone inside an epoch pays the same price, so being first inside one is worth NOTHING. Every
-// other launch mechanism a reader has met rewards racing — bots, gas auctions, sniping — so this
-// has to be said in the words that contradict that expectation rather than in the language of a
-// pricing curve, which reads as the same thing with extra steps.
+// Three tabs over one chain feed. `Launches` is the sale grid — every card the contract's real
+// state, the buy one press away. `Tokens` is the table those sales become. `Activity` is the
+// contracts' own events, live off the relayer stream, each row with its transaction. The rules
+// that used to fill this page with cards are now one quiet strip at the foot — still true, still
+// taught, no longer standing where the product goes.
 //
 function Launch() {
+  const { tab = 'launches' } = Route.useSearch()
+  const read = useLaunches()
+  const feed = useChainFeed()
+  const [buying, setBuying] = useState<OnChainLaunch | null>(null)
+  const [creating, setCreating] = useState(false)
+  const [now, setNow] = useState(() => Date.now())
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 30_000)
+    return () => window.clearInterval(timer)
+  }, [])
+
   return (
     <Surface routeId={Route.fullPath}>
       <div className="mx-auto flex w-full max-w-[1180px] flex-col gap-s16">
         <header className="flex flex-col gap-s8 border-b border-solid border-surface3 pb-s12">
           <Text variant="kicker">06 — issuance</Text>
-          <Text variant="display2" as="h1" className="text-neutral1 lg:text-display1">
-            {LAUNCH_TITLE}
-          </Text>
+          <div className="flex flex-wrap items-end justify-between gap-s12">
+            <Text variant="display2" as="h1" className="text-neutral1 lg:text-display1">
+              {LAUNCH_TITLE}
+            </Text>
+            {LAUNCH_DEPLOYED ? (
+              <Button variant="primary" size="md" onClick={() => setCreating(true)}>
+                Create a launch
+              </Button>
+            ) : null}
+          </div>
           <Text variant="body3" className="max-w-[70ch] text-neutral2">
             {LAUNCH_STANDING_LINE}
           </Text>
         </header>
 
-        {/*
-          THE SALES, LIVE. `LaunchPanel` reads the deployed contract and renders every launch in
-          its true state — selling, sold out, graduated, refunding — with the buy ticket and the
-          create form behind real submissions. The absent arm survives for a build with no
-          deployment, plainly and first, exactly as before.
-        */}
         {LAUNCH_DEPLOYED ? (
-          <LaunchPanel />
+          <>
+            <nav aria-label="Launch views" className="flex gap-s16 border-b border-solid border-surface3">
+              {TABS.map(({ id, label }) => (
+                <Link
+                  key={id}
+                  to="/launch"
+                  search={id === 'launches' ? {} : { tab: id }}
+                  className={cn(
+                    'focus-ring -mb-px border-b-2 border-solid pb-s8 no-underline transition-colors',
+                    tab === id
+                      ? 'border-accent1 text-neutral1'
+                      : 'border-transparent text-neutral3 hover:text-neutral2',
+                  )}
+                >
+                  <Text variant="subheading2" as="span">
+                    {label}
+                  </Text>
+                </Link>
+              ))}
+            </nav>
+
+            {read.problem ? (
+              <Text variant="body4" className="text-exposed" role="status">
+                {read.problem}
+              </Text>
+            ) : null}
+
+            {tab === 'launches' ? (
+              <div className="flex flex-col gap-s12">
+                {read.launches.length === 0 ? (
+                  <section className="flex flex-col gap-s8 rounded-large border border-solid border-surface3 p-s16">
+                    <Text variant="body3" className="text-neutral2">
+                      {read.loading
+                        ? 'Reading the launch contract…'
+                        : 'Nothing is selling right now. Anyone can launch a token — including you.'}
+                    </Text>
+                    <Button variant="primary" size="md" className="self-start" onClick={() => setCreating(true)}>
+                      Create a launch
+                    </Button>
+                  </section>
+                ) : (
+                  <div className="grid gap-s12 md:grid-cols-2">
+                    {read.launches.map((launch) => (
+                      <LaunchCard
+                        key={launch.id}
+                        launch={launch}
+                        now={now}
+                        onBuy={() => setBuying(launch)}
+                      />
+                    ))}
+                  </div>
+                )}
+                <YourPositions />
+              </div>
+            ) : null}
+
+            {tab === 'tokens' ? (
+              <TokenTable
+                launches={read.launches}
+                now={now}
+                emptyLine={
+                  read.loading
+                    ? 'Reading the launch contract…'
+                    : 'No tokens yet — the first launch to graduate lands here.'
+                }
+              />
+            ) : null}
+
+            {tab === 'activity' ? (
+              <ActivityTape
+                items={feed.tape}
+                markets={feed.markets}
+                launches={read.launches}
+                emptyLine={
+                  feed.stream === 'live'
+                    ? 'Quiet on-chain right now — the next buy, launch or graduation lands here as it happens.'
+                    : 'The live feed is reconnecting. Activity resumes with it; nothing is lost.'
+                }
+              />
+            ) : null}
+          </>
         ) : (
           <section className="rounded-large border border-solid border-surface3 p-s16">
             <Text variant="subheading2" as="h2">
@@ -71,102 +178,22 @@ function Launch() {
           </section>
         )}
 
-        {/*
-          The card grid the launches will fill. Rendered as the RULES today — same geometry, real
-          content — so the layout is proven against real text rather than against a placeholder
-          that turns out to be the wrong shape the day it holds a token.
-        */}
-        <div className="grid gap-s12 md:grid-cols-2 lg:grid-cols-3">
-          <RuleCard
-            title="Being early inside an epoch is worth nothing"
-            body={LAUNCH_EPOCH_FACT}
-            mark={<EpochLadder />}
-          />
-          <RuleCard title="The price is public, the buyers are not" body={LAUNCH_BUYER_HIDDEN} />
-          <RuleCard
-            title="It graduates, or it refunds"
-            body={`${LAUNCH_GRADUATION} ${LAUNCH_REFUND}`}
-          />
-        </div>
+        {/* The mechanism, kept — one quiet strip instead of three cards standing where the product goes. */}
+        <footer className="flex flex-col gap-s6 rounded-large border border-solid border-surface3 p-s16 lg:flex-row lg:gap-s16">
+          {[LAUNCH_EPOCH_FACT, LAUNCH_BUYER_HIDDEN, `${LAUNCH_GRADUATION} ${LAUNCH_REFUND}`].map(
+            (fact) => (
+              <Text key={fact.slice(0, 24)} variant="body4" className="flex-1 text-neutral3">
+                {fact}
+              </Text>
+            ),
+          )}
+        </footer>
+
+        {buying ? (
+          <BuyTicket launch={buying} open={buying !== null} onClose={() => setBuying(null)} />
+        ) : null}
+        <CreateLaunch open={creating} onClose={() => setCreating(false)} />
       </div>
     </Surface>
-  )
-}
-
-function RuleCard({
-  title,
-  body,
-  mark,
-}: {
-  title: string
-  body: string
-  mark?: React.ReactNode
-}) {
-  return (
-    <section
-      className={cn(
-        'flex flex-col gap-s8 rounded-large border border-solid border-surface3 p-s16',
-        'transition-colors duration-[var(--transition-duration-fastHeavy)] ease-glide',
-        'hover:bg-inset',
-      )}
-    >
-      {mark}
-      <Text variant="body2" className="font-medium">
-        {title}
-      </Text>
-      <Text variant="body3" className="text-neutral2">
-        {body}
-      </Text>
-    </section>
-  )
-}
-
-/**
- * The epoch ladder, drawn.
- *
- * A STAIRCASE AND NOT A CURVE, which is the entire point: a smooth line would say "the price rises
- * as people buy", which is what every bonding curve does and what makes racing pay. Flat treads
- * with hard risers say the true thing — inside a step the price does not move at all, so there is
- * nothing to win by being first into one.
- *
- * Illustrative geometry, carrying no numbers. It is a diagram of a rule, not a chart of a sale, and
- * putting axis values on it would be inventing a launch that does not exist.
- */
-function EpochLadder() {
-  const steps = [0, 1, 2, 3, 4]
-  return (
-    <svg
-      viewBox="0 0 120 48"
-      className="h-[48px] w-full text-accent1"
-      fill="none"
-      role="img"
-      aria-label="A staircase: the price is flat within each epoch and steps up between them"
-    >
-      {steps.map((i) => {
-        const x = 4 + i * 23
-        const y = 40 - i * 8
-        return (
-          <g key={i}>
-            {/* The tread — flat, and it is the part that matters. */}
-            <path
-              d={`M${x} ${y} h20`}
-              stroke="currentColor"
-              strokeWidth="2.5"
-              strokeLinecap="round"
-            />
-            {/* The riser, dashed so the eye reads the treads as the price and the jump as an event. */}
-            {i < steps.length - 1 ? (
-              <path
-                d={`M${x + 20} ${y} V${y - 8}`}
-                stroke="currentColor"
-                strokeWidth="1"
-                strokeDasharray="2 2"
-                opacity="0.5"
-              />
-            ) : null}
-          </g>
-        )
-      })}
-    </svg>
   )
 }
