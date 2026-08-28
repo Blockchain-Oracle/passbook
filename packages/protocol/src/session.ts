@@ -168,7 +168,36 @@ export {
   type StoredAccountsRead,
 } from './session-accounts.js'
 
-// 7. The copy. Byte-exact, and imported rather than retyped by whatever renders it.
+// 7. The password vault (2026-08-28) — the account list, sealed at rest.
+//
+// It sits OVER the account list rather than beside it, and that is the one relationship in this
+// barrel that is a replacement: when a vault exists, `passbook.accounts` and its `accountKey`
+// mirror are deleted, so the two entries above stop being where the keys live. `session-key.ts`'s
+// first-boot path stays correct for the browsers that never set a password, which is the default.
+export {
+  MIN_PASSWORD_LENGTH,
+  VAULT_ERROR_TEXT,
+  VAULT_VERSION,
+  clearPlaintextKeys,
+  openVault,
+  parseVault,
+  passwordStrength,
+  sealVault,
+  sealWithKey,
+  serializeVault,
+  sessionVaultStore,
+  type OpenedVault,
+  type PasswordStrength,
+  type SealedVault,
+  type VaultKey,
+  type VaultError,
+  type VaultHeader,
+  type VaultRead,
+  type VaultResult,
+  type VaultStore,
+} from './session-vault.js'
+
+// 8. The copy. Byte-exact, and imported rather than retyped by whatever renders it.
 export {
   ACCOUNT_OPEN_IN_ANOTHER_TAB,
   SESSION_STORAGE_UNAVAILABLE,

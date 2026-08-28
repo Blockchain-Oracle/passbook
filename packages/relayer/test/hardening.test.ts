@@ -66,6 +66,10 @@ function config(over: Partial<SponsorshipConfig> = {}): SponsorshipConfig {
     storePath: tempStorePath(),
     sendCaps: CAPS,
     sendStorePath: tempStorePath(),
+    // The drip's caps are present because the config type requires them; the ROUTE is still off
+    // unless a `faucet` ledger is passed to `createRelayerServer`, which is the actual switch.
+    faucetCaps: CAPS,
+    faucetStorePath: tempStorePath(),
     opsWebhook: undefined,
     salt: undefined,
     fundingIntervalMs: 0,

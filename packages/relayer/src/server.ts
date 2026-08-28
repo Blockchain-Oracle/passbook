@@ -103,6 +103,15 @@ import {
   type ProxyTargetName,
 } from './quote-proxy.js'
 import { isWireEnvelope, RoomHub, ROOM_HISTORY, ROOM_IDLE_MS } from './rooms.js'
+import {
+  DRIP_ALREADY_CLAIMED,
+  DRIP_BAD_ADDRESS,
+  DRIP_BUDGET_SPENT,
+  DRIP_WEI,
+  dripCall,
+  isDrippableAddress,
+} from './faucet.js'
+import { asAddress, toFeltHex } from '../../protocol/src/address.js'
 
 // R10 names `POST /submit`; the browser posts to the same-origin `/api/submit`, which
 // a dev-server proxy or edge rule normally rewrites. Accepting both means the two
@@ -143,6 +152,12 @@ const DIRECTORY_AVATAR_PATHS = new Set(['/directory/avatar', '/api/directory/ava
 // what separates a cross-origin page from this port, and not `x-relayer-auth`, which is the only
 // control that survives a proxy. A page on any origin could open an EventSource against a room id
 // it guessed; it cannot open this. The client reads the stream with `fetch` and a reader instead.
+//
+// The starter drip. One path pair, same shape as everything above, and it is 404 on a relayer
+// with no faucet ledger — for the invite routes' reason: this deployment does not hand out STRK
+// at all, so there is nothing for a client to retry.
+//
+const FAUCET_PATHS = new Set(['/faucet', '/api/faucet'])
 const ROOM_STREAM_PATHS = new Set(['/room/stream', '/api/room/stream'])
 const ROOM_SEND_PATHS = new Set(['/room/send', '/api/room/send'])
 
@@ -284,9 +299,14 @@ async function handle(req: IncomingMessage, res: ServerResponse, opts: RelayerSe
   const isDirectory =
     opts.directory !== undefined &&
     (DIRECTORY_CLAIM_PATHS.has(url) || DIRECTORY_LIST_PATHS.has(url) || DIRECTORY_AVATAR_PATHS.has(url))
+  // And again for the drip. NO LEDGER, NO ROUTE — and here that rule is doing more work than
+  // elsewhere: the ledger is the only thing bounding how much of the relayer's wallet this route
+  // can give away, so a faucet that ran without one would be an unmetered transfer endpoint.
+  const isFaucet = opts.faucet !== undefined && FAUCET_PATHS.has(url)
   if (
     !isFeeRecipient &&
-    (req.method !== 'POST' || !(isSubmit || isInvite || isRoom || isDirectory || QUOTE_PATHS.has(url)))
+    (req.method !== 'POST' ||
+      !(isSubmit || isInvite || isRoom || isDirectory || isFaucet || QUOTE_PATHS.has(url)))
   ) {
     send(res, 404, { error: 'not found' })
     return
@@ -349,6 +369,14 @@ async function handle(req: IncomingMessage, res: ServerResponse, opts: RelayerSe
   // fetch proxy for whoever finds the port.
   if (isDirectory) {
     await handleDirectory(req, res, url, opts)
+    return
+  }
+  // BEHIND ALL FOUR GATES, and of everything dispatched here this is the one that most obviously
+  // spends money — so it is worth saying plainly that the gates are not what bounds it. They stop
+  // a web page from reaching the route; the caps in `handleFaucet` are what stop a caller who
+  // reaches it legitimately from draining the wallet.
+  if (isFaucet) {
+    await handleFaucet(req, res, opts)
     return
   }
   // BEHIND ALL FOUR GATES, like everything else, and the reason is not that chat spends money —
@@ -734,6 +762,122 @@ async function handleRoomStream(
     clearInterval(heartbeat)
     for (const attached of attachments) attached.unsubscribe()
   })
+}
+
+/**
+ * `POST /api/faucet` — the starter drip.
+ *
+ * ── THE REQUEST CONTRIBUTES ONE VALUE, AND IT IS NORMALISED BEFORE IT IS USED ─────────────
+ *
+ * `faucet.ts`'s header has the argument for why this is a dedicated route rather than an
+ * allowlist entry; what this function adds is the metering. The body is read for exactly one
+ * field, `address`, and everything else in the transaction — the token, the entrypoint, the
+ * amount — comes from constants in that module. There is no shape of body that widens this.
+ *
+ * ── THE THREE CAPS, AND THE ORDER THEY RUN IN ─────────────────────────────────────────────
+ *
+ * Cheapest and most specific first, because each one that fires saves the next from running:
+ *
+ *   1. The address parses and is not zero. Free, and catches the one failure that would burn
+ *      real STRK while answering 200.
+ *   2. The per-address claim, burned atomically. This is the honest limit — a starter amount is
+ *      for starting.
+ *   3. The visitor and daily budgets, through the same ledger machinery every other gate here
+ *      uses. The daily one is the solvency floor.
+ *
+ * ── AND THE CLAIM IS BURNED BEFORE THE TRANSFER IS SENT ───────────────────────────────────
+ *
+ * `handleSubmit` makes the same call for the same reason, written out at its budget gate: burning
+ * afterwards leaves the entire await window open for concurrent requests to pass the same check,
+ * which is how a cap of one pays out ten. The cost is that a transfer failing at the sequencer
+ * still spends the address's one claim. That is the direction to be wrong in — the failure is a
+ * user who funds from elsewhere, rather than an operator whose wallet is empty.
+ */
+async function handleFaucet(req: IncomingMessage, res: ServerResponse, opts: RelayerServerOptions) {
+  const faucet = opts.faucet
+  // Unreachable — `handle` only dispatches here when the ledger is present — but the type allows
+  // it, and an unmetered drip is not something to reach by way of a `!`.
+  if (!faucet) {
+    send(res, 404, { error: 'not found' })
+    return
+  }
+
+  if (opts.relayerState?.() === 'relayer-down') {
+    // The ordinary relayer-down state, never a distinct "we are out of STRK" string — FR-053's
+    // rule, and it applies here more than anywhere: our balance is not the caller's business.
+    send(res, 503, { error: DRIP_BUDGET_SPENT })
+    return
+  }
+
+  let parsed: unknown
+  try {
+    parsed = await readJsonBody(req)
+  } catch (e) {
+    send(res, 400, { error: String(e) })
+    return
+  }
+  if (!parsed || typeof parsed !== 'object') {
+    send(res, 400, { error: 'body must be a JSON object' })
+    return
+  }
+
+  const address = (parsed as { address?: unknown }).address
+  if (!isDrippableAddress(address)) {
+    send(res, 400, { error: DRIP_BAD_ADDRESS })
+    return
+  }
+
+  const now = (opts.now ?? Date.now)()
+
+  //
+  // THE ADDRESS IS THE CLAIM KEY, NORMALISED FIRST.
+  //
+  // `tryClaim` is a string-set membership test, so `0x123` and `0x0123` would be two different
+  // claims on one account — two drips, for free, by adding a zero. Normalising through the same
+  // felt round trip the calldata uses is what makes "once per address" mean once per ACCOUNT.
+  //
+  const claimKey = `drip:${toFeltHex(asAddress(address))}`
+  let firstClaim: boolean
+  try {
+    firstClaim = faucet.tryClaim(claimKey)
+  } catch (e) {
+    // The ledger write failed. Refusing is the only safe answer: an unrecordable claim is one
+    // that would be claimable again on the next request.
+    console.warn(`relayer: faucet ledger write failed: ${String(e)}`)
+    send(res, 500, { error: 'the faucet ledger could not be written; refusing to send' })
+    return
+  }
+  if (!firstClaim) {
+    send(res, 429, { error: DRIP_ALREADY_CLAIMED })
+    return
+  }
+
+  let decision: SponsorDecision
+  try {
+    decision = faucet.spend(visitorId(clientIp(req), faucet.salt, now), now)
+  } catch (e) {
+    console.warn(`relayer: faucet budget write failed: ${String(e)}`)
+    send(res, 500, { error: 'the faucet ledger could not be written; refusing to send' })
+    return
+  }
+  if (!decision.allow) {
+    // WHICH cap bound goes to ops and not to the caller — `handleSubmit`'s rule: "the global
+    // budget is gone" tells a stranger what everyone else has been doing today.
+    console.warn(`relayer: faucet refused (${decision.reason})`)
+    send(res, 429, { error: decision.notice })
+    return
+  }
+
+  try {
+    const txHash = await opts.submit([dripCall(address)])
+    console.log(`relayer: dripped ${DRIP_WEI} wei to ${address} — ${txHash}`)
+    send(res, 200, { txHash, amountWei: DRIP_WEI.toString() })
+  } catch (e) {
+    // The claim and the budget unit are already spent, deliberately — see the header. What the
+    // caller gets is the honest outcome: nothing arrived, and this is not retryable here.
+    console.warn(`relayer: faucet transfer failed: ${String(e)}`)
+    send(res, 503, { error: 'the starter transfer could not be sent. Fund this account from any Starknet wallet.' })
+  }
 }
 
 /**
@@ -1433,6 +1577,23 @@ export interface RelayerServerOptions {
    * worth surviving a restart, and everything it holds is ciphertext it cannot read.
    */
   rooms?: RoomHub
+  /**
+   * The durable ledger behind the starter drip (`faucet.ts`). Absent means `/api/faucet` is 404.
+   *
+   * A FOURTH `SponsorshipLedger`, and the fourth separate FILE, for the reason the send budget
+   * got its own: these three meters bound different things and must not spend each other. A busy
+   * day of drips must not exhaust the free registrations — which would break account creation for
+   * everybody, to give strangers STRK.
+   *
+   * It also uses `tryClaim` for something that is not an invite code: the claim set holds
+   * `drip:<felt>` keys, one per funded address, so "once per address, ever" survives a restart.
+   * The mechanism is a one-shot atomic burn either way, which is exactly what both uses need.
+   *
+   * ABSENT IS THE SAFE DEFAULT AND THE ROUTE IS GATED ON IT. This ledger is the only thing
+   * bounding how much of the wallet the drip can give away, so there is no configuration in which
+   * the route runs without one.
+   */
+  faucet?: SponsorshipLedger
 }
 
 export function createRelayerServer(options: RelayerServerOptions): Server {
@@ -1577,6 +1738,15 @@ export interface SponsorshipConfig {
   /** The cap on plain, self-reimbursing submissions. Its own numbers and its own ledger file. */
   sendCaps: BudgetCaps
   sendStorePath: string
+  /**
+   * The cap on the starter drip. Its own numbers and its own ledger file, for `sendStorePath`'s
+   * reason — but read `faucet.ts` before changing either: this is the ONLY bound on how much of
+   * the relayer's wallet the drip can give away in a day, and unlike the other two it is not
+   * measured in fees. `daily` × `DRIP_WEI` is a literal amount of STRK an operator is choosing
+   * to hand out.
+   */
+  faucetCaps: BudgetCaps
+  faucetStorePath: string
   /** Where a funding page goes. Unset means it goes to the log, under a greppable name. */
   opsWebhook: string | undefined
   /** Overrides the salt the store minted. Unset is the normal case and the better one. */
@@ -1787,6 +1957,20 @@ export function resolveSponsorshipCaps(env: NodeJS.ProcessEnv = process.env): Sp
     sendStorePath:
       env.RELAYER_SEND_STORE ||
       fileURLToPath(new URL('../../../.relayer/send-budget.json', import.meta.url)),
+    // ONE PER VISITOR PER DAY, and the per-address claim behind it is once EVER — so this number
+    // is the anti-rotation limit rather than the honest-user limit. `daily` defaults to 50, which
+    // at `DRIP_WEI` of 1 STRK is 50 STRK a day: the number to change if that is the wrong amount
+    // of money to be prepared to lose in twenty-four hours, because it is exactly that.
+    faucetCaps: {
+      perVisitor: positiveInt(env, 'RELAYER_FAUCET_PER_VISITOR', 1),
+      daily: positiveInt(env, 'RELAYER_FAUCET_DAILY', 50),
+    },
+    // A THIRD FILE, on `sendStorePath`'s argument and with more force: this ledger's claim set is
+    // the once-per-address record, and folding it into another file would mean an operator
+    // clearing a stuck send counter re-opens the drip for every address ever funded.
+    faucetStorePath:
+      env.RELAYER_FAUCET_STORE ||
+      fileURLToPath(new URL('../../../.relayer/faucet.json', import.meta.url)),
     opsWebhook: env.RELAYER_OPS_WEBHOOK || undefined,
     salt: resolveVisitorSalt(env),
     // Non-negative, unlike the caps: 0 is a meaningful setting here (poll never, keep the
@@ -1896,6 +2080,19 @@ export function openSendBudgetLedger(
   const record = store.load()
   if (record.salt !== salt) store.save({ ...record, salt })
   return new SponsorshipLedger(config.sendCaps, store, Date.now(), SEND_CAP_NOTICE)
+}
+
+/**
+ * Opens the starter drip's ledger — same machinery, third file, its own notice.
+ *
+ * The salt is shared with the other two for `openSendBudgetLedger`'s reason: one visitor, one
+ * opaque id, so an operator reading a day can read all three counters against each other.
+ */
+export function openFaucetLedger(config: SponsorshipConfig, salt: string): SponsorshipLedger {
+  const store = new FileSponsorshipStore(config.faucetStorePath)
+  const record = store.load()
+  if (record.salt !== salt) store.save({ ...record, salt })
+  return new SponsorshipLedger(config.faucetCaps, store, Date.now(), DRIP_BUDGET_SPENT)
 }
 
 /**
@@ -2009,6 +2206,15 @@ async function main(): Promise<void> {
   const sponsorConfig = resolveSponsorshipCaps()
   const sponsorship = openSponsorshipLedger(sponsorConfig)
   const sendBudget = openSendBudgetLedger(sponsorConfig, sponsorship.salt)
+  //
+  // OFF BY DEFAULT, and this is the one ledger that is. The other two meter fees the relayer was
+  // always going to pay; this one gives away principal, on mainnet, to anyone who asks. An
+  // operator turns it on deliberately — `RELAYER_FAUCET=on` — so a fresh deployment of this
+  // repository cannot start handing out its wallet because somebody forgot to configure a cap.
+  //
+  const faucet = process.env.RELAYER_FAUCET === 'on'
+    ? openFaucetLedger(sponsorConfig, sponsorship.salt)
+    : undefined
   const invites = openInviteLedger(sponsorConfig, sponsorship.salt)
 
   const nodeUrl = await pickLiveRpcHost()
@@ -2087,6 +2293,7 @@ async function main(): Promise<void> {
     relayerState: () => monitor.userState(),
     rooms,
     directory,
+    faucet,
   })
 
   // ── The settlement keeper ───────────────────────────────────────────────────────────────

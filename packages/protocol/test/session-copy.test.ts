@@ -113,6 +113,7 @@ describe('the stored names are a compatibility contract, not an implementation d
       'passbook.invite-intents',
       'passbook.accounts',
       'passbook.position-secrets',
+      'passbook.vault',
     ])
   })
 })

@@ -4,6 +4,8 @@ import { useCallback, useMemo, useState, useSyncExternalStore } from 'react'
 import { parseAmountInput, toPlainText } from '@strk20/protocol/amount'
 import { meterFor } from '@strk20/protocol/linkability'
 import { maxSeverity } from '@strk20/protocol/privacy'
+import { SELF_LINK_SEVERITY, selfLinkAgainst } from '@strk20/protocol/self-link'
+import { SELF_LINK_SENTENCE } from '@strk20/protocol/linkability-copy'
 import type { TokenInfo } from '@strk20/protocol/token-list'
 import { voyagerTxUrl } from '@strk20/protocol/transaction'
 
@@ -19,6 +21,7 @@ import { currentBlocker, getHealth, subscribeHealth } from '../shell/pool-health
 import { useBalance } from '../shell/use-balance'
 import { useCrowd } from '../shell/use-crowd'
 import { maybeAddress, toFeltHex } from '@strk20/protocol/address'
+import { useFundingWallet } from '../shell/funding-wallet'
 import { useRecipient } from '../shell/use-recipient'
 import { useSend } from '../shell/use-send'
 import { useSession, shortenFelt } from '../shell/session'
@@ -175,9 +178,31 @@ function Send() {
     [crowd, parsed.wei, token],
   )
 
-  const meterSeverity = maxSeverity(
-    meter.state === 'measured' && meter.severity !== null ? [meter.severity] : [],
+  //
+  // ── THE SELF-LINK CHECK, LIVE AT LAST ────────────────────────────────────────────────────
+  //
+  // `self-link.ts` shipped with its detector permanently in `no-known-addresses`, because there
+  // was no funding wallet in the app to know an address of. There is one now, so the third state
+  // it was written for is reachable: sending to the wallet you funded FROM republishes exactly the
+  // link the pool was used to break, and it cannot be undone afterwards.
+  //
+  // `high`, never `blocked` — `SELF_LINK_SEVERITY` is explicit that the action is always allowed.
+  // The product's claim is informed consent, not a wall.
+  //
+  // The known set is the connected wallet's address and nothing else. It is deliberately NOT
+  // seeded from deposit counterparties: a `Deposit` event proves an address belongs to whoever
+  // deposited, not that the depositor is us — the module's header makes that argument in full.
+  //
+  const fundingWallet = useFundingWallet()
+  const selfLink = useMemo(
+    () => selfLinkAgainst(recipient, fundingWallet ? [fundingWallet.address] : []),
+    [recipient, fundingWallet],
   )
+
+  const meterSeverity = maxSeverity([
+    ...(meter.state === 'measured' && meter.severity !== null ? [meter.severity] : []),
+    ...(selfLink.state === 'self-link' ? [SELF_LINK_SEVERITY] : []),
+  ])
 
   //
   // THE SPEED-BUMP CHAIN. One bump, and its id carries the AMOUNT.
@@ -347,6 +372,20 @@ function Send() {
 
         {/* The crowd as a line on the form, and as the full drawing at the moment of action. */}
         <LinkabilityMeter meter={meter} variant="row" />
+
+        {/*
+          THE SELF-LINK SENTENCE, AND NOTHING FOR THE OTHER TWO STATES.
+
+          `no-known-addresses` and `no-match` both render NOTHING — not a reassurance, not a green
+          tick. `self-link.ts`'s header is explicit about why: with no connected wallet there is no
+          known-address set, so "no match" would mean "we checked and you are fine" when nothing was
+          checked at all. Silence is the only honest output of a check that did not happen.
+        */}
+        {selfLink.state === 'self-link' ? (
+          <Text variant="body4" className="text-irreversible" role="alert">
+            {SELF_LINK_SENTENCE}
+          </Text>
+        ) : null}
 
         <BlockedButton
           blocker={reviewBlocker}

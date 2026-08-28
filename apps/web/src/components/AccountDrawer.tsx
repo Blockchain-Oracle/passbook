@@ -39,7 +39,10 @@ import {
   IMPORT_TITLE,
   LOCKED_BODY,
   LOCKED_HEADLINE,
+  LOCKED_BODY_SEALED,
   LOCK_WHAT_IT_DOES,
+  LOCK_WHAT_IT_DOES_SEALED,
+  UNLOCK_PASSWORD_LABEL,
   UNLOCK_ACTION,
 } from '@strk20/protocol/account-copy'
 
@@ -50,6 +53,7 @@ import {
   createAccount,
   importAccount,
   lockSession,
+  usePasswordSet,
   shortenFelt,
   switchAccount,
   unlockSession,
@@ -58,6 +62,7 @@ import {
 } from '../shell/session'
 import { BackupCeremony } from './BackupCeremony'
 import { IdentityDisc } from './IdentityDisc'
+import { PasswordField } from './PasswordField'
 import { Button } from './ui/Button'
 import { Text } from './ui/Text'
 
@@ -164,7 +169,12 @@ function DrawerBody(props: BodyProps) {
         props.view === 'import' ? (
           <ImportPanelStandalone onDone={() => props.onView('main')} />
         ) : (
-          <LockedPanel problem={session.problem} accounts={session.accounts} onView={props.onView} />
+          <LockedPanel
+            problem={session.problem}
+            accounts={session.accounts}
+            sealed={session.sealed}
+            onView={props.onView}
+          />
         )
       ) : props.view === 'import' ? (
         <ImportPanel
@@ -214,6 +224,9 @@ function MainPanel({
 }) {
   const [busy, setBusy] = useState<string | null>(null)
   const others = accounts.filter((account) => account.address !== address)
+  // `null` while the storage tier is still answering. Treated as unsealed below, which selects the
+  // WEAKER claim — never an overclaim, which is the only direction that matters here.
+  const passwordSet = usePasswordSet() === true
 
   return (
     <>
@@ -306,8 +319,13 @@ function MainPanel({
         {EXPORT_ROW_LABEL}
       </VerbButton>
 
+      {/*
+        The two lock sentences are genuinely different claims and the surface must pick the true
+        one — see `account-copy.ts`. `usePasswordSet` answers from storage rather than from session
+        state, because a password can be set from Settings while this drawer is mounted.
+      */}
       <Text variant="body4" className="text-neutral3">
-        {LOCK_WHAT_IT_DOES}
+        {passwordSet ? LOCK_WHAT_IT_DOES_SEALED : LOCK_WHAT_IT_DOES}
       </Text>
     </>
   )
@@ -382,13 +400,30 @@ function ActiveAccount({ address, label }: { address: string; label: string | nu
 function LockedPanel({
   problem,
   accounts,
+  sealed,
   onView,
 }: {
   problem: string | null
   accounts: readonly AccountSummary[]
+  /** True when a password is required. Chooses the copy AND whether there is a field at all. */
+  sealed: boolean
   onView: (view: View) => void
 }) {
   const [busy, setBusy] = useState(false)
+  const [password, setPassword] = useState('')
+
+  // Kept identical to `wallet.tsx`'s handler on purpose: two doors into the same lock, and a user
+  // who unlocks from the drawer must not get different behaviour from one who unlocks from the
+  // surface. Cleared on success only — see that file for why a wrong password keeps the text.
+  const unlock = () => {
+    if (busy || (sealed && password === '')) return
+    setBusy(true)
+    void unlockSession(sealed ? password : undefined).then((result) => {
+      setBusy(false)
+      if (result.ok) setPassword('')
+      else toast({ kind: 'error', title: 'Could not unlock', detail: result.because })
+    })
+  }
 
   return (
     <>
@@ -396,8 +431,20 @@ function LockedPanel({
         {LOCKED_HEADLINE}
       </Text>
       <Text variant="body3" className="text-neutral2">
-        {LOCKED_BODY}
+        {sealed ? LOCKED_BODY_SEALED : LOCKED_BODY}
       </Text>
+      {/* No field on an unsealed browser: there would be no secret to check it against. */}
+      {sealed ? (
+        <PasswordField
+          label={UNLOCK_PASSWORD_LABEL}
+          value={password}
+          onChange={setPassword}
+          onSubmit={unlock}
+          autoComplete="current-password"
+          autoFocus
+          disabled={busy}
+        />
+      ) : null}
       {problem ? (
         <Text variant="body3" className="text-irreversible" role="alert">
           {problem}
@@ -407,14 +454,8 @@ function LockedPanel({
         variant="primary"
         size="md"
         fill
-        disabled={busy}
-        onClick={() => {
-          setBusy(true)
-          void unlockSession().then((result) => {
-            setBusy(false)
-            if (!result.ok) toast({ kind: 'error', title: 'Could not unlock', detail: result.because })
-          })
-        }}
+        disabled={busy || (sealed && password === '')}
+        onClick={unlock}
       >
         {busy ? 'Unlocking…' : UNLOCK_ACTION}
       </Button>

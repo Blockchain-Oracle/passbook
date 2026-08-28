@@ -20,6 +20,18 @@
 // repository fails builds over: it would tell someone that closing a tab protects them from a
 // malicious extension, which is false, and they would act on the difference.
 //
+// ── AND SINCE 2026-08-28 THERE ARE TWO LOCKS, WITH TWO SETS OF SENTENCES ─────────────────
+//
+// The paragraph above is still true of a browser with NO password, which is the default and which
+// `LOCK_WHAT_IT_DOES` describes. A browser WITH one is a different fact: `session-vault.ts` seals
+// the record and deletes the plaintext, so there is no key in storage left to read. Saying "screen
+// lock, not encryption" there would be an UNDERCLAIM — it would talk somebody out of a protection
+// they actually have, which is its own kind of dishonesty.
+//
+// So both sets exist and the surface picks by `sealed`. What neither set may ever do is describe
+// the other's situation, which is why they are separate constants rather than one string with a
+// conditional clause spliced into the middle.
+//
 // ── AND THE TWO IMPORT FAILURES ARE NOT ONE FAILURE ──────────────────────────────────────
 //
 // zk-freighter's unlock path (its `App.tsx:107` and `:132`) distinguishes "this secret did not
@@ -45,6 +57,82 @@ export const LOCKED_BODY =
 
 /** The unlock control. */
 export const UNLOCK_ACTION = 'Unlock'
+
+// ── Locking, with a password ──────────────────────────────────────────────────────────────
+
+/**
+ * What Lock does once a password is set. The counterpart to `LOCK_WHAT_IT_DOES`.
+ *
+ * It is allowed to say "encrypted" and the other one is not, because here it is true: the
+ * plaintext record and its `accountKey` mirror are DELETED when the password is set, so what a
+ * malicious extension finds in this browser's storage is AES-GCM ciphertext. The claim is scoped
+ * to storage on purpose — it says nothing about an unlocked page, where the key is in memory and
+ * a compromised origin takes it exactly as before.
+ */
+export const LOCK_WHAT_IT_DOES_SEALED =
+  'Locking drops the key out of this page. Your accounts stay in this browser encrypted with your ' +
+  'password, and nothing can read them without it — not this app, not an extension.'
+
+/** The sealed lock screen's body. Says what is needed and what was not lost. */
+export const LOCKED_BODY_SEALED =
+  'Nothing was deleted and nothing moved. Enter your password to open this wallet again.'
+
+/** The password field's label on the lock screen. */
+export const UNLOCK_PASSWORD_LABEL = 'Password'
+
+/**
+ * The way back in when the password is gone.
+ *
+ * SHOWN ON THE LOCK SCREEN, not hidden behind a "trouble signing in?" link, because this is the
+ * sentence that makes the whole password feature safe to ship. `session-key.ts` refused a password
+ * on the grounds that it would be a second secret to lose; the answer is that it is not, and a user
+ * staring at a field they cannot fill needs to be told that here rather than deducing it.
+ */
+export const UNLOCK_FORGOT_PASSWORD =
+  'Forgotten it? Your Recovery File and Recovery Code still open this account on any device. The ' +
+  'password only protects this browser.'
+
+// ── Setting a password ────────────────────────────────────────────────────────────────────
+
+/** The Settings card's title. */
+export const PASSWORD_TITLE = 'Password'
+
+/** What setting a password buys, said without overclaiming what it does for an OPEN page. */
+export const PASSWORD_BODY =
+  'Encrypt this browser’s accounts so they can only be opened with a password. Without one, the ' +
+  'key sits in this browser’s storage in the clear.'
+
+/**
+ * The thing a user must understand BEFORE they set it, and the reason it is not a warning.
+ *
+ * A password that cannot be reset is normally a red banner. Here it genuinely is not the end of
+ * the road — the Recovery File predates the password and outlives it — so the copy states the
+ * consequence plainly and points at the way out rather than trying to frighten anybody into
+ * remembering.
+ */
+export const PASSWORD_NO_RESET =
+  'There is no reset. If you forget it, open this account again with your Recovery File and ' +
+  'Recovery Code, then set a new password.'
+
+/** The set control. */
+export const PASSWORD_SET_ACTION = 'Set password'
+
+/** The remove control. */
+export const PASSWORD_REMOVE_ACTION = 'Remove password'
+
+/**
+ * Why removing a password asks for it again.
+ *
+ * The session is already unlocked, so this looks like theatre until the threat is named: the
+ * person this stops is somebody at a screen its owner walked away from. Every other control in
+ * Settings is reversible; this one is the one that hands over the key.
+ */
+export const PASSWORD_REMOVE_CONFIRM =
+  'Enter your password to remove it. This puts the key back into this browser’s storage in the ' +
+  'clear.'
+
+/** The mismatch, said before the button is pressed rather than after. */
+export const PASSWORD_MISMATCH = 'The two passwords do not match.'
 
 /**
  * The lock happened in this page and could not be written down.

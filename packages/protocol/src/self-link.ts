@@ -11,12 +11,16 @@
 // empty, because "no match" then reads as "we checked and you are fine". We did not check. There
 // was nothing to check against.
 //
-// This is not a hypothetical branch: it is the app's CURRENT and ONLY state. There is no funding
-// wallet accessor anywhere in the repository (`wallet-capability.ts` is version arithmetic and has
-// no production consumer), `markOwnAddress` has zero production callers, and the only stored
-// address in the codebase is `identity.ts`'s optional, backup-scoped `receiveAddress`. So the
-// detector ships permanently in `no-known-addresses` until a funding rail exists, and the surface
-// renders NOTHING for that state — not a reassurance, not a green tick.
+// It was, until 2026-08-28, the app's ONLY state: there was no funding wallet accessor anywhere in
+// the repository, so the detector shipped permanently in `no-known-addresses`. That paragraph is
+// kept in the past tense rather than deleted, because the state it describes is still the common
+// one — most sessions never connect a wallet — and the rule it justifies has not moved.
+//
+// The rail exists now (`apps/web/src/shell/funding-wallet.ts`), and `routes/send.tsx` feeds this
+// the connected wallet's address. What has NOT changed: the surface renders NOTHING for
+// `no-known-addresses` and nothing for `no-match` — not a reassurance, not a green tick. A visitor
+// with no wallet connected is a visitor whose destination nobody checked, and saying "no match"
+// there would be a claim about a comparison that never ran.
 //
 // ── WHY DEPOSIT COUNTERPARTIES CANNOT BOOTSTRAP THE SET ───────────────────────────────────
 //

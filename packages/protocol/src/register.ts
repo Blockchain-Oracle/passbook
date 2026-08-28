@@ -27,7 +27,7 @@ import { deriveViewingKey } from './identity.js'
 import { CLIENT_ACTION } from './message-book.js'
 import { approveCeiling } from './fee-ceiling.js'
 import { readPoolConstants, type PoolConstants } from './pool.js'
-import { normalizeInviteCode, type SubmitBody, type SubmitResponseBody } from './relayer-wire.js'
+import { normalizeInviteCode, RELAYER_PATHS, type SubmitBody, type SubmitResponseBody } from './relayer-wire.js'
 import { withFallback } from './rpc.js'
 import { mapRegistrationError, preflightRegistration, type PreflightRoute } from './registration.js'
 import type { RegistrationStage } from './pipeline-stage.js'
@@ -454,8 +454,14 @@ function isPreSendFailure(e: unknown): boolean {
   return code === 'ECONNREFUSED' || code === 'ENOTFOUND' || code === 'EAI_AGAIN'
 }
 
-/** The relayer endpoint. Relative: the browser resolves it against the app's own origin. */
-export const DEFAULT_RELAYER_URL = '/api/submit'
+/**
+ * The relayer endpoint. Relative: the browser resolves it against the app's own origin.
+ *
+ * The literal moved to `relayer-wire.ts`, which is a runtime leaf, so a caller that needs a URL
+ * and no cryptography can import one without pulling this module's graph into its chunk. The name
+ * stays here because every existing caller uses it.
+ */
+export const DEFAULT_RELAYER_URL = RELAYER_PATHS.submit
 
 /**
  * How long to wait on the relayer before giving up.

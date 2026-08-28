@@ -28,6 +28,7 @@ import type { PaletteCommand } from '../shell/CommandPalette'
 import { PipelineRow } from '../shell/PipelineRow'
 import { getHealth, setHealth, subscribeHealth, watchConnectivity } from '../shell/pool-health'
 import { AccountChip } from '../components/AccountChip'
+import { BrandIntro } from '../components/onboarding/BrandIntro'
 import { UnreadBadge } from '../components/ConversationList'
 import { useTotalUnread } from '../shell/chat-bus'
 import { DegradedStrip } from '../components/DegradedStrip'
@@ -330,6 +331,24 @@ function RootLayout() {
       ) : null}
 
       <ToastViewport />
+
+      {/*
+        THE COLD OPEN, MOUNTED LAST AND MOUNTED EAGERLY.
+
+        Last in document order for the same paint-order reason the mobile bar is: it must cover the
+        header, and this is the shell's own stacking discipline rather than a z-index race.
+
+        EAGER, not lazy, and that is the opposite of the call made for the palette and the shortcuts
+        overlay. Those are chrome most sessions never open, so their parse cost is worth deferring.
+        This one runs on the FIRST frame of the FIRST visit — a lazy boundary would put a network
+        round-trip in front of the thing whose entire job is to be instant, and would guarantee the
+        black stage arrived after the shell had already painted behind it. It is ~2 kB of markup and
+        a `new Audio()`; the mp3 itself is fetched by the browser, not bundled.
+
+        It renders `null` for everybody who has seen it, decided in the state initialiser rather
+        than in an effect, so the returning-user cost is one function call.
+      */}
+      <BrandIntro />
     </>
   )
 }

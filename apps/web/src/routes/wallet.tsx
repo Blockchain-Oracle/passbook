@@ -2,19 +2,27 @@ import { createFileRoute, Link } from '@tanstack/react-router'
 import { Suspense, lazy, useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import type { BookState, ShieldedBalance, TokenBalance } from '@strk20/protocol/balances'
 import { toPlainText } from '@strk20/protocol/amount'
+import { STRK_TOKEN } from '@strk20/protocol/constants'
+import { KNOWN_TOKEN_DECIMALS } from '@strk20/protocol/token-scale'
 import {
   LOCKED_BODY,
+  LOCKED_BODY_SEALED,
   LOCKED_HEADLINE,
   LOCK_WHAT_IT_DOES,
+  LOCK_WHAT_IT_DOES_SEALED,
   UNLOCK_ACTION,
+  UNLOCK_FORGOT_PASSWORD,
+  UNLOCK_PASSWORD_LABEL,
 } from '@strk20/protocol/account-copy'
 
 import { AccountLadder } from '../components/AccountLadder'
 import { Icon } from '../components/icons'
+import { ConnectWallet } from '../components/ConnectWallet'
 import { ConversionPanel } from '../components/onboarding/ConversionPanel'
 import { BackupCeremony } from '../components/BackupCeremony'
 import { ActivityFeed } from '../components/ActivityFeed'
 import { IdentityDisc } from '../components/IdentityDisc'
+import { PasswordField } from '../components/PasswordField'
 import { TokenLogo } from '../components/TokenLogo'
 import { Button } from '../components/ui/Button'
 import { Skeleton, SkeletonBox } from '../components/ui/Skeleton'
@@ -24,6 +32,7 @@ import { ResponsiveDialog } from '../shell/ResponsiveDialog'
 import { readAccountStatus, type AccountStatus } from '../shell/account-status'
 import { deployAccount } from '../shell/submit'
 import { registerAccount } from '../shell/register'
+import { requestDrip } from '../shell/faucet'
 import type { RegistrationStage } from '@strk20/protocol/pipeline-stage'
 import { useBalance } from '../shell/use-balance'
 import { useActivity } from '../shell/use-activity'
@@ -114,6 +123,7 @@ function Wallet() {
           label={session.label}
           problem={session.problem}
           accounts={session.accounts.length}
+          sealed={session.sealed}
         />
       </Surface>
     )
@@ -223,6 +233,33 @@ function WalletAccount({ session }: { session: Extract<SessionState, { status: '
     pendingClaim.current = { name: '', claimPublicly: false }
   }, [session.accountKey, session.address, session.viewingKey, backedUp])
 
+  //
+  // The starter STRK, asked for once the account is registered.
+  //
+  // ── IT RE-READS THE LADDER AFTERWARDS, AND THAT IS THE POINT ─────────────────────────────
+  //
+  // A drip that lands moves this account off the `needs-funding` rung, and the ladder reports what
+  // it READS rather than what it hopes — so without the nudge the surface behind the panel would
+  // still be telling a now-funded account to go and find some STRK. The re-read is skipped on a
+  // refusal because nothing changed on chain and a re-read that finds the same rung is a wasted
+  // round trip on a screen the user is about to leave.
+  //
+  // NEVER THROWS: `requestDrip` returns its failures, and screen six renders them as prose beside
+  // a working account. A funding step is not allowed to make a finished account look broken.
+  //
+  const onFund = useCallback(async () => {
+    const result = await requestDrip(session.address)
+    if (!result.ok) return { ok: false as const, because: result.because }
+    setStatusNonce((n) => n + 1)
+    // STRK is 18 decimals, read from `KNOWN_TOKEN_DECIMALS` rather than typed as an 18 here —
+    // `token-scale.ts`'s whole point is that a wrong decimals is what destroys a displayed amount,
+    // and one literal beside a formatter is exactly where that happens.
+    return {
+      ok: true as const,
+      amount: toPlainText(BigInt(result.amountWei), KNOWN_TOKEN_DECIMALS[STRK_TOKEN] ?? 18),
+    }
+  }, [session.address])
+
   const onDeploy = useCallback(async () => {
     setDeploying(true)
     setDeployProblem(null)
@@ -283,6 +320,7 @@ function WalletAccount({ session }: { session: Extract<SessionState, { status: '
                   if (label !== '') await labelAccount(session.address, label)
                 }}
                 onRegister={onRegister}
+                onFund={onFund}
                 registered={accountStatus?.rung === 'ready'}
                 renderBackup={(onDone) => (
                   <BackupCeremony
@@ -325,6 +363,22 @@ function WalletAccount({ session }: { session: Extract<SessionState, { status: '
                 }
               />
             ) : null}
+
+            {/*
+              THE FUNDING RAIL, UNDER THE LADDER AND NEVER IN THE ONBOARDING FLOW.
+
+              Abu's ruling and the right shape: the conversion flow must not ask anybody to connect
+              anything — that is the wallet-connect interstitial the whole embedded-key design
+              exists to avoid, and it would be asking for a wallet before the account it funds even
+              exists. It belongs here, where somebody who already HAS an account is looking at a
+              rung that says they need money.
+
+              Eager rather than lazy, unlike `ReceivePanel`: the card itself is markup, and every
+              byte of SDK behind it is already deferred inside `funding-wallet.ts` until Connect is
+              pressed. A lazy boundary here would split the wrapper and leave the payload where it
+              was, which is the `INEFFECTIVE_DYNAMIC_IMPORT` the build gate names.
+            */}
+            <ConnectWallet />
           </>
         }
         feed={
@@ -422,13 +476,35 @@ function WalletLocked({
   label,
   problem,
   accounts,
+  sealed,
 }: {
   address: string
   label: string | null
   problem: string | null
   accounts: number
+  /** True when a password is required. Chooses the copy AND whether there is a field at all. */
+  sealed: boolean
 }) {
   const [busy, setBusy] = useState(false)
+  const [password, setPassword] = useState('')
+
+  //
+  // THE PASSWORD IS CLEARED ON SUCCESS ONLY, never on failure.
+  //
+  // Blanking the field after a wrong password is the reflex, and it is the wrong call: the common
+  // wrong password is a typo in a long one, and making somebody retype twenty characters because
+  // they got one wrong is a punishment for a slip. Wiping it on SUCCESS matters for a different
+  // reason — this component unmounts on unlock, but a re-render before that must not leave the
+  // string sitting in state a devtools inspection can read.
+  //
+  const unlock = () => {
+    if (busy || (sealed && password === '')) return
+    setBusy(true)
+    void unlockSession(sealed ? password : undefined).then((result) => {
+      setBusy(false)
+      if (result.ok) setPassword('')
+    })
+  }
 
   return (
     <div className="mx-auto flex w-full max-w-[480px] flex-col items-start gap-s16 py-s32">
@@ -438,7 +514,7 @@ function WalletLocked({
           {LOCKED_HEADLINE}
         </Text>
         <Text variant="body2" className="text-neutral2">
-          {LOCKED_BODY}
+          {sealed ? LOCKED_BODY_SEALED : LOCKED_BODY}
         </Text>
       </div>
 
@@ -451,6 +527,25 @@ function WalletLocked({
         </Text>
       </div>
 
+      {/*
+        THE FIELD EXISTS ONLY WHEN IT DOES SOMETHING. An unsealed browser shown a password box
+        would be asked for a secret it does not have and could not check — the exact "tells the
+        user it protected something" overclaim `account-copy.ts`'s header refuses.
+      */}
+      {sealed ? (
+        <div className="w-full">
+          <PasswordField
+            label={UNLOCK_PASSWORD_LABEL}
+            value={password}
+            onChange={setPassword}
+            onSubmit={unlock}
+            autoComplete="current-password"
+            autoFocus
+            disabled={busy}
+          />
+        </div>
+      ) : null}
+
       {problem ? (
         <Text variant="body3" className="text-irreversible" role="alert">
           {problem}
@@ -460,18 +555,31 @@ function WalletLocked({
       <Button
         variant="primary"
         size="lg"
-        disabled={busy}
-        onClick={() => {
-          setBusy(true)
-          void unlockSession().then(() => setBusy(false))
-        }}
+        fill
+        disabled={busy || (sealed && password === '')}
+        onClick={unlock}
       >
+        {/*
+          "Unlocking…" is doing real work here rather than decorating a fast call: deriving the key
+          is 600,000 PBKDF2 rounds, which is half a second on a laptop and longer on a phone. A
+          button that looked idle for that long would be pressed again.
+        */}
         {busy ? 'Unlocking…' : UNLOCK_ACTION}
       </Button>
 
       <Text variant="body4" className="max-w-[42ch] text-neutral3">
-        {LOCK_WHAT_IT_DOES}
+        {sealed ? LOCK_WHAT_IT_DOES_SEALED : LOCK_WHAT_IT_DOES}
       </Text>
+
+      {/*
+        The way back in, on the screen rather than behind a link — see `UNLOCK_FORGOT_PASSWORD`.
+        This sentence is what makes a forgotten password a detour instead of a loss.
+      */}
+      {sealed ? (
+        <Text variant="body4" className="max-w-[42ch] text-neutral3">
+          {UNLOCK_FORGOT_PASSWORD}
+        </Text>
+      ) : null}
 
       {accounts > 1 ? (
         <Text variant="body4" className="text-neutral3">
