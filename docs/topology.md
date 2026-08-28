@@ -200,6 +200,22 @@ A broadcast bus for chat rooms. It routes sealed envelopes by an opaque 128-bit 
 
 *Ships in this process rather than on a Durable Object (a deviation from AD-17, recorded on `RelayerJobName`). Because the rooms are in memory, the deployment must run exactly ONE machine: two would each hold half of every conversation and neither would know. `fly.toml` pins that with `auto_stop_machines = false` and `min_machines_running = 1`.*
 
+#### chain feed
+
+One poller for every open tab. This process reads markets, launches, oracle prices and the app contracts' own events on a timer, and fans the answers out over the same SSE-over-POST framing the chat transport proved. It signs nothing and serves only public chain state; what it adds is a bounded price history (`RELAYER_CHAIN_FEED_STORE`) that a browser could not have witnessed for itself.
+
+*Routes:* `POST /chain/stream` · `POST /api/chain/stream`
+
+| Trigger | Answer | Routes affected | Same job still serves | Other jobs unaffected |
+|---|---|---|---|---|
+| The feed already holds `MAX_FEED_SUBSCRIBERS` open streams. A concurrency ceiling, not a lifetime one — slots return the moment a tab closes. | `503` | `POST /chain/stream` · `POST /api/chain/stream` | *nothing — every route of this job is affected* | submission, sponsored registration, quote proxy, chat transport |
+| An upstream read fails — the RPC hosts, the oracle, the event scan. The poller keeps its last good rows and says so; nothing closes. | `200` | *nothing* | The stream itself. Every hello and every health frame carries the problem sentence, so a degraded feed answers its own honest state rather than presenting an outage. | submission, sponsored registration, quote proxy, chat transport |
+
+- **The feed already holds `MAX_FEED_SUBSCRIBERS` open streams. A concurrency ceiling, not a lifetime one:** The browser treats the refusal as "poll for yourself": its store runs the same reads directly, visibility-aware, so a full feed degrades to slower — never to blank.
+- **An upstream read fails:** The degrade doctrine's load-bearing sentence, applied: a degraded job answers its own honest state; it does not take the relayer down. The rows it last read were true when read, and the sentence beside them says why they may be stale.
+
+*In this process rather than beside it for the chat transport's reason: one always-on machine already holds the RPC path and the timers, and a second host would be a second thing to keep alive during judging. The JSONL price store lives on the volume because its whole value is the past this process witnessed; losing it costs a chart its history, never anyone a cap.*
+
 #### stats — designed, NOT built
 
 DESIGNED, NOT BUILT (AD-14). Cached protocol-wide aggregates — the unbounded-range ones a browser cannot compute over a capped block window, such as bridge "largest ever" and protocol-wide shielder counts. Everything market- or launch-scoped is drawn client-side from on-chain events instead and never touches this job.
