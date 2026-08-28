@@ -22,7 +22,6 @@ import { Text } from '../components/ui/Text'
 import { currentBlocker, getHealth, subscribeHealth } from '../shell/pool-health'
 import { toast } from '../shell/toast-store'
 import { useBalance } from '../shell/use-balance'
-import { usePublicBalances } from '../shell/use-public-balances'
 import { useCrowd } from '../shell/use-crowd'
 import { useQuote } from '../shell/use-quote'
 import { useSend } from '../shell/use-send'
@@ -83,28 +82,8 @@ function Swap() {
   // swap spends come from the same reading the amounts were checked against.
   const session = useSession()
   const ready = session.status === 'ready' ? session : null
-  const { read, refresh } = useBalance(ready?.address ?? null, ready?.accountKey ?? null)
+  const { balance, read, refresh } = useBalance(ready?.address ?? null, ready?.accountKey ?? null)
 
-  //
-  // What this account holds IN THE OPEN, per token — the number a swap actually spends from.
-  //
-  // Refreshed alongside the shielded walk after a completed swap, because both change and a hero
-  // that updated one of them would be showing two readings taken at different moments.
-  //
-  const publicTokens = useMemo(() => tokens.map((t) => t.address), [tokens])
-  const publicBalances = usePublicBalances(ready?.address ?? null, publicTokens)
-
-  const publicBalanceLabel = useCallback(
-    (token: TokenInfo | null): string | null => {
-      if (token === null) return null
-      const wei = publicBalances.byToken.get(token.address.toLowerCase())
-      // `undefined` = not read yet, `null` = read and failed. Neither is zero, and neither may
-      // render as one — see `public-balances.ts`'s header.
-      if (wei === undefined || wei === null) return null
-      return `Balance ${toPlainText(wei, token.decimals)}`
-    },
-    [publicBalances.byToken],
-  )
   const sending = useSend(read, ready)
 
   // The list is volume-ordered, so the first entry is the deepest market. Defaulting the sell side
@@ -112,6 +91,26 @@ function Swap() {
   // can happen. The BUY side is deliberately left empty — picking what you want is the user's
   // decision, and pre-filling it would put a pair on screen nobody chose.
   const defaultedSell = sellToken ?? tokens[0] ?? null
+
+  //
+  // WHAT THE SELL SIDE ACTUALLY SPENDS: the SHIELDED holding of the sell token.
+  //
+  // A swap withdraws the sell token from the pool to the venue's executor and mints an open note
+  // for the proceeds — so the amount available is a note balance, not the account's public one. An
+  // earlier version of this line read the PUBLIC balance, which would have been a confident number
+  // in the wrong denomination: an account holding public USDC and no USDC notes would have been
+  // told it could swap, and the build would have refused it at the last step.
+  //
+  // `heldWei` is `null` for "not read / not held", which `CurrencyPanel` renders as no line at all
+  // rather than a zero — `send.tsx` and `bridge.tsx` take the identical shape, deliberately.
+  //
+  const heldWei = useMemo(() => {
+    if (!balance || !defaultedSell) return null
+    const holding = balance.tokens.find(
+      (t) => BigInt(t.token) === BigInt(defaultedSell.address),
+    )
+    return holding?.wei ?? null
+  }, [balance, defaultedSell])
 
   //
   // THE AMOUNT SURVIVES THE FLIP, and the first version of this got it wrong.
@@ -257,11 +256,10 @@ function Swap() {
       // Not awaited, for `BalanceState`'s documented reason: the previous reading stays on screen
       // while the new walk is in flight, so blocking on it would only delay the good news.
       refresh()
-      publicBalances.refresh()
     } finally {
       setBuilding(false)
     }
-  }, [quoted, buyToken, defaultedSell, minOut, slippageBps, sending, refresh, publicBalances])
+  }, [quoted, buyToken, defaultedSell, minOut, slippageBps, sending, refresh])
 
   //
   // THE BLOCKER CHAIN (§7.10), ordered so the reason a person can act on comes first.
@@ -350,7 +348,33 @@ function Swap() {
             // (read and failed) both render no line rather than a zero, because "Balance: 0" is a
             // number nobody measured, and the row reserves its height either way.
             //
-            balanceLabel={publicBalanceLabel(defaultedSell)}
+            balanceLabel={
+              heldWei === null || defaultedSell === null
+                ? null
+                : `Balance: ${toPlainText(heldWei, defaultedSell.decimals)} ${defaultedSell.symbol}`
+            }
+            //
+            // 25 / 50 / 75 / Max — the prototype's chips, and `CurrencyPanel` has shipped the row
+            // since it was written. Send and Bridge both passed `onPreset`; swap was the one
+            // surface that never did, so the one screen whose whole job is "how much of this do I
+            // have" made you work it out yourself.
+            //
+            onPreset={
+              heldWei === null || heldWei === 0n || defaultedSell === null
+                ? undefined
+                : (fraction) =>
+                    setSellAmount(
+                      toPlainText(
+                        // Integer arithmetic on the wei, never a float on the display value — a
+                        // quarter of an 18-decimal balance through `Number` loses the last digits.
+                        (heldWei * BigInt(Math.round(fraction * 100))) / 100n,
+                        defaultedSell.decimals,
+                      ),
+                    )
+            }
+            // The over-balance state, which this panel could not express without a balance to
+            // compare against. Same shape as Send's and Bridge's.
+            invalid={heldWei !== null && parsed.wei !== null && parsed.wei > heldWei}
           />
 
           <SwapDirectionButton onPress={flip} disabled={buyToken === null} />
