@@ -6,4 +6,5 @@ pub mod message_book;
 pub mod markets;
 pub mod launch;
 pub mod launch_token;
+pub mod governance;
 pub mod mocks;

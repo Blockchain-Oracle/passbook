@@ -41,6 +41,17 @@ pub trait IMockPool<TContractState> {
     fn invoke(
         ref self: TContractState, target: ContractAddress, op: felt252, payload: Span<felt252>,
     ) -> Span<OpenNoteDeposit>;
+    /// Stand in for `ComputeAndInvoke` (governance §2.1): the pool derives `identity_key` and
+    /// injects it as argument 0 of the target's `privacy_compute`. Here the TEST chooses the
+    /// key — which is exactly the thing only the pool may do in production, and why the
+    /// governance contract asserts its caller.
+    fn compute(
+        ref self: TContractState,
+        target: ContractAddress,
+        identity_key: felt252,
+        op: felt252,
+        payload: Span<felt252>,
+    ) -> Span<OpenNoteDeposit>;
     fn pulled(self: @TContractState, token: ContractAddress) -> u256;
 }
 
@@ -129,6 +140,7 @@ pub mod MockPool {
     use starknet::storage::{Map, StorageMapReadAccess, StorageMapWriteAccess};
     use starknet::{ContractAddress, get_contract_address};
     use strk20_app::batch::{IPrivacyInvokeDispatcher, IPrivacyInvokeDispatcherTrait};
+    use strk20_app::governance::{IGovernanceDispatcher, IGovernanceDispatcherTrait};
     use strk20_app::pool_types::OpenNoteDeposit;
     use super::{IMockERC20Dispatcher, IMockERC20DispatcherTrait};
 
@@ -148,6 +160,34 @@ pub mod MockPool {
             // The pull. Each returned deposit is money the invoked contract has authorised us to
             // collect while we credit the matching open note; if the allowance is short, this
             // reverts — which is the whole point of modelling it.
+            let mut i: u32 = 0;
+            let n = deposits.len();
+            while i != n {
+                let deposit = *deposits.at(i);
+                IMockERC20Dispatcher { contract_address: deposit.token }
+                    .transfer_from(target, get_contract_address(), deposit.amount.into());
+                self
+                    .pulled
+                    .write(
+                        deposit.token,
+                        self.pulled.read(deposit.token) + deposit.amount.into(),
+                    );
+                i += 1;
+            };
+
+            deposits
+        }
+
+        fn compute(
+            ref self: ContractState,
+            target: ContractAddress,
+            identity_key: felt252,
+            op: felt252,
+            payload: Span<felt252>,
+        ) -> Span<OpenNoteDeposit> {
+            let deposits = IGovernanceDispatcher { contract_address: target }
+                .privacy_compute(identity_key, op, payload);
+
             let mut i: u32 = 0;
             let n = deposits.len();
             while i != n {
