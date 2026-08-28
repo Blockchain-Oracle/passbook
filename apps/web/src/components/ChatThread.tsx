@@ -80,10 +80,13 @@ function Bubble({ entry }: { entry: ChatLogEntry }) {
           className={cn(
             // Radius 18 with the facing corner flattened to 4 — the design authority's chat
             // geometry. It is what makes a run of bubbles read as one side speaking.
-            'rounded-[18px] px-s12 py-s8',
+            'rounded-[18px] border border-solid px-s12 py-s8',
+            // STUDIO's sealed-room tints: mine is the gold wash with its hairline, theirs is a
+            // plain raised bubble. A tint rather than solid gold, so a wall of my messages does
+            // not shout.
             mine
-              ? 'rounded-br-[4px] bg-accent1 text-raised'
-              : 'rounded-bl-[4px] bg-raised text-neutral1',
+              ? 'rounded-br-[4px] border-accent2Hovered bg-accent2 text-neutral1'
+              : 'rounded-bl-[4px] border-transparent bg-raised text-neutral1',
           )}
         >
           <MessageBody message={message} mine={mine} />

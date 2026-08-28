@@ -51,6 +51,10 @@ export function PipelineRow() {
 
   return (
     <div className="pipeline-row" role="status" aria-label={pipeline.label}>
+      {/* The indeterminate ring while anything is running — the honest spinner class the progress
+          machine already ships. Terminal states drop it: a still chip is the "nothing is running"
+          signal. */}
+      {!failed && !done ? <span aria-hidden="true" className="step-ring shrink-0" /> : null}
       <span className="text-body3">{pipeline.label}</span>
       {/*
         `aria-hidden` on the ticking half, and it is not a detail. This row is a polite live region;
@@ -58,9 +62,16 @@ export function PipelineRow() {
         the pipeline, which is a screen reader talking over everything else the user is doing. The
         stage name still announces on change, which is the part that carries information.
       */}
-      <span className="text-body4 numeric" aria-hidden="true">
+      <span className="text-body4 numeric font-mono" aria-hidden="true">
         {detail}
       </span>
+      {/* [STUDIO] The chip's one reassurance: navigation cannot lose this. Decorative beside the
+          live status, so it is hidden from assistive technology rather than announced every tick. */}
+      {!failed && !done ? (
+        <span aria-hidden="true" className="whitespace-nowrap text-body4 text-neutral3">
+          survives navigation
+        </span>
+      ) : null}
       <span className="sr-only">{failed ? 'Stopped' : done ? 'Done' : STAGE_TITLES[current!.stage]}</span>
 
       {/*

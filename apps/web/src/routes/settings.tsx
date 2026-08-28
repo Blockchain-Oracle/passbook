@@ -1,10 +1,14 @@
 import { useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 
+import { AUDITOR_ESCROW, RELAYER_SEES } from '@strk20/protocol/disclosure-copy'
+import { FORBIDDEN_CLAIMS } from '@strk20/protocol/forbidden-claims'
+
 import { Surface } from '../shell/Surface'
 import { pinTheme, storedChoice, themeChoice } from '../shell/theme'
 import type { ThemeChoice } from '../shell/theme'
 import { NameClaim } from '../components/NameClaim'
+import { Text } from '../components/ui/Text'
 
 export const Route = createFileRoute('/settings')({
   component: Settings,
@@ -53,10 +57,13 @@ function Settings() {
 
   return (
     <Surface routeId={Route.fullPath}>
-      <h1 className="text-heading3">Settings</h1>
+      <Text variant="kicker">08 — controls</Text>
+      <Text variant="display2" as="h1" className="text-neutral1">
+        Settings
+      </Text>
 
-      <fieldset className="flex flex-col gap-s8">
-        <legend className="text-body3 font-medium">Theme</legend>
+      <fieldset className="flex flex-col gap-s8 rounded-large border border-solid border-surface3 bg-raised p-s16">
+        <legend className="float-left text-body3 font-medium">Theme</legend>
         {THEME_OPTIONS.map((option) => (
           <label key={option.id} className="flex items-center gap-s8 text-body3">
             <input
@@ -87,6 +94,40 @@ function Settings() {
         new-message flow, which is where somebody first wants one.
       */}
       <NameClaim />
+
+      {/*
+        WHAT PASSBOOK DOES NOT CLAIM [STUDIO]. The settings page is where a careful reader goes to
+        find out what they have actually been promised, so the refusals live here in one card. The
+        first two sentences are this file's own statements of two facts every surface already
+        discloses at its own moment; the second two are the canonical sentences, imported so they
+        cannot drift from the disclosures that use them. The footer renders the REAL forbidden-
+        claims list — the same array the copy tests scan for — so the card's last line is the
+        enforcement, not a paraphrase of it.
+      */}
+      <section className="flex flex-col gap-s8 rounded-large border border-solid border-surface3 bg-raised p-s16">
+        <Text variant="body2" as="h2" className="font-medium text-neutral1">
+          What Passbook does not claim
+        </Text>
+        <div className="flex flex-col gap-s8">
+          <Text variant="body4" className="text-neutral2">
+            The recipient of a private transfer sees who sent it. Private is not anonymous to your
+            counterparty.
+          </Text>
+          <Text variant="body4" className="text-neutral2">
+            The amount is public on any leg that touches an open note — a swap, a launch buy, a
+            bet. What is hidden is who.
+          </Text>
+          <Text variant="body4" className="text-neutral2">
+            {RELAYER_SEES}
+          </Text>
+          <Text variant="body4" className="text-neutral2">
+            {AUDITOR_ESCROW}
+          </Text>
+        </div>
+        <Text variant="mono" className="text-neutral3">
+          We will not say: {FORBIDDEN_CLAIMS.join(' · ')}
+        </Text>
+      </section>
     </Surface>
   )
 }
