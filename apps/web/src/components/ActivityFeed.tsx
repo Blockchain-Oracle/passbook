@@ -70,12 +70,18 @@ import { ResponsiveDialog } from '../shell/ResponsiveDialog'
 const TABS: readonly FeedTab[] = ['global', 'personal']
 
 /**
- * How many rows a panel shows before asking. [STUDIO feedback 2026-08-28] The record used to
- * render its whole window at once — hundreds of rows on a busy pool — and "Show more" is the
- * difference between a record and a wall. The count is rows, not sections: sections are derived
- * from whatever slice is showing, so a partially-shown group is simply a shorter group.
+ * How many rows are on a page.
+ *
+ * [Abu 2026-08-28] SIX, AND IT IS A PAGE RATHER THAN A CEILING THAT RISES. "Show more" appended
+ * to the list and left its own button at the bottom of whatever it had just grown, so reading the
+ * seventh row meant scrolling to the end, pressing, and scrolling to the end again — the control
+ * ran away from the reader every time they used it. A page of six never grows, so the pager stays
+ * where it was and the panel is a fixed height whatever the pool did.
+ *
+ * The count is rows, not sections: sections are derived from whatever slice is showing, so a
+ * partially-shown group is simply a shorter group.
  */
-const FEED_PAGE = 10
+const FEED_PAGE = 6
 
 const isTab = (value: unknown): value is FeedTab => value === 'global' || value === 'personal'
 
@@ -128,7 +134,13 @@ export function ActivityFeed({
   const { transactions, initialized } = useSyncExternalStore(subscribe, getActivity)
   const [tab, setTab] = useState<FeedTab>('global')
   const [showSystemNotes, setShowSystemNotes] = useState(true)
-  const [shown, setShown] = useState(FEED_PAGE)
+  //
+  // WHICH PAGE, ZERO-BASED, AND SHARED BY BOTH TABS ON PURPOSE — because it is RESET rather than
+  // remembered whenever the two tabs' row sets diverge. The alternative, a page per tab, sounds
+  // tidier and is worse: Personal is a subset of Global, so a reader on Global page 4 who flicks
+  // to Personal wants the top of a much shorter list, not a remembered page 4 that may not exist.
+  //
+  const [page, setPage] = useState(0)
   //
   // THE OPEN RECEIPT, HELD BY ID AND RESOLVED LIVE. Holding the transaction object would freeze a
   // row that the store then updates — a modal open across a settle would keep saying "submitted".
@@ -187,7 +199,9 @@ export function ActivityFeed({
           // GUARDED, not cast. The library types this as `any`, so a cast would compile whatever
           // arrives — and a value that is neither tab would leave `feedFor` taking the Personal
           // branch for a tab nothing selected.
-          if (isTab(value)) setTab(value)
+          if (!isTab(value)) return
+          setTab(value)
+          setPage(0)
         }}
         className="flex flex-col gap-s8"
       >
@@ -210,13 +224,31 @@ export function ActivityFeed({
             type="button"
             className="activity-filter chip focus-ring"
             aria-pressed={showSystemNotes}
-            onClick={() => setShowSystemNotes((on) => !on)}
+            onClick={() => {
+              setShowSystemNotes((on) => !on)
+              // The filter changes how many rows there are, so the page number it was on is a
+              // position in a list that no longer exists. Back to the top, which is the only
+              // page guaranteed to be in range.
+              setPage(0)
+            }}
           >
             {showSystemNotes ? SYSTEM_NOTES_SHOWN : SYSTEM_NOTES_HIDDEN}
           </button>
         </div>
 
-        {TABS.map((key) => (
+        {TABS.map((key) => {
+          const rows = views[key].rows
+          const pageCount = Math.max(1, Math.ceil(rows.length / FEED_PAGE))
+          //
+          // CLAMPED AT RENDER RATHER THAN CORRECTED IN AN EFFECT. The row count moves underneath
+          // this component — a read lands, a row settles out of the in-progress group — so a page
+          // that was in range when it was chosen can fall off the end without anyone touching a
+          // control. An effect would fix it one paint late, which is one paint of a blank record.
+          //
+          const at = Math.min(page, pageCount - 1)
+          const slice = rows.slice(at * FEED_PAGE, at * FEED_PAGE + FEED_PAGE)
+
+          return (
           <Tabs.Panel key={key} value={key} className="flex flex-col gap-s8">
             {/*
               Rendered inside the panel rather than once outside, because the tab panel is what a
@@ -230,10 +262,10 @@ export function ActivityFeed({
             */}
             <FeedNote view={views[key]} silenced={problem !== null} />
 
-            {views[key].rows.length ? (
+            {rows.length ? (
               <>
                 <p className="text-body4 text-neutral3">{HISTORY_GROUPING_NOTE}</p>
-                {activitySections(views[key].rows.slice(0, shown), headBlock).map((section) => (
+                {activitySections(slice, headBlock).map((section) => (
                   <div key={section.group} className="flex flex-col gap-s2">
                     {/*
                       NOT STICKY, and that is a decision rather than an omission. `.app-header` is
@@ -264,24 +296,19 @@ export function ActivityFeed({
                     </ul>
                   </div>
                 ))}
-                {/*
-                  The rest of the window, on request. The button says HOW MANY remain, because
-                  "Show more" over an unnamed remainder makes the reader guess whether it is three
-                  rows or three hundred.
-                */}
-                {views[key].rows.length > shown ? (
-                  <button
-                    type="button"
-                    onClick={() => setShown((s) => s + FEED_PAGE * 2)}
-                    className="focus-ring self-start rounded-control border border-solid border-surface3 px-s12 py-s8 text-buttonLabel4 text-neutral2 hover:bg-inset hover:text-neutral1"
-                  >
-                    Show more · {views[key].rows.length - shown} older
-                  </button>
+                {pageCount > 1 ? (
+                  <Pager
+                    at={at}
+                    pageCount={pageCount}
+                    total={rows.length}
+                    onGo={(next) => setPage(next)}
+                  />
                 ) : null}
               </>
             ) : null}
           </Tabs.Panel>
-        ))}
+          )
+        })}
       </Tabs.Root>
 
       {/*
@@ -304,6 +331,78 @@ export function ActivityFeed({
         ) : null}
       </ResponsiveDialog>
     </section>
+  )
+}
+
+/**
+ * Previous · which page · Next, under a page that never grows.
+ *
+ * ── IT SAYS WHERE YOU ARE, NOT JUST WHERE YOU CAN GO ─────────────────────────────────────
+ *
+ * "Show more" over an unnamed remainder made the reader guess whether it was three rows or three
+ * hundred. A pager can make the same mistake by printing two arrows and nothing else, so the middle
+ * of this one carries both facts: the page out of how many, and the row count behind them.
+ *
+ * ── THE ENDS ARE DISABLED RATHER THAN ABSENT ─────────────────────────────────────────────
+ *
+ * A Previous that vanishes on page one moves Next sideways, so the control a reader is repeatedly
+ * pressing walks across the panel between presses — the same complaint that killed "Show more", in
+ * miniature. Both buttons keep their box at every page and `disabled` says which are live.
+ */
+function Pager({
+  at,
+  pageCount,
+  total,
+  onGo,
+}: {
+  at: number
+  pageCount: number
+  total: number
+  onGo: (page: number) => void
+}) {
+  return (
+    <nav className="flex items-center gap-s8 pt-s4" aria-label="The record, by page">
+      <PagerButton disabled={at === 0} onClick={() => onGo(at - 1)}>
+        ‹ Previous
+      </PagerButton>
+      <PagerButton disabled={at >= pageCount - 1} onClick={() => onGo(at + 1)}>
+        Next ›
+      </PagerButton>
+      {/*
+        `aria-live` so a keyboard reader who presses Next is told they moved. The buttons keep
+        their own labels, so this is the only thing that changes when a page turns.
+      */}
+      <span className="numeric ml-auto text-body4 text-neutral3" aria-live="polite">
+        Page {at + 1} of {pageCount} · {total} rows
+      </span>
+    </nav>
+  )
+}
+
+function PagerButton({
+  children,
+  disabled,
+  onClick,
+}: {
+  children: React.ReactNode
+  disabled: boolean
+  onClick: () => void
+}) {
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={onClick}
+      className={
+        'focus-ring rounded-control border border-solid border-surface3 px-s12 py-s8 ' +
+        'text-buttonLabel4 text-neutral2 transition-colors ' +
+        'duration-[var(--transition-duration-fastHeavy)] ease-glide ' +
+        'enabled:cursor-pointer enabled:hover:bg-inset enabled:hover:text-neutral1 ' +
+        'disabled:cursor-default disabled:opacity-40'
+      }
+    >
+      {children}
+    </button>
   )
 }
 
