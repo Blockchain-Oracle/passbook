@@ -8,13 +8,15 @@
 // address is on the transaction, the creator's CLAIM is the bearer secret this stores. The form
 // states that plainly instead of implying a private create.
 //
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 
 import { encodeByteArray } from '@strk20/protocol/app-reads'
 import { parseAmountInput } from '@strk20/protocol/amount'
 
 import { cn } from '../../lib/cn'
+import { downscaleToLogo } from '../../lib/downscale-image'
 import { APP_CONTRACTS } from '../../shell/app-contracts'
+import { generateLogo, pinLogo } from '../../shell/logo-service'
 import { invokeDirect } from '../../shell/submit'
 import { toast } from '../../shell/toast-store'
 import { useSession } from '../../shell/session'
@@ -22,7 +24,9 @@ import { useTokenList } from '../../shell/use-token-list'
 import { ResponsiveDialog } from '../../shell/ResponsiveDialog'
 import { addPosition } from '../../shell/use-positions'
 import { BlockedButton } from '../BlockedButton'
+import { Button } from '../ui/Button'
 import { Text } from '../ui/Text'
+import { TokenLogo } from '../TokenLogo'
 
 /** How long a new launch has to hit its target. */
 const LAUNCH_WINDOWS = [
@@ -44,6 +48,51 @@ export function CreateLaunch({ open, onClose }: { open: boolean; onClose: () => 
   const [tokensPerEpochRaw, setTokensPerEpochRaw] = useState('16000')
   const [windowIdx, setWindowIdx] = useState(1)
   const [busy, setBusy] = useState(false)
+
+  // ── The logo. Uploaded or generated, previewed here, PINNED only at confirm. ────────────
+  const [logo, setLogo] = useState<string | null>(null)
+  const [candidates, setCandidates] = useState<string[] | null>(null)
+  const [generating, setGenerating] = useState(false)
+  // Flipped when the relayer answers 404 — this deployment has no generation lane, and a
+  // button that 404s is worse than no button.
+  const [generationOff, setGenerationOff] = useState(false)
+  const fileInput = useRef<HTMLInputElement>(null)
+
+  const onPickFile = useCallback(async (file: File | undefined) => {
+    if (!file) return
+    const scaled = await downscaleToLogo(file)
+    if (!scaled.ok) {
+      toast({ kind: 'error', title: 'That image did not work', detail: scaled.because })
+      return
+    }
+    setCandidates(null)
+    setLogo(scaled.dataUri)
+  }, [])
+
+  const onGenerate = useCallback(async () => {
+    setGenerating(true)
+    try {
+      const answer = await generateLogo({ name: name.trim(), symbol: symbol.trim().toUpperCase() })
+      if (!answer.ok) {
+        if (answer.unconfigured) {
+          setGenerationOff(true)
+          toast({
+            kind: 'error',
+            title: 'Generation is not offered here',
+            detail: 'This deployment has no image key. Upload a logo, or let the seeded disc stand in.',
+          })
+        } else {
+          toast({ kind: 'error', title: 'No logo came back', detail: answer.because })
+        }
+        return
+      }
+      setCandidates(answer.images)
+      // One candidate auto-selects; two ask for the pick.
+      if (answer.images.length === 1) setLogo(answer.images[0]!)
+    } finally {
+      setGenerating(false)
+    }
+  }, [name, symbol])
 
   const strk = useMemo(() => tokens.find((t) => t.symbol === 'STRK') ?? null, [tokens])
   const decimals = strk?.decimals ?? 18
@@ -73,6 +122,28 @@ export function CreateLaunch({ open, onClose }: { open: boolean; onClose: () => 
     if (!ready || !strk || price.wei === null || epochs === null || tokensPerEpoch === null) return
     setBusy(true)
     try {
+      //
+      // THE PIN COMES FIRST, because the chain write is the irreversible half. A logo that fails
+      // to pin aborts the create with the reason — never a launch pointing at a CID that does
+      // not exist — and a deployment with no pinning lane proceeds WITHOUT the logo, saying so:
+      // the seeded disc is the designed fallback, not an error state.
+      //
+      let logoUri = ''
+      if (logo) {
+        const pinned = await pinLogo(logo)
+        if (pinned.ok) {
+          logoUri = pinned.uri
+        } else if (pinned.unconfigured) {
+          toast({
+            kind: 'error',
+            title: 'Pinning is not offered here',
+            detail: 'The logo was not stored — the seeded disc will represent this token.',
+          })
+        } else {
+          toast({ kind: 'error', title: 'The logo did not pin', detail: pinned.because })
+          return
+        }
+      }
       const { mintPositionSecret } = await import('@strk20/protocol/commitment')
       const minted = mintPositionSecret()
       const tranche = BigInt(tokensPerEpoch) * 10n ** 18n
@@ -80,7 +151,7 @@ export function CreateLaunch({ open, onClose }: { open: boolean; onClose: () => 
       const calldata = [
         ...encodeByteArray(name.trim()),
         ...encodeByteArray(symbolClean),
-        ...encodeByteArray(''), // logo_uri — the M3 pin pipeline fills this; empty is stated as empty
+        ...encodeByteArray(logoUri), // `ipfs://CID`, or the honest empty when nothing pinned
         strk.address,
         `0x${price.wei.toString(16)}`,
         `0x${(step.wei ?? 0n).toString(16)}`,
@@ -116,7 +187,7 @@ export function CreateLaunch({ open, onClose }: { open: boolean; onClose: () => 
     } finally {
       setBusy(false)
     }
-  }, [ready, strk, price.wei, step.wei, epochs, tokensPerEpoch, windowIdx, name, symbolClean, onClose])
+  }, [ready, strk, price.wei, step.wei, epochs, tokensPerEpoch, windowIdx, name, symbolClean, logo, onClose])
 
   return (
     <ResponsiveDialog open={open} onOpenChange={(next) => (next ? undefined : onClose())} label="Create a launch" modal>
@@ -154,6 +225,72 @@ export function CreateLaunch({ open, onClose }: { open: boolean; onClose: () => 
               className="focus-ring w-full rounded-control border border-solid border-surface3 bg-raised px-s12 py-s8 font-mono text-body3 text-neutral1 uppercase outline-none placeholder:text-neutral3"
             />
           </label>
+        </div>
+
+        {/* ── The logo: brought, or made from the name. Never required — the disc stands in. ── */}
+        <div className="flex flex-col gap-s8 rounded-card border border-solid border-surface3 bg-raised p-s12">
+          <div className="flex items-center gap-s12">
+            <TokenLogo url={logo} symbol={symbolClean || symbol} name={name} size={40} />
+            <div className="flex min-w-0 flex-1 flex-col">
+              <Text variant="body4" className="uppercase text-neutral3">
+                Logo
+              </Text>
+              <Text variant="body4" className="text-neutral3">
+                {logo
+                  ? 'Pinned to IPFS when you launch — the chain will point at it.'
+                  : 'Optional. Without one, the seeded disc is the mark — never a broken image.'}
+              </Text>
+            </div>
+            <div className="flex shrink-0 gap-s6">
+              <Button variant="secondary" size="sm" onClick={() => fileInput.current?.click()}>
+                Upload
+              </Button>
+              {!generationOff ? (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  disabled={generating || name.trim() === '' || symbolClean === ''}
+                  onClick={() => void onGenerate()}
+                >
+                  {generating ? 'Making…' : 'Generate'}
+                </Button>
+              ) : null}
+              {logo ? (
+                <Button variant="secondary" size="sm" onClick={() => setLogo(null)}>
+                  Remove
+                </Button>
+              ) : null}
+            </div>
+            <input
+              ref={fileInput}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              aria-label="Upload a logo image"
+              onChange={(e) => void onPickFile(e.target.files?.[0])}
+            />
+          </div>
+          {candidates && candidates.length > 1 ? (
+            <div className="flex items-center gap-s8">
+              <Text variant="body4" className="text-neutral3">
+                Pick one:
+              </Text>
+              {candidates.map((candidate, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  onClick={() => setLogo(candidate)}
+                  aria-pressed={logo === candidate}
+                  className={cn(
+                    'focus-ring cursor-pointer rounded-pill border-2 border-solid p-s2',
+                    logo === candidate ? 'border-accent1' : 'border-transparent',
+                  )}
+                >
+                  <img src={candidate} alt={`Candidate logo ${i + 1}`} width={40} height={40} className="rounded-pill" />
+                </button>
+              ))}
+            </div>
+          ) : null}
         </div>
 
         <div className="flex gap-s8">
