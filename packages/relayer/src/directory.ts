@@ -2,7 +2,7 @@
 // The name directory — the relayer's one OPT-IN public record.
 //
 // Everything else this process holds is deliberately unreadable (ciphertext rooms) or private
-// operational state (budgets, invites). This file is the opposite: a registry whose entire
+// operational state (budgets). This file is the opposite: a registry whose entire
 // function is to be fetched by anyone, because chat search needs a name → address map and the
 // only honest place for one is out in the open. What keeps it honest:
 //
@@ -14,7 +14,7 @@
 //   3. The ledger is capped. Growth past the cap fails LOUDLY (a refusal the client renders),
 //      never by silently evicting someone's name.
 //
-// The store copies the invite-ledger discipline: atomic writes, and a corrupt file is a hard
+// The store copies the sponsorship-ledger discipline: atomic writes, and a corrupt file is a hard
 // startup failure. This record is small but it is a PUBLIC registry — silently resetting it
 // would un-claim every name at once and reopen them to squatters, which is an attack surface,
 // not an inconvenience.

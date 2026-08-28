@@ -96,7 +96,7 @@ function parse(raw: string | null): Map<string, Conversation> {
   try {
     data = JSON.parse(raw)
   } catch {
-    // A corrupt local cache is not the invite ledger: refusing to start would brick chat over a
+    // A corrupt local cache is not a ledger: refusing to start would brick chat over a
     // record whose complete loss the design already tolerates. Start empty and say nothing.
     return new Map()
   }

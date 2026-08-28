@@ -16,9 +16,9 @@
 // invariant above is exactly the kind that gets inverted in one word. Changing `initialized: false`
 // to `true` makes `/wallet` claim an unread pool is empty, and nothing anywhere would have failed.
 //
-// The precedent is already here: `session-store.ts`, `session-invite-store.ts` and
-// `session-cadence-store.ts` are all stores in this package. This one has no DOM edge either — it
-// is a set of listeners and a value.
+// The precedent is already here: `session-store.ts`, `session-accounts.ts` and
+// `session-position-store.ts` are all stores in this package. This one has no DOM edge either —
+// it is a set of listeners and a value.
 //
 // ── IT IS EMPTY TODAY, AND THAT IS THE HONEST STATE ───────────────────────────────────────
 //

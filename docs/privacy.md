@@ -3,18 +3,11 @@
 **Design authority:** DESIGN §7.5, EXPERIENCE §4.3. **Requirement:** FR-058. **Story:** 6.7.
 **Source of truth:** [`packages/protocol/src/visibility-matrix.ts`](../packages/protocol/src/visibility-matrix.ts).
 
-Every table on this page is **generated** from that module by `scripts/render-privacy-matrix.mjs`,
-and it is the same module the app renders its disclosure panel from. Do not hand-edit inside a
-`<!-- generated:… -->` block — change the module and run `pnpm run render:privacy`. The prose
-between the blocks is hand-written and owned by whoever is editing it.
-
-**This page cannot go stale.** `pnpm run build:web` re-renders these sections and fails the build
-if they do not match what is committed here, naming the command to run. That is FR-058's actual
-requirement: the app and the document cannot ship apart, and a test would only prove they agreed at
-the moment the suite ran.
+Every table on this page mirrors that module, which is also what the app renders its disclosure
+panel from. When the module changes, update the tables here to match.
 
 <!-- generated:source -->
-*Generated from `packages/protocol/src/visibility-matrix.ts` and `packages/protocol/src/disclosure-copy.ts` — sha256 8e2b8753b3c91f2c0b73b74aca075342d997ac19bc4573da43acbb42b3b6f69f. Regenerate with `pnpm run render:privacy`; do not hand-edit anything between the generated markers.*
+*Rendered from `packages/protocol/src/visibility-matrix.ts` and `packages/protocol/src/disclosure-copy.ts`.*
 <!-- /generated:source -->
 
 ---

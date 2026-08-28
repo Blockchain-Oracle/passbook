@@ -3,8 +3,8 @@
 //
 // ── THIS FILE HOLDS MONEY, NOT A RECORD OF MONEY ──────────────────────────────────────────
 //
-// `session-invite-store.ts` persists what a user TYPED: a note-to-self about a transfer that has
-// not happened. This one persists the thing itself. `markets.cairo` and `launch.cairo` key every
+// Other stores in this package persist records ABOUT money — keys, labels, ceremony state. This
+// one persists the thing itself. `markets.cairo` and `launch.cairo` key every
 // position by `poseidon(secret)` and pay whoever reveals the secret — no address, no recovery, no
 // second copy. A lost secret is a lost position, indistinguishable from never having bet.
 //

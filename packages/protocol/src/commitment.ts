@@ -76,7 +76,7 @@ export function commitmentFor(secret: bigint | string): string {
  *
  * 248 bits from the platform CSPRNG, which is comfortably below the field prime — so no rejection
  * sampling loop, and no chance of the reduction this module refuses elsewhere. `globalThis.crypto`
- * rather than a Node import for the reason `invite.ts` gives: this runs in a browser, and
+ * rather than a Node import because this runs in a browser, and
  * `getRandomValues` is what both environments have had for years.
  */
 export function mintPositionSecret(): PositionSecret {

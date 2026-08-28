@@ -3,10 +3,8 @@
 **Architecture authority:** AD-17 (`ARCHITECTURE-SPINE.md`). **Story:** 1.6.
 **Source of truth:** [`packages/relayer/src/topology.ts`](../packages/relayer/src/topology.ts).
 
-Every table on this page is **generated** from that module by `scripts/render-topology.mjs`, and
-`pnpm run render:topology` regenerates this file from that module. Nothing now checks that the two
-disagree. Do not hand-edit inside a `<!-- generated:… -->` block — change the module and re-run
-the renderer. The prose between the blocks is hand-written and owned by whoever is editing it.
+Every table on this page mirrors that module. When the module changes, update the tables here to
+match.
 
 `packages/relayer/test/topology.test.ts` holds the other half: it drives a live relayer through
 every degrade row below and fails when the **server** stops behaving the way a row says it does.

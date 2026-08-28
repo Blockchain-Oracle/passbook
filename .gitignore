@@ -14,16 +14,6 @@ _bmad-output/
 ev.json
 .DS_Store
 
-# `scripts/verify-mainnet-guard.mjs`'s on-disk sidecar. It exists for the ~2 seconds that script
-# holds `packages/protocol/src/constants.ts` flipped to sepolia, and it is the ONLY layer that
-# survives a SIGKILL — the next run finds it, restores from it, and says so. If you are reading
-# this because the file is sitting in your tree, a previous verify run was killed mid-flip: just
-# run `npm run verify:mainnet-guard` again and it will heal itself before doing anything else.
-#
-# The glob also covers `.lock` (the pid of a live run, so two runs cannot flip the file underneath
-# each other) and `.displaced` (the copy the self-heal set aside rather than silently overwrite).
-.guard-verify-backup*
-
 # The relayer's durable sponsorship ledger. Runtime state of one deployment, and it holds
 # the salt that keys its hashed visitor ids — see packages/relayer/src/sponsorship-store.ts.
 .relayer/
@@ -44,11 +34,7 @@ docs/*
 # of writing it. It is neither research nor competitive analysis, so the rule above does not
 # describe it. Everything else under docs/ (the retired Superpowers plans) stays excluded.
 !docs/topology.md
-# The user-facing privacy page (story 6.7 / FR-058). It SHIPS for the same reason, and it has a
-# second reason topology does not: `scripts/build-web.mjs` READS IT and fails the build when it
-# disagrees with `packages/protocol/src/visibility-matrix.ts`. Left excluded, a fresh clone has no
-# such file and the build dies on ENOENT inside a gate, which is the least legible failure in the
-# repository. Regenerate with `pnpm run render:privacy` and commit the result.
+# The user-facing privacy page (story 6.7 / FR-058). It ships for the same reason.
 !docs/privacy.md
 # The governance spec (walk 3, RFP IDEA-27). It ships with the branch so the merge back to main
 # carries the architecture the managers argue with; same reasoning as topology above.

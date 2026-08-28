@@ -36,7 +36,7 @@ const RECONNECT_BACKOFF_MS = [500, 1_000, 2_000, 5_000, 10_000] as const
  */
 const SEEN_LIMIT = 200
 
-/** The two endpoints, derived from the relayer URL the app already has — same rule as invites. */
+/** The two endpoints, derived from the relayer URL the app already has — same rule as every other relayer route. */
 export function roomEndpoint(relayerUrl: string, leaf: 'send' | 'stream'): string {
   const url = relayerUrl.replace(/\/submit$/, `/room/${leaf}`)
   // A relayer URL that is not a `/submit` endpoint leaves the replace a no-op, which would post a

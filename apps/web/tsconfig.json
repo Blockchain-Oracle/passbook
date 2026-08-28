@@ -1,50 +1,12 @@
-// Hand-written, deliberately NOT create-vite's output. The template is incompatible with this
-// repo's pinned TypeScript 5.6.3 in two ways, one of them silent:
-//   - it sets `erasableSyntaxOnly`, which 5.6.3 rejects outright (TS5023) on the first build;
-//   - it stopped emitting `"strict": true` (a TS 6 default), so under 5.6.3 the app would compile
-//     non-strict with nothing reporting it — an implicit `any` and a null deref both passed.
-// Hence `"strict": true` below is explicit and must stay explicit.
-//
-// This config is reached by `npm run typecheck` (`tsc --noEmit -p apps/web`), NOT by the root
-// project: the root `tsconfig.json` includes only `packages` and `scripts`, and a blatantly broken
-// file under `apps/web` passes it at exit 0. Two tsc runs is what covers the repository.
-//
-// The option set below was checked against all 29 `@strk20/protocol` subpaths at 0 diagnostics.
-// Do not add type-checking flags without re-checking that: `noUncheckedIndexedAccess` (10 errors),
-// `exactOptionalPropertyTypes` (1), `noPropertyAccessFromIndexSignature` (43) and
-// `noUnusedParameters` (1) all fail inside `packages/protocol/src`, not in app code.
-//
-// `include` covers `src`, the build config and the smoke ENTRY; `exclude` names exactly one file.
-// The earlier `include: ["src"]` was justified on `smoke/negative-env.ts`'s behalf — that file
-// imports a node-only subpath in order to make a build fail, so it must never be typechecked — but
-// that argument covers one file and it was being used to exempt three. `vite.config.ts` holds the
-// mainnet guard and `smoke/entry.ts` holds the combined-graph gate; both were checked by nothing.
 {
+  "files": [],
+  "references": [
+    { "path": "./tsconfig.app.json" },
+    { "path": "./tsconfig.node.json" }
+  ],
   "compilerOptions": {
-    "target": "ES2023",
-    "lib": ["ES2023", "DOM", "DOM.Iterable"],
-    "module": "ESNext",
-    "moduleResolution": "bundler",
-    "jsx": "react-jsx",
-    // `node` joins `vite/client` because `vite.config.ts` is now in the program and uses `node:fs`,
-    // `node:path` and `import.meta.dirname`. Verified harmless for the app's own sources: `types:
-    // ['node']` versus `types: []` produced identical diagnostics across all 29 protocol subpaths.
-    "types": ["vite/client", "node"],
-
-    "strict": true,
-    "noEmit": true,
-    "skipLibCheck": true,
-    "verbatimModuleSyntax": true,
-    "isolatedModules": true,
-    "moduleDetection": "force",
-    "resolveJsonModule": true,
-    "noUnusedLocals": true,
-    "noFallthroughCasesInSwitch": true,
-
-    // shadcn writes its imports as `@/components/ui/...`; vite.config mirrors this.
-    "baseUrl": ".",
-    "paths": { "@/*": ["./src/*"] }
-  },
-  "include": ["src", "vite.config.ts", "smoke/entry.ts"],
-  "exclude": ["smoke/negative-env.ts"]
+    "paths": {
+      "@/*": ["./src/*"]
+    }
+  }
 }
