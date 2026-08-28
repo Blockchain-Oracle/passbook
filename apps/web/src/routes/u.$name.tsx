@@ -14,7 +14,7 @@ export const Route = createFileRoute('/u/$name')({
 // A PERSON'S PAGE, and the whole point is how little is on it.
 //
 // A profile here is exactly the directory entry its holder signed: a name, a picture if they
-// chose one, the attested X badge if the name arrived that way, and the address they proved.
+// chose one, and the address they proved.
 // There is no activity feed, no balance, no graph — not because the page is unfinished but
 // because those are exactly what the pool exists to keep off pages like this. The page says so.
 //
@@ -52,14 +52,6 @@ function Profile() {
               <Text variant="display3" as="h1" className="truncate text-neutral1">
                 @{entry.name}
               </Text>
-              {entry.xHandle ? (
-                <span
-                  className="rounded-pill border border-solid border-settled px-s6 py-s2 font-mono text-mono text-settled"
-                  title={`Attested: this name arrived over a live X sign-in as @${entry.xHandle}`}
-                >
-                  via 𝕏
-                </span>
-              ) : null}
             </div>
             <Text variant="mono" className="truncate text-neutral3">
               {shortenFelt(entry.address, 12, 10)}
@@ -90,7 +82,7 @@ function Profile() {
           <Text variant="kicker">What this page is</Text>
           <Text variant="body3" className="mt-s4 max-w-[60ch] text-neutral2">
             Exactly what @{entry.name} signed into the public directory: the name, the picture,
-            the address — {entry.xHandle ? 'and the attested X badge' : 'nothing more'}. Their
+            the address — nothing more. Their
             balances, their sends and their positions are not here, because keeping those off a
             page like this is what the whole product is for.
           </Text>

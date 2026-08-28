@@ -46,7 +46,25 @@ export const NOT_FOUND_ROUTE_ID = '__not_found__'
  */
 export function Surface({ routeId, children }: { routeId: string; children: ReactNode }) {
   return (
-    <main data-route-id={routeId} className="flex flex-col gap-s8 p-s16">
+    //
+    // `key={routeId}` IS WHAT MAKES THE ARRIVAL REPLAY, and without it this is a one-time effect.
+    //
+    // A CSS animation runs when the element is inserted. React reconciles two `<main>`s at the same
+    // position in the tree as the SAME element and only patches its attributes, so navigating from
+    // `/send` to `/swap` would mutate the existing node and the animation — already finished —
+    // would never run again. The screen would arrive exactly once per full page load, which is the
+    // subtlest possible version of this bug: correct on the first screen a reviewer sees and dead
+    // everywhere after.
+    //
+    // Keying on the route's own identity forces an unmount and a fresh insert per surface, which is
+    // the same node identity the landmark already claims — so the key is not an extra concept, it
+    // is the one this component was already built around.
+    //
+    <main
+      key={routeId}
+      data-route-id={routeId}
+      className="route-arrive flex flex-col gap-s8 p-s16"
+    >
       {children}
     </main>
   )

@@ -1,7 +1,7 @@
 /*
  * GENERATED FILE — DO NOT EDIT.
  *
- * source: apps/web/design/tokens.yaml  sha256 2685b82c4ff45b1fbf4000be9c51373229f4f340f6212db6d36a905fd04cb7bb
+ * source: apps/web/design/tokens.yaml  sha256 96050afdf0b547ba1534a3c203a56aa1696b54c9f39137347f2bb199cc578f38
  *
  * Regenerate with `pnpm run render:tokens` after editing tokens.yaml, and commit the result.
  * and the yaml disagree, so a hand-edit here is caught rather than shipped. tokens.yaml is the
@@ -105,9 +105,9 @@
   --text-body2: 16px;
   --text-body2--line-height: 24px;
   --text-body3: 14px;
-  --text-body3--line-height: 20px;
+  --text-body3--line-height: 24px;
   --text-body4: 12px;
-  --text-body4--line-height: 16px;
+  --text-body4--line-height: 20px;
   --text-mono: 12px;
   --text-mono--line-height: 16px;
   --text-kicker: 11px;

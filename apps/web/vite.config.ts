@@ -79,6 +79,18 @@ if (!existsSync(SDK_TESTING_BROWSER)) {
   )
 }
 
+//
+// Where `vite dev` forwards `/api`. The default is a relayer started the ordinary way on
+// loopback (`npx tsx packages/relayer/src/server.ts`).
+//
+// Set it to the DEPLOYED APP — `RELAYER_ORIGIN=https://passbook-zeta.vercel.app npm run dev` —
+// to develop against the live relayer without holding its auth token locally: that origin's
+// `api/[...path].js` attaches `x-relayer-auth` server-side, so the token stays where it belongs
+// and the browser still posts to same-origin `/api/...`. Pointing straight at the relayer host
+// instead answers 401 on every route, which is the token doing its job.
+//
+const relayerOrigin = process.env.RELAYER_ORIGIN ?? 'http://127.0.0.1:8787'
+
 export default defineConfig((configEnv) => {
   // Build-only, and the read lives INSIDE the branch: an unconditional readFileSync would take
   // `vite dev` down with ENOENT the moment the path is wrong, turning a build rule into a
@@ -165,11 +177,23 @@ export default defineConfig((configEnv) => {
     // its own server-side request and no Origin exists at all, which is the shape the relayer
     // treats as same-process. Removing it here makes dev match that instead of a third case.
     //
+    // `changeOrigin` REWRITES `Host`, which is a different header from the `Origin` stripped
+    // below — the two names are one keystroke apart and do opposite jobs, so: Origin is the
+    // browser's claim about who is calling and stays removed either way; Host is what the far
+    // end routes and terminates TLS on.
+    //
+    // It has to follow the target's scheme. The default target is loopback http, where a
+    // rewritten Host buys nothing. But pointing `RELAYER_ORIGIN` at ANY https origin — the
+    // hosted relayer, or the Vercel deployment whose `api/[...path].js` is the only thing that
+    // attaches `x-relayer-auth` — sends `Host: localhost:5173` into the TLS handshake and the
+    // connection dies as `Client network socket disconnected before secure TLS connection was
+    // established`. That error names nothing about Host, which is why this is a comment and not
+    // a line somebody can read the intent off.
     server: {
       proxy: {
         '/api': {
-          target: process.env.RELAYER_ORIGIN ?? 'http://127.0.0.1:8787',
-          changeOrigin: false,
+          target: relayerOrigin,
+          changeOrigin: relayerOrigin.startsWith('https://'),
           configure: (proxy) => {
             proxy.on('proxyReq', (proxyReq) => proxyReq.removeHeader('origin'))
           },

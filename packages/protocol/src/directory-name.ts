@@ -47,12 +47,6 @@ export interface DirectoryEntry {
   readonly address: string
   /** The list is deliberately lean — avatars are fetched per-address, not shipped in bulk. */
   readonly hasAvatar: boolean
-  /**
-   * The X handle this entry arrived through, when it did — the relayer's own attestation that
-   * the claim came in over a live X OAuth session (the `/api/x/link` leg), never a field a
-   * client can assert about itself. Absent on every claim made without X.
-   */
-  readonly xHandle?: string
 }
 
 /**

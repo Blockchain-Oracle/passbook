@@ -27,8 +27,16 @@ export type SendStage = 'build' | 'prove' | 'relay' | 'mature' | 'confirmed'
 /** The four a sponsored registration passes through. `mature` is absent on purpose. */
 export type RegistrationStage = 'build' | 'prove' | 'relay' | 'confirmed'
 
-/** Every stage either pipeline can be at. The renderer's input type. */
-export type PipelineStage = SendStage
+/**
+ * Every stage ANY of the pipelines can be at. The renderer's input type.
+ *
+ * It was `SendStage` alone while there were two pipelines and registration's stages were a subset
+ * of a send's. Account creation is the third and its rungs are its own words — see
+ * `OnboardingStage` below — so the renderer's input is now the union rather than one member of it.
+ * `ProgressMachine` is unaffected by design: its own header says it "knows nothing about which
+ * pipeline it is drawing", and this is that claim being cashed rather than tested.
+ */
+export type PipelineStage = SendStage | OnboardingStage
 
 export const SEND_STAGES: readonly SendStage[] = ['build', 'prove', 'relay', 'mature', 'confirmed']
 
@@ -37,6 +45,33 @@ export const REGISTRATION_STAGES: readonly RegistrationStage[] = [
   'prove',
   'relay',
   'confirmed',
+]
+
+/**
+ * The four rungs of ACCOUNT CREATION, which is a different journey from either pipeline above.
+ *
+ * ── WHY A THIRD LIST AND NOT A REUSE ─────────────────────────────────────────────────────
+ *
+ * `RegistrationStage` names the four steps of the registration TRANSACTION. Account creation is
+ * bigger than that transaction: money has to arrive, an address has to be deployed, and only then
+ * is there something to register. Those first two have no member in the send vocabulary — `build`
+ * and `prove` say nothing about a faucet — so naming them with it would be a label that lies.
+ *
+ * ── EACH RUNG IS A REAL CALLBACK, WHICH IS THE WHOLE POINT ───────────────────────────────
+ *
+ * `drip` resolves when the relayer answers, `deploy` when the account contract lands, `register`
+ * spans the registration's own `build`/`prove`/`relay`, and `confirm` is its `confirmed`. Nothing
+ * here advances on a timer. The prototype this is ported from animates its ladder on a fixed
+ * `[1500,1700,2300,1100]` — that is a mockup's privilege, and copying it would be a progress bar
+ * that reports the passage of time as if it were the progress of a transaction.
+ */
+export type OnboardingStage = 'drip' | 'deploy' | 'register' | 'confirm'
+
+export const ONBOARDING_STAGES: readonly OnboardingStage[] = [
+  'drip',
+  'deploy',
+  'register',
+  'confirm',
 ]
 
 /**
@@ -53,6 +88,13 @@ export const STAGE_TITLES: Readonly<Record<PipelineStage, string>> = {
   relay: 'Relay',
   mature: 'Mature',
   confirmed: 'Confirmed',
+  // Account creation's four. They live HERE, in the one table, for the reason the table exists —
+  // and not beside their notes in `onboarding-copy.ts`, which would have made a second place to
+  // spell `Register` and guaranteed the two would eventually disagree.
+  drip: 'Drip lands',
+  deploy: 'Deploy',
+  register: 'Register',
+  confirm: 'Confirm',
 }
 
 /**

@@ -1,18 +1,25 @@
 import { describe, it, expect } from 'vitest'
 
 import { POOL_SEES } from '../src/disclosure-copy.js'
+import { ONBOARDING_STAGES, STAGE_TITLES } from '../src/pipeline-stage.js'
 import {
   BACKUP_BODY,
   BANNED_CLAIMS,
   CUSTODY_BODY,
   DEADLOCK_TITLE,
   NAME_CAPTION,
+  ONBOARDING_STAGE_NOTES,
   REGISTER_STEPS,
   TRIGGER_COST_CHIP,
   TRIGGER_HEADLINE,
+  createFeeNote,
   deadlockBody,
   deadlockFeeRow,
   deadlockInvitedTitle,
+  doneSub,
+  fundRefused,
+  doneTitle,
+  namePreview,
 } from '../src/onboarding-copy.js'
 
 //
@@ -180,5 +187,130 @@ describe('the pipeline', () => {
   it('has four steps and no maturity stage', () => {
     expect(REGISTER_STEPS).toEqual(['Build', 'Prove', 'Relay', 'Confirmed'])
     expect(REGISTER_STEPS).not.toContain('Mature')
+  })
+})
+
+//
+// ── THE TWO-STEP FLOW (2026-08-28) ────────────────────────────────────────────────────────
+//
+// Account creation collapsed from six screens to two, and the drip stopped being a button. These
+// pin the parts of that which are claims rather than layout — the fee stays a parameter, the
+// public/private distinction stays two different sentences, and the ladder starts with the money.
+//
+
+describe('the creation ladder', () => {
+  // The M8 inversion, as a property rather than a comment: the stake goes FIRST, because the
+  // account signs and pays for its own registration out of it. A list that registered before it
+  // was funded would be describing a transaction that cannot be paid for.
+  it('drips before it registers', () => {
+    expect(ONBOARDING_STAGES[0]).toBe('drip')
+    expect(ONBOARDING_STAGES.indexOf('drip')).toBeLessThan(ONBOARDING_STAGES.indexOf('register'))
+    expect(ONBOARDING_STAGES.indexOf('deploy')).toBeLessThan(ONBOARDING_STAGES.indexOf('register'))
+  })
+
+  // The titles live in `STAGE_TITLES` so one stage cannot be spelled two ways. If a rung is ever
+  // added without a title, this fails rather than rendering `undefined` in the ladder.
+  it('every rung has a title in the one shared table', () => {
+    for (const stage of ONBOARDING_STAGES) {
+      expect(STAGE_TITLES[stage], `no title for ${stage}`).toBeTruthy()
+    }
+  })
+
+  it('every rung has a note, and none of them promises a duration', () => {
+    for (const stage of ONBOARDING_STAGES) {
+      const note = ONBOARDING_STAGE_NOTES[stage]
+      expect(note, `no note for ${stage}`).toBeTruthy()
+      expect(note).not.toMatch(/\bseconds?\b|\bminutes?\b|\bfast\b|\bquick(ly)?\b/i)
+    }
+  })
+
+  // The drip's note is where "9.6 STRK" would land if anybody ported the prototype literally.
+  it('bakes no STRK amount into the drip note', () => {
+    expect(ONBOARDING_STAGE_NOTES.drip).not.toMatch(/\d/)
+  })
+})
+
+describe('the fee note under Create', () => {
+  it('renders whatever fee it is given', () => {
+    expect(createFeeNote('6.0')).toContain('6.0 STRK registration fee')
+    expect(createFeeNote('7.25')).toContain('7.25 STRK registration fee')
+  })
+
+  // The read can fail. Losing the number is the honest answer; a fallback figure would be a
+  // hardcoded fee wearing a disguise.
+  it('omits the amount entirely when the chain could not be asked', () => {
+    const note = createFeeNote(null)
+    expect(note).toContain('the pool’s registration fee')
+    expect(note).not.toMatch(/\d/)
+  })
+
+  // The self-funding door, named UP FRONT rather than sprung at the moment the faucet refuses.
+  // This is what keeps the six-to-two collapse from having silently deleted `f339cbf`'s path.
+  it('names the self-funding door before anything is pressed', () => {
+    expect(createFeeNote('6.0')).toContain('fund the account yourself')
+    expect(createFeeNote(null)).toContain('the address is on this screen')
+  })
+
+  //
+  // THE FAUCET GIVES ONCE. This is a commitment made to somebody who has not spent anything yet,
+  // which makes it the most expensive kind of copy to get wrong — so it is pinned rather than
+  // trusted. An earlier draft promised "if the faucet is dry, the fee is covered for you instead",
+  // which was never true of this product.
+  //
+  it('promises no sponsor, anywhere, in either direction', () => {
+    for (const note of [createFeeNote('6.0'), createFeeNote(null), fundRefused('Dry.')]) {
+      expect(note.toLowerCase()).not.toContain('sponsor')
+      expect(note.toLowerCase()).not.toContain('covered for you')
+      expect(note.toLowerCase()).not.toContain('never a locked door')
+    }
+  })
+
+  it('says the drip is once and bounded', () => {
+    expect(createFeeNote('6.0')).toContain('gives once')
+    expect(createFeeNote('6.0')).toContain('the account pays its own way')
+  })
+
+  // A refusal is a real refusal. It must point somewhere the user can actually go.
+  it('points a refused drip at the user’s own wallet', () => {
+    const refused = fundRefused('The faucet is empty.')
+    expect(refused).toContain('The faucet is empty.')
+    expect(refused).toContain('Fund the account yourself')
+    expect(refused).toContain('notices when it lands')
+  })
+
+  it('names no duration', () => {
+    expect(createFeeNote('6.0')).not.toMatch(/\bseconds?\b|\bminutes?\b|\bfast\b|\bquick(ly)?\b/i)
+  })
+})
+
+describe('public and private are never blurred', () => {
+  // One of these accounts is findable by strangers and the other is not. A single sentence would
+  // have to be vague enough to cover both, and vagueness about what is public is the one thing
+  // this product cannot afford.
+  it('says different things about a claimed and an unclaimed name', () => {
+    expect(namePreview('mira', true)).toContain('anyone can pay you by typing it')
+    expect(namePreview('mira', false)).toContain('a private label')
+    expect(namePreview('mira', true)).not.toEqual(namePreview('mira', false))
+  })
+
+  it('carries the name into both', () => {
+    expect(namePreview('mira', true)).toContain('@mira')
+    expect(namePreview('mira', false)).toContain('@mira')
+  })
+
+  it('says different things on arrival too', () => {
+    expect(doneSub(true)).toContain('Anyone can now find this address by that name')
+    expect(doneSub(false)).toContain('The name stays local to this browser')
+  })
+
+  // Both arrival sentences point at the history rows, because that is where the evidence is.
+  it('points at the receipts either way', () => {
+    for (const claimed of [true, false]) {
+      expect(doneSub(claimed)).toContain('first two rows of your history')
+    }
+  })
+
+  it('makes the name the subject of the arrival title', () => {
+    expect(doneTitle('mira')).toBe('@mira is yours')
   })
 })
