@@ -20,7 +20,7 @@ import { voyagerTxUrl } from '@strk20/protocol/transaction'
 import type { TokenInfo } from '@strk20/protocol/token-list'
 
 import { findToken, useTokenList } from '../../shell/use-token-list'
-import { Text } from '../ui/Text'
+import { Text } from '../Text'
 
 export type TapeScope =
   | { launchId: number }

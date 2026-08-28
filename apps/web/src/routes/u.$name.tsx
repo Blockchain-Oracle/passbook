@@ -1,6 +1,6 @@
 import { Link, createFileRoute } from '@tanstack/react-router'
 
-import { Text } from '../components/ui/Text'
+import { Text } from '../components/Text'
 import { PeerAvatar } from '../components/PeerAvatar'
 import { shortenFelt } from '../shell/session'
 import { useAvatars, useDirectory } from '../shell/use-directory'

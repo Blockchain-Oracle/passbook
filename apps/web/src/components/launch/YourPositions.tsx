@@ -10,7 +10,7 @@ import { usePositions } from '../../shell/use-positions'
 import { shortenFelt } from '../../shell/session'
 import { GOVERNANCE_WRITE_SAFETY } from '../../shell/app-contracts'
 import { LaunchPositionSettlements } from '../PositionSettlement'
-import { Text } from '../ui/Text'
+import { Text } from '../Text'
 
 export function YourPositions({
   launchId,

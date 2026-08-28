@@ -39,7 +39,11 @@
     "moduleDetection": "force",
     "resolveJsonModule": true,
     "noUnusedLocals": true,
-    "noFallthroughCasesInSwitch": true
+    "noFallthroughCasesInSwitch": true,
+
+    // shadcn writes its imports as `@/components/ui/...`; vite.config mirrors this.
+    "baseUrl": ".",
+    "paths": { "@/*": ["./src/*"] }
   },
   "include": ["src", "vite.config.ts", "smoke/entry.ts"],
   "exclude": ["smoke/negative-env.ts"]

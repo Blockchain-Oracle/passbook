@@ -23,7 +23,7 @@ import { useSession } from '../../shell/session'
 import { useTokenList } from '../../shell/use-token-list'
 import { ResponsiveDialog } from '../../shell/ResponsiveDialog'
 import { BlockedButton } from '../BlockedButton'
-import { Text } from '../ui/Text'
+import { Text } from '../Text'
 import { PairMark } from './PairMark'
 
 

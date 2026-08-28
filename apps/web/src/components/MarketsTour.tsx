@@ -35,8 +35,8 @@ import {
 } from '@strk20/protocol/markets-copy'
 
 import { cn } from '../lib/cn'
-import { Button } from './ui/Button'
-import { Text } from './ui/Text'
+import { Button } from './LegacyButton'
+import { Text } from './Text'
 
 /** One flag, one key. Versioned so a materially different tour can be shown again. */
 const SEEN_KEY = 'passbook.markets-tour.v1'

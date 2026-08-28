@@ -24,7 +24,7 @@
 import type { BridgeDestination } from '@strk20/protocol/bridge'
 
 import { cn } from '../lib/cn'
-import { Text } from './ui/Text'
+import { Text } from './Text'
 import { ChainLogo, isKnownChain } from './ChainLogo'
 import { TokenLogo } from './TokenLogo'
 

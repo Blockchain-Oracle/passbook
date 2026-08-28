@@ -8,7 +8,7 @@ import { marketQuestion, type OnChainMarket } from '@strk20/protocol/app-reads'
 
 import { ResponsiveDialog } from '../../shell/ResponsiveDialog'
 import { TalkThread } from '../launch/TalkThread'
-import { Text } from '../ui/Text'
+import { Text } from '../Text'
 
 export function MarketRoom({
   market,

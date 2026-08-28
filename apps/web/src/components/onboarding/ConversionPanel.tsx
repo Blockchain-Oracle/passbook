@@ -68,8 +68,8 @@ import { toPlainText } from '@strk20/protocol/amount'
 import { cn } from '../../lib/cn'
 import { INTRO_SOUND, play } from '../../shell/sound'
 import { ProgressMachine } from '../ProgressMachine'
-import { Button } from '../ui/Button'
-import { Text } from '../ui/Text'
+import { Button } from '../LegacyButton'
+import { Text } from '../Text'
 
 type ScreenId = 'name' | 'create'
 const SCREENS: readonly ScreenId[] = ['name', 'create']

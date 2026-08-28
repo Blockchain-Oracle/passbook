@@ -24,7 +24,7 @@ import { useEffect, useRef, useState } from 'react'
 import { parseSlippage, type Bps } from '@strk20/protocol/quote'
 
 import { cn } from '../lib/cn'
-import { Text } from './ui/Text'
+import { Text } from './Text'
 
 /** The offered values. 1% is the venue default and the one most swaps want. */
 const PRESETS: ReadonlyArray<{ bps: Bps; label: string }> = [

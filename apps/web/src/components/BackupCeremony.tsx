@@ -27,8 +27,8 @@ import { useCallback, useState } from 'react'
 import type { BackupCeremonyState } from '@strk20/protocol/backup-gate'
 
 import { cn } from '../lib/cn'
-import { Button } from './ui/Button'
-import { Text } from './ui/Text'
+import { Button } from './LegacyButton'
+import { Text } from './Text'
 
 export interface BackupCeremonyProps {
   accountKey: string

@@ -5,8 +5,8 @@ import { CHAT_HISTORY_IS_LOCAL, CHAT_MULTIPLEX_DISCLOSURE } from '@strk20/protoc
 
 import { ConversationList } from '../components/ConversationList'
 import { NewMessageDialog } from '../components/NewMessageDialog'
-import { Button } from '../components/ui/Button'
-import { Text } from '../components/ui/Text'
+import { Button } from '../components/LegacyButton'
+import { Text } from '../components/Text'
 import { cn } from '../lib/cn'
 import { setChatSession, useChatBus, useConversations } from '../shell/chat-bus'
 import { useAvatars, useDirectory } from '../shell/use-directory'

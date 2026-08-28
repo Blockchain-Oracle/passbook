@@ -16,7 +16,7 @@ import {
 } from '@strk20/protocol/account-copy'
 
 import { PasswordField } from '../components/PasswordField'
-import { Button } from '../components/ui/Button'
+import { Button } from '../components/LegacyButton'
 import { Surface } from '../shell/Surface'
 // Aliased: `setPassword` is also this component's state setter, and two bindings of one name in
 // one file is how the wrong one gets called.
@@ -32,7 +32,7 @@ import { INTRO_SOUND, isMuted, play, setMuted, subscribeMuted } from '../shell/s
 import { pinTheme, storedChoice, themeChoice } from '../shell/theme'
 import type { ThemeChoice } from '../shell/theme'
 import { NameClaim } from '../components/NameClaim'
-import { Text } from '../components/ui/Text'
+import { Text } from '../components/Text'
 import { useFundingWallet } from '../shell/funding-wallet'
 import { APP_CONTRACTS, GOVERNANCE_WRITE_SAFETY } from '../shell/app-contracts'
 

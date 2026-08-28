@@ -27,7 +27,7 @@
 import type { ReactNode } from 'react'
 
 import { cn } from '../lib/cn'
-import { Text } from './ui/Text'
+import { Text } from './Text'
 
 export interface ComingStateProps {
   title: string

@@ -26,7 +26,7 @@ import { voyagerTxUrl } from '@strk20/protocol/transaction'
 import type { RoomMessage } from '@strk20/protocol/room-message'
 
 import { cn } from '../lib/cn'
-import { Text } from './ui/Text'
+import { Text } from './Text'
 // The log's entry IS the thread's entry — `chat-log.ts` was written to the shape this file
 // already rendered, so the store could replace React state without touching the bubble.
 import type { ChatLogEntry } from '@strk20/protocol/chat-log'

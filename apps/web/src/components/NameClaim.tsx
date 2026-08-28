@@ -41,9 +41,9 @@ import { cn } from '../lib/cn'
 import { claimName, nameFor, useDirectory } from '../shell/use-directory'
 import { toast } from '../shell/toast-store'
 import { useSession } from '../shell/session'
-import { Button } from './ui/Button'
+import { Button } from './LegacyButton'
 import { PeerAvatar } from './PeerAvatar'
-import { Text } from './ui/Text'
+import { Text } from './Text'
 
 export function NameClaim() {
   const session = useSession()

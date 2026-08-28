@@ -25,9 +25,9 @@ import { IdentityDisc } from '../components/IdentityDisc'
 import { PasswordField } from '../components/PasswordField'
 import { TokenLogo } from '../components/TokenLogo'
 import { ShieldDialog } from '../components/ShieldDialog'
-import { Button } from '../components/ui/Button'
-import { Skeleton, SkeletonBox } from '../components/ui/Skeleton'
-import { Text } from '../components/ui/Text'
+import { Button } from '../components/LegacyButton'
+import { Skeleton } from '../components/ui/skeleton'
+import { Text } from '../components/Text'
 import { cn } from '../lib/cn'
 import { ResponsiveDialog } from '../shell/ResponsiveDialog'
 import { readAccountStatus, type AccountStatus } from '../shell/account-status'
@@ -327,8 +327,8 @@ function WalletAccount({ session }: { session: Extract<SessionState, { status: '
         <Suspense
           fallback={
             <Skeleton className="flex w-full flex-col gap-s12">
-              <SkeletonBox className="h-s28 w-[40%]" />
-              <SkeletonBox className="h-[200px] w-full rounded-card" />
+              <Skeleton className="h-s28 w-[40%]" />
+              <Skeleton className="h-[200px] w-full rounded-card" />
             </Skeleton>
           }
         >
@@ -735,8 +735,8 @@ function BalanceHero({
 
       {loading && !balance ? (
         <Skeleton className="flex flex-col gap-s8">
-          <SkeletonBox className="h-s48 w-[60%]" />
-          <SkeletonBox className="h-s16 w-[35%]" />
+          <Skeleton className="h-s48 w-[60%]" />
+          <Skeleton className="h-s16 w-[35%]" />
         </Skeleton>
       ) : (
         <>

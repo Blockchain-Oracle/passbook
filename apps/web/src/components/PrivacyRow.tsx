@@ -50,7 +50,7 @@ import {
 import { cn } from '../lib/cn'
 import { Disclosure } from './Disclosure'
 import { LinkabilityMeter } from './LinkabilityMeter'
-import { Text } from './ui/Text'
+import { Text } from './Text'
 
 export interface PrivacyRowProps {
   disclosure: DisclosureModel

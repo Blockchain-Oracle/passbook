@@ -17,8 +17,8 @@
 //
 import type { ElementType, HTMLAttributes, ReactNode } from 'react'
 
-import { cn } from '../../lib/cn'
-import { Skeleton } from './Skeleton'
+import { cn } from '../lib/cn'
+import { Skeleton } from './ui/skeleton'
 
 /** The design authority's type steps. `mono`, `kicker` and the `display*` steps change family. */
 export type TextVariant =

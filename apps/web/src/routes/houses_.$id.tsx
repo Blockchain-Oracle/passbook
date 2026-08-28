@@ -19,8 +19,8 @@ import { YourPositions } from '../components/launch/YourPositions'
 import { BallotTicket } from '../components/houses/BallotTicket'
 import { FundDialog, JoinDialog, ProposalRow } from '../components/houses/HouseCard'
 import { ProposeDialog } from '../components/houses/ProposeDialog'
-import { Button } from '../components/ui/Button'
-import { Text } from '../components/ui/Text'
+import { Button } from '../components/LegacyButton'
+import { Text } from '../components/Text'
 import {
   APP_CONTRACTS,
   GOVERNANCE_WRITE_SAFETY,

@@ -26,7 +26,7 @@ import { formatPrice } from '@strk20/protocol/pragma-pairs'
 import { cn } from '../../lib/cn'
 import { findToken, useTokenList } from '../../shell/use-token-list'
 import { PriceChart } from '../PriceChart'
-import { Text } from '../ui/Text'
+import { Text } from '../Text'
 import { PairMark } from './PairMark'
 
 const URGENT_MS = 5 * 60 * 1000

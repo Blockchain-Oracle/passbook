@@ -8,8 +8,8 @@ import { usePoolFee } from '../shell/use-pool-fee'
 import { useSession } from '../shell/session'
 import { useShield } from '../shell/use-shield'
 import { AmountInput, useAmountField } from './AmountInput'
-import { Button } from './ui/Button'
-import { Text } from './ui/Text'
+import { Button } from './LegacyButton'
+import { Text } from './Text'
 
 
 export function ShieldDialog({

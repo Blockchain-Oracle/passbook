@@ -23,8 +23,8 @@ import { byLiquidity, searchTokens, type TokenInfo } from '@strk20/protocol/toke
 
 import { cn } from '../lib/cn'
 import { ResponsiveDialog } from '../shell/ResponsiveDialog'
-import { Skeleton, SkeletonBox } from './ui/Skeleton'
-import { Text } from './ui/Text'
+import { Skeleton } from './ui/skeleton'
+import { Text } from './Text'
 import { TokenLogo } from './TokenLogo'
 
 export interface TokenSelectorProps {
@@ -106,10 +106,10 @@ export function TokenSelector({
               {[0, 1, 2, 3, 4].map((index) => (
                 <Skeleton key={index} style={{ opacity: (5 - index) / 5 }}>
                   <div className="flex items-center gap-s12 p-s8">
-                    <SkeletonBox className="size-s40 rounded-pill" />
+                    <Skeleton className="size-s40 rounded-pill" />
                     <div className="flex flex-1 flex-col gap-s4">
-                      <SkeletonBox className="h-s16 w-[40%]" />
-                      <SkeletonBox className="h-s12 w-[25%]" />
+                      <Skeleton className="h-s16 w-[40%]" />
+                      <Skeleton className="h-s12 w-[25%]" />
                     </div>
                   </div>
                 </Skeleton>

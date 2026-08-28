@@ -24,7 +24,7 @@
 import type { RecipientStatus } from '../shell/use-recipient'
 
 import { cn } from '../lib/cn'
-import { Text } from './ui/Text'
+import { Text } from './Text'
 import { TokenLogo } from './TokenLogo'
 
 export interface RecipientFieldProps {

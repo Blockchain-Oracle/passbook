@@ -29,8 +29,8 @@ import type { TokenInfo } from '@strk20/protocol/token-list'
 
 import { PrivacyRow } from './PrivacyRow'
 import { TokenLogo } from './TokenLogo'
-import { Button } from './ui/Button'
-import { Text } from './ui/Text'
+import { Button } from './LegacyButton'
+import { Text } from './Text'
 import { ResponsiveDialog } from '../shell/ResponsiveDialog'
 
 export interface SendReviewProps {

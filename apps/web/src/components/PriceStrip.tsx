@@ -25,9 +25,9 @@ import { formatPrice, isStale, type PragmaPair } from '@strk20/protocol/pragma-p
 import { cn } from '../lib/cn'
 import { usePriceFollow } from '../lib/spring'
 import { priceOf, type PragmaState } from '../shell/use-pragma'
-import { Skeleton, SkeletonBox } from './ui/Skeleton'
+import { Skeleton } from './ui/skeleton'
 import { Sparkline } from './PriceChart'
-import { Text } from './ui/Text'
+import { Text } from './Text'
 
 export interface PriceStripProps {
   state: PragmaState
@@ -79,8 +79,8 @@ function PriceCell({
     return (
       <div className="rounded-large border border-solid border-surface3 p-s12">
         <Skeleton className="flex flex-col gap-s8">
-          <SkeletonBox className="h-s16 w-[40%]" />
-          <SkeletonBox className="h-s28 w-[70%]" />
+          <Skeleton className="h-s16 w-[40%]" />
+          <Skeleton className="h-s28 w-[70%]" />
         </Skeleton>
       </div>
     )

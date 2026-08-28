@@ -14,8 +14,8 @@ import { useDirectory, nameFor } from '../../shell/use-directory'
 import { useSession } from '../../shell/session'
 import { useTalkComposer, useTalkThread } from '../../shell/use-talk'
 import { IdentityDisc } from '../IdentityDisc'
-import { Button } from '../ui/Button'
-import { Text } from '../ui/Text'
+import { Button } from '../LegacyButton'
+import { Text } from '../Text'
 
 export function TalkThread({ tag, emptyLine }: { tag: string; emptyLine: string }) {
   const thread = useTalkThread(tag)

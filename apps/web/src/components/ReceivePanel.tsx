@@ -37,8 +37,8 @@ import { cn } from '../lib/cn'
 import { toast } from '../shell/toast-store'
 import { shortenFelt } from '../shell/session'
 import { IdentityDisc } from './IdentityDisc'
-import { Button } from './ui/Button'
-import { Text } from './ui/Text'
+import { Button } from './LegacyButton'
+import { Text } from './Text'
 
 /** How much of the address survives the elision at each end. Enough to check both halves. */
 const LEAD = 22

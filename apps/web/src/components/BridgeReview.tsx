@@ -26,8 +26,8 @@ import { ResponsiveDialog } from '../shell/ResponsiveDialog'
 import { PrivacyRow } from './PrivacyRow'
 import { ChainLogo, isKnownChain } from './ChainLogo'
 import { TokenLogo } from './TokenLogo'
-import { Button } from './ui/Button'
-import { Text } from './ui/Text'
+import { Button } from './LegacyButton'
+import { Text } from './Text'
 
 export interface BridgeReviewProps {
   open: boolean
