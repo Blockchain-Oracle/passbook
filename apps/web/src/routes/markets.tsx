@@ -55,8 +55,9 @@ function Markets() {
   return (
     <Surface routeId={Route.fullPath}>
       <div className="mx-auto flex w-full max-w-[1180px] flex-col gap-s16">
-        <header className="flex flex-col gap-s4">
-          <Text variant="heading3" as="h1">
+        <header className="flex flex-col gap-s8 border-b border-solid border-surface3 pb-s12">
+          <Text variant="kicker">05 — positions</Text>
+          <Text variant="display2" as="h1" className="text-neutral1 lg:text-display1">
             {MARKETS_TITLE}
           </Text>
           <Text variant="body3" className="max-w-[70ch] text-neutral2">
