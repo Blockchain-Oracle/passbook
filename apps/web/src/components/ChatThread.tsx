@@ -31,14 +31,45 @@ import { Text } from './ui/Text'
 // already rendered, so the store could replace React state without touching the bubble.
 import type { ChatLogEntry } from '@strk20/protocol/chat-log'
 
+/** A request's numbers, handed up when its Pay door is pressed. */
+export interface PayableRequest {
+  amount: string
+  symbol: string
+  token: string
+}
+
 export interface ChatThreadProps {
   entries: readonly ChatLogEntry[]
   /** Shown when there is nothing yet — different words before and after a room exists. */
   emptyNote: string
+  /** The Pay door on THEIR request cards. Absent means the door does not render. */
+  onPayRequest?: (request: PayableRequest) => void
+  /** The react affordance on THEIR bubbles. Absent means no affordance. */
+  onReact?: (targetId: string, emoji: string) => void
 }
 
-export function ChatThread({ entries, emptyNote }: ChatThreadProps) {
+/** The react row's vocabulary — four, fixed. A picker would be a keyboard. */
+const REACT_EMOJIS = ['👍', '❤️', '😂', '🔥'] as const
+
+export function ChatThread({ entries, emptyNote, onPayRequest, onReact }: ChatThreadProps) {
   const bottom = useRef<HTMLDivElement>(null)
+
+  //
+  // REACTIONS ARE CHIPS, NEVER BUBBLES. One pass splits the log: reaction entries fold into a
+  // map keyed by their target's id, everything else renders in order. A reaction whose target
+  // this client does not hold folds into nothing — the correct fate for it.
+  //
+  const reactions = new Map<string, string[]>()
+  const bubbles: ChatLogEntry[] = []
+  for (const entry of entries) {
+    if (entry.message.kind === 'reaction') {
+      const held = reactions.get(entry.message.target) ?? []
+      held.push(entry.message.emoji)
+      reactions.set(entry.message.target, held)
+    } else {
+      bubbles.push(entry)
+    }
+  }
 
   // Follow the tail. `block: 'nearest'` rather than a scroll-to-bottom on the container: it keeps
   // a person who has scrolled up to read something from being yanked back down mid-sentence.
@@ -46,9 +77,9 @@ export function ChatThread({ entries, emptyNote }: ChatThreadProps) {
     bottom.current?.scrollIntoView({ block: 'nearest' })
   }, [entries.length])
 
-  if (entries.length === 0) {
+  if (bubbles.length === 0) {
     return (
-      <div className="flex min-h-[200px] items-center justify-center rounded-large bg-inset p-s16">
+      <div className="flex min-h-[200px] flex-1 items-center justify-center rounded-large bg-inset p-s16">
         <Text variant="body4" className="max-w-[280px] text-center text-neutral2">
           {emptyNote}
         </Text>
@@ -58,23 +89,46 @@ export function ChatThread({ entries, emptyNote }: ChatThreadProps) {
 
   return (
     <div
-      className="flex max-h-[380px] min-h-[200px] flex-col gap-s6 overflow-y-auto rounded-large bg-inset p-s12"
+      // The thread takes the room it deserves: roughly half the viewport, bounded — the old
+      // 380px box made a conversation read through a letterbox.
+      className="flex h-[52dvh] max-h-[560px] min-h-[240px] flex-col gap-s6 overflow-y-auto rounded-large bg-inset p-s12"
       role="log"
       aria-label="Messages"
       aria-live="polite"
     >
-      {entries.map((entry) => (
-        <Bubble key={entry.id} entry={entry} />
+      {bubbles.map((entry) => (
+        <Bubble
+          key={entry.id}
+          entry={entry}
+          reactions={reactions.get(entry.id) ?? []}
+          onPayRequest={onPayRequest}
+          onReact={onReact}
+        />
       ))}
       <div ref={bottom} />
     </div>
   )
 }
 
-function Bubble({ entry }: { entry: ChatLogEntry }) {
+function Bubble({
+  entry,
+  reactions,
+  onPayRequest,
+  onReact,
+}: {
+  entry: ChatLogEntry
+  reactions: readonly string[]
+  onPayRequest?: (request: PayableRequest) => void
+  onReact?: (targetId: string, emoji: string) => void
+}) {
   const { mine, message } = entry
+
+  // Aggregated: four 👍 render as one chip with a count, not four chips.
+  const counts = new Map<string, number>()
+  for (const emoji of reactions) counts.set(emoji, (counts.get(emoji) ?? 0) + 1)
+
   return (
-    <div className={cn('flex w-full', mine ? 'justify-end' : 'justify-start')}>
+    <div className={cn('group flex w-full', mine ? 'justify-end' : 'justify-start')}>
       <div className="flex max-w-[85%] flex-col gap-s4">
         <div
           className={cn(
@@ -90,7 +144,47 @@ function Bubble({ entry }: { entry: ChatLogEntry }) {
           )}
         >
           <MessageBody message={message} mine={mine} />
+          {message.kind === 'request' && !mine && onPayRequest ? (
+            <button
+              type="button"
+              onClick={() => onPayRequest({ amount: message.amount, symbol: message.symbol, token: message.token })}
+              className="focus-ring mt-s6 w-full cursor-pointer rounded-control bg-accent2 py-s6 text-buttonLabel4 text-accent1"
+            >
+              Pay {message.amount} {message.symbol}
+            </button>
+          ) : null}
         </div>
+
+        {counts.size > 0 ? (
+          <div className={cn('flex gap-s4', mine && 'justify-end')}>
+            {[...counts.entries()].map(([emoji, count]) => (
+              <span
+                key={emoji}
+                className="rounded-pill border border-solid border-surface3 bg-raised px-s6 py-s2 text-body4"
+              >
+                {emoji}
+                {count > 1 ? ` ${count}` : ''}
+              </span>
+            ))}
+          </div>
+        ) : null}
+
+        {/* The react row — theirs only, revealed on hover/focus, four fixed doors. */}
+        {!mine && onReact ? (
+          <div className="flex gap-s2 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100">
+            {REACT_EMOJIS.map((emoji) => (
+              <button
+                key={emoji}
+                type="button"
+                aria-label={`React ${emoji}`}
+                onClick={() => onReact(entry.id, emoji)}
+                className="focus-ring cursor-pointer rounded-pill bg-transparent px-s4 py-s2 text-body4 hover:bg-raised"
+              >
+                {emoji}
+              </button>
+            ))}
+          </div>
+        ) : null}
 
         {entry.undelivered ? (
           <Text variant="body4" className={cn('text-exposed', mine && 'text-right')}>
@@ -115,11 +209,34 @@ function MessageBody({ message, mine }: { message: RoomMessage; mine: boolean })
 
   // A 'post' belongs to open Talk rooms and never rides a pairwise thread; one arriving here is
   // a client speaking the wrong room's dialect, shown as unsupported rather than invented around.
-  if (message.kind === 'unsupported' || message.kind === 'post') {
+  // A 'reaction' is filtered into chips before this renders, so reaching here is the same case.
+  if (message.kind === 'unsupported' || message.kind === 'post' || message.kind === 'reaction') {
     return (
       <Text variant="body4" className={mine ? 'opacity-80' : 'text-neutral2'}>
         A message this version cannot show yet.
       </Text>
+    )
+  }
+
+  if (message.kind === 'request') {
+    return (
+      <div className="flex flex-col gap-s4">
+        <Text variant="body4" className={mine ? 'opacity-80' : 'text-neutral2'}>
+          {mine ? 'You asked for' : 'They ask for'}
+        </Text>
+        <Text variant="subheading2" className="numeric">
+          {message.amount} {message.symbol}
+        </Text>
+        {message.text ? (
+          <Text variant="body4" className="whitespace-pre-wrap break-words">
+            {message.text}
+          </Text>
+        ) : null}
+        {/* No hash ON PURPOSE — nothing happened yet, and the card must not dress like a payment. */}
+        <Text variant="body4" className={mine ? 'opacity-80' : 'text-neutral3'}>
+          An ask, not a payment — nothing has moved.
+        </Text>
+      </div>
     )
   }
 

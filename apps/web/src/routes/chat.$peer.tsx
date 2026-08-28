@@ -12,8 +12,7 @@ import {
 import type { TokenInfo } from '@strk20/protocol/token-list'
 
 import { AmountInput, useAmountField } from '../components/AmountInput'
-import { BlockedButton } from '../components/BlockedButton'
-import { ChatThread } from '../components/ChatThread'
+import { ChatThread, type PayableRequest } from '../components/ChatThread'
 import { PrivacyRow } from '../components/PrivacyRow'
 import { PeerAvatar } from '../components/PeerAvatar'
 import { TokenSelector } from '../components/TokenSelector'
@@ -99,7 +98,9 @@ function Thread() {
   const { balance, read } = useBalance(ready?.address ?? null, ready?.accountKey ?? null)
   const sending = useSend(read, ready)
 
-  const [paying, setPaying] = useState(false)
+  // One dialog, two meanings: 'pay' moves money then seals the card; 'request' only seals the
+  // ask. The distinction is the whole difference between the two cards, so it is state, not copy.
+  const [money, setMoney] = useState<'pay' | 'request' | null>(null)
   const [picking, setPicking] = useState(false)
   const [token, setToken] = useState<TokenInfo | null>(null)
 
@@ -145,7 +146,7 @@ function Thread() {
     })
     if (!outcome.ok) return
 
-    setPaying(false)
+    setMoney(null)
     amount.setText('')
     setSendProblem(
       await sendMessage(peer, {
@@ -159,6 +160,56 @@ function Thread() {
     )
     setDraft('')
   }, [amount, draft, open, peer, sending, token])
+
+  //
+  // A REQUEST SEALS AND SENDS — no chain, no quote, no balance. The dialog's confirm branches
+  // here rather than in the button's label, so a request can never accidentally move money.
+  //
+  const onSendRequest = useCallback(async () => {
+    if (!token || amount.wei === null || amount.wei === 0n || !open) return
+    setMoney(null)
+    const asked = toPlainText(amount.wei, token.decimals)
+    amount.setText('')
+    setSendProblem(
+      await sendMessage(peer, {
+        kind: 'request',
+        amount: asked,
+        symbol: token.symbol,
+        token: token.address,
+        ...(draft.trim() === '' ? {} : { text: draft.trim() }),
+      }),
+    )
+    setDraft('')
+  }, [amount, draft, open, peer, token])
+
+  /** Their request card's Pay door: the same dialog, numbers filled in. */
+  const onPayRequest = useCallback(
+    (request: PayableRequest) => {
+      const wanted = tokens.find((t) => {
+        try {
+          return BigInt(t.address) === BigInt(request.token)
+        } catch {
+          return false
+        }
+      })
+      if (!wanted) {
+        setSendProblem('That request names a token this build does not know — pay it from Send instead.')
+        return
+      }
+      sending.reset()
+      setToken(wanted)
+      amount.setText(request.amount)
+      setMoney('pay')
+    },
+    [tokens, amount, sending],
+  )
+
+  const onReact = useCallback(
+    (targetId: string, emoji: string) => {
+      void sendMessage(peer, { kind: 'reaction', emoji, target: targetId }).then(setSendProblem)
+    },
+    [peer],
+  )
 
   const disclosure = disclosureFor('chat-payment')
   // The pool's live reason when there is one; otherwise the reason this particular button cannot
@@ -211,15 +262,44 @@ function Thread() {
         </Text>
       )}
 
-      <ChatThread entries={entries} emptyNote={open ? CHAT_THREAD_EMPTY : ''} />
+      <ChatThread
+        entries={entries}
+        emptyNote={open ? CHAT_THREAD_EMPTY : ''}
+        onPayRequest={onPayRequest}
+        onReact={onReact}
+      />
 
       {/*
         The composer stays mounted and disabled rather than appearing when a room opens: a control
         that materialises under the cursor is how a person ends up clicking the thing that took its
-        place.
+        place. Money lives IN the composer now — the two chips are the doors, and pressing one
+        while the pool is degraded surfaces the live reason where the reply would land, instead of
+        a dead button pretending nothing happened.
       */}
       <div className="flex flex-col gap-s8">
         <div className="flex items-end gap-s8">
+          <div className="flex shrink-0 gap-s4 pb-s6">
+            {(['pay', 'request'] as const).map((kind) => (
+              <button
+                key={kind}
+                type="button"
+                disabled={!open}
+                aria-label={kind === 'pay' ? 'Send money in this thread' : 'Request money in this thread'}
+                onClick={() => {
+                  if (moneyBlocker) {
+                    setSendProblem(moneyBlocker)
+                    return
+                  }
+                  sending.reset()
+                  amount.setText('')
+                  setMoney(kind)
+                }}
+                className="focus-ring cursor-pointer rounded-pill border border-solid border-surface3 bg-raised px-s10 py-s6 text-buttonLabel4 text-neutral2 hover:text-neutral1 disabled:opacity-60"
+              >
+                {kind === 'pay' ? '$ Pay' : 'Ask'}
+              </button>
+            ))}
+          </div>
           <textarea
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
@@ -252,15 +332,6 @@ function Thread() {
             {sendProblem}
           </Text>
         ) : null}
-
-        <BlockedButton
-          blocker={moneyBlocker}
-          action="Send money in this thread"
-          onPress={() => {
-            sending.reset()
-            setPaying(true)
-          }}
-        />
       </div>
 
       {/*
@@ -279,14 +350,20 @@ function Thread() {
       */}
       <PrivacyRow disclosure={disclosure} />
 
-      <ResponsiveDialog open={paying} onOpenChange={setPaying} label="Send money" modal>
+      <ResponsiveDialog
+        open={money !== null}
+        onOpenChange={(next) => (next ? undefined : setMoney(null))}
+        label={money === 'request' ? 'Request money' : 'Send money'}
+        modal
+      >
         <div className="flex w-full min-w-0 flex-col gap-s16">
           <Text variant="subheading1" as="h2">
-            Send money
+            {money === 'request' ? 'Request money' : 'Send money'}
           </Text>
           <Text variant="body4" className="text-neutral2">
-            It goes to {shortenFelt(peer.trim())} — the account this thread is with. The amount and
-            the token are the parts that are visible; which of your notes paid is not.
+            {money === 'request'
+              ? `A card in the thread asking ${name ? `@${name}` : shortenFelt(peer.trim())} for the amount — nothing moves until they press Pay.`
+              : `It goes to ${shortenFelt(peer.trim())} — the account this thread is with. The amount and the token are the parts that are visible; which of your notes paid is not.`}
           </Text>
 
           <button
@@ -327,16 +404,23 @@ function Thread() {
             variant="primary"
             size="lg"
             fill
-            onClick={() => void onSendMoney()}
+            onClick={() => void (money === 'request' ? onSendRequest() : onSendMoney())}
             disabled={
-              sending.stage !== null || !token || amount.wei === null || amount.wei === 0n || amount.short
+              sending.stage !== null ||
+              !token ||
+              amount.wei === null ||
+              amount.wei === 0n ||
+              // A request asks for money you do not have to hold — `short` only gates the pay arm.
+              (money === 'pay' && amount.short)
             }
           >
             {sending.stage !== null
               ? 'Sending…'
-              : amount.short
-                ? `Not enough ${token?.symbol ?? ''}`
-                : 'Send'}
+              : money === 'request'
+                ? 'Ask for it'
+                : amount.short
+                  ? `Not enough ${token?.symbol ?? ''}`
+                  : 'Send'}
           </Button>
         </div>
       </ResponsiveDialog>

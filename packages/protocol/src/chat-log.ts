@@ -81,6 +81,10 @@ function preview(entry: ChatLogEntry): string {
       return m.text
     case 'payment':
       return `${entry.mine ? 'Sent' : 'Received'} ${m.amount} ${m.symbol}`
+    case 'request':
+      return `${entry.mine ? 'You asked for' : 'They ask for'} ${m.amount} ${m.symbol}`
+    case 'reaction':
+      return `${entry.mine ? 'You reacted' : 'Reacted'} ${m.emoji}`
     default:
       return 'Message'
   }

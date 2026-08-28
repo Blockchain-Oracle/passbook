@@ -36,6 +36,30 @@ export type RoomMessage =
     }
   | {
       /**
+       * A REQUEST — the payment card's mirror. It claims nothing happened yet: it is an ask,
+       * rendered with a Pay door on the recipient's side that opens the ordinary pay flow with
+       * the numbers filled in. No hash, because there is no transaction to name — which is
+       * exactly the difference between this card and a payment card, and both say so.
+       */
+      readonly kind: 'request'
+      readonly amount: string
+      readonly symbol: string
+      readonly token: string
+      readonly text?: string
+    }
+  | {
+      /**
+       * A reaction — an emoji pinned to one earlier message by its envelope nonce. Rendered as a
+       * chip under the target, never as a bubble; a reaction to a message this client does not
+       * hold simply does not render, which is the correct fate for it.
+       */
+      readonly kind: 'reaction'
+      readonly emoji: string
+      /** The target entry's id — the envelope iv, unique per message by construction. */
+      readonly target: string
+    }
+  | {
+      /**
        * A post in an OPEN room — a token's Talk thread, where the key is publicly derivable
        * (`open-room.ts`) and everyone on the page reads everything. `name` is the poster's
        * CLAIMED directory handle, carried in the plaintext because an open room has no pairwise
@@ -49,7 +73,7 @@ export type RoomMessage =
   | { readonly kind: 'unsupported'; readonly received: string }
 
 /** The wire discriminators. Single letters: every byte here is inside the message size cap. */
-const WIRE_KIND = { text: 't', payment: 'p', post: 'o' } as const
+const WIRE_KIND = { text: 't', payment: 'p', post: 'o', request: 'r', reaction: 'e' } as const
 
 export function encodeRoomMessage(message: RoomMessage): string {
   switch (message.kind) {
@@ -70,6 +94,16 @@ export function encodeRoomMessage(message: RoomMessage): string {
         b: message.text,
         ...(message.name === undefined ? {} : { n: message.name }),
       })
+    case 'request':
+      return JSON.stringify({
+        k: WIRE_KIND.request,
+        a: message.amount,
+        s: message.symbol,
+        c: message.token,
+        ...(message.text === undefined ? {} : { b: message.text }),
+      })
+    case 'reaction':
+      return JSON.stringify({ k: WIRE_KIND.reaction, e: message.emoji, t: message.target })
     case 'unsupported':
       // Re-encoding something we could not read would forward a payload we never validated. A
       // client that received an unsupported message has nothing to say back in its shape.
@@ -118,6 +152,31 @@ export function decodeRoomMessage(plaintext: string): RoomMessage {
       transactionHash: wire.h,
       ...(typeof wire.b === 'string' && wire.b.length > 0 ? { text: wire.b } : {}),
     }
+  }
+  if (
+    wire.k === WIRE_KIND.request &&
+    typeof wire.a === 'string' &&
+    typeof wire.s === 'string' &&
+    typeof wire.c === 'string'
+  ) {
+    return {
+      kind: 'request',
+      amount: wire.a,
+      symbol: wire.s,
+      token: wire.c,
+      ...(typeof wire.b === 'string' && wire.b.length > 0 ? { text: wire.b } : {}),
+    }
+  }
+  if (
+    wire.k === WIRE_KIND.reaction &&
+    typeof wire.e === 'string' &&
+    wire.e.length > 0 &&
+    // An "emoji" the size of a paragraph is not a reaction — it is a bubble dodging the layout.
+    wire.e.length <= 8 &&
+    typeof wire.t === 'string' &&
+    wire.t.length > 0
+  ) {
+    return { kind: 'reaction', emoji: wire.e, target: wire.t }
   }
   if (wire.k === WIRE_KIND.post && typeof wire.b === 'string' && wire.b.length > 0) {
     return {
