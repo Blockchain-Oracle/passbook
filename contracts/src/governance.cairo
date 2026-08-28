@@ -116,11 +116,23 @@ use strk20_app::pool_types::OpenNoteDeposit;
 
 #[starknet::interface]
 pub trait IGovernance<TContractState> {
-    /// The ComputeAndInvoke entrypoint (§2.1): the pool derives and injects `identity_key` as
-    /// argument 0 — a per-user, per-helper handle unlinkable to any address. Ballots and joins
-    /// arrive here, because both need a voter to be UNIQUE without being IDENTIFIED.
+    /// The ComputeAndInvoke pair, in the pool's OWN two-phase shape
+    /// (`reference/privacy/packages/privacy/src/privacy.cairo:545` — read, not guessed):
+    ///
+    /// CLIENT PHASE: the pool derives `identity_key = f(user_addr, user_key, helper_addr)` and
+    /// calls `privacy_compute` with `[identity_key] ++ compute_additional_data`. The result must
+    /// be non-empty — it is what BINDS the identity into the later call — and this contract
+    /// returns exactly `[identity_key]`. No state moves here: the phase-6 withdrawal that funds
+    /// a ballot has not applied yet.
     fn privacy_compute(
-        ref self: TContractState, identity_key: felt252, op: felt252, payload: Span<felt252>,
+        self: @TContractState, identity_key: felt252, op: felt252, payload: Span<felt252>,
+    ) -> Span<felt252>;
+    /// SERVER PHASE: the pool calls this with `[...compute_result, ...invoke_additional_data]`
+    /// — serde-wise `(computed: Span<felt252>, op: felt252, payload: Span<felt252>)`, the
+    /// compute result arriving len-prefixed exactly as a `Span` return travels. The withdrawal
+    /// has applied by now, so custody is checkable, and deposits return the pool's way.
+    fn privacy_invoke_with_computation(
+        ref self: TContractState, computed: Span<felt252>, op: felt252, payload: Span<felt252>,
     ) -> Span<OpenNoteDeposit>;
     /// The plain invoke entrypoint — the legs that need value but no identity: delegating,
     /// funding the treasury, and the two settling legs (reclaim, revoke).
@@ -417,11 +429,27 @@ pub mod Governance {
     #[abi(embed_v0)]
     impl GovernanceImpl of super::IGovernance<ContractState> {
         fn privacy_compute(
-            ref self: ContractState, identity_key: felt252, op: felt252, payload: Span<felt252>,
-        ) -> Span<OpenNoteDeposit> {
-            // Pool-only on BOTH compute ops: `identity_key` is only meaningful when the pool
-            // derived it. Anyone else calling this with a chosen key would be minting voters.
+            self: @ContractState, identity_key: felt252, op: felt252, payload: Span<felt252>,
+        ) -> Span<felt252> {
+            // Pool-only: `identity_key` is only meaningful when the pool derived it. Anyone else
+            // calling this with a chosen key would be minting voters.
             assert(get_caller_address() == self.pool.read(), 'ONLY_POOL');
+            assert(identity_key != 0, 'ZERO_IDENTITY');
+            assert(op == OP_BALLOT || op == OP_JOIN, 'UNKNOWN_OP');
+            let _ = payload;
+            // The binding, and nothing else: the identity rides the compute result into
+            // `privacy_invoke_with_computation`, where the state actually moves.
+            array![identity_key].span()
+        }
+
+        fn privacy_invoke_with_computation(
+            ref self: ContractState, computed: Span<felt252>, op: felt252, payload: Span<felt252>,
+        ) -> Span<OpenNoteDeposit> {
+            assert(get_caller_address() == self.pool.read(), 'ONLY_POOL');
+            // Exactly the binding `privacy_compute` produced — anything else is a caller
+            // improvising the wire.
+            assert(computed.len() == 1, 'BAD_COMPUTE_RESULT');
+            let identity_key = *computed.at(0);
             assert(identity_key != 0, 'ZERO_IDENTITY');
             if op == OP_BALLOT {
                 self.op_ballot(identity_key, payload)
