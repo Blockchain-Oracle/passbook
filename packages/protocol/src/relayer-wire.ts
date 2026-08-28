@@ -413,3 +413,25 @@ export interface FeeRecipientBody {
   feeRecipient?: string
   error?: string
 }
+
+/**
+ * The relayer's endpoints, as the browser addresses them.
+ *
+ * ── RELATIVE, AND THEY LIVE HERE RATHER THAN IN `register.ts` ─────────────────────────────
+ *
+ * Relative because the browser resolves them against the app's own origin, so the proxy in front
+ * of the relayer is what carries `x-relayer-auth` and the page never holds it.
+ *
+ * HERE because this module is a runtime LEAF — its only import is a type, which is erased — and
+ * `register.ts` is the head of the crypto graph. A caller that needs nothing but a URL string
+ * must be able to get one without pulling `starknet` into its chunk, and `build:web`'s eager
+ * budget is not a style preference: it failed a build over exactly this import, from
+ * `shell/faucet.ts`, which is a fetch wrapper with no cryptography in it at all.
+ *
+ * ONE OBJECT, so the two paths cannot drift apart. `register.ts` re-exports `submit` as
+ * `DEFAULT_RELAYER_URL`, which is the name every existing caller already uses.
+ */
+export const RELAYER_PATHS = {
+  submit: '/api/submit',
+  faucet: '/api/faucet',
+} as const

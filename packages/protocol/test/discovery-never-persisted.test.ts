@@ -148,8 +148,20 @@ describe('nothing discovered can be written down', () => {
     // grew, and it grew for a reason written at `session-position-store.ts`; what matters to THIS
     // test is that nothing discovered can hide in it, which the value check below re-asserts
     // independently of the name.
+    // `vault` (2026-08-28) holds the SEALED accounts record — the same material `accounts` held,
+    // encrypted, and strictly less of it in the clear than before. It is named here because the
+    // union grew; what matters to THIS test is that a sealed account list is still an account list
+    // and not a home for discovery output.
     expect(Object.keys(SESSION_KEYS).sort()).toEqual(
-      ['accountKey', 'accounts', 'cadence', 'ceremony', 'inviteIntents', 'positionSecrets'].sort(),
+      [
+        'accountKey',
+        'accounts',
+        'cadence',
+        'ceremony',
+        'inviteIntents',
+        'positionSecrets',
+        'vault',
+      ].sort(),
     )
     // And no key's VALUE mentions this story's material either — a key named `ceremony` whose
     // value drifted to `passbook.notes` would pass a name check and fail the rule.

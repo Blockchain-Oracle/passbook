@@ -127,6 +127,26 @@ export const SESSION_KEYS = {
    * see `session-position-store.ts` for why it rides the same surface note material does.
    */
   positionSecrets: 'passbook.position-secrets',
+  /**
+   * The password-sealed accounts record (Abu's ruling 2026-08-28, `session-vault.ts`).
+   *
+   * THE SEVENTH ENTRY, and it is the first one that makes this list SMALLER rather than longer.
+   * Every other key here widened what the browser holds; this one exists so that two of them —
+   * `accounts` and its `accountKey` mirror — can be DELETED. When a password is set, the plaintext
+   * pair is removed and this is what is left: a public header the lock screen draws itself from,
+   * and a body no script on this origin can read without the password.
+   *
+   * That inverts the exposure `session-key.ts`'s header accepted. Its argument for plaintext was
+   * that a password is a second secret to lose; the answer, written out in `session-vault.ts`, is
+   * that the Recovery File already exists and already is the recovery path, so a forgotten
+   * password costs an import rather than an account.
+   *
+   * IT IS NOT MANDATORY AND MUST NOT BECOME SO. A browser with no password keeps `accounts` in
+   * plaintext exactly as before — this key is simply absent — because forcing a password onto the
+   * cold open would put a form in front of the browse-first ninety seconds that
+   * `use-first-run.ts` exists to protect.
+   */
+  vault: 'passbook.vault',
 } as const
 
 /** An in-memory store: real semantics, no durability. The default for tests. */

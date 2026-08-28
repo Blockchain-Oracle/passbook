@@ -16,13 +16,33 @@
 // ── THE HONEST AUTH SURFACE IS CREATE / IMPORT / UNLOCK / LOCK, AND "DISCONNECT" IS LOCK ──
 //
 // There is no wallet to disconnect from — there never was — so the four verbs above are the whole
-// lifecycle, and zk-freighter's `App.tsx` does the same four in 206 lines. What is deliberately
-// NOT here is a password: `session-key.ts` argues at length that the root key sits in localStorage
-// in plaintext as an accepted risk, so a password on the unlock screen would protect nothing and
-// would tell the user it protected something. `account-copy.ts`'s `LOCK_WHAT_IT_DOES` says what a
-// lock here is: a screen lock. Unlock therefore verifies an IDENTITY rather than a secret — that
-// the stored key still derives the address recorded beside it — which is the one thing that can
-// actually have gone wrong.
+// lifecycle, and zk-freighter's `App.tsx` does the same four in 206 lines.
+//
+// ── AND SINCE 2026-08-28 THERE IS A PASSWORD, WHICH THIS HEADER USED TO REFUSE ────────────
+//
+// The refusal is worth quoting rather than deleting, because it was right for as long as its
+// premise held: *"`session-key.ts` argues at length that the root key sits in localStorage in
+// plaintext as an accepted risk, so a password on the unlock screen would protect nothing and
+// would tell the user it protected something."* Every word of that is true of a password that
+// gates a SCREEN over a key anyone can read one entry away. It is the reason `LOCK_WHAT_IT_DOES`
+// exists and says what it says.
+//
+// What changed is that the password now encrypts rather than gates. `setPassword` seals the record
+// and DELETES the plaintext — both `passbook.accounts` and the `accountKey` mirror — so there is
+// nothing left to read past. The claim the old header was protecting the user from is the claim
+// this one can now make.
+//
+// SO THERE ARE TWO LOCKS, and they are told apart everywhere rather than blurred. Without a
+// password: a screen lock, `sealed: false`, `LOCK_WHAT_IT_DOES`'s honest sentence, and Unlock
+// verifies an IDENTITY — that the stored key still derives the address recorded beside it, which
+// is the one thing that can go wrong when there is no secret. With one: `sealed: true`, and Unlock
+// verifies the password AND THEN runs the identical identity check, because a right password over
+// a swapped record is still a swapped record.
+//
+// The old argument's other half stands and is honoured in `session-vault.ts`: a password must not
+// be the only thing between a user and their account. It is not — `backup-gate.ts` gates
+// registration on a Recovery File that already exists before any account does, so a forgotten
+// password costs an import rather than an account.
 //
 // ── THE SDK LOADS LAZILY, AND THE GATE ENFORCES IT ───────────────────────────────────────
 //
@@ -125,6 +145,16 @@ export type SessionState =
       readonly accounts: readonly AccountSummary[]
       /** Why the last unlock did not work, or `null`. */
       readonly problem: string | null
+      /**
+       * True when a password is required to get back in.
+       *
+       * THE TWO LOCKS ARE DIFFERENT AND THE SCREEN MUST NOT PRETEND OTHERWISE. Without a password
+       * this is a screen lock over a key sitting in plaintext storage — `LOCK_WHAT_IT_DOES` says
+       * so in the UI, and pressing Unlock is the whole ceremony. With one, the key is genuinely
+       * unreadable until the password derives it back. Rendering one field for both would either
+       * ask for a password that does nothing or claim a security property that is not there.
+       */
+      readonly sealed: boolean
     }
   /** The account could not be established. `because` is a whole sentence, safe to render. */
   | { readonly status: 'failed'; readonly because: string }
@@ -171,7 +201,33 @@ type Tier = {
   sdk: typeof import('starknet')
   store: import('@strk20/protocol/session-store').SessionStore
   accounts: import('@strk20/protocol/session-accounts').AccountRecordStore
+  vaults: import('@strk20/protocol/session-vault').VaultStore
 }
+
+//
+// ── THE OPEN VAULT, HELD FOR THE LENGTH OF AN UNLOCKED SESSION ────────────────────────────
+//
+// `null` whenever this browser has no password OR the screen is locked, and those two are
+// deliberately the same value: both mean "read and write the plaintext record", and the thing that
+// tells them apart — whether a vault exists in storage — is checked where it matters.
+//
+// IT HOLDS THE DECRYPTED RECORD AS WELL AS THE KEY, and the record is the reason this is one
+// object rather than two variables. A sealed browser has NO `passbook.accounts`, so every function
+// here that begins `t.accounts.load()` would find nothing and refuse — a rename, a switch, an
+// import, all reporting "there is no account list in this browser" over a vault that is open. The
+// decrypted record IS the account list for as long as the session is unlocked, and it is no more
+// sensitive than the account key the published state already holds.
+//
+// `key` is a non-extractable `CryptoKey`, never the password — see `session-vault.ts`'s `VaultKey`.
+// Dropping this whole object is half of what `lockSession` means; the other half is dropping the
+// account key out of the published state.
+//
+type OpenVault = {
+  key: import('@strk20/protocol/session-vault').VaultKey
+  record: import('@strk20/protocol/session-accounts').StoredAccounts
+}
+
+let openVaultState: OpenVault | null = null
 
 let tier: Promise<Tier> | null = null
 
@@ -195,6 +251,7 @@ function loadTier(): Promise<Tier> {
       sdk,
       store,
       accounts: protocol.sessionAccountStore(store),
+      vaults: protocol.sessionVaultStore(store),
     }
   })().catch((error: unknown) => {
     // A failed chunk load is NOT cached — the retry on the next action should be a real retry.
@@ -295,6 +352,58 @@ async function ensureBooted(): Promise<void> {
   booting = (async () => {
     try {
       const t = await loadTier()
+
+      //
+      // ── THE VAULT IS ASKED FIRST, AND THAT ORDER IS THE SECURITY BOUNDARY ────────────────
+      //
+      // A sealed browser has NO plaintext record — `setPassword` deletes both `passbook.accounts`
+      // and its `accountKey` mirror — so reading the account list first would find nothing and fall
+      // into the `absent` arm, which mints a fresh key and seeds a new record. The user would be
+      // silently handed a second, empty identity sitting beside their sealed one, and the sealed
+      // one would be reachable only by someone who knew to look in localStorage.
+      //
+      // So: vault present → locked, full stop. Nothing else runs.
+      //
+      const sealed = t.vaults.load()
+
+      if (sealed.kind === 'damaged') {
+        // NOT a fresh browser, and never treated as one. There is ciphertext here; something is
+        // wrong with it. Generating a key on top would put a second account over the first.
+        publish({
+          status: 'failed',
+          because:
+            storageIsBroken(t) ??
+            `The locked wallet saved in this browser could not be read: ${sealed.reason}. Nothing ` +
+              'has been overwritten. Your Recovery File still opens this account.',
+        })
+        return
+      }
+
+      publishPasswordSet(sealed.kind === 'present')
+
+      if (sealed.kind === 'present') {
+        const header = sealed.vault.header
+        const active = header.accounts.find((a) => a.address === header.active) ?? header.accounts[0]!
+        publish({
+          status: 'locked',
+          sealed: true,
+          address: active.address,
+          label: active.label,
+          // Straight off the PUBLIC header — the one part of a sealed vault that can be read
+          // without the password, and everything the locked screen needs to draw itself.
+          accounts: [...header.accounts]
+            .sort((a, b) => a.addedAt - b.addedAt)
+            .map((a) => ({
+              address: a.address,
+              label: a.label,
+              addedAt: a.addedAt,
+              active: a.address === header.active,
+            })),
+          problem: null,
+        })
+        return
+      }
+
       const read = t.accounts.load()
 
       if (read.kind === 'unreadable') {
@@ -349,8 +458,11 @@ async function ensureBooted(): Promise<void> {
 
       const summary = summarize(t, read.record)
       if (read.record.locked) {
+        // `sealed: false` — reaching here means the vault was ABSENT, so this is the screen lock
+        // over a plaintext key that `LOCK_WHAT_IT_DOES` describes, not a password.
         publish({
           status: 'locked',
+          sealed: false,
           address: active.address,
           label: active.label,
           accounts: summary,
@@ -366,6 +478,7 @@ async function ensureBooted(): Promise<void> {
         // adopts a swapped identity would let a user fund and register the wrong account.
         publish({
           status: 'locked',
+          sealed: false,
           address: active.address,
           label: active.label,
           accounts: summary,
@@ -404,8 +517,13 @@ export function useSession(): SessionState {
  * Lock the screen.
  *
  * Drops the key out of the page and records the lock so a reload lands here too — a wallet the
- * user locked being open again after a refresh is the behaviour nobody expects. It does NOT
- * encrypt anything and the copy says so.
+ * user locked being open again after a refresh is the behaviour nobody expects.
+ *
+ * WHAT IT MEANS DEPENDS ON WHETHER A PASSWORD IS SET, and the two are genuinely different rather
+ * than differently worded. Without one it is a screen lock over a key that stays in plaintext
+ * storage, exactly as `LOCK_WHAT_IT_DOES` has always said. With one, the plaintext is already gone
+ * — `setPassword` deleted it — so all this has to do is drop the derived key, and what is left on
+ * disk is ciphertext nobody on this origin can read.
  */
 export async function lockSession(): Promise<SessionOutcome> {
   if (state.status !== 'ready') return { ok: true }
@@ -418,19 +536,40 @@ export async function lockSession(): Promise<SessionOutcome> {
     const current = state
     if (current.status !== 'ready') return { ok: true }
 
-    const read = t.accounts.load()
-    // THE IN-MEMORY LOCK IS REAL EVEN WHEN THE PERSISTED ONE IS NOT — the key genuinely leaves the
-    // page either way — so this publishes regardless, and REPORTS the difference rather than
-    // returning `ok` for a lock that a reload will undo. Claiming success there would be the
-    // overclaim: the user would close the tab believing the wallet was locked behind them.
+    const sealed = t.vaults.load().kind === 'present'
+
+    //
+    // THE DERIVED KEY GOES FIRST, before anything that can throw.
+    //
+    // Everything below this line is bookkeeping — persisting a flag, publishing a state — and any
+    // of it can fail. Dropping the key last would mean a lock that reported failure while the page
+    // still held the means to re-seal and read the vault, which is the one outcome a lock must
+    // never have. Order it this way and the worst case is a lock that did not persist, which is
+    // reported honestly below.
+    //
+    openVaultState = null
+
     let saved = false
-    if (read.kind === 'present') {
-      t.accounts.save(t.protocol.withLocked(read.record, true))
+    if (sealed) {
+      // NOTHING TO PERSIST. There is no plaintext record to set a flag on, and the vault's own
+      // presence is what makes the next boot land on the lock screen. The lock is durable by
+      // construction rather than by a write that could fail.
       saved = true
+    } else {
+      const read = t.accounts.load()
+      // THE IN-MEMORY LOCK IS REAL EVEN WHEN THE PERSISTED ONE IS NOT — the key genuinely leaves
+      // the page either way — so this publishes regardless, and REPORTS the difference rather than
+      // returning `ok` for a lock that a reload will undo. Claiming success there would be the
+      // overclaim: the user would close the tab believing the wallet was locked behind them.
+      if (read.kind === 'present') {
+        t.accounts.save(t.protocol.withLocked(read.record, true))
+        saved = true
+      }
     }
 
     publish({
       status: 'locked',
+      sealed,
       address: current.address,
       label: current.label,
       accounts: current.accounts,
@@ -445,12 +584,32 @@ export async function lockSession(): Promise<SessionOutcome> {
 /**
  * Unlock: read the key back and CHECK IT STILL DERIVES THE ADDRESS RECORDED BESIDE IT.
  *
- * The check is the whole function. There is no secret to get wrong here, so the only failure worth
- * a sentence is the one where the stored key and the stored address have stopped agreeing.
+ * That check is the whole of the unsealed path. There is no secret to get wrong there, so the only
+ * failure worth a sentence is the one where the stored key and the stored address have stopped
+ * agreeing.
+ *
+ * WITH A PASSWORD THERE IS A SECOND FAILURE, and it is the common one: the password is wrong. The
+ * sealed path runs first and hands its plaintext to exactly the same address check afterwards —
+ * decryption proves the password, the address check proves the record, and neither substitutes for
+ * the other. A vault that opens with the right password and holds a key deriving somebody else's
+ * address is still refused.
+ *
+ * `password` is ignored on an unsealed browser rather than rejected, so one button can drive both
+ * locks without the caller branching on a state it can already see.
  */
-export async function unlockSession(): Promise<SessionOutcome> {
+export async function unlockSession(password?: string): Promise<SessionOutcome> {
   try {
     const t = await loadTier()
+
+    const sealed = t.vaults.load()
+    if (sealed.kind === 'present') return unsealSession(t, sealed.vault, password ?? '')
+    if (sealed.kind === 'damaged') {
+      const because = `The locked wallet in this browser could not be read: ${sealed.reason}`
+      const current = state
+      if (current.status === 'locked') publish({ ...current, problem: because })
+      return { ok: false, because }
+    }
+
     const read = t.accounts.load()
     if (read.kind !== 'present') {
       //
@@ -481,6 +640,7 @@ export async function unlockSession(): Promise<SessionOutcome> {
     if (!t.protocol.sameAddress(derived.address, active.address)) {
       publish({
         status: 'locked',
+        sealed: false,
         address: active.address,
         label: active.label,
         accounts: summarize(t, read.record),
@@ -506,11 +666,335 @@ export async function unlockSession(): Promise<SessionOutcome> {
   }
 }
 
+/**
+ * The sealed half of `unlockSession`: derive, decrypt, then run the SAME address check.
+ *
+ * ── DECRYPTION IS NOT THE WHOLE PROOF, AND THAT IS WHY THIS DOES NOT STOP THERE ───────────
+ *
+ * A correct password proves the vault is the user's. It does not prove the record inside is
+ * coherent — a hand-edited record re-sealed under the same password would open perfectly and could
+ * hold a key deriving an address other than the one it is filed under. That is the swapped-identity
+ * case `ensureBooted` refuses on the plaintext path, and there is no reason it should be waved
+ * through just because a password was typed first. So the plaintext falls into exactly the same
+ * `parseStoredAccounts` → `identityFor` → `sameAddress` sequence.
+ *
+ * ── AND THE FAILURES STAY LOCKED, NEVER `failed` ──────────────────────────────────────────
+ *
+ * `failed` is terminal — `ensureBooted`'s promise is settled by now, so nothing can re-boot the
+ * session — and a wrong password is the single most likely thing to happen on this screen. Landing
+ * a typo on a dead surface recoverable only by reload would be absurd. Every failure here
+ * republishes `locked` with a sentence, so the field stays on screen and the retry is just typing
+ * again.
+ */
+async function unsealSession(
+  t: Tier,
+  vault: import('@strk20/protocol/session-vault').SealedVault,
+  password: string,
+): Promise<SessionOutcome> {
+  const header = vault.header
+  const headerAccounts = [...header.accounts]
+    .sort((a, b) => a.addedAt - b.addedAt)
+    .map((a) => ({ address: a.address, label: a.label, addedAt: a.addedAt, active: a.address === header.active }))
+  const headerActive = header.accounts.find((a) => a.address === header.active) ?? header.accounts[0]!
+
+  /** Republish the lock with a reason. The password field survives; the retry is a keystroke. */
+  const refuse = (because: string): SessionOutcome => {
+    publish({
+      status: 'locked',
+      sealed: true,
+      address: headerActive.address,
+      label: headerActive.label,
+      accounts: headerAccounts,
+      problem: because,
+    })
+    return { ok: false, because }
+  }
+
+  const opened = await t.protocol.openVault(vault, password)
+  if (!opened.ok) return refuse(t.protocol.VAULT_ERROR_TEXT[opened.error])
+
+  const read = t.protocol.parseStoredAccounts(opened.value.plaintext)
+  if (read.kind !== 'present') {
+    // The password was right and the contents are not readable. That is a damaged vault, and the
+    // honest next step is the Recovery File rather than another attempt at the password.
+    return refuse(
+      read.kind === 'unreadable'
+        ? `This wallet opened, but the accounts inside it could not be read: ${read.reason}. Your Recovery File still works.`
+        : 'This wallet opened, but there are no accounts inside it. Your Recovery File still works.',
+    )
+  }
+
+  const active = t.protocol.activeAccount(read.record)
+  if (!active) return refuse(UNLOCK_DIFFERENT_IDENTITY)
+
+  const derived = identityFor(t, active.accountKey)
+  if (!t.protocol.sameAddress(derived.address, active.address)) return refuse(UNLOCK_DIFFERENT_IDENTITY)
+
+  // HELD ONLY ONCE EVERYTHING HAS PASSED. Assigning it before the checks would leave a page that
+  // can re-seal a record it has just refused to open into.
+  openVaultState = { key: opened.value.vaultKey, record: read.record }
+
+  publish({
+    status: 'ready',
+    accountKey: active.accountKey,
+    viewingKey: derived.viewingKey,
+    address: derived.address,
+    label: active.label,
+    created: false,
+    accounts: summarize(t, read.record),
+  })
+  return { ok: true }
+}
+
+/**
+ * Read the accounts record, from the open vault when there is one and from storage otherwise.
+ *
+ * EVERY READ IN THE LIFECYCLE GOES THROUGH HERE. A sealed browser has no `passbook.accounts` at
+ * all, so a function that called `t.accounts.load()` directly would get `absent` and report "there
+ * is no account list in this browser" over a vault that is open and holding every account in it.
+ * Renaming, switching and importing all begin with a read, and all three would be dead.
+ */
+function loadRecord(t: Tier): import('@strk20/protocol/session-accounts').StoredAccountsRead {
+  if (openVaultState) return { kind: 'present', record: openVaultState.record }
+  return t.accounts.load()
+}
+
+/**
+ * Write an accounts record, sealed or plaintext, whichever this browser is.
+ *
+ * ── EVERY WRITE GOES THROUGH HERE, AND THAT IS THE POINT ──────────────────────────────────
+ *
+ * `t.accounts.save` writes PLAINTEXT. A sealed browser that reached it — from a rename, a switch,
+ * an import — would silently recreate `passbook.accounts` and the `accountKey` mirror beside the
+ * vault, and the next boot would find the vault first and never notice. The password would still
+ * be asked for, still work, and the key would ALSO be sitting in the clear one entry over. A
+ * password that has quietly stopped protecting anything is worse than no password, because the
+ * user has changed their behaviour on the strength of it.
+ *
+ * So the rule is that nothing in this module calls `t.accounts.save` directly once a vault can
+ * exist. This function is the only writer.
+ */
+async function persist(
+  t: Tier,
+  record: import('@strk20/protocol/session-accounts').StoredAccounts,
+): Promise<SessionOutcome> {
+  const open = openVaultState
+  if (!open) {
+    t.accounts.save(record)
+    return { ok: true }
+  }
+
+  const sealed = await t.protocol.sealWithKey(
+    t.protocol.serializeAccounts(record),
+    headerFor(record),
+    open.key,
+  )
+  if (!sealed.ok) return { ok: false, because: t.protocol.VAULT_ERROR_TEXT[sealed.error] }
+
+  t.vaults.save(sealed.value)
+  // THE IN-MEMORY COPY ADVANCES ONLY AFTER THE WRITE LANDS. Updating it first would leave the
+  // session showing a rename that storage rejected, and the next `loadRecord` would keep agreeing
+  // with the screen instead of with the disk.
+  openVaultState = { ...open, record }
+  // BELT AND BRACES. The plaintext keys should already be gone, but a build that ran an older
+  // `persist`, or a crash between `setPassword`'s two steps, could have left one behind — and the
+  // cost of checking is two `removeItem` calls against the cost of a key in the clear.
+  t.protocol.clearPlaintextKeys(t.store)
+  return { ok: true }
+}
+
+/** The public half of a record: addresses, labels and timestamps. Never a key. */
+function headerFor(
+  record: import('@strk20/protocol/session-accounts').StoredAccounts,
+): import('@strk20/protocol/session-vault').VaultHeader {
+  return {
+    active: record.active,
+    accounts: record.accounts.map((a) => ({
+      address: a.address,
+      label: a.label,
+      addedAt: a.addedAt,
+    })),
+  }
+}
+
+/**
+ * Turn a password on for this browser: seal the record, then delete the plaintext.
+ *
+ * THE ORDER IS SEAL, VERIFY, DELETE — never delete-then-seal, and never seal-then-delete without
+ * the middle step. A failure between writing the vault and removing the plaintext leaves a browser
+ * with both, which asks for a password on the next boot and is merely redundant. A failure the
+ * other way round would leave a browser with NEITHER, which is an account nobody can open from
+ * this device again — recoverable only from the Recovery File, and only if it was saved.
+ *
+ * The verification in the middle is what makes the delete safe to do at all: the vault is read back
+ * out of storage and opened with the same password before anything is removed. A quota failure that
+ * silently truncated the write is caught here rather than by the user, tomorrow, at the lock screen.
+ */
+export async function setPassword(password: string): Promise<SessionOutcome> {
+  if (state.status !== 'ready') {
+    return { ok: false, because: 'Open your wallet before setting a password.' }
+  }
+  try {
+    const t = await loadTier()
+
+    // Sealing what is IN STORAGE, not what is in `state`. The published state carries the active
+    // account only; the record carries every account this browser holds, and sealing the narrower
+    // one would drop the others.
+    const read = t.accounts.load()
+    if (read.kind !== 'present') {
+      return {
+        ok: false,
+        because:
+          read.kind === 'unreadable'
+            ? accountListCorrupt(read.reason)
+            : 'There is no account list in this browser to protect.',
+      }
+    }
+
+    const record = t.protocol.withLocked(read.record, false)
+    const sealed = await t.protocol.sealVault(
+      t.protocol.serializeAccounts(record),
+      headerFor(record),
+      password,
+    )
+    if (!sealed.ok) return { ok: false, because: t.protocol.VAULT_ERROR_TEXT[sealed.error] }
+
+    t.vaults.save(sealed.value)
+
+    // READ IT BACK AND OPEN IT. Nothing is deleted on the strength of a write that merely did not
+    // throw — see the header.
+    const echo = t.vaults.load()
+    if (echo.kind !== 'present') {
+      return {
+        ok: false,
+        because:
+          'The password could not be saved in this browser, so nothing was changed and your ' +
+          'wallet is still unprotected.',
+      }
+    }
+    const proof = await t.protocol.openVault(echo.vault, password)
+    if (!proof.ok) {
+      return {
+        ok: false,
+        because:
+          'The password was saved but could not be used to reopen the wallet, so nothing was ' +
+          'deleted. Try again.',
+      }
+    }
+
+    t.protocol.clearPlaintextKeys(t.store)
+    openVaultState = { key: proof.value.vaultKey, record }
+    publishPasswordSet(true)
+    return { ok: true }
+  } catch (error) {
+    return { ok: false, because: whyFailed(error) }
+  }
+}
+
+/**
+ * Turn the password off: prove it first, then write the record back in the clear.
+ *
+ * IT ASKS FOR THE PASSWORD EVEN THOUGH THE SESSION IS ALREADY UNLOCKED, and that is not
+ * theatre. Removing a password is the one action that permanently lowers this browser's
+ * protection, and the threat it exists for is somebody at an unattended unlocked screen. Every
+ * other control here is reversible or harmless; this one hands the key to whoever is sitting
+ * there. `openVault` against the stored vault is the proof, and it costs the same half-second the
+ * unlock does.
+ *
+ * The record written back is the one from INSIDE the vault, not `state` — same reason as
+ * `setPassword`: the published state is one account and the vault holds all of them.
+ */
+export async function clearPassword(password: string): Promise<SessionOutcome> {
+  try {
+    const t = await loadTier()
+    const sealed = t.vaults.load()
+    if (sealed.kind !== 'present') return { ok: true }
+
+    const opened = await t.protocol.openVault(sealed.vault, password)
+    if (!opened.ok) return { ok: false, because: t.protocol.VAULT_ERROR_TEXT[opened.error] }
+
+    const read = t.protocol.parseStoredAccounts(opened.value.plaintext)
+    if (read.kind !== 'present') {
+      return {
+        ok: false,
+        because:
+          'The wallet opened but its contents could not be read, so the password was left in ' +
+          'place. Removing it now would leave nothing behind.',
+      }
+    }
+
+    // PLAINTEXT FIRST, VAULT SECOND. A failure between the two leaves both, which is the redundant
+    // outcome rather than the empty one — the same bargain `setPassword` makes in the other
+    // direction. Written the other way round, a failed write would leave this browser holding
+    // nothing at all.
+    openVaultState = null
+    t.accounts.save(read.record)
+    t.vaults.clear()
+    publishPasswordSet(false)
+    return { ok: true }
+  } catch (error) {
+    return { ok: false, because: whyFailed(error) }
+  }
+}
+
+//
+// ── "IS A PASSWORD SET?" AS A STORE, NOT A PROMISE ────────────────────────────────────────
+//
+// Three surfaces ask: Settings decides between "Set password" and "Remove password", the account
+// drawer picks between the two lock sentences, and the wallet's lock screen already knows from
+// `sealed`. The first two are mounted AT THE SAME TIME as the thing that changes the answer, so a
+// promise read once into `useState` would leave the drawer claiming "screen lock, not encryption"
+// seconds after Settings encrypted the browser — the exact overclaim `account-copy.ts` exists to
+// prevent, arriving from a stale cache rather than from bad copy.
+//
+// `null` is "not yet known" and is deliberately distinguishable from `false`. A surface that
+// rendered the unsealed sentence while the answer was still loading would flash the wrong claim.
+//
+let passwordSet: boolean | null = null
+const passwordListeners = new Set<() => void>()
+
+function publishPasswordSet(next: boolean): void {
+  if (passwordSet === next) return
+  passwordSet = next
+  for (const listener of passwordListeners) listener()
+}
+
+/** Does this browser have a password set? `null` until the storage tier has answered once. */
+export function usePasswordSet(): boolean | null {
+  const subscribe = (listener: () => void) => {
+    passwordListeners.add(listener)
+    // Answered lazily on first subscription rather than at module load: reading it needs the
+    // storage tier, and the tier is behind the dynamic import the build gate insists on.
+    if (passwordSet === null) void hasPassword()
+    return () => void passwordListeners.delete(listener)
+  }
+  return useSyncExternalStore(
+    subscribe,
+    () => passwordSet,
+    () => passwordSet,
+  )
+}
+
+/** Does this browser have a password set? Also refreshes the store every surface reads. */
+export async function hasPassword(): Promise<boolean> {
+  try {
+    const t = await loadTier()
+    const set = t.vaults.load().kind === 'present'
+    publishPasswordSet(set)
+    return set
+  } catch {
+    // A tier that will not load cannot be asked, and `false` is the safe answer for the ONE thing
+    // this drives: it selects the weaker of the two claims, which is never an overclaim.
+    publishPasswordSet(false)
+    return false
+  }
+}
+
 /** Make one of the held accounts active. Unknown addresses change nothing and say so. */
 export async function switchAccount(address: string): Promise<SessionOutcome> {
   try {
     const t = await loadTier()
-    const read = t.accounts.load()
+    const read = loadRecord(t)
     if (read.kind !== 'present') {
       return { ok: false, because: 'There is no account list in this browser to switch inside.' }
     }
@@ -518,7 +1002,8 @@ export async function switchAccount(address: string): Promise<SessionOutcome> {
     if (!target) return { ok: false, because: 'This browser does not hold that account.' }
 
     const record = t.protocol.withActive(read.record, target.address)
-    t.accounts.save(record)
+    const written = await persist(t, record)
+    if (!written.ok) return written
     const derived = identityFor(t, target.accountKey)
     publish({
       status: 'ready',
@@ -544,7 +1029,7 @@ export async function switchAccount(address: string): Promise<SessionOutcome> {
 export async function createAccount(label?: string): Promise<SessionOutcome> {
   try {
     const t = await loadTier()
-    const read = t.accounts.load()
+    const read = loadRecord(t)
     if (read.kind === 'unreadable') {
       return { ok: false, because: `The accounts in this browser could not be read: ${read.reason}` }
     }
@@ -578,9 +1063,10 @@ export async function createAccount(label?: string): Promise<SessionOutcome> {
     }
     const record = t.protocol.withAccount(read.record, entry)
     // PERSIST BEFORE PUBLISH — `session-key.ts`'s ordering, and for its reason: a key handed to the
-    // UI and never written is an identity a user can fund and lose on the next reload. A throwing
+    // UI and never written is an identity a user can fund and lose on the next reload. A failing
     // save leaves the previous account active, which is the safe direction.
-    t.accounts.save(record)
+    const written = await persist(t, record)
+    if (!written.ok) return written
     publish({
       status: 'ready',
       accountKey: generated,
@@ -639,7 +1125,7 @@ export async function importAccount(file: string, recoveryCode: string): Promise
       return { ok: false, because: IMPORT_DIFFERENT_IDENTITY }
     }
 
-    const read = t.accounts.load()
+    const read = loadRecord(t)
     if (read.kind === 'unreadable') {
       return { ok: false, because: `The accounts in this browser could not be read: ${read.reason}` }
     }
@@ -651,7 +1137,8 @@ export async function importAccount(file: string, recoveryCode: string): Promise
     const now = Date.now()
     const entry = { address: derived.address, accountKey: restored, label: null, addedAt: now }
     const record = t.protocol.withAccount(read.record, entry)
-    t.accounts.save(record)
+    const written = await persist(t, record)
+    if (!written.ok) return written
 
     publish({
       status: 'ready',
@@ -674,10 +1161,11 @@ export async function importAccount(file: string, recoveryCode: string): Promise
 export async function labelAccount(address: string, label: string | null): Promise<SessionOutcome> {
   try {
     const t = await loadTier()
-    const read = t.accounts.load()
+    const read = loadRecord(t)
     if (read.kind !== 'present') return { ok: false, because: 'There is no account list to name in.' }
     const record = t.protocol.withLabel(read.record, address, label)
-    t.accounts.save(record)
+    const written = await persist(t, record)
+    if (!written.ok) return written
     const current = state
     if (current.status === 'ready') {
       publish({

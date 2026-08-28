@@ -1,10 +1,27 @@
-import { useState } from 'react'
+import { useState, useSyncExternalStore } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 
 import { AUDITOR_ESCROW, RELAYER_SEES } from '@strk20/protocol/disclosure-copy'
 import { FORBIDDEN_CLAIMS } from '@strk20/protocol/forbidden-claims'
 
+import {
+  PASSWORD_BODY,
+  PASSWORD_MISMATCH,
+  PASSWORD_NO_RESET,
+  PASSWORD_REMOVE_ACTION,
+  PASSWORD_REMOVE_CONFIRM,
+  PASSWORD_SET_ACTION,
+  PASSWORD_TITLE,
+} from '@strk20/protocol/account-copy'
+
+import { PasswordField } from '../components/PasswordField'
+import { Button } from '../components/ui/Button'
 import { Surface } from '../shell/Surface'
+// Aliased: `setPassword` is also this component's state setter, and two bindings of one name in
+// one file is how the wrong one gets called.
+import { clearPassword, setPassword as sealBrowser, usePasswordSet } from '../shell/session'
+import { toast } from '../shell/toast-store'
+import { INTRO_SOUND, isMuted, play, setMuted, subscribeMuted } from '../shell/sound'
 import { pinTheme, storedChoice, themeChoice } from '../shell/theme'
 import type { ThemeChoice } from '../shell/theme'
 import { NameClaim } from '../components/NameClaim'
@@ -91,6 +108,10 @@ function Settings() {
         </p>
       </fieldset>
 
+      <PasswordControl />
+
+      <SoundControl />
+
       {/*
         The name claim lives here rather than on `/chat` because it is a property of the ACCOUNT,
         not of a conversation — the same reason the theme control does. Chat links to it from the
@@ -133,6 +154,207 @@ function Settings() {
       </section>
       </div>
     </Surface>
+  )
+}
+
+/**
+ * Set or remove this browser's password.
+ *
+ * ── IT IS ON SETTINGS AND NOT IN THE FIRST-RUN FLOW, WHICH IS A DELIBERATE REFUSAL ────────
+ *
+ * ZK Freighter asks for a vault password as step 2 of 2 in onboarding, and copying that here was
+ * the obvious move. It is wrong for this product for the reason `use-first-run.ts` spends its
+ * header on: the conversion flow is already five screens ending in an irreversible on-chain write,
+ * and one of them is a backup ceremony that GATES. Adding a sixth screen with two more fields to
+ * the path between "I want to try this" and "I have an account" buys a protection nobody has
+ * anything to protect yet — the account is seconds old and holds nothing.
+ *
+ * So the password is offered where somebody who now HAS something goes looking for it. The cost is
+ * that most users will never set one, which is why the default path stays honest about being
+ * plaintext rather than quietly assuming everybody opted in.
+ *
+ * ── AND REMOVING IT ASKS FOR IT ───────────────────────────────────────────────────────────
+ *
+ * See `PASSWORD_REMOVE_CONFIRM`. The session is already unlocked, so the check reads as theatre
+ * until the threat is named: it is the unattended screen, and this is the one control in Settings
+ * that hands over a key.
+ */
+function PasswordControl() {
+  const set = usePasswordSet()
+  const [password, setPassword] = useState('')
+  const [confirm, setConfirm] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [problem, setProblem] = useState<string | null>(null)
+
+  // `null` is "not answered yet". Rendering either branch before the storage tier replies would
+  // flash a control that then swaps for its opposite.
+  if (set === null) return null
+
+  const clear = () => {
+    setPassword('')
+    setConfirm('')
+  }
+
+  const mismatch = confirm !== '' && password !== confirm
+
+  const submitSet = () => {
+    if (busy || password === '' || password !== confirm) return
+    setBusy(true)
+    setProblem(null)
+    void sealBrowser(password).then((result) => {
+      setBusy(false)
+      if (result.ok) {
+        clear()
+        toast({ kind: 'success', title: 'Password set', detail: 'This browser’s accounts are now encrypted.' })
+      } else {
+        setProblem(result.because)
+      }
+    })
+  }
+
+  const submitRemove = () => {
+    if (busy || password === '') return
+    setBusy(true)
+    setProblem(null)
+    void clearPassword(password).then((result) => {
+      setBusy(false)
+      if (result.ok) {
+        clear()
+        toast({ kind: 'success', title: 'Password removed', detail: 'The key is back in this browser’s storage.' })
+      } else {
+        setProblem(result.because)
+      }
+    })
+  }
+
+  return (
+    <section className="flex flex-col gap-s12 rounded-large border border-solid border-surface3 bg-raised p-s16">
+      <Text variant="body2" as="h2" className="font-medium text-neutral1">
+        {PASSWORD_TITLE}
+      </Text>
+
+      <Text variant="body4" className="text-neutral2">
+        {set ? PASSWORD_REMOVE_CONFIRM : PASSWORD_BODY}
+      </Text>
+
+      <PasswordField
+        label={set ? 'Current password' : 'New password'}
+        value={password}
+        onChange={setPassword}
+        onSubmit={set ? submitRemove : submitSet}
+        // `current-password` when proving one, `new-password` when creating one — see
+        // `PasswordField`. A manager offered the wrong token here overwrites the saved entry.
+        autoComplete={set ? 'current-password' : 'new-password'}
+        disabled={busy}
+        showStrength={!set}
+      />
+
+      {set ? null : (
+        <>
+          <PasswordField
+            label="Confirm"
+            value={confirm}
+            onChange={setConfirm}
+            onSubmit={submitSet}
+            autoComplete="new-password"
+            disabled={busy}
+          />
+          {/*
+            The mismatch is announced BEFORE the button is pressed, because the alternative is a
+            user who types a long password twice, presses the button, and is told to do it again
+            with both fields cleared.
+          */}
+          {mismatch ? (
+            <Text variant="body4" className="text-irreversible" role="alert">
+              {PASSWORD_MISMATCH}
+            </Text>
+          ) : null}
+          <Text variant="body4" className="text-neutral2">
+            {PASSWORD_NO_RESET}
+          </Text>
+        </>
+      )}
+
+      {problem ? (
+        <Text variant="body4" className="text-irreversible" role="alert">
+          {problem}
+        </Text>
+      ) : null}
+
+      <Button
+        variant={set ? 'secondary' : 'primary'}
+        size="md"
+        disabled={busy || password === '' || (!set && password !== confirm)}
+        onClick={set ? submitRemove : submitSet}
+        className="self-start"
+      >
+        {/* The wait is 600,000 PBKDF2 rounds — real enough that an idle-looking button gets
+            double-pressed, which is why the label changes rather than only the disabled state. */}
+        {busy ? 'Working…' : set ? PASSWORD_REMOVE_ACTION : PASSWORD_SET_ACTION}
+      </Button>
+    </section>
+  )
+}
+
+/**
+ * The sound switch.
+ *
+ * ── A CHECKBOX, WHERE THE THEME NEEDED RADIOS ─────────────────────────────────────────────
+ *
+ * The theme has three states because "follow the system" is a real one. Sound has two: the OS
+ * exposes no ambient preference for it (there is no `prefers-reduced-sound`), so there is nothing
+ * to follow and a third option would be a lie. Two states is a checkbox.
+ *
+ * ── AND THE PREVIEW IS THE HONEST PART ────────────────────────────────────────────────────
+ *
+ * A muted app is silent, so a user who turns sound back on gets no confirmation that anything
+ * happened — the setting's only evidence is a sound that plays three seconds into a visit they are
+ * not currently making. The preview button is that evidence, and it is called from a click handler
+ * so the page is already past the autoplay gate and `play` needs none of `arm`'s machinery.
+ *
+ * `useSyncExternalStore` rather than local state because `sound.ts` is the owner: the cold open
+ * reads the same key, and two components holding private copies of one preference is how they
+ * disagree.
+ */
+function SoundControl() {
+  const muted = useSyncExternalStore(subscribeMuted, isMuted, isMuted)
+
+  return (
+    <fieldset className="flex flex-col gap-s8 rounded-large border border-solid border-surface3 bg-raised p-s16">
+      <legend className="float-left text-body3 font-medium">Sound</legend>
+
+      <label className="flex items-center gap-s8 text-body3">
+        <input
+          type="checkbox"
+          checked={!muted}
+          onChange={(e) => setMuted(!e.target.checked)}
+          className="focus-ring"
+        />
+        Play the welcome chime
+      </label>
+
+      <p className="text-body4 text-neutral2">
+        {muted ? (
+          <>Passbook is silent. It plays no sound anywhere.</>
+        ) : (
+          <>One short chime, on the first visit from this browser. Nothing else in Passbook makes noise.</>
+        )}
+      </p>
+
+      {/*
+        Hidden while muted rather than disabled: a preview button that cannot preview is a control
+        with nothing behind it, and the checkbox above it already explains why.
+      */}
+      {muted ? null : (
+        <button
+          type="button"
+          onClick={() => play(INTRO_SOUND)}
+          className="focus-ring self-start rounded-control px-s8 py-s4 text-body4 text-neutral2 hover:text-neutral1"
+        >
+          Hear it
+        </button>
+      )}
+    </fieldset>
   )
 }
 

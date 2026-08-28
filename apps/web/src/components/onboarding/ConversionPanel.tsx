@@ -37,6 +37,9 @@ import {
   CUSTODY_CTA,
   CUSTODY_TITLE,
   DEADLOCK_TITLE,
+  FUND_CTA,
+  FUND_PENDING,
+  FUND_TITLE,
   NAME_CAPTION,
   NAME_CLAIM_NOTE,
   NAME_CLAIM_OPT_IN,
@@ -49,15 +52,24 @@ import {
   deadlockBody,
   deadlockFeeRow,
   deadlockInvitedTitle,
+  fundArrived,
+  fundRefused,
 } from '@strk20/protocol/onboarding-copy'
 
 import { cn } from '../../lib/cn'
 import { Button } from '../ui/Button'
 import { Text } from '../ui/Text'
 
-/** The five screens, in order. A `gate` step cannot be advanced past until it says it is done. */
-type ScreenId = 'name' | 'custody' | 'backup' | 'deadlock' | 'register'
-const SCREENS: readonly ScreenId[] = ['name', 'custody', 'backup', 'deadlock', 'register']
+//
+// The six screens, in order. A `gate` step cannot be advanced past until it says it is done.
+//
+// `fund` IS NOT REACHABLE BY PRESSING ANYTHING. Screen five's button is the registration, and this
+// one is what the registration lands on — so there is no Continue out of `register` and no way
+// into `fund` except a confirmed on-chain write. That is why it can be the screen that says
+// "you're in" without checking anything itself.
+//
+type ScreenId = 'name' | 'custody' | 'backup' | 'deadlock' | 'register' | 'fund'
+const SCREENS: readonly ScreenId[] = ['name', 'custody', 'backup', 'deadlock', 'register', 'fund']
 
 export interface ConversionPanelProps {
   /**
@@ -75,6 +87,15 @@ export interface ConversionPanelProps {
   onGenerateKey: (name: string, claimPublicly: boolean) => Promise<void> | void
   /** Runs the registration. Only reached from screen 5's primary control. */
   onRegister: () => Promise<void> | void
+  /**
+   * Asks for the starter STRK. Runs once, automatically, when screen 6 mounts.
+   *
+   * IT RESOLVES WITH A REFUSAL RATHER THAN REJECTING, because a refused drip is an ordinary
+   * outcome — a spent daily budget, a deployment with no faucet — and the account is complete
+   * either way. A rejection here would take out the panel on the one screen whose whole job is
+   * to say that everything worked.
+   */
+  onFund: () => Promise<{ ok: boolean; amount?: string; because?: string }>
   /** Renders the ceremony. Calls `onDone` when the code is confirmed and the file is saved. */
   renderBackup: (onDone: () => void) => React.ReactNode
   /** Renders the four-step pipeline once registration is in flight. */
@@ -90,6 +111,7 @@ export function ConversionPanel({
   inviter = null,
   onGenerateKey,
   onRegister,
+  onFund,
   renderBackup,
   renderPipeline,
   onDismiss,
@@ -100,6 +122,10 @@ export function ConversionPanel({
   const [claimPublicly, setClaimPublicly] = useState(false)
   const [backupDone, setBackupDone] = useState(false)
   const [registering, setRegistering] = useState(false)
+  const [funding, setFunding] = useState<{ done: boolean; message: string }>({
+    done: false,
+    message: FUND_PENDING,
+  })
   const rootRef = useRef<HTMLDivElement>(null)
 
   const screen = SCREENS[index]!
@@ -122,9 +148,45 @@ export function ConversionPanel({
     rootRef.current?.focus()
   }, [])
 
+  //
+  // A CONFIRMED REGISTRATION ADVANCES TO SCREEN SIX; IT NO LONGER DISMISSES.
+  //
+  // It used to close the panel, which was right when `register` was the last screen. Closing on
+  // the same signal now would race screen six out of existence: `accountStatus` re-reads after
+  // the write lands, so the panel would unmount in the same beat the drip was being asked for.
+  //
+  // `Math.min` rather than an assignment, so a late `registered` cannot pull the panel BACKWARDS
+  // out of the funding screen it is already on.
+  //
   useEffect(() => {
-    if (registered) onDismiss()
-  }, [registered, onDismiss])
+    if (registered) setIndex((i) => Math.max(i, SCREENS.indexOf('fund')))
+  }, [registered])
+
+  //
+  // The drip fires ONCE, when screen six first mounts, and is not a button.
+  //
+  // A button would be a second thing to press after the one irreversible act, on a screen whose
+  // message is that the work is finished — and pressing it is not a decision anybody would make
+  // differently. The guard is `funding.done` rather than a ref because a re-render on this screen
+  // must not re-ask: the relayer burns the address's one claim on the first request, so a second
+  // one comes back refused and would overwrite a success message with a refusal.
+  //
+  useEffect(() => {
+    if (screen !== 'fund' || funding.done) return
+    let live = true
+    void onFund().then((result) => {
+      if (!live) return
+      setFunding({
+        done: true,
+        message: result.ok
+          ? fundArrived(result.amount ?? '')
+          : fundRefused(result.because ?? 'Starter STRK is not available right now.'),
+      })
+    })
+    return () => {
+      live = false
+    }
+  }, [screen, funding.done, onFund])
 
   return (
     <section
@@ -149,7 +211,12 @@ export function ConversionPanel({
         </span>
         {/* Skip is present on every screen EXCEPT while registering, for the same reason Escape is
             suppressed there: there is nothing to skip once the transaction is away. */}
-        {registering ? null : (
+        {/*
+          Suppressed while registering, for the reason above — and on the funding screen too,
+          where the account already exists. "Skip for now" there would offer to skip something
+          that has already happened, beside a button that does the same thing and says so.
+        */}
+        {registering || screen === 'fund' ? null : (
           <button
             type="button"
             onClick={onDismiss}
@@ -245,6 +312,23 @@ export function ConversionPanel({
           </>
         ) : null}
 
+        {screen === 'fund' ? (
+          <>
+            <Text variant="body3" className="text-neutral2" aria-live="polite">
+              {funding.message}
+            </Text>
+            {/*
+              THE BUTTON IS LIVE WHILE THE TRANSFER IS STILL IN FLIGHT, deliberately. The account
+              is already registered and usable; the STRK is a convenience arriving behind it. A
+              disabled button here would hold somebody on a screen waiting for money they do not
+              need in order to leave it.
+            */}
+            <Button variant="primary" size="lg" fill onClick={onDismiss}>
+              {FUND_CTA}
+            </Button>
+          </>
+        ) : null}
+
         {screen === 'register' ? (
           <>
             {registering && renderPipeline ? (
@@ -293,6 +377,7 @@ const TITLES: Record<ScreenId, string> = {
   backup: BACKUP_TITLE,
   deadlock: DEADLOCK_TITLE,
   register: REGISTER_TITLE,
+  fund: FUND_TITLE,
 }
 
 function NameScreen({

@@ -545,6 +545,143 @@
   }
 
   /*
+   * ── The brand intro [STUDIO] ─────────────────────────────────────────────────────────────
+   *
+   * The cold open: the mark lands on an empty stage, three rings breathe out of it, the wordmark
+   * rises, and the whole thing dissolves — timed so the dissolve happens INSIDE the chime's own
+   * fade rather than after it, which is what makes the two read as one event. ZK Freighter's
+   * `intro.tsx` is the reference; the geometry is ours (the STUDIO diamond, not their coin).
+   *
+   * IT IS ATMOSPHERE OVER AN ALREADY-RENDERED APP, NOT A LOADING SCREEN. `use-first-run.ts` is
+   * explicit that the first ninety seconds ask nothing of a visitor, and a splash that GATES the
+   * shell would be the "Launch app" interstitial the brief refused. This paints on top of a live
+   * page for three seconds and takes any tap as "go" — nothing behind it is ever unmounted.
+   *
+   * Reduced motion is handled by the blanket rule at the foot of this sheet: every animation here
+   * resolves to its `both`-filled end state, so the stage still shows a settled mark and wordmark
+   * and still dissolves on the same timer. Nothing is missing, it simply does not travel.
+   */
+  .intro-stage {
+    position: fixed;
+    inset: var(--spacing-s0);
+    z-index: var(--z-index-modal);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--spacing-s24);
+    background-color: var(--color-ground);
+    cursor: pointer;
+    transition-property: opacity;
+    transition-duration: var(--transition-duration-lazy);
+    transition-timing-function: var(--ease-glide);
+  }
+
+  /*
+   * The dissolve. An attribute rather than a second class because the stage is ONE element in two
+   * states, and the unquoted-attribute form is the spelling the token lint accepts.
+   */
+  .intro-stage[data-phase='out'] {
+    opacity: 0;
+  }
+
+  /* The diamond, oversized from the header's `.brand-mark` and landing with an overshoot. */
+  .intro-mark {
+    position: relative;
+    width: var(--spacing-s60);
+    height: var(--spacing-s60);
+    background-color: var(--color-accent1);
+    transform: rotate(45deg);
+    animation-name: pb-intro-mark;
+    animation-duration: var(--transition-duration-lazy);
+    /*
+     * `snap`, not `settle`. The sheet ships no overshoot curve, and the mark landing is the one
+     * beat in this sequence that should feel struck rather than eased into place.
+     */
+    animation-timing-function: var(--ease-snap);
+    animation-fill-mode: both;
+  }
+
+  /*
+   * The rings. Three copies of one animation on a stagger, drawn as squares rotated with the mark
+   * so they read as the diamond breathing rather than as a circle behind it.
+   */
+  .intro-ring {
+    position: absolute;
+    inset: var(--spacing-s0);
+    border: var(--spacing-s2) solid var(--color-accent1);
+    animation-name: pb-intro-ring;
+    animation-duration: var(--transition-duration-attention);
+    animation-timing-function: var(--ease-glide);
+    animation-iteration-count: infinite;
+    pointer-events: none;
+  }
+
+  /*
+   * The stagger. 0 / 300 / 750 against a 1200 ms cycle is uneven on purpose — the token sheet has
+   * no 400 and 800, and three rings on a perfectly regular beat read mechanical anyway.
+   */
+  .intro-ring-2 {
+    animation-delay: var(--transition-duration-quickLong);
+  }
+
+  .intro-ring-3 {
+    animation-delay: var(--transition-duration-ring);
+  }
+
+  /* The wordmark and its kicker, rising a beat after the mark has landed. */
+  .intro-word {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--spacing-s8);
+    text-align: center;
+    animation-name: pb-intro-rise;
+    animation-duration: var(--transition-duration-quickLong);
+    animation-timing-function: var(--ease-glide);
+    animation-delay: var(--transition-duration-quick);
+    animation-fill-mode: both;
+  }
+
+  @keyframes pb-intro-mark {
+    from {
+      opacity: 0;
+      transform: rotate(45deg) scale(0.4);
+    }
+    to {
+      opacity: 1;
+      transform: rotate(45deg) scale(1);
+    }
+  }
+
+  /*
+   * The ring ends INVISIBLE at 2.4x rather than fading at its full size, because a ring that
+   * disappears at its largest reads as a popped bubble. Fading through the travel is what makes
+   * it a pulse.
+   */
+  @keyframes pb-intro-ring {
+    from {
+      opacity: 0.55;
+      transform: scale(1);
+    }
+    to {
+      opacity: 0;
+      transform: scale(2.4);
+    }
+  }
+
+  @keyframes pb-intro-rise {
+    from {
+      opacity: 0;
+      transform: translateY(var(--spacing-s12));
+    }
+    to {
+      opacity: 1;
+      transform: translateY(var(--spacing-s0));
+    }
+  }
+
+  /*
    * ---- the popup layer -------------------------------------------------------------------------
    *
    * STACKING IS DELIBERATE HERE, NOT LUCKY. There is still no `z-index` namespace, so the note

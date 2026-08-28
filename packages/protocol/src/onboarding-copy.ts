@@ -136,6 +136,44 @@ export const REGISTER_CTA = 'Create your account'
  */
 export const REGISTER_STEPS = ['Build', 'Prove', 'Relay', 'Confirmed'] as const
 
+// ── Screen 6 — The starter STRK ───────────────────────────────────────────────────────────
+//
+// WHY THIS COMES AFTER REGISTRATION AND NOT BEFORE, which is the opposite of most wallets.
+//
+// Registration is sponsored — the relayer pays that fee — so an account reaches the pool needing
+// nothing. What it cannot do is the NEXT thing: a swap, a bet, a send, all of which need gas the
+// account does not have. So the drip is not a precondition for the flow, it is the removal of the
+// wall the flow ends at. Running it earlier would spend real mainnet STRK on visitors who never
+// reach screen five.
+//
+// AND IT IS THE LAST SCREEN BECAUSE IT IS THE ONLY ONE THAT MAY FAIL HARMLESSLY. Every other step
+// gates the one after it; this one can be refused — a spent daily budget, a deployment with no
+// faucet configured — and the account is still complete. The copy is written so that outcome
+// reads as a detour rather than a failed setup.
+
+export const FUND_TITLE = 'You’re in'
+
+/** Said while the transfer is in flight. Never promises the amount before it has landed. */
+export const FUND_PENDING = 'Sending you some STRK to get started…'
+
+/** The success line. `amount` is rendered by the caller so the number is never hardcoded here. */
+export function fundArrived(amount: string): string {
+  return `${amount} STRK is on its way. It covers the gas for your first swaps, bets and sends.`
+}
+
+/**
+ * The refusal wrapper.
+ *
+ * `because` is the relayer's own sentence, which already says which limit bound and what to do
+ * instead. This adds the ONE thing the relayer cannot say: that the account is finished and works.
+ * Without it a refused drip reads as a failed sign-up.
+ */
+export function fundRefused(because: string): string {
+  return `Your account is ready and registered. ${because}`
+}
+
+export const FUND_CTA = 'Open my wallet'
+
 // ── After ─────────────────────────────────────────────────────────────────────────────────
 
 /** Sourced, §1 return. An empty wallet stated as two facts rather than as a failure. */

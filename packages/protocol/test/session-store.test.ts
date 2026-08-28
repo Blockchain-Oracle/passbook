@@ -79,10 +79,28 @@ describe('the session store interface (G1)', () => {
     // that does not survive a reload is a bet nobody can ever collect. The full argument, and the
     // reason it rides the backup ceremony, is at `session-position-store.ts`.
     //
+    // IT WENT FROM SIX TO SEVEN ON 2026-08-28, and this is the first entry that makes the browser
+    // hold LESS rather than more. `passbook.vault` is the password-sealed accounts record, and it
+    // exists so that `passbook.accounts` and its `passbook.account-key` mirror can be DELETED: set
+    // a password and the plaintext pair is removed, leaving a public header the lock screen draws
+    // itself from and a body no script on this origin can read.
+    //
+    // It reverses `session-key.ts`'s plaintext-at-rest decision, which is why it owes more of an
+    // argument than the two above rather than less. That header refused a password on the grounds
+    // that it would be "a second secret to lose, protecting a first secret whose entire design goal
+    // is that losing it is unrecoverable" — and the premise is that the password would be the only
+    // thing between the user and their account. It is not: `backup-gate.ts` GATES registration on a
+    // completed Recovery Code + Recovery File ceremony, so an offline artifact that restores the
+    // account already exists before any account does. A forgotten password costs an import.
+    //
+    // It is OPTIONAL and must stay so. A browser with no password keeps `accounts` in plaintext
+    // exactly as before and never writes this key, because a mandatory password would put a form in
+    // front of the browse-first ninety seconds `use-first-run.ts` exists to protect.
+    //
     // Anyone raising this number again owes the same argument.
     const keys = Object.values(SESSION_KEYS)
-    expect(keys).toHaveLength(6)
-    expect(new Set(keys).size).toBe(6)
+    expect(keys).toHaveLength(7)
+    expect(new Set(keys).size).toBe(7)
     for (const key of keys) expect(key.startsWith('passbook.')).toBe(true)
   })
 })

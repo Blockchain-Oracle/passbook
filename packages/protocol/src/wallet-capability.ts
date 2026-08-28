@@ -3,6 +3,25 @@
 // account chip. This module decides whether a wallet can be a funding rail using the cheapest
 // signal first, so a capable wallet is not taxed with a needless consent-prompting probe.
 
+//
+// ── ON THE PROBE, AFTER READING THE OFFICIAL ROUTE DOC ────────────────────────────────
+//
+// `assessByProbe` and the probe arm of `resolveFundingCapability` have NO production caller, and
+// as of 2026-08-28 that is deliberate rather than pending. The sponsor's own integration guide
+// (`reference/agent-skills/.../wallet-api-route.md`) is explicit: "Do not probe
+// `strk20Balances([])` to feature-detect — it is a balance-reading method, so wallets gate it
+// behind a user consent prompt for balance access the app does not need."
+//
+// The ordering below already avoided the probe whenever a version answered the question. The doc
+// goes one step further and the app follows the doc: `apps/web/src/shell/funding-wallet.ts` reads
+// `supportedWalletApi` and treats an unknown version as unknown, full stop — raising a permission
+// dialog to decide whether to grey out a label is not a trade worth making.
+//
+// The probe machinery stays here, tested, because the decision it encodes is worth being able to
+// read, and because the case it was written for — a wallet that advertises nothing, where the
+// answer genuinely changes what the app may do — is a real one this product simply does not have.
+//
+
 /** Minimum Wallet API version implementing the STRK20 methods (Ready ≥ this). */
 export const MIN_WALLET_API = '0.10.3'
 
