@@ -1,125 +1,131 @@
 //
-// The five-screen conversion flow (context/11-product-experience.md §1, presentation re-ratified
-// to the STUDIO direction 2026-08-28).
+// Account creation: TWO STEPS AND A LADDER (prototype `Passbook.dc.html`, Abu's ruling 2026-08-28).
 //
-// ── IT IS A FULL-SCREEN TAKEOVER NOW, AND THE OLD RULING IS SUPERSEDED ────────────────────
+// ── WHAT HAPPENED TO THE OTHER FOUR SCREENS ───────────────────────────────────────────────
 //
-// §1 originally ruled "an inline bordered row above the button — never a scrimmed modal". The
-// ratified Studio prototype makes first-run a viewport takeover: brand top-left, Skip top-right,
-// five hairline progress segments, one centred column per step under an Anton title. What SURVIVES
-// from the old ruling is the half that was about state, not geometry: this component renders while
-// open and unmounts on dismiss, and any form composed underneath it is never unmounted — a fixed
-// overlay leaves the page's tree exactly where it was.
+// This was `name → custody → backup → deadlock → fund → register`. Six screens, five of which
+// carried a single paragraph and a Continue button. The prototype runs `Step 1 of 2` and
+// `Step 2 of 2`, and the four that went away did not lose their content: `CUSTODY_BODY` is the
+// note under the derived address, `deadlockBody` and `POOL_SEES` are the fee card above Create,
+// and `fund` is no longer a screen at all because the drip is the first rung of the ladder.
 //
-// ── THE LAST STEP IS THE ACTION ───────────────────────────────────────────────────────────
+// Every sourced sentence still renders and `onboarding-copy.test.ts` still pins each of them
+// byte-exact. What changed is how many times somebody presses Continue to read them.
 //
-// Yosuku's `Tutorial.tsx` is the shell pattern — step array, growing progress dots, Escape and
-// backdrop and Skip — with ONE change that matters: its last step is a preference and ours is the
-// irreversible thing. There is no Done button anywhere in this component. Step five's primary
-// control is `Create your account`, and pressing it is the registration.
+// ── THE DRIP IS A RUNG, NOT A BUTTON ──────────────────────────────────────────────────────
 //
-// ── AND EACH SCREEN EARNS THE NEXT ────────────────────────────────────────────────────────
+// A `Claim faucet` button lived here for an afternoon. The complaint it answered was real — the
+// faucet was invisible, and the word appeared in this flow exactly once, inside a refusal — but
+// the remedy was wrong, and the prototype says so: `{label:'Drip lands', note:'…the receipt above
+// is its record'}`. Money that arrives with its own named rung and its own transaction hash is
+// visible. A button asking somebody to accept a gift nobody would decline is a chore.
 //
-// Name is free, local and reversible. Custody is where the key is generated. Backup GATES — a
-// skipped backup would create an unrecoverable account with somebody else's sponsored transaction,
-// which is the one outcome this flow must never produce. The deadlock is named rather than hidden
-// because a fee somebody else pays, unexplained, reads as a trick. Only then does anything reach
-// the chain.
+// ── AND THE REFUSAL PATH SURVIVED THE COLLAPSE, DELIBERATELY ──────────────────────────────
+//
+// Folding `fund` into rung one is exactly where `f339cbf`'s work — the funds floor, the copyable
+// address, the live "it landed" line — would have been quietly deleted. It is not: a refused drip
+// fails the ladder AT the drip rung with the relayer's own sentence and the address underneath,
+// and `createFeeNote` promises that fallback up front rather than springing it.
 //
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { POOL_SEES } from '@strk20/protocol/disclosure-copy'
+import { ONBOARDING_STAGES, type OnboardingStage } from '@strk20/protocol/pipeline-stage'
+import { stepsFor } from '@strk20/protocol/progress'
 import {
+  ADDRESS_NOTE,
   BACKUP_BODY,
   BACKUP_GATE_NOTE,
   BACKUP_TITLE,
+  CREATE_BLOCKED,
+  CREATE_CTA,
+  CREATE_TITLE,
   CUSTODY_BODY,
-  CUSTODY_CTA,
-  CUSTODY_TITLE,
-  DEADLOCK_TITLE,
-  FUND_CTA,
-  FUND_PENDING,
-  FUND_TITLE,
+  DRIP_RECEIPT_SUB,
+  ENTER_CTA,
+  FUND_ADDRESS_HINT,
   NAME_CAPTION,
   NAME_CLAIM_NOTE,
   NAME_CLAIM_OPT_IN,
   NAME_CTA,
   NAME_PLACEHOLDER,
   NAME_TITLE,
-  FUND_ADDRESS_HINT,
-  REGISTER_CTA,
+  ONBOARDING_STAGE_NOTES,
   REGISTER_FUNDS_FLOOR_WEI,
   REGISTER_NEEDS_FUNDS,
-  REGISTER_STEPS,
-  REGISTER_TITLE,
-  REGISTERED_BODY,
-  REGISTERED_CTA,
-  REGISTERED_TITLE,
-  deadlockBody,
-  fundsArrived,
+  createFeeNote,
   deadlockFeeRow,
   deadlockInvitedTitle,
-  fundArrived,
-  fundRefused,
+  doneSub,
+  doneTitle,
+  dripReceiptSubInvited,
+  fundsArrived,
+  namePreview,
 } from '@strk20/protocol/onboarding-copy'
 
 import { toPlainText } from '@strk20/protocol/amount'
 
 import { cn } from '../../lib/cn'
 import { INTRO_SOUND, play } from '../../shell/sound'
+import { ProgressMachine } from '../ProgressMachine'
 import { Button } from '../ui/Button'
 import { Text } from '../ui/Text'
 
-//
-// The six screens, in order. A `gate` step cannot be advanced past until it says it is done.
-//
-// `fund` COMES BEFORE `register` — M8's one-subsidy inversion. The drip stakes the journey, so
-// it must land before the registration it pays for; the register screen is the terminal one,
-// showing "you're in" only after the confirmed on-chain write. The drip still fires by ARRIVAL
-// on its screen, not by a button: a re-render must not re-ask, and pressing it is not a decision
-// anybody would make differently.
-//
-type ScreenId = 'name' | 'custody' | 'backup' | 'deadlock' | 'fund' | 'register'
-const SCREENS: readonly ScreenId[] = ['name', 'custody', 'backup', 'deadlock', 'fund', 'register']
+type ScreenId = 'name' | 'create'
+const SCREENS: readonly ScreenId[] = ['name', 'create']
+
+/**
+ * Everything the surface knows about a creation in flight.
+ *
+ * One object rather than six props, because these six values are only ever meaningful together —
+ * a `receipt` without a `reached` is a receipt for a rung that has not run.
+ */
+export interface CreationState {
+  /** The rung currently running. `null` before Create is pressed and after the ladder ends. */
+  stage: OnboardingStage | null
+  /** Every rung that has completed. Order does not matter; the furthest one wins. */
+  reached: readonly OnboardingStage[]
+  /** The rung it stopped at, if it stopped. Nothing after it activates. */
+  failedAt: OnboardingStage | null
+  /** Set once the drip lands — the amount and hash the chip reports. */
+  receipt: { amount: string; txHash: string } | null
+  /** True once the whole ladder has confirmed. */
+  done: boolean
+}
 
 export interface ConversionPanelProps {
   /**
    * The live pool fee, already formatted, or `null` when the chain could not be asked.
    *
    * NEVER a literal — the brief's governing rule. A null renders the sentence without a number
-   * rather than with a guess at one; see `deadlockBody`.
+   * rather than with a guess at one; see `createFeeNote`.
    */
   feeStrk: string | null
   /** This app's name, for the fee row. */
   appName: string
-  /** Set when an invite is covering the registration; it becomes screen 4's title. */
+  /** Set when an invite is covering the registration. Names the staker on the receipt. */
   inviter?: string | null
-  /** Generates the key. Called on screen 2, so screens 3–4 hide the prover round-trip. */
+  /** Names the account locally and records whether the claim is wanted. Runs on leaving step 1. */
   onGenerateKey: (name: string, claimPublicly: boolean) => Promise<void> | void
-  /** Runs the registration. Only reached from screen 5's primary control. */
-  onRegister: () => Promise<void> | void
   /**
-   * Asks for the starter STRK. Runs once, automatically, when screen 6 mounts.
+   * Runs the whole ladder: drip → deploy → register → confirm.
    *
-   * IT RESOLVES WITH A REFUSAL RATHER THAN REJECTING, because a refused drip is an ordinary
-   * outcome — a spent daily budget, a deployment with no faucet — and the account is complete
-   * either way. A rejection here would take out the panel on the one screen whose whole job is
-   * to say that everything worked.
+   * ONE ACTION, because it is one thing the user asked for. It used to be two — a `fund` screen
+   * that asked for STRK and a `register` screen that spent it — and the seam between them was a
+   * Continue button in the middle of a process nobody wanted to supervise.
    */
-  onFund: () => Promise<{ ok: boolean; amount?: string; because?: string; txHash?: string }>
-  /** This browser's account address — the fallback funding target when the drip cannot stake. */
+  onCreate: () => Promise<void> | void
+  /** This browser's account address — the funding target when the drip cannot stake. */
   address: string
   /** The account's live public STRK, off the wallet's status poll. `null` while unread. */
   fundsWei?: bigint | null
-  /** The last registration failure, in a sentence — rendered ON the register screen. */
+  /** The last failure, in a sentence — rendered at the rung that produced it. */
   problem?: string | null
   /** Renders the ceremony. Calls `onDone` when the code is confirmed and the file is saved. */
   renderBackup: (onDone: () => void) => React.ReactNode
-  /** Renders the four-step pipeline once registration is in flight. */
-  renderPipeline?: () => React.ReactNode
   onDismiss: () => void
-  /** True once registration confirms; the panel closes on it. */
-  registered?: boolean
+  /** The live creation state. */
+  creation: CreationState
 }
 
 export function ConversionPanel({
@@ -127,100 +133,57 @@ export function ConversionPanel({
   appName,
   inviter = null,
   onGenerateKey,
-  onRegister,
-  onFund,
+  onCreate,
   address,
   fundsWei = null,
   problem = null,
   renderBackup,
-  renderPipeline,
   onDismiss,
-  registered = false,
+  creation,
 }: ConversionPanelProps) {
   const [index, setIndex] = useState(0)
   const [name, setName] = useState('')
-  const [claimPublicly, setClaimPublicly] = useState(false)
+  // DEFAULTS TO TRUE, which is the prototype's `claim:true` and a deliberate product position: a
+  // name nobody can resolve is a name that does not do the thing the step just promised. The
+  // toggle is right there, and `NAME_CLAIM_NOTE` says plainly what claiming publishes.
+  const [claimPublicly, setClaimPublicly] = useState(true)
   const [backupDone, setBackupDone] = useState(false)
-  const [registering, setRegistering] = useState(false)
-  const [funding, setFunding] = useState<{ done: boolean; ok: boolean; message: string; txHash?: string }>({
-    done: false,
-    ok: false,
-    message: FUND_PENDING,
-  })
-
-  // The register screen's honest gate — ZK Freighter's lesson. `null` funds reads as "unknown",
-  // which blocks nothing: an unreadable balance must not tell a funded user they are broke.
-  const fundsShort = fundsWei !== null && fundsWei < REGISTER_FUNDS_FLOOR_WEI
   const rootRef = useRef<HTMLDivElement>(null)
 
   const screen = SCREENS[index]!
-  const advance = useCallback(() => setIndex((i) => Math.min(i + 1, SCREENS.length - 1)), [])
+  const running = creation.stage !== null
+  const { done } = creation
 
-  // Escape dismisses, exactly as it does in the tutorial pattern — EXCEPT once the registration is
-  // in flight. A keystroke must not close the panel over a transaction somebody else is paying for
-  // and that cannot be taken back.
+  // The honest gate — `null` funds reads as "unknown", which blocks nothing: an unreadable balance
+  // must not tell a funded user they are broke.
+  const fundsShort = fundsWei !== null && fundsWei < REGISTER_FUNDS_FLOOR_WEI
+
+  // Escape dismisses — EXCEPT while the ladder is running. A keystroke must not close the panel
+  // over a transaction that cannot be taken back.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && !registering) onDismiss()
+      if (e.key === 'Escape' && !running) onDismiss()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [onDismiss, registering])
+  }, [onDismiss, running])
 
-  // Focus moves into the panel when it opens, because a row that appears above the button somebody
-  // just pressed is invisible to a screen reader otherwise.
+  // Focus moves into the panel when it opens, or a screen reader never learns it appeared.
   useEffect(() => {
     rootRef.current?.focus()
   }, [])
 
-  //
-  // A CONFIRMED REGISTRATION ADVANCES TO SCREEN SIX; IT NO LONGER DISMISSES.
-  //
-  // It used to close the panel, which was right when `register` was the last screen. Closing on
-  // the same signal now would race screen six out of existence: `accountStatus` re-reads after
-  // the write lands, so the panel would unmount in the same beat the drip was being asked for.
-  //
-  // `Math.min` rather than an assignment, so a late `registered` cannot pull the panel BACKWARDS
-  // out of the funding screen it is already on.
-  //
+  // Arrival gets its chime, once, when the ladder finishes.
   useEffect(() => {
-    // The terminal screen is `register` now — a confirmed write lands there and renders the
-    // "you're in" state; it never pulls the panel backwards. And it SOUNDS like arrival.
-    if (registered) {
-      setIndex((i) => Math.max(i, SCREENS.indexOf('register')))
-      play(INTRO_SOUND, 0.6)
-    }
-  }, [registered])
+    if (done) play(INTRO_SOUND, 0.6)
+  }, [done])
 
-  //
-  // The drip fires ONCE, when screen six first mounts, and is not a button.
-  //
-  // A button would be a second thing to press after the one irreversible act, on a screen whose
-  // message is that the work is finished — and pressing it is not a decision anybody would make
-  // differently. The guard is `funding.done` rather than a ref because a re-render on this screen
-  // must not re-ask: the relayer burns the address's one claim on the first request, so a second
-  // one comes back refused and would overwrite a success message with a refusal.
-  //
-  useEffect(() => {
-    if (screen !== 'fund' || funding.done) return
-    let live = true
-    void onFund().then((result) => {
-      if (!live) return
-      setFunding({
-        done: true,
-        ok: result.ok,
-        message: result.ok
-          ? fundArrived(result.amount ?? '')
-          : fundRefused(result.because ?? 'Starter STRK is not available right now.'),
-        txHash: result.txHash,
-      })
-      // The stake landing gets its little chime — gestures have long since unblocked audio.
-      if (result.ok) play(INTRO_SOUND, 0.45)
-    })
-    return () => {
-      live = false
-    }
-  }, [screen, funding.done, onFund])
+  const goCreate = useCallback(async () => {
+    if (running || done) return
+    await onCreate()
+  }, [running, done, onCreate])
+
+  const shownName = name.trim() === '' ? 'yours' : name.trim()
 
   return (
     <section
@@ -229,9 +192,7 @@ export function ConversionPanel({
       aria-label="Create an account"
       /*
         `inset-s0`, NEVER `inset-0`: the spacing scale is named (`s<N>`), so the numeric utility
-        generates NO RULE — a fixed overlay with no offsets sat mid-page, which is exactly the
-        loud-no-op the token sheet promises. The focus ring stays off this section: it takes
-        programmatic focus on open, and a gold outline around the whole viewport is not a ring.
+        generates NO RULE — a fixed overlay with no offsets sat mid-page.
       */
       className="fixed inset-s0 z-modal flex flex-col overflow-y-auto bg-ground outline-none"
     >
@@ -243,14 +204,9 @@ export function ConversionPanel({
           <span aria-hidden="true" className="brand-mark" />
           <span className="display text-display4">Passbook</span>
         </span>
-        {/* Skip is present on every screen EXCEPT while registering, for the same reason Escape is
-            suppressed there: there is nothing to skip once the transaction is away. */}
-        {/*
-          Suppressed while registering, for the reason above — and on the funding screen too,
-          where the account already exists. "Skip for now" there would offer to skip something
-          that has already happened, beside a button that does the same thing and says so.
-        */}
-        {registering || registered ? null : (
+        {/* Suppressed once the ladder starts: there is nothing to skip over a transaction that is
+            already away, and nothing to skip after it lands. */}
+        {running || done ? null : (
           <button
             type="button"
             onClick={onDismiss}
@@ -264,198 +220,202 @@ export function ConversionPanel({
       <Segments count={SCREENS.length} at={index} />
 
       <div className="relative flex flex-1">
-      <div className="m-auto flex w-full max-w-[560px] flex-col gap-s12 px-s20 py-s36">
-        <span className="kicker">{`Step ${index + 1} of ${SCREENS.length}`}</span>
-        <Text variant="display2" as="h2" className="display text-neutral1 md:text-display1">
-          {screen === 'deadlock' && inviter
-            ? deadlockInvitedTitle(inviter)
-            : screen === 'register' && registered
-              ? REGISTERED_TITLE
-              : TITLES[screen]}
-        </Text>
-        <div className="flex flex-col gap-s12">
-        {screen === 'name' ? (
-          <NameScreen
-            name={name}
-            onNameChange={setName}
-            claimPublicly={claimPublicly}
-            onClaimChange={setClaimPublicly}
-            onContinue={advance}
-          />
-        ) : null}
+        <div className="m-auto flex w-full max-w-[560px] flex-col gap-s12 px-s20 py-s36">
+          {done ? null : (
+            <span className="kicker">{`Step ${index + 1} of ${SCREENS.length}`}</span>
+          )}
+          <Text variant="display2" as="h2" className="display text-neutral1 md:text-display1">
+            {done
+              ? doneTitle(shownName)
+              : screen === 'create' && inviter
+                ? deadlockInvitedTitle(inviter)
+                : screen === 'create'
+                  ? CREATE_TITLE
+                  : NAME_TITLE}
+          </Text>
 
-        {screen === 'custody' ? (
-          <>
-            <Text variant="body3" className="text-neutral2">
-              {CUSTODY_BODY}
-            </Text>
-            <Button
-              variant="primary"
-              size="lg"
-              fill
-              onClick={async () => {
-                // The key is generated HERE, one screen before it is needed, so the read time on
-                // screens 3 and 4 covers the prover round-trip rather than a spinner doing it.
-                await onGenerateKey(name.trim(), claimPublicly)
-                advance()
-              }}
-            >
-              {CUSTODY_CTA}
-            </Button>
-          </>
-        ) : null}
-
-        {screen === 'backup' ? (
-          <>
-            <Text variant="body3" className="text-neutral2">
-              {BACKUP_BODY}
-            </Text>
-            <Text variant="body4" className="text-neutral2">
-              {BACKUP_GATE_NOTE}
-            </Text>
-            {renderBackup(() => {
-              setBackupDone(true)
-              advance()
-            })}
-            {/* NO "continue anyway". This is the gate: a skipped backup here would create an
-                unrecoverable account with a sponsored transaction — somebody else's money spent on
-                an account nobody can ever open. */}
-            {backupDone ? null : (
-              <Text variant="body4" className="text-neutral3">
-                Finish the backup to continue.
-              </Text>
-            )}
-          </>
-        ) : null}
-
-        {screen === 'deadlock' ? (
-          <>
-            <Text variant="body3" className="text-neutral2">
-              {deadlockBody(feeStrk)}
-            </Text>
-            <div className="flex flex-col gap-s4 rounded-card bg-inset p-s12">
-              <Text variant="body4" className="numeric text-neutral1">
-                {deadlockFeeRow(appName, feeStrk)}
-              </Text>
-              {/* The SANCTIONED sentence. "your address never appears" is banned until the
-                  relayer's claim is proven on mainnet; this is what ships in its place, imported
-                  rather than re-typed so the two can never drift. */}
-              <Text variant="body4" className="text-neutral2">
-                {POOL_SEES}
-              </Text>
-            </div>
-            <Button variant="primary" size="lg" fill onClick={advance}>
-              Continue
-            </Button>
-          </>
-        ) : null}
-
-        {screen === 'fund' ? (
-          <>
-            <Text variant="body3" className="text-neutral2" aria-live="polite">
-              {funding.message}
-            </Text>
-            {funding.txHash ? (
-              <a
-                href={`https://voyager.online/tx/${funding.txHash}`}
-                target="_blank"
-                rel="noreferrer"
-                className="focus-ring self-start font-mono text-mono text-neutral3 underline hover:text-neutral1"
-              >
-                the funding transaction ↗
-              </a>
+          <div className="flex flex-col gap-s12">
+            {screen === 'name' ? (
+              <NameScreen
+                name={name}
+                onNameChange={setName}
+                claimPublicly={claimPublicly}
+                onClaimChange={setClaimPublicly}
+                onContinue={async () => {
+                  await onGenerateKey(name.trim(), claimPublicly)
+                  setIndex(1)
+                }}
+              />
             ) : null}
-            {/*
-              THE REFUSED-DRIP PATH IS A DOOR, NOT A WALL — ZK Freighter's funding screen, made
-              honest for mainnet: when the faucet cannot stake you, your own address is right
-              here to fund from anywhere, and the flow's balance poll notices the arrival.
-            */}
-            {funding.done && !funding.ok ? <AddressCard address={address} /> : null}
-            {funding.done && !funding.ok && fundsWei !== null && !fundsShort ? (
-              <Text variant="body3" className="text-settled" role="status">
-                {fundsArrived(toPlainText(fundsWei, 18))}
-              </Text>
-            ) : null}
-            {/*
-              CONTINUE UNLOCKS WHEN THE REQUEST RESOLVES — success OR refusal. The next screen
-              is the registration this money pays for; its own gate says what is missing when
-              somebody continues before funding anything.
-            */}
-            <Button variant="primary" size="lg" fill aria-disabled={!funding.done} onClick={() => funding.done && advance()}>
-              {funding.done ? FUND_CTA : 'Asking for your stake…'}
-            </Button>
-          </>
-        ) : null}
 
-        {screen === 'register' ? (
-          registered ? (
-            <>
-              <Text variant="body3" className="text-neutral2">
-                {REGISTERED_BODY}
-              </Text>
-              <Button variant="primary" size="lg" fill onClick={onDismiss}>
-                {REGISTERED_CTA}
-              </Button>
-            </>
-          ) : (
-          <>
-            {registering && renderPipeline ? (
-              renderPipeline()
-            ) : (
-              <Text variant="body3" className="text-neutral2">
-                {`This writes your key on-chain. ${REGISTER_STEPS.join(' → ')}.`}
-              </Text>
-            )}
-            {/*
-              THE GATE SPEAKS BEFORE THE BUTTON CAN FAIL. "Create account did nothing" was the
-              review — the button ran a registration that could not succeed and swallowed the
-              refusal into a surface behind this panel. Now: short funds block WITH the sentence
-              and the address; a real failure renders HERE, in red, where the press happened.
-            */}
-            {fundsShort ? (
-              <>
-                <Text variant="body4" className="text-neutral2">
-                  {REGISTER_NEEDS_FUNDS}
-                </Text>
-                <AddressCard address={address} />
-              </>
+            {screen === 'create' ? (
+              done ? (
+                <>
+                  <Text variant="body3" className="text-neutral2">
+                    {doneSub(claimPublicly)}
+                  </Text>
+                  <Ladder creation={creation} inviter={inviter} />
+                  <Button variant="primary" size="lg" fill onClick={onDismiss}>
+                    {ENTER_CTA}
+                  </Button>
+                </>
+              ) : running || creation.failedAt !== null ? (
+                <>
+                  <Ladder creation={creation} inviter={inviter} />
+                  {/*
+                    THE REFUSAL RENDERS AT THE RUNG THAT PRODUCED IT, with the address underneath
+                    when the account cannot pay its own way. This is `f339cbf`'s path, re-homed
+                    rather than deleted by the collapse.
+                  */}
+                  {problem ? (
+                    <Text variant="body4" className="text-exposed" role="alert">
+                      {problem}
+                    </Text>
+                  ) : null}
+                  {creation.failedAt !== null && fundsShort ? (
+                    <>
+                      <Text variant="body4" className="text-neutral2">
+                        {REGISTER_NEEDS_FUNDS}
+                      </Text>
+                      <AddressCard address={address} />
+                    </>
+                  ) : null}
+                  {creation.failedAt !== null && fundsWei !== null && !fundsShort ? (
+                    <Text variant="body3" className="text-settled" role="status">
+                      {fundsArrived(toPlainText(fundsWei, 18))}
+                    </Text>
+                  ) : null}
+                  {/* A stopped ladder is retryable. A stopped ladder with no way forward is a
+                      dead end wearing a progress list. */}
+                  {creation.failedAt !== null ? (
+                    <Button variant="primary" size="lg" fill onClick={() => void goCreate()}>
+                      Try again
+                    </Button>
+                  ) : null}
+                </>
+              ) : (
+                <>
+                  <AddressPanel address={address} />
+                  <Text variant="body4" className="text-neutral2">
+                    {CUSTODY_BODY}
+                  </Text>
+
+                  <div className="flex flex-col gap-s6">
+                    <Text variant="body3" as="h3" className="text-neutral1">
+                      {BACKUP_TITLE}
+                    </Text>
+                    <Text variant="body4" className="text-neutral2">
+                      {BACKUP_BODY}
+                    </Text>
+                    <Text variant="body4" className="text-neutral2">
+                      {BACKUP_GATE_NOTE}
+                    </Text>
+                    {renderBackup(() => setBackupDone(true))}
+                  </div>
+
+                  <div className="flex flex-col gap-s4 rounded-card bg-inset p-s12">
+                    <Text variant="body4" className="text-neutral2">
+                      {createFeeNote(feeStrk)}
+                    </Text>
+                    <Text variant="body4" className="numeric text-neutral1">
+                      {deadlockFeeRow(appName, feeStrk)}
+                    </Text>
+                    {/* The SANCTIONED sentence. "your address never appears" is banned until the
+                        relayer's claim is proven on mainnet; this is what ships in its place. */}
+                    <Text variant="body4" className="text-neutral2">
+                      {POOL_SEES}
+                    </Text>
+                  </div>
+
+                  {problem ? (
+                    <Text variant="body4" className="text-exposed" role="alert">
+                      {problem}
+                    </Text>
+                  ) : null}
+
+                  {/* NO "continue anyway". A skipped backup would create an unrecoverable account
+                      with a sponsored transaction — money spent on an account nobody can open. */}
+                  <Button
+                    variant="primary"
+                    size="lg"
+                    fill
+                    aria-disabled={!backupDone}
+                    onClick={() => void goCreate()}
+                  >
+                    {CREATE_CTA}
+                  </Button>
+                  {backupDone ? null : (
+                    <Text variant="body4" className="text-neutral3">
+                      {CREATE_BLOCKED}
+                    </Text>
+                  )}
+                </>
+              )
             ) : null}
-            {problem ? (
-              <Text variant="body4" className="text-exposed" role="alert">
-                {problem}
-              </Text>
-            ) : null}
-            {/*
-              THE LAST STEP IS THE ACTION. Yosuku's final screen sets a preference and ends in Done;
-              ours ends in the irreversible thing — the Done above only exists once the chain
-              confirmed it.
-            */}
-            <Button
-              variant="primary"
-              size="lg"
-              fill
-              aria-disabled={registering || fundsShort}
-              onClick={async () => {
-                if (registering || fundsShort) return
-                setRegistering(true)
-                try {
-                  await onRegister()
-                } finally {
-                  // Cleared even on failure, so a failed registration is retryable rather than a
-                  // panel locked open on a dead button.
-                  setRegistering(false)
-                }
-              }}
-            >
-              {registering ? 'Registering…' : fundsShort ? 'Waiting for your STRK…' : REGISTER_CTA}
-            </Button>
-          </>
-          )
-        ) : null}
+          </div>
         </div>
       </div>
-      </div>
     </section>
+  )
+}
+
+/**
+ * The four rungs, drawn by the app's ONE progress machine.
+ *
+ * `ProgressMachine` had zero importers before this — a finished five-channel ladder, shipped with
+ * its CSS, rendered nowhere. It takes rows and knows nothing about which pipeline it is drawing,
+ * which is exactly the claim that makes a third pipeline free.
+ */
+function Ladder({ creation, inviter }: { creation: CreationState; inviter: string | null }) {
+  const steps = stepsFor({
+    stages: ONBOARDING_STAGES,
+    reached: creation.done ? ONBOARDING_STAGES : creation.reached,
+    failedAt: creation.failedAt,
+  })
+  const note =
+    creation.stage !== null ? ONBOARDING_STAGE_NOTES[creation.stage] : null
+
+  return (
+    <div className="flex flex-col gap-s8">
+      <ProgressMachine steps={steps} label="Creating your account" />
+      {/* ONE note, for the rung that is running — the prototype's `noteOn: i===reg`. Four notes at
+          once is a paragraph with bullets, and the eye has nowhere to land. */}
+      {note ? (
+        <Text variant="body4" className="text-neutral3" aria-live="polite">
+          {note}
+        </Text>
+      ) : null}
+      {creation.receipt ? (
+        <div className="flex flex-col gap-s2 rounded-card bg-inset p-s12">
+          <Text variant="body3" className="numeric text-settled">
+            {`+${creation.receipt.amount} STRK`}
+          </Text>
+          <Text variant="body4" className="text-neutral3">
+            {inviter ? dripReceiptSubInvited(inviter) : DRIP_RECEIPT_SUB}
+          </Text>
+          <a
+            href={`https://voyager.online/tx/${creation.receipt.txHash}`}
+            target="_blank"
+            rel="noreferrer"
+            className="focus-ring self-start font-mono text-mono text-neutral3 underline hover:text-neutral1"
+          >
+            {`tx ${creation.receipt.txHash.slice(0, 6)}…${creation.receipt.txHash.slice(-4)} ↗`}
+          </a>
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
+/** The derived address, stated as provenance rather than as a value to check. */
+function AddressPanel({ address }: { address: string }) {
+  return (
+    <div className="flex flex-col gap-s2 rounded-card bg-inset p-s12">
+      <span className="numeric break-all font-mono text-body4 text-neutral1">{address}</span>
+      <Text variant="body4" className="text-neutral3">
+        {ADDRESS_NOTE}
+      </Text>
+    </div>
   )
 }
 
@@ -487,15 +447,6 @@ function AddressCard({ address }: { address: string }) {
   )
 }
 
-const TITLES: Record<ScreenId, string> = {
-  name: NAME_TITLE,
-  custody: CUSTODY_TITLE,
-  backup: BACKUP_TITLE,
-  deadlock: DEADLOCK_TITLE,
-  register: REGISTER_TITLE,
-  fund: FUND_TITLE,
-}
-
 function NameScreen({
   name,
   onNameChange,
@@ -509,6 +460,7 @@ function NameScreen({
   onClaimChange: (v: boolean) => void
   onContinue: () => void
 }) {
+  const trimmed = name.trim()
   return (
     <>
       <label className="flex flex-col gap-s6">
@@ -520,13 +472,21 @@ function NameScreen({
           autoComplete="off"
           className="focus-ring w-full rounded-control bg-inset px-s12 py-s12 text-body1 text-neutral1 outline-none placeholder:text-neutral3"
         />
-        <Text variant="body4" className="text-neutral2">
-          {NAME_CAPTION}
-        </Text>
+        {/* THE PREVIEW ONLY EXISTS ONCE THERE IS A NAME — the prototype's `prevOn: nm!==''`.
+            "You'll be @ — anyone can pay you by typing it" is a sentence about nothing. */}
+        {trimmed === '' ? (
+          <Text variant="body4" className="text-neutral2">
+            {NAME_CAPTION}
+          </Text>
+        ) : (
+          <Text variant="body3" className="text-accent1" aria-live="polite">
+            {namePreview(trimmed, claimPublicly)}
+          </Text>
+        )}
       </label>
 
-      {/* The public claim is OPT-IN and separate from the local label, because they are different
-          acts: a label is private to this browser, a claim is a record anyone can look up. */}
+      {/* The public claim is separate from the local label, because they are different acts: a
+          label is private to this browser, a claim is a record anyone can look up. */}
       <label className="flex items-start gap-s8">
         <input
           type="checkbox"
@@ -548,10 +508,8 @@ function NameScreen({
         variant="primary"
         size="lg"
         fill
-        aria-disabled={name.trim() === ''}
-        onClick={() => {
-          if (name.trim() !== '') onContinue()
-        }}
+        aria-disabled={trimmed === ''}
+        onClick={onContinue}
       >
         {NAME_CTA}
       </Button>
@@ -560,9 +518,9 @@ function NameScreen({
 }
 
 /**
- * The Studio progress segments: five hairline bars across the top of the takeover, gold up to and
- * including the current step. Decoration beside the spoken "Step N of 5", so it is hidden from
- * assistive technology rather than announced twice.
+ * The Studio progress segments across the top of the takeover, accent up to and including the
+ * current step. Decoration beside the spoken "Step N of 2", so it is hidden from assistive
+ * technology rather than announced twice.
  */
 function Segments({ count, at }: { count: number; at: number }) {
   return (

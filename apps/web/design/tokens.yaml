@@ -100,10 +100,21 @@ typography:
     heading3: "24/28 -0.005em"
     subheading1: "18/24"
     subheading2: "16/24"
+    # ── LEADING IS SET FOR PARAGRAPHS, NOT FOR ROWS ──────────────────────────────────────
+    # `body3` and `body4` carry this app's prose — the privacy paragraphs, the disclosure
+    # bodies, the stage notes — and they sat on 1.43 and 1.33, which is ROW leading. Three-to-
+    # five-line explanations set that tight are a large part of why the built app reads denser
+    # and cheaper than the prototype beside it.
+    #
+    # The 4px leading grid is what these values are snapped to (`validateTypeScale` refuses
+    # anything else, and it refused 23 and 19 on the first attempt) — so the ~1.6 the prose
+    # wants rounds up to 24 and 20 rather than landing on it. That is also why `body2` is
+    # LEFT ALONE: its next grid step is 28, which is 1.75, and it is the default `Text`
+    # variant — too loose, on too much of the app, to buy the same way.
     body1: "18/24"
     body2: "16/24"
-    body3: "14/20"
-    body4: "12/16"
+    body3: "14/24"
+    body4: "12/20"
     mono: "12/16"
     kicker: "11/16 0.16em"       # the mono section kickers — "01 — account", uppercase
     navLabel: "11/16 0.12em @700" # pill-nav labels, uppercase bold

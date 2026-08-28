@@ -126,9 +126,9 @@ export function deadlockInvitedTitle(inviter: string): string {
   return `${inviter} is covering your registration.`
 }
 
-// ── Screen 5 — The stake (the drip, FIRST) ────────────────────────────────────────────────
+// ── Step 2's ladder — creating the account ────────────────────────────────────────────────
 //
-// WHY THIS COMES BEFORE REGISTRATION NOW — M8's one-subsidy rule, inverting the old order.
+// WHY THE DRIP COMES FIRST — M8's one-subsidy rule, inverting the old order.
 //
 // The old flow gave twice: a sponsored registration AND a starter drip. Now the drip is the ONLY
 // gift and it arrives first, sized to stake the whole journey — the account deploys itself from
@@ -136,12 +136,51 @@ export function deadlockInvitedTitle(inviter: string): string {
 // whoever submits), and what remains is the starter. Sponsorship still exists, demoted to the
 // fallback for when the faucet is off or dry: never a locked door, never a second subsidy.
 //
-// IT MAY STILL FAIL HARMLESSLY. A refused drip does not end the flow — the register screen's
-// fallback covers the fee — so the copy reads as a detour, never as a failed setup.
+// ── AND IT IS NOT A BUTTON, WHICH IS A REVERSAL WORTH RECORDING ──────────────────────────
+//
+// A `Claim faucet` button briefly lived here, on the reading that a faucet nobody can see is a
+// faucet nobody believes in. The observation was right and the remedy was wrong. The prototype's
+// answer — Abu's ruling, 2026-08-28 — is that the drip is the FIRST RUNG OF THE LADDER, announced
+// by name and leaving a receipt with a transaction hash:
+//
+//     {label:'Drip lands', note:'9.6 STRK from the faucet — the receipt above is its record'}
+//
+// The faucet was never missing. It was silent. A named rung that reports its own hash is visible
+// in the way that matters, and it does not ask somebody to press a button to be given something
+// nobody would decline.
 
-export const FUND_TITLE = 'Your stake arrives first'
+// The row TITLES are not here. They live in `pipeline-stage.ts`'s `STAGE_TITLES` beside every
+// other stage title in the app, because that table exists precisely so one stage cannot be spelled
+// two ways in two files. Only the notes below are copy.
 
-/** Said while the transfer is in flight. Never promises the amount before it has landed. */
+/**
+ * The per-stage note, shown ONLY for the rung that is currently running.
+ *
+ * That restraint is the prototype's (`noteOn: regOn && i===reg`) and it is what keeps the ladder a
+ * ladder: four notes on screen at once is a paragraph with bullet points, and the eye has nowhere
+ * to land. One note, on the live rung, reads as narration.
+ *
+ * NO AMOUNT IS BAKED INTO `drip`. The prototype writes "9.6 STRK from the faucet" because a mockup
+ * knows what its faucet gives; this build does not until the relayer answers, and the file's
+ * governing rule is that no STRK figure is ever a literal here. The amount arrives with the
+ * receipt — see `dripReceipt`.
+ */
+export const ONBOARDING_STAGE_NOTES = {
+  drip: 'the faucet stakes this account — the receipt below is its record',
+  deploy: 'your address goes live on Starknet',
+  register: 'the account pays its own fee — nobody sponsors this',
+  confirm: 'the pool accepts your viewing key',
+} as const
+
+/** Under the drip's receipt chip. Says whose money it was and that the record is keepable. */
+export const DRIP_RECEIPT_SUB = 'faucet drip · the receipt is yours to keep'
+
+/** The same line when an invite staked it instead. `inviter` is named — attribution is §2's rule. */
+export function dripReceiptSubInvited(inviter: string): string {
+  return `staked by @${inviter} · the receipt is yours to keep`
+}
+
+/** Said while the drip is in flight. Never promises the amount before it has landed. */
 export const FUND_PENDING = 'Sending the STRK that pays your way…'
 
 /** The success line. `amount` is rendered by the caller so the number is never hardcoded here. */
@@ -157,11 +196,15 @@ export function fundArrived(amount: string): string {
  * The refusal wrapper.
  *
  * `because` is the relayer's own sentence, which already says which limit bound and what to do
- * instead. This adds the ONE thing the relayer cannot say: the door ahead still opens — the
- * sponsored fallback covers a registration the drip could not stake.
+ * instead. This adds the one thing the relayer cannot: where the door is.
+ *
+ * IT DOES NOT PROMISE A SPONSOR. It used to — "the registration fee is covered for you instead" —
+ * and that was false in the same way `createFeeNote`'s old ending was: the faucet gives once, and
+ * there is no second subsidy behind it. A refusal is a real refusal, and the honest next step is
+ * the user's own wallet.
  */
 export function fundRefused(because: string): string {
-  return `${because} You can still continue — when the faucet cannot stake you, the registration fee is covered for you instead.`
+  return `${because} Fund the account yourself from any wallet or exchange — the address is below, and this screen notices when it lands.`
 }
 
 export const FUND_CTA = 'Continue — register my key'
@@ -190,7 +233,95 @@ export function fundsArrived(amount: string): string {
   return `${amount} STRK is here — that covers it.`
 }
 
-// ── Screen 6 — Register (the terminal screen) ─────────────────────────────────────────────
+// ── Step 2 — Create the account ───────────────────────────────────────────────────────────
+//
+// THE FLOW IS TWO STEPS NOW, not six, and the deleted four were not deleted: `custody`, `deadlock`
+// and `fund` were SCREENS carrying one paragraph each, and they are cards inside these two steps.
+// Every sourced sentence — `CUSTODY_BODY`, `BACKUP_BODY`, `deadlockBody` — still renders, and
+// `onboarding-copy.test.ts` still pins each of them byte-exact. What changed is how many times
+// somebody has to press Continue to read them.
+
+export const CREATE_TITLE = 'Create your account'
+export const CREATE_CTA = 'Create my account'
+
+/** Above the derived address. The prototype's line, and it is a claim about provenance. */
+export const ADDRESS_NOTE = 'derived, not chosen'
+
+/** The gate's own sentence, under a Create button that cannot yet be pressed. */
+export const CREATE_BLOCKED = 'Save your key and confirm it, and Create unlocks.'
+
+/**
+ * The live preview under the name field.
+ *
+ * Two different sentences because they are two different facts: a claimed name is a public record
+ * anyone can resolve, an unclaimed one is a label that never leaves this browser. The prototype
+ * writes both and switches on the toggle, which is the honest shape — a single sentence would have
+ * to be vague enough to cover both, and vagueness about what is public is the one thing this
+ * product cannot afford.
+ */
+export function namePreview(name: string, claimPublicly: boolean): string {
+  return claimPublicly
+    ? `You’ll be @${name} — anyone can pay you by typing it.`
+    : `You’ll be @${name} — a private label, unless you claim it.`
+}
+
+/**
+ * The fine print under Create, naming what the one transaction covers and who staked it.
+ *
+ * `feeStrk` IS INTERPOLATED, NEVER BAKED. The prototype writes "the pool's 6 STRK registration fee
+ * … ≈9.6 STRK in all" because a mockup may; this file's governing rule, enforced by its own test,
+ * is that no STRK figure is ever a literal. So the placement and the framing are the prototype's
+ * and the numbers are the chain's — and when the chain cannot be asked, the sentence loses the
+ * figure rather than inventing one.
+ *
+ * ── THERE IS NO SPONSORSHIP FALLBACK, AND SAYING THERE WAS WAS A LIE ─────────────────────
+ *
+ * This sentence briefly ended "if the faucet is dry, the fee is covered for you instead — never a
+ * locked door". That is not what this product does (Abu, 2026-08-28): **the faucet drips ONCE**,
+ * sized to carry a new account through its first few transactions, and nothing quietly pays on the
+ * user's behalf after that. A promise of open-ended sponsorship is the most expensive kind of copy
+ * to get wrong — it is a commitment made to somebody who has not spent anything yet.
+ *
+ * So the last clause is the honest door instead: fund it yourself, and the address is right there.
+ * `f339cbf`'s work — the funds floor, the copyable address, the live "it landed" line — is what
+ * that clause is pointing at, and this is where the user is first told it exists.
+ */
+export function createFeeNote(feeStrk: string | null): string {
+  const fee =
+    feeStrk === null
+      ? 'the pool’s registration fee'
+      : `the pool’s ${feeStrk} STRK registration fee`
+  return (
+    `Creating the account is one transaction, staked by the faucet — deploy gas, ${fee}, and a ` +
+    'starter balance. It lands in your history as an ordinary receipt, with its hash. The faucet ' +
+    'gives once, enough for your first few transactions; after that the account pays its own way. ' +
+    'If the faucet is dry you can fund the account yourself from any wallet — the address is on ' +
+    'this screen.'
+  )
+}
+
+// ── The terminal screen ───────────────────────────────────────────────────────────────────
+
+/** The arrival title. The NAME is the subject, because the name is what was just made real. */
+export function doneTitle(name: string): string {
+  return `@${name} is yours`
+}
+
+/**
+ * What just happened, told as two rows the user can go and look at.
+ *
+ * Switches on the claim for the same reason `namePreview` does — one of these accounts is
+ * findable by strangers and the other is not, and that difference is not a detail.
+ */
+export function doneSub(claimedPublicly: boolean): string {
+  const history =
+    'The stake and your registration are the first two rows of your history — each with its hash.'
+  return claimedPublicly
+    ? `Anyone can now find this address by that name. ${history}`
+    : `The name stays local to this browser. ${history}`
+}
+
+export const ENTER_CTA = 'Enter Passbook'
 
 export const REGISTER_TITLE = 'Register your key'
 export const REGISTER_CTA = 'Create your account'

@@ -183,7 +183,12 @@ function DepositRail({ walletName }: { walletName: string }) {
                 toast({
                   kind: 'success',
                   title: `${toPlainText(wei, 18)} STRK on its way`,
-                  detail: `Signed in ${walletName}. It lands at your address as public STRK — shield it from the wallet screen.`,
+                  // NO "shield it from the wallet screen". That sentence pointed at a button that
+                  // has never existed: there is no `shield` SendKind and no public → shielded
+                  // pipeline in this build. Promising a door the app does not have is how "the
+                  // money arrived and nothing happened" became the most common thing to hear about
+                  // this product. What it says now is exactly what is true.
+                  detail: `Signed in ${walletName}. It lands at your address as public STRK, where it pays your fees and gas.`,
                 })
               } else {
                 toast({ kind: 'error', title: 'The deposit was not sent', detail: result.because })

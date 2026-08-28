@@ -85,7 +85,14 @@ function Send() {
 
   const session = useSession()
   const ready = session.status === 'ready' ? session : null
-  const { balance, read } = useBalance(ready?.address ?? null, ready?.accountKey ?? null)
+  //
+  // `refresh` USED TO BE DROPPED HERE, and that single omission is why a send appeared to do
+  // nothing. The balance line, the Max preset and the over-balance blocker all read `balance`, and
+  // `useBalance` only walks the pool on mount and when it is asked — so after a completed transfer
+  // every one of them kept showing the pre-send figure until a full reload. The money had moved and
+  // the screen had not.
+  //
+  const { balance, read, refresh } = useBalance(ready?.address ?? null, ready?.accountKey ?? null)
   const sending = useSend(read, ready)
 
   const [amount, setAmount] = useState('')
@@ -305,8 +312,22 @@ function Send() {
     })
     setAsked(false)
     setAmount('')
+    // THE RECIPIENT GOES TOO. Clearing the amount but keeping the address left the form looking
+    // half-armed at somebody the user had already paid — one keystroke from sending again, with
+    // the receipt for the FIRST transfer still on screen saying it worked.
+    setRecipient('')
     setAcknowledged([])
-  }, [token, parsed.wei, recipient, sending])
+    //
+    // AND THE POOL IS RE-WALKED. This is the line whose absence made a completed send look like a
+    // no-op: `useBalance` walks on mount and on request only, so without this the figure above the
+    // form, the Max preset and the insufficient-funds blocker all keep pre-send values.
+    //
+    // Deliberately NOT awaited: the walk takes seconds, and `BalanceState`'s documented contract is
+    // that the previous reading stays visible while a new one is in flight. Blocking the receipt on
+    // it would hold the one piece of good news behind the slowest call on the screen.
+    //
+    refresh()
+  }, [token, parsed.wei, recipient, sending, refresh])
 
   return (
     <Surface routeId={Route.fullPath}>

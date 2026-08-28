@@ -135,7 +135,7 @@ function RootLayout() {
       ...entries.map((entry) => ({
         id: `person:${entry.name}`,
         label: `@${entry.name}`,
-        detail: `${shortenFelt(entry.address, 6, 4)}${entry.xHandle ? ' · via 𝕏' : ''} — person`,
+        detail: `${shortenFelt(entry.address, 6, 4)} — person`,
       })),
     ],
     [entries],

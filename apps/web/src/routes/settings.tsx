@@ -25,7 +25,6 @@ import { INTRO_SOUND, isMuted, play, setMuted, subscribeMuted } from '../shell/s
 import { pinTheme, storedChoice, themeChoice } from '../shell/theme'
 import type { ThemeChoice } from '../shell/theme'
 import { NameClaim } from '../components/NameClaim'
-import { XConnect } from '../components/XConnect'
 import { Text } from '../components/ui/Text'
 
 export const Route = createFileRoute('/settings')({
@@ -118,7 +117,6 @@ function Settings() {
         not of a conversation — the same reason the theme control does. Chat links to it from the
         new-message flow, which is where somebody first wants one.
       */}
-      <XConnect />
       <NameClaim />
 
       {/*

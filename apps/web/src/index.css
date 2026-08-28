@@ -682,6 +682,56 @@
   }
 
   /*
+   * ---- arrival ---------------------------------------------------------------------------------
+   *
+   * NOTHING IN THIS APP ARRIVED, and that absence is a large part of why the built product reads as
+   * flatter than the prototype beside it. Every one of the nine keyframes that existed before this
+   * one is an EVENT animation — a shake for a refused press, a pulse for a completed read, a ring
+   * for a wait, a roll for a changing figure. All of them fire because something happened. None of
+   * them fires because a screen appeared, so every route swapped in fully formed and instantaneous,
+   * which is the one motion cue a user reads as "this is a document" rather than "this is an app".
+   *
+   * The prototype puts `animation: pbUp .4s cubic-bezier(.22,.9,.28,1) both` on EVERY screen
+   * section — it is the most repeated line in that file. This is that, expressed in this sheet's
+   * own tokens rather than its literals.
+   *
+   * `both` IS LOAD-BEARING: without a backwards fill the element paints at its final opacity for
+   * one frame before the animation takes hold, which is a flash of the finished screen followed by
+   * a fade-in of the same screen. That reads as a bug, not as arrival.
+   */
+  @keyframes pb-rise {
+    from {
+      opacity: 0;
+      transform: translateY(var(--spacing-s12));
+    }
+    to {
+      opacity: 1;
+      transform: translateY(var(--spacing-s0));
+    }
+  }
+
+  .route-arrive {
+    animation: pb-rise var(--transition-duration-quickLong) var(--ease-settle) both;
+  }
+
+  /*
+   * The staggered variant, for a list whose rows should land in sequence rather than as a block.
+   *
+   * The ordinal is supplied by the call site as `--row-ordinal` and MULTIPLIED here, which is the
+   * exact discipline `.odometer-track` already uses for its per-digit delay — and for the same
+   * reason: a stagger written as N hand-typed delay classes is N chances to drift, and the token
+   * `--transition-delay-stagger` (40ms, declared in `tokens.yaml` as `motion.stagger` and until now
+   * never referenced by anything) is the one number both should read.
+   *
+   * Capped by the call site, not here: a 60-row feed staggered to the end would make the last row
+   * arrive two and a half seconds late, which is not arrival, it is waiting.
+   */
+  .route-arrive-row {
+    animation: pb-rise var(--transition-duration-quickLong) var(--ease-settle) both;
+    animation-delay: calc(var(--row-ordinal, 0) * var(--transition-delay-stagger));
+  }
+
+  /*
    * ---- the popup layer -------------------------------------------------------------------------
    *
    * STACKING IS DELIBERATE HERE, NOT LUCKY. There is still no `z-index` namespace, so the note
@@ -2363,6 +2413,24 @@
      */
     .attention-highlight .option-row-inner {
       animation-name: none;
+    }
+
+    /*
+     * Arrival is PURE TRAVEL, so it degrades to nothing at all rather than to a dip. There is no
+     * meaning in it to preserve — unlike the shake and the pulse, which are feedback and survive as
+     * a still opacity change; a screen that appeared is already telling you it appeared by being
+     * there. Named for the same specificity reason as the three above: the blanket `*` rule is
+     * 0,0,0 and touches `transition-duration` only, so an `animation` shorthand set on a class
+     * (0,1,0) is untouched by it and has to be overridden by name.
+     *
+     * `animation: none` rather than `animation-name: none`, because the shorthand also set a
+     * `both` fill: killing only the name would leave the backwards fill applied and the element
+     * stuck at `opacity: 0` — an invisible screen for a reader who asked for less motion, which is
+     * the worst possible reading of the request.
+     */
+    .route-arrive,
+    .route-arrive-row {
+      animation: none;
     }
 
     /*

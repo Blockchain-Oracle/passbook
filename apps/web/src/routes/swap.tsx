@@ -20,7 +20,9 @@ import { SwapSettings } from '../components/SwapSettings'
 import { TokenSelector } from '../components/TokenSelector'
 import { Text } from '../components/ui/Text'
 import { currentBlocker, getHealth, subscribeHealth } from '../shell/pool-health'
+import { toast } from '../shell/toast-store'
 import { useBalance } from '../shell/use-balance'
+import { usePublicBalances } from '../shell/use-public-balances'
 import { useCrowd } from '../shell/use-crowd'
 import { useQuote } from '../shell/use-quote'
 import { useSend } from '../shell/use-send'
@@ -81,7 +83,28 @@ function Swap() {
   // swap spends come from the same reading the amounts were checked against.
   const session = useSession()
   const ready = session.status === 'ready' ? session : null
-  const { read } = useBalance(ready?.address ?? null, ready?.accountKey ?? null)
+  const { read, refresh } = useBalance(ready?.address ?? null, ready?.accountKey ?? null)
+
+  //
+  // What this account holds IN THE OPEN, per token — the number a swap actually spends from.
+  //
+  // Refreshed alongside the shielded walk after a completed swap, because both change and a hero
+  // that updated one of them would be showing two readings taken at different moments.
+  //
+  const publicTokens = useMemo(() => tokens.map((t) => t.address), [tokens])
+  const publicBalances = usePublicBalances(ready?.address ?? null, publicTokens)
+
+  const publicBalanceLabel = useCallback(
+    (token: TokenInfo | null): string | null => {
+      if (token === null) return null
+      const wei = publicBalances.byToken.get(token.address.toLowerCase())
+      // `undefined` = not read yet, `null` = read and failed. Neither is zero, and neither may
+      // render as one — see `public-balances.ts`'s header.
+      if (wei === undefined || wei === null) return null
+      return `Balance ${toPlainText(wei, token.decimals)}`
+    },
+    [publicBalances.byToken],
+  )
   const sending = useSend(read, ready)
 
   // The list is volume-ordered, so the first entry is the deepest market. Defaulting the sell side
@@ -192,7 +215,7 @@ function Swap() {
         return
       }
 
-      await sending.send({
+      const outcome = await sending.send({
         kind: 'swap',
         // The executor, on BOTH legs. `planSend` refuses the send if these ever disagree — see
         // `SendRequest.recipient` — so naming it once and reusing it is the safe spelling.
@@ -208,10 +231,37 @@ function Swap() {
           minOutWei: minOut,
         },
       })
+
+      //
+      // THE RESULT USED TO BE AWAITED AND THROWN AWAY — the whole of what a completed swap did.
+      //
+      // On success the review sheet stayed open over an unchanged form with the amount still typed
+      // in it, no receipt, no toast and no re-read of the balance. On a real mainnet swap that is a
+      // user who has just spent money, has been told nothing, and is looking at the button that
+      // spent it. A failure was equally silent: `sending.problem` renders as the sheet's blocker,
+      // which is why nothing is reported here for the `!ok` case — but the sheet must NOT close on
+      // one, or the blocker closes with it and the refusal is never read.
+      //
+      if (!outcome.ok) return
+
+      setReviewing(false)
+      setSellAmount('')
+      // Swap has no on-screen receipt of its own — unlike Send, whose `sent` block reports the
+      // transfer — so this toast IS the confirmation. It names the pair, because "Swap submitted"
+      // over a form the user has just watched empty itself says nothing they did not already know.
+      toast({
+        kind: 'success',
+        title: `Swapping ${defaultedSell.symbol} for ${buyToken.symbol}`,
+        detail: 'The batch is away — the pool credits the bought token when it accepts it.',
+      })
+      // Not awaited, for `BalanceState`'s documented reason: the previous reading stays on screen
+      // while the new walk is in flight, so blocking on it would only delay the good news.
+      refresh()
+      publicBalances.refresh()
     } finally {
       setBuilding(false)
     }
-  }, [quoted, buyToken, defaultedSell, minOut, slippageBps, sending])
+  }, [quoted, buyToken, defaultedSell, minOut, slippageBps, sending, refresh, publicBalances])
 
   //
   // THE BLOCKER CHAIN (§7.10), ordered so the reason a person can act on comes first.
@@ -288,9 +338,19 @@ function Swap() {
             onValueChange={setSellAmount}
             token={defaultedSell}
             onSelectToken={() => setPicker('sell')}
-            // No balance line: no shielded balance has been read on this surface, and a "Balance: 0"
-            // would be a number nobody measured. The row still reserves its height.
-            balanceLabel={null}
+            //
+            // THE PUBLIC BALANCE, WHICH THIS SURFACE COULD NOT SEE UNTIL NOW.
+            //
+            // This read `balanceLabel={null}` with a comment explaining that no shielded balance had
+            // been read here — true, and beside the point: what a swap spends from is the account's
+            // PUBLIC holding of the sell token, and nothing in the app read that. So the one screen
+            // whose entire job is "how much of this do I have" could not answer.
+            //
+            // The honesty rule survives the change intact. `undefined` (not read yet) and `null`
+            // (read and failed) both render no line rather than a zero, because "Balance: 0" is a
+            // number nobody measured, and the row reserves its height either way.
+            //
+            balanceLabel={publicBalanceLabel(defaultedSell)}
           />
 
           <SwapDirectionButton onPress={flip} disabled={buyToken === null} />

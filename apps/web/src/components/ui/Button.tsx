@@ -91,13 +91,54 @@ export interface ButtonProps
  * reason. This is for every other button on the screen. Reaching for `disabled` on a primary action
  * is the mistake `BlockedButton` exists to prevent.
  */
-export function Button({ className, variant, size, fill, icon, children, type, ...rest }: ButtonProps) {
+export function Button({
+  className,
+  variant,
+  size,
+  fill,
+  icon,
+  children,
+  type,
+  onClick,
+  ...rest
+}: ButtonProps) {
+  //
+  // `aria-disabled` MUST SWALLOW THE PRESS, and this is a money bug rather than a polish item.
+  //
+  // The sheet only carries `disabled:pointer-events-none`, which is the REAL `disabled` attribute.
+  // But this app almost never sets it — the never-disable rule above means a blocked primary action
+  // renders `aria-disabled` and keeps its handler, so the browser fires `onClick` exactly as if
+  // nothing were wrong. Every review sheet is written as
+  // `onClick={() => onConfirm?.()} aria-disabled={blocker !== null}`, and none of the confirm
+  // handlers guards on its own in-flight state — so a second press while the button still reads
+  // "Proving…" started a SECOND real mainnet transaction.
+  //
+  // Swallowed here, once, rather than in each handler: a guard that has to be remembered at every
+  // call site is a guard that is missing at one of them, and the one it is missing at moves money.
+  // The attribute keeps announcing the state to assistive technology either way — this changes what
+  // a press DOES, not what the button says.
+  //
+  const blocked = rest['aria-disabled'] === true || rest['aria-disabled'] === 'true'
   return (
     <button
       // Buttons inside a form default to `submit` and reload the page. Nothing in this app wants
       // that, and it is the single most common way a React button misbehaves.
       type={type ?? 'button'}
       className={cn(buttonVariants({ variant, size, fill }), className)}
+      onClick={
+        onClick === undefined
+          ? undefined
+          : (event) => {
+              if (blocked) {
+                // Stopped here, not merely un-called: a blocked press must not reach a parent's
+                // handler either, and a submit inside a form would still navigate.
+                event.preventDefault()
+                event.stopPropagation()
+                return
+              }
+              onClick(event)
+            }
+      }
       {...rest}
     >
       {icon}
