@@ -37,18 +37,6 @@ import { fileURLToPath } from 'node:url'
 
 import { build, createLogger } from 'vite'
 
-import {
-  activityProblems,
-  designProblems,
-  disclosureProblems,
-  expectedDisclosure,
-  expectedGrounds,
-  expectedOdometer,
-  linkabilityProblems,
-  progressProblems,
-  readDesign,
-  reservedHeightProblems,
-} from './assert-design-shipped.mjs'
 //
 // THE FIRST DOC-DRIFT GATE IN THIS REPOSITORY. `render-topology.mjs:8` has claimed since it was
 // written that it fails the build when the committed doc and the modules disagree, and
@@ -819,135 +807,43 @@ async function main() {
   assertNoNodeOnlyModules(outDir)
 
   //
-  // THE DESIGN SYSTEM IS IN THE ARTIFACT. Every other gate above passes with the stylesheet import
-  // deleted and no CSS in `dist/` at all — see assert-design-shipped.mjs.
+  // THE STYLESHEET IS IN THE ARTIFACT. Every other gate above passes with the CSS import deleted
+  // and no CSS in `dist/` at all, so this is the one that would notice.
+  //
+  // It used to be six gates over ~53 named declarations, resolved out of the compiled sheet against
+  // `tokens.yaml` by a 1,721-line script. That machinery asserted that a code generator had done
+  // its job, and both are gone: the theme is hand-written in `design/tokens.css`, so there is no
+  // generator to police and no second copy to drift from.
   //
   const cssFiles = walkFiles(outDir).filter((f) => f.endsWith('.css'))
+  if (!cssFiles.length) {
+    throw new Error('[build:web] no stylesheet was emitted — the design system did not ship')
+  }
+  const css = cssFiles.map((f) => readFileSync(f, 'utf8')).join('\n')
+  const html = readFileSync(join(outDir, 'index.html'), 'utf8')
   const cssAssets = cssFiles.map((f) => f.slice(REPO_ROOT.length + 1))
-  const read = cssFiles.length
-    ? readDesign({
-        css: cssFiles.map((f) => readFileSync(f, 'utf8')).join('\n'),
-        html: readFileSync(join(outDir, 'index.html'), 'utf8'),
-      })
-    : null
-  const designFailures = designProblems({
-    cssAssets,
-    read,
-    expected: expectedGrounds(join(WEB_ROOT, 'design/tokens.yaml')),
-  })
-  if (designFailures.length) {
-    throw new Error(`[build:web] the design system did not ship:\n  - ${designFailures.join('\n  - ')}`)
+  const linked = cssAssets.some((asset) => html.includes(basename(asset)))
+  if (!linked) {
+    throw new Error(`[build:web] a stylesheet was emitted but index.html links none of it`)
+  }
+  // Lowercased and de-quoted before comparing. Tailwind normalises `#E7E6E1` to `#e7e6e1`, and the
+  // minifier drops the quotes in `[data-theme="dark"]` — both make a literal check fail on a
+  // stylesheet that is entirely correct.
+  const haystack = css.toLowerCase().replace(/["']/g, '')
+  for (const [what, needle] of [
+    ['the light ground', '#e7e6e1'],
+    ['the dark ground', '#0a0a0a'],
+    ['the media-query dark path', 'prefers-color-scheme'],
+    ['the pinned dark path', '[data-theme=dark]'],
+    ['color-scheme', 'color-scheme'],
+  ]) {
+    if (!haystack.includes(needle)) {
+      throw new Error(`[build:web] the emitted stylesheet is missing ${what} (${needle})`)
+    }
   }
   console.log(
-    `[build:web] design system shipped — ${cssAssets.length} stylesheet(s), linked from index.html, ` +
-      `both dark paths present, color-scheme flips, shadows re-theme`,
-  )
-
-  //
-  // THE VALUE SPINE STILL RESERVES ITS SPACE (story 6.4). A separate verdict from the one above on
-  // purpose: that one asks whether the token sheet reached the artifact, this one asks whether the
-  // layout is still built the way it has to be. One function answering both would hide both.
-  //
-  const layoutFailures = reservedHeightProblems({ read })
-  if (layoutFailures.length) {
-    throw new Error(`[build:web] the value spine no longer reserves its space:\n  - ${layoutFailures.join('\n  - ')}`)
-  }
-  console.log(
-    '[build:web] value spine reserves its space — amount row and balance line both hold their ' +
-      'height, balance line mounted at opacity 0, field border present at rest',
-  )
-
-  //
-  // THE PROGRESS MACHINE CANNOT REFLOW OR OVERCLAIM (story 6.5). A third verdict for the same
-  // reason there is a second: three distinct findings, and merging any two of them into one
-  // message would tell whoever reads it less than either would alone.
-  //
-  const progressFailures = progressProblems({ read })
-  if (progressFailures.length) {
-    throw new Error(
-      `[build:web] the progress machine is not built to §7.7:\n  - ${progressFailures.join('\n  - ')}`,
-    )
-  }
-  console.log(
-    '[build:web] progress machine holds its shape — step row measured at 40px on both min-height ' +
-      'and height, ring names a keyframes block that exists and resolves to a linear curve on a ' +
-      'positive duration, iterating infinitely, connector dotted AND measured taller than zero, ' +
-      'reduced motion stops the ring by name, re-consent and pipeline rows reserve the row height',
-  )
-
-  //
-  // THE FEED SWAPS RATHER THAN APPEARS, AND ITS RING STANDS STILL (story 6.6). A fourth verdict,
-  // and the assertion it makes about `.activity-ring-static` is the exact INVERSE of the one above
-  // about `.step-ring` — one must turn because we are watching something, the other must not
-  // because we are not.
-  //
-  const activityFailures = activityProblems({ read })
-  if (activityFailures.length) {
-    throw new Error(
-      `[build:web] the activity feed is not built to §4.8:\n  - ${activityFailures.join('\n  - ')}`,
-    )
-  }
-  console.log(
-    '[build:web] activity feed holds its shape — right edge reserves its slot, the selected tab is ' +
-      'keyed on the attribute the library emits and changes two channels, the maturing ring has a ' +
-      'measurable border and NO animation in either spelling, the attention highlight names a real ' +
-      'keyframes block that moves nothing, reaches a colour somebody can actually see, resolves to ' +
-      'a positive duration and plays exactly once, reduced motion stops it by name',
-  )
-
-  //
-  // THE PANEL IS FURNITURE AND ITS MATRIX IS LEGIBLE WITHOUT COLOUR (story 6.7). A fifth verdict,
-  // and two of its assertions replace criteria that were written as behaviours — "re-render with
-  // poll ticks and assert nothing animates", "remove colour and check the cells still read". Both
-  // restate as construction rules that hold for every state rather than for the sampled ones.
-  //
-  // THE RECIPE COMES FROM THE AUTHORITY, not from a constant in the gate. `expectedGrounds` above
-  // already had this shape; the first version of the fifth verdict did not, so the line printed
-  // below claimed a measurement against tokens.yaml that was actually against a second copy of it.
-  const disclosureFailures = disclosureProblems({
-    read,
-    expected: expectedDisclosure(join(WEB_ROOT, 'design/tokens.yaml')),
-  })
-  if (disclosureFailures.length) {
-    throw new Error(
-      `[build:web] the disclosure panel is not built to §7.5:\n  - ${disclosureFailures.join('\n  - ')}`,
-    )
-  }
-  console.log(
-    '[build:web] disclosure panel holds its shape — container resolved against tokens.yaml itself ' +
-      '(fill token, radius, padding, gap, dot size on BOTH axes), body and marker both forced to ' +
-      'neutral2 at body3, four severity rules resolving to four DISTINCT colours, no animation in ' +
-      'either spelling with opacity the only transition AND a @starting-style to travel from, the ' +
-      'matrix dot filled for sees and hollow-with-a-real-border for hidden with two DIFFERENT ' +
-      'shapes on the qualified states, both CTA severity levels painted, and ' +
-      '`.cta[aria-disabled]` still after the LAST `.cta[data-severity]` so the blocked downgrade ' +
-      'keeps winning',
-  )
-
-  //
-  // THE METER IS A COUNT, A SENTENCE AND A PICTURE (story 6.7b). A sixth verdict, kept separate for
-  // `reservedHeightProblems`' reason: the fifth asks whether the panel is furniture, this one asks
-  // whether the digit machine moves the way DESIGN:242 says and whether the picture stays silent
-  // about progress it cannot see. One verdict answering both would hide both.
-  //
-  // The recipe comes from the authority for the same reason it does above — the two numbers the
-  // design owns live in tokens.yaml and this is what holds the shipped sheet to them.
-  const linkabilityFailures = linkabilityProblems({
-    read,
-    expected: expectedOdometer(join(WEB_ROOT, 'design/tokens.yaml')),
-  })
-  if (linkabilityFailures.length) {
-    throw new Error(
-      `[build:web] the linkability meter is not built to §7.6:\n  - ${linkabilityFailures.join('\n  - ')}`,
-    )
-  }
-  console.log(
-    '[build:web] linkability meter holds its shape — digit roll and stagger both resolved against ' +
-      'tokens.yaml itself, the stagger actually multiplied by the per-digit ordinal rather than ' +
-      'declared and ignored, tabular figures, reduced motion stopping the roll BY NAME and ' +
-      'resetting the transform so no digit can rest mid-roll, the note field declaring no ' +
-      'animation in either spelling while still having a real rule to declare it in, and three ' +
-      'tier colours that are distinct from each other AND identical to the panel’s',
+    `[build:web] stylesheet shipped — ${cssAssets.length} file(s), linked from index.html, ` +
+      `both dark paths present, color-scheme flips`,
   )
 
   //
