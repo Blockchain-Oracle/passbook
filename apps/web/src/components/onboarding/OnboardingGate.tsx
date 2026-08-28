@@ -5,7 +5,6 @@ import { recordLocal } from '@strk20/protocol/activity-store'
 import { toPlainText } from '@strk20/protocol/amount'
 import { STRK_TOKEN } from '@strk20/protocol/constants'
 import {
-  REGISTER_FUNDS_FLOOR_WEI,
   REGISTER_NEEDS_FUNDS,
   fundRefused,
 } from '@strk20/protocol/onboarding-copy'
@@ -21,6 +20,7 @@ import { deployAccount } from '../../shell/submit'
 import { useFirstRun } from '../../shell/use-first-run'
 import { usePoolFee } from '../../shell/use-pool-fee'
 import { BackupCeremony } from '../BackupCeremony'
+import { ImportPanelStandalone } from '../ImportPanel'
 import { Button } from '../ui/Button'
 import { Text } from '../ui/Text'
 import { ConversionPanel } from './ConversionPanel'
@@ -128,7 +128,14 @@ export function OnboardingGate() {
 
     const funded = await readAccountStatus(ready.address)
     setStatus(funded)
-    if (funded.strkWei !== null && funded.strkWei < REGISTER_FUNDS_FLOOR_WEI) {
+    //
+    // `unfunded` — undeployed AND zero STRK — is the only balance that genuinely has no way
+    // forward, because self-deploying costs gas. Anything above it proceeds: `registerAccount`
+    // routes an account that cannot cover the pool fee to the relayer's sponsored path, which is
+    // why that path exists. Stopping on the self-pay floor made it unreachable and turned a dry
+    // faucet into a locked door.
+    //
+    if (funded.rung === 'unfunded') {
       setCreationStage(null)
       setFailedAt('drip')
       setProblem(drip.ok ? REGISTER_NEEDS_FUNDS : fundRefused(drip.because))
@@ -230,6 +237,7 @@ export function OnboardingGate() {
         registrationReceipt,
         done: creationDone,
       }}
+      renderImport={(onDone) => <ImportPanelStandalone onDone={onDone} />}
       renderBackup={(onDone) => (
         <BackupCeremony
           accountKey={ready.accountKey}

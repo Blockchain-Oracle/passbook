@@ -58,6 +58,11 @@ import {
 // `docs/privacy.md`. Topology's hole stays open; it is not story 6.7's to close.
 //
 import { checkFreshness as checkPrivacyDoc, staleMessage as privacyStale } from './render-privacy-matrix.mjs'
+//
+// The revamp replaces the render layer; this proves it did not replace the money layer. Runs first
+// because it reads SOURCE, not the artifact — no reason to spend a build discovering it.
+//
+import { FROZEN, moneyFrozenProblems } from './assert-money-frozen.mjs'
 
 export const REPO_ROOT = resolve(fileURLToPath(import.meta.url), '../..')
 export const WEB_ROOT = join(REPO_ROOT, 'apps/web')
@@ -750,6 +755,12 @@ function assertAppChunkStaysLean(outDir) {
 
 async function main() {
   const outDir = join(WEB_ROOT, 'dist')
+
+  const frozenFailures = moneyFrozenProblems()
+  if (frozenFailures.length) {
+    throw new Error(`[build:web] the frozen money layer moved:\n  - ${frozenFailures.join('\n  - ')}`)
+  }
+  console.log(`[build:web] money layer frozen — ${FROZEN.length} file(s) unchanged`)
 
   await buildGated({
     root: WEB_ROOT,

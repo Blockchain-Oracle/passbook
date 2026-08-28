@@ -34,8 +34,6 @@ import { useCallback, useState } from 'react'
 import {
   COPIED,
   EXPORT_ROW_LABEL,
-  IMPORT_ALREADY_HERE,
-  IMPORT_BODY,
   IMPORT_TITLE,
   LOCKED_BODY,
   LOCKED_HEADLINE,
@@ -51,7 +49,6 @@ import { toast } from '../shell/toast-store'
 import { ResponsiveDialog } from '../shell/ResponsiveDialog'
 import {
   createAccount,
-  importAccount,
   lockSession,
   usePasswordSet,
   shortenFelt,
@@ -61,6 +58,7 @@ import {
   type AccountSummary,
 } from '../shell/session'
 import { BackupCeremony } from './BackupCeremony'
+import { ImportPanel, ImportPanelStandalone } from './ImportPanel'
 import { ConnectWallet } from './ConnectWallet'
 import { IdentityDisc } from './IdentityDisc'
 import { PasswordField } from './PasswordField'
@@ -487,126 +485,6 @@ function LockedPanel({
 }
 
 /** The import panel with its own file/code state, for the locked screen. */
-function ImportPanelStandalone({ onDone }: { onDone: () => void }) {
-  const [file, setFile] = useState<{ name: string; text: string } | null>(null)
-  const [code, setCode] = useState('')
-  return <ImportPanel file={file} onFile={setFile} code={code} onCode={setCode} onDone={onDone} />
-}
-
-function ImportPanel({
-  file,
-  onFile,
-  code,
-  onCode,
-  onDone,
-}: {
-  file: { name: string; text: string } | null
-  onFile: (file: { name: string; text: string } | null) => void
-  code: string
-  onCode: (code: string) => void
-  onDone: () => void
-}) {
-  const [busy, setBusy] = useState(false)
-  const [problem, setProblem] = useState<string | null>(null)
-
-  const submit = useCallback(() => {
-    if (!file) return
-    setBusy(true)
-    setProblem(null)
-    void importAccount(file.text, code).then((result) => {
-      setBusy(false)
-      if (!result.ok) {
-        setProblem(result.because)
-        return
-      }
-      // The two success outcomes are different events and get different words: one added an
-      // account, the other found one already here and switched to it.
-      toast({
-        kind: 'success',
-        title: result.already ? 'Switched to that account' : 'Account imported',
-        detail: result.already ? IMPORT_ALREADY_HERE : shortenFelt(result.address, 8, 6),
-      })
-      onFile(null)
-      onCode('')
-      onDone()
-    })
-  }, [file, code, onFile, onCode, onDone])
-
-  return (
-    <>
-      <Text variant="body4" className="text-neutral2">
-        {IMPORT_BODY}
-      </Text>
-
-      <label className="flex flex-col gap-s4">
-        <span className="text-body4 text-neutral2">Recovery file</span>
-        {/*
-          READ IN THE BROWSER AND NEVER UPLOADED. `FileReader` is not used — `File.text()` is a
-          promise, which keeps the failure on the same channel as everything else here.
-        */}
-        <input
-          type="file"
-          accept="application/json,.json"
-          className={cn(
-            'focus-ring w-full rounded-card border border-solid border-surface3 bg-raised',
-            'p-s12 text-body4 text-neutral2',
-            'file:mr-s12 file:rounded-small file:border-0 file:bg-inset file:px-s12 file:py-s4',
-            'file:text-buttonLabel4 file:text-neutral1',
-          )}
-          onChange={(event) => {
-            const chosen = event.target.files?.[0]
-            setProblem(null)
-            if (!chosen) {
-              onFile(null)
-              return
-            }
-            void chosen
-              .text()
-              .then((text) => onFile({ name: chosen.name, text }))
-              .catch(() => setProblem('That file could not be read from this device.'))
-          }}
-        />
-        {file ? <span className="truncate text-body4 text-settled">Loaded {file.name}</span> : null}
-      </label>
-
-      <label className="flex flex-col gap-s4">
-        <span className="text-body4 text-neutral2">Recovery code</span>
-        <input
-          value={code}
-          onChange={(event) => {
-            onCode(event.target.value)
-            setProblem(null)
-          }}
-          autoComplete="off"
-          spellCheck={false}
-          placeholder="XXXXXX-XXXXXX-XXXXXX-XXXXXX"
-          className={cn(
-            'focus-ring min-h-s48 w-full rounded-card border border-solid bg-raised px-s12',
-            'font-mono text-mono text-neutral1',
-            problem ? 'border-irreversible' : 'border-surface3',
-          )}
-        />
-      </label>
-
-      {problem ? (
-        <Text variant="body3" className="text-irreversible" role="alert">
-          {problem}
-        </Text>
-      ) : null}
-
-      <Button
-        variant="primary"
-        size="md"
-        fill
-        disabled={busy || !file || code.trim() === ''}
-        onClick={submit}
-      >
-        {busy ? 'Opening the file…' : 'Import this account'}
-      </Button>
-    </>
-  )
-}
-
 // ── Furniture ─────────────────────────────────────────────────────────────────────────────
 
 /** One sentence, one toast — so both clipboard failures report through the same door. */

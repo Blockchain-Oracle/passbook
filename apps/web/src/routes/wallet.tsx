@@ -2,10 +2,7 @@ import { createFileRoute, Link } from '@tanstack/react-router'
 import { Suspense, lazy, useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import type { BookState, ShieldedBalance, TokenBalance } from '@strk20/protocol/balances'
 import { BOOK_EMPTY, BOOK_NOT_REGISTERED, BOOK_UNKNOWN } from '@strk20/protocol/activity-copy'
-import {
-  REGISTER_FUNDS_FLOOR_WEI,
-  REGISTER_NEEDS_FUNDS,
-} from '@strk20/protocol/onboarding-copy'
+import { REGISTER_NEEDS_FUNDS } from '@strk20/protocol/onboarding-copy'
 import { toPlainText } from '@strk20/protocol/amount'
 import { STRK_TOKEN } from '@strk20/protocol/constants'
 import { BRIDGE_USDC } from '@strk20/protocol/bridge'
@@ -195,9 +192,10 @@ function WalletAccount({ session }: { session: Extract<SessionState, { status: '
     // problem, because to the user it is one action.
     //
     const standing = await readAccountStatus(session.address)
-    // The panel's gate should have said this already; this is the race-proof restatement — a
-    // registration that cannot be paid must fail with the sentence, never with a dead spinner.
-    if (standing.strkWei !== null && standing.strkWei < REGISTER_FUNDS_FLOOR_WEI) {
+    // The panel's gate should have said this already; this is the race-proof restatement. It stops
+    // at `unfunded` — undeployed with zero STRK — and not at the self-pay floor, because
+    // `registerAccount` sponsors an account that cannot cover the fee itself.
+    if (standing.rung === 'unfunded') {
       setRegistering(null)
       setRegisterProblem(REGISTER_NEEDS_FUNDS)
       return

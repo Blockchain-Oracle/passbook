@@ -1,0 +1,22 @@
+{
+  "apps/web/src/shell/submit.ts": "84ce7c6c512ce0b655dbfc7e306187ef2cd755a5c7cdc0bc782edce01a322be9",
+  "apps/web/src/shell/funding-wallet.ts": "2520671b40f4298d198a9ce7fbf1854e716bfcb4237cdeb9dea0c675f0a71531",
+  "apps/web/src/shell/register.ts": "957e8d15b701b0b2bfe42403b80526a71efc269cb6b8f6f7efb170b1ce893828",
+  "apps/web/src/shell/account-status.ts": "9496c92e4a6128675315b19a906bc350d9794f4479880796e9464c00e74096f1",
+  "apps/web/src/shell/public-balances.ts": "62f9e16840126ad7c400aea2d716b650deef94ea6c309777e81f67dd0d75d5f5",
+  "apps/web/src/shell/session.ts": "eb41ad67b2ab85746c1e6b682d8cf045e106121878c0801ac2a59df6f76f99a8",
+  "apps/web/src/shell/use-send.ts": "900800a03bb24806a92a884b91d890f26504223a8b61d978d2a445b1370aef4b",
+  "apps/web/src/shell/use-shield.ts": "fb40fd42a711edbb7dad9e5dbb22a8743673c03960a4fb2c7a81d481fc744896",
+  "apps/web/src/shell/pipeline-store.ts": "7e3ac37b0d837c588649e3abcea89c4a3d767103e9abfe8f0a2f07b0cdc36649",
+  "packages/protocol/src/send.ts": "ebb90923f02dc62598c57913eb7f6bf34a08e539989e1b897eefc63f99dd5cd4",
+  "packages/protocol/src/shield.ts": "0f2de90ef84c577abafa6b6f8a3abd75c95058a860be98f211774313357f7eb9",
+  "packages/protocol/src/bridge.ts": "297980d1ad51661669b26417e7b8d1ce6ab37aeb21f0b04a416560d6feea9c1e",
+  "packages/protocol/src/register.ts": "ac1b32000ba67fe14016dcc434e0a110e1da4334ed5843a44b5bfeef02c8c75b",
+  "packages/protocol/src/identity.ts": "27dbee0dca374bc6de0213d5dff8a6cf8f5ab0c9193eb7276dac4f325e9aa83d",
+  "packages/protocol/src/session-vault.ts": "68ddf836da3a056980c2aed6f88d04b3127893c099c71f19041ca836bb9ff3c2",
+  "packages/protocol/src/session-lock.ts": "9727eae630f578f1dd4a67f683c1edb9eb57d8f4d0eb1db9a86f094e2b262d47",
+  "packages/protocol/src/swap-calldata.ts": "6590988c498f5c899973e8e2cc4e3fec70e3f46a3473fcc5f27d10649b472d2f",
+  "packages/protocol/src/market-calldata.ts": "61407b7bb113f0b5cd34e7d60ceaf52e6e685c15611e57dacfb079954b1b622c",
+  "packages/protocol/src/launch-calldata.ts": "420347dfe062141b40175241b212052cdda27df942e7d48ece9a1fba5ecb367c",
+  "packages/protocol/src/governance-calldata.ts": "01883d06b35bd0b95e5e88537a5c151788e8a709a2a0f95e3c043a4daff217aa"
+}
