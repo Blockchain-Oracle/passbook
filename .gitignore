@@ -50,6 +50,9 @@ docs/*
 # such file and the build dies on ENOENT inside a gate, which is the least legible failure in the
 # repository. Regenerate with `pnpm run render:privacy` and commit the result.
 !docs/privacy.md
+# The governance spec (walk 3, RFP IDEA-27). It ships with the branch so the merge back to main
+# carries the architecture the managers argue with; same reasoning as topology above.
+!docs/governance.md
 
 # Upstream sources cloned for ground truth — not ours to ship
 reference/
