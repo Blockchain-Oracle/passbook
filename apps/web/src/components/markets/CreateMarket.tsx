@@ -17,6 +17,7 @@ import { currentBlocker, getHealth, subscribeHealth } from '../../shell/pool-hea
 import { toast } from '../../shell/toast-store'
 import { useBalance } from '../../shell/use-balance'
 import { addPosition } from '../../shell/use-positions'
+import { stageLabels } from '../../shell/stage-labels'
 import { useSend } from '../../shell/use-send'
 import { useSession } from '../../shell/session'
 import { useTokenList } from '../../shell/use-token-list'
@@ -25,13 +26,7 @@ import { BlockedButton } from '../BlockedButton'
 import { Text } from '../ui/Text'
 import { PairMark } from './PairMark'
 
-const STAGE_LABEL: Record<string, string> = {
-  build: 'Building the market…',
-  prove: 'Proving…',
-  relay: 'Signing and broadcasting…',
-  mature: 'Waiting for the pool to accept it…',
-  confirmed: 'Confirming on chain…',
-}
+const STAGE_LABEL: Record<string, string> = stageLabels('Building the market…')
 
 /** How long a new market runs. The floor is the contract's own rule, and the short tier says so. */
 const WINDOWS = [
