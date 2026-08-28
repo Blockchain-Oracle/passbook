@@ -114,6 +114,12 @@ import {
 } from './faucet.js'
 import { asAddress, toFeltHex } from '../../protocol/src/address.js'
 import { handleLogoGenerate, handleLogoPin, type LogoService } from './logo.js'
+import {
+  openTeller,
+  tellerChainDeps,
+  TELLER_INTERVAL_MS,
+  type Teller,
+} from './teller.js'
 
 // R10 names `POST /submit`; the browser posts to the same-origin `/api/submit`, which
 // a dev-server proxy or edge rule normally rewrites. Accepting both means the two
@@ -175,6 +181,10 @@ const CHAIN_STREAM_PATHS = new Set(['/chain/stream', '/api/chain/stream'])
 // pins uploads and 404s generation, and the create form reads each 404 as "this lane is off".
 const LOGO_PIN_PATHS = new Set(['/logo/pin', '/api/logo/pin'])
 const LOGO_GENERATE_PATHS = new Set(['/logo/generate', '/api/logo/generate'])
+
+// The Teller's one public door: minting a tally key for a proposal about to be made. Minting is
+// local and free; what it hands out is a PUBLIC key, and the secret never leaves the ledger.
+const TALLY_KEY_PATHS = new Set(['/govern/tally-key', '/api/govern/tally-key'])
 
 // An upstream that will not answer in this long is an upstream the caller has already
 // given up on, and a request left hanging is a socket the relayer keeps paying for.
@@ -327,6 +337,8 @@ async function handle(req: IncomingMessage, res: ServerResponse, opts: RelayerSe
   // Per-route key gating: each logo lane exists exactly when its credential does.
   const isLogoPin = opts.logos?.pinataJwt !== undefined && LOGO_PIN_PATHS.has(url)
   const isLogoGenerate = opts.logos?.geminiKey !== undefined && LOGO_GENERATE_PATHS.has(url)
+  // No Teller, no route — the ledger rule: this deployment tallies no votes.
+  const isTallyKey = opts.teller !== undefined && TALLY_KEY_PATHS.has(url)
   if (
     !isFeeRecipient &&
     (req.method !== 'POST' ||
@@ -339,6 +351,7 @@ async function handle(req: IncomingMessage, res: ServerResponse, opts: RelayerSe
         isChainStream ||
         isLogoPin ||
         isLogoGenerate ||
+        isTallyKey ||
         QUOTE_PATHS.has(url)
       ))
   ) {
@@ -444,6 +457,21 @@ async function handle(req: IncomingMessage, res: ServerResponse, opts: RelayerSe
     await (isLogoPin
       ? handleLogoPin(req, res, opts.logos!, visitor, body, send)
       : handleLogoGenerate(req, res, opts.logos!, visitor, body, send))
+    return
+  }
+  if (isTallyKey) {
+    try {
+      await readJsonBody(req)
+    } catch {
+      // A bare POST is fine — the mint takes no arguments.
+    }
+    try {
+      const publicX = opts.teller!.mintKey()
+      send(res, 200, { tallyKey: `0x${publicX.toString(16)}` })
+    } catch (e) {
+      console.warn(`relayer: teller ledger write failed: ${String(e)}`)
+      send(res, 500, { error: 'the tally key could not be recorded; refusing to hand one out' })
+    }
     return
   }
   await (isSubmit ? handleSubmit(req, res, opts) : handleQuote(req, res, opts))
@@ -1776,6 +1804,11 @@ export interface RelayerServerOptions {
    * function, never the browser. Absent means the route is 404 and X binding is off.
    */
   xBindSecret?: string
+  /**
+   * The Teller (`teller.ts`) — the governance key custodian. Absent means `/govern/tally-key`
+   * is 404 and this deployment tallies no votes; the void escape is every proposal's backstop.
+   */
+  teller?: Teller
 }
 
 export function createRelayerServer(options: RelayerServerOptions): Server {
@@ -2493,6 +2526,71 @@ async function main(): Promise<void> {
         }
       : undefined
 
+  // The Teller — constructed the moment a Governance contract exists. Its ledger is the fifth
+  // signer's whole custody story (`teller.ts`); the tick is the keeper's discipline verbatim.
+  const teller: Teller | undefined = appContracts.governance
+    ? openTeller({
+        file:
+          process.env.RELAYER_TELLER_STORE ||
+          fileURLToPath(new URL('../../../.relayer/teller.json', import.meta.url)),
+      })
+    : undefined
+  if (teller && appContracts.governance) {
+    const governance = appContracts.governance
+    const chainDeps = tellerChainDeps(
+      governance,
+      {
+        callContract: async ({ contractAddress, entrypoint, calldata }) =>
+          (await provider.callContract({ contractAddress, entrypoint, calldata })) as string[],
+        getEvents: (filter) =>
+          provider.channel.getEvents(filter as never) as Promise<{
+            events?: unknown[]
+            continuation_token?: string
+          }>,
+      },
+      Number(process.env.RELAYER_GOVERNANCE_FROM_BLOCK ?? 0),
+    )
+    const tellerDeps = {
+      ...chainDeps,
+      submitTally: async (
+        proposalId: number,
+        sums: readonly bigint[],
+        blindSums: readonly bigint[],
+        excluded: readonly string[],
+      ) => {
+        const calldata = [
+          `0x${proposalId.toString(16)}`,
+          `0x${sums.length.toString(16)}`,
+          ...sums.map((s) => `0x${s.toString(16)}`),
+          `0x${blindSums.length.toString(16)}`,
+          ...blindSums.map((r) => `0x${r.toString(16)}`),
+          `0x${excluded.length.toString(16)}`,
+          ...excluded,
+        ]
+        const { transaction_hash } = await account.execute([
+          { contractAddress: governance, entrypoint: 'publish_tally', calldata },
+        ])
+        return transaction_hash
+      },
+      // THE ONE CALL THAT NEVER RIDES A USER SUBMISSION — the allowlist refuses `publish_key`
+      // by name, and this is the Teller-signed path it is reserved for.
+      submitKey: async (proposalId: number, secret: bigint) => {
+        const { transaction_hash } = await account.execute([
+          {
+            contractAddress: governance,
+            entrypoint: 'publish_key',
+            calldata: [`0x${proposalId.toString(16)}`, `0x${secret.toString(16)}`],
+          },
+        ])
+        return transaction_hash
+      },
+    }
+    const tellerTick = setInterval(() => {
+      void teller.tick(tellerDeps).catch((e: unknown) => console.warn(`teller: sweep failed — ${String(e)}`))
+    }, TELLER_INTERVAL_MS)
+    tellerTick.unref?.()
+  }
+
   const server = createRelayerServer({
     // `details` is undefined for a plain submission, which is what `execute` already
     // defaults to — so a `{calls}`-only body goes out byte-identical to before, and a
@@ -2501,7 +2599,12 @@ async function main(): Promise<void> {
       const { transaction_hash } = await account.execute(calls, details)
       return transaction_hash
     },
-    policy: { messageBook, markets: appContracts.markets, launch: appContracts.launch },
+    policy: {
+      messageBook,
+      markets: appContracts.markets,
+      launch: appContracts.launch,
+      governance: appContracts.governance,
+    },
     resolveApproveCeiling: async () => approveCeiling((await readPoolConstants()).feeWei),
     allowedOrigins,
     authToken: process.env.RELAYER_AUTH_TOKEN || undefined,
@@ -2527,6 +2630,7 @@ async function main(): Promise<void> {
     chainFeed,
     logos,
     xBindSecret: process.env.RELAYER_XBIND_SECRET || undefined,
+    teller,
   })
 
   // ── The settlement keeper ───────────────────────────────────────────────────────────────
@@ -2586,7 +2690,7 @@ async function main(): Promise<void> {
     console.log(messageBook ? `allowlist: MessageBook ${messageBook}` : 'allowlist: no MessageBook deployed yet')
     console.log(
       appContracts.markets
-        ? `allowlist: Markets ${appContracts.markets}${appContracts.launch ? ` · Launch ${appContracts.launch}` : ''}`
+        ? `allowlist: Markets ${appContracts.markets}${appContracts.launch ? ` · Launch ${appContracts.launch}` : ''}${appContracts.governance ? ` · Governance ${appContracts.governance}` : ''}`
         : 'allowlist: no Markets/Launch deployed yet',
     )
     console.log(
@@ -2630,6 +2734,12 @@ async function main(): Promise<void> {
         ? `logo studio: pin ${logos.pinataJwt ? 'on (20/visitor · 200/day)' : 'OFF — no RELAYER_PINATA_JWT'} · ` +
             `generate ${logos.geminiKey ? `on via ${logos.imageModel ?? 'gemini-2.5-flash-image'} (10/visitor · 100/day)` : 'OFF — no RELAYER_GEMINI_KEY'}`
         : 'logo studio: off — set RELAYER_PINATA_JWT / RELAYER_GEMINI_KEY to offer it',
+    )
+    console.log(
+      teller
+        ? `teller: holding ${teller.keyCount()} tally key(s) · sweeping every ${TELLER_INTERVAL_MS / 1000}s · ` +
+            `ledger ${process.env.RELAYER_TELLER_STORE ?? '.relayer/teller.json'}`
+        : 'teller: off — no Governance contract deployed',
     )
     console.log(
       sponsorConfig.invites
