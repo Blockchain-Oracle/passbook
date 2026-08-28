@@ -71,6 +71,9 @@ export default async function handler(req, res) {
   // forwards clean paths, which is why this only ever breaks in production.
   upstreamUrl.searchParams.delete('...path')
   upstreamUrl.searchParams.delete('path')
+  // The nested prefixes now route through one `[leaf].js` per directory (the Hobby-plan
+  // function cap), and a dynamic segment injects ITS param the same way the catch-all does.
+  upstreamUrl.searchParams.delete('leaf')
 
   const headers = { 'content-type': 'application/json' }
   // Absent is legitimate: a relayer that was started without a token accepts requests without

@@ -25,5 +25,14 @@
     "contractAddress": "0x3fc07897f657b184ff9b0dab28939bb5a175d7cff9290406a1bd4b3d032eb54"
   },
   "verifiedAtBlock": 13962406,
-  "deployedAt": "2026-08-27T21:08:13.229Z"
+  "deployedAt": "2026-08-27T21:08:13.229Z",
+  "Governance": {
+    "classHash": "0x7240c52656a0a5250649b4db768fbe6ad43e794b11d036ebb19904ff4bb8f20",
+    "compiledClassHash": "0x83b49839bd01f5904e891928af9410161bc15094a49dd9af4dcece44302edc",
+    "declareTx": "0x3d5c9706487579cbcfee867f00813e5af78b63f71bf661470d546cd3e579f03",
+    "deployTx": "0x493d1c0058c2f6caa83f3d63deb90ce3e3d309344fac7163d0f996ebbbf75ef",
+    "contractAddress": "0xdbe265829e0f1c859f3a8c1bd8fcfb0a774836b9e07191c6a624a59e37f9bf",
+    "blockNumber": 13989253,
+    "deployedAt": "2026-08-28T09:46:17.288Z"
+  }
 }

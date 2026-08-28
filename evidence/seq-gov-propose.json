@@ -1,0 +1,13 @@
+{
+  "step": "propose",
+  "describe": "propose on House 0 — sealed until close, closes in 66 minutes",
+  "transactionHash": "0x237a47cbb3e88194b8e684351f0709cdfff44898f9c5e06cca3b650ecca2726",
+  "executionStatus": "SUCCEEDED",
+  "block": 13989614,
+  "governance": "0xdbe265829e0f1c859f3a8c1bd8fcfb0a774836b9e07191c6a624a59e37f9bf",
+  "note": "a DIRECT call — no pool, no fee, no proof. Gas only.",
+  "verifiedAt": "2026-08-28T09:56:32.986Z",
+  "deadline": 1787914937,
+  "tallyKey": "0x63e0a1de467635a2f5d90ff87002d1d36878e8b8f1f76f7bb0e02f28e2d82ee",
+  "tellerStore": ".relayer/probe-teller.json"
+}

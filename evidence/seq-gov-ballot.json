@@ -1,0 +1,17 @@
+{
+  "step": "ballot",
+  "describe": "PROBE-1: 1.2 escrowed into a sealed FOR ballot via ComputeAndInvoke",
+  "transactionHash": "0x448ed7fc67b968b829d0e5cf8f7946fbb0fc47ef48903b33b8cd7be4dd6e7df",
+  "executionStatus": "SUCCEEDED",
+  "block": 13989678,
+  "actualFeeWei": "0x3024c5aff4007880",
+  "governance": "0xdbe265829e0f1c859f3a8c1bd8fcfb0a774836b9e07191c6a624a59e37f9bf",
+  "escrowSecret": "0x64e84b433f4c53670ed258834fee1ee076cb95e565e9f6b26df4968d47e4f7",
+  "escrowCommitment": "0x4a7cb9098952288bef94d822d1b9d66996e7996852da72266a0067ef8d94a94",
+  "probeAnswers": {
+    "identityInjected": "the Governor asserts a non-zero pool-derived identity; the ballot landing IS the answer",
+    "withdrawFundsCompute": "take_custody ran inside privacy_invoke_with_computation on the same transaction",
+    "gas": "0x3024c5aff4007880"
+  },
+  "verifiedAt": "2026-08-28T09:58:17.278Z"
+}
