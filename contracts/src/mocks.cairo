@@ -185,8 +185,11 @@ pub mod MockPool {
             op: felt252,
             payload: Span<felt252>,
         ) -> Span<OpenNoteDeposit> {
-            let deposits = IGovernanceDispatcher { contract_address: target }
-                .privacy_compute(identity_key, op, payload);
+            // The pool's own two-phase dance, mirrored: compute binds the identity, the result
+            // rides into the invoke, and the deposits pull like any other settling leg.
+            let governance = IGovernanceDispatcher { contract_address: target };
+            let computed = governance.privacy_compute(identity_key, op, payload);
+            let deposits = governance.privacy_invoke_with_computation(computed, op, payload);
 
             let mut i: u32 = 0;
             let n = deposits.len();
