@@ -80,6 +80,12 @@ export interface ActivityReadState {
 export function useActivity(
   read: DiscoveryResult | null,
   accountKey: string | null,
+  /**
+   * The session's own L2 address, for `markOwnAddress`: deposits, withdrawals and registrations
+   * name a public address in their event, and only a comparison against ours can say those rows
+   * are ours. Without it they stay unowned and render as claims-nothing notes.
+   */
+  address: string | null = null,
 ): ActivityReadState {
   const [loading, setLoading] = useState(false)
   const [problem, setProblem] = useState<string | null>(null)
@@ -135,7 +141,7 @@ export function useActivity(
       // `compute_note_id`. `/wallet` is the cold open and neither may be in its entry chunk.
       const [
         { readRecentEvents, describeSpan, ACTIVITY_WINDOW_BLOCKS },
-        { buildActivity, personalKeysFrom },
+        { buildActivity, personalKeysFrom, markOwnAddress },
         { deriveViewingKey },
         { NET },
       ] = await Promise.all([
@@ -165,7 +171,11 @@ export function useActivity(
       const page = await readRecentEvents({ toBlock: read.blockNumber })
       if (!live) return
 
-      const entries = buildActivity(page.events, { personal, amountsByNoteId })
+      // Two kinds of ownership, applied in their own passes on purpose (see `markOwnAddress`'s
+      // header): note rows are ours cryptographically, address rows are ours by a comparison
+      // anyone watching could also make.
+      const built = buildActivity(page.events, { personal, amountsByNoteId })
+      const entries = address ? markOwnAddress(built, address) : built
 
       publishRead(
         entries.map((entry) => ({
@@ -212,7 +222,7 @@ export function useActivity(
     return () => {
       live = false
     }
-  }, [read, accountKey, nonce])
+  }, [read, accountKey, address, nonce])
 
   return { loading, problem, windowNote, refresh }
 }
