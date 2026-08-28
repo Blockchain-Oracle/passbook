@@ -129,6 +129,17 @@
   }
 
   /*
+   * Native controls take the brand accent. Without this a radio or checkbox renders in the
+   * browser's own blue — the one colour that exists nowhere on this sheet — and one blue dot on a
+   * mint-on-black page reads as a foreign object. `accent-color` re-themes with the token.
+   */
+  input[type='radio'],
+  input[type='checkbox'],
+  progress {
+    accent-color: var(--color-accent1);
+  }
+
+  /*
    * The one permitted texture (design authority §1.2): graph paper, native to warm paper. Opt-in —
    * it is a class rather than a body rule because "film grain vs dotted grid vs nothing" is still
    * listed as an open taste call, and shipping it app-wide would settle that by default.
@@ -316,6 +327,17 @@
 
   .nav-pill::-webkit-scrollbar {
     display: none;
+  }
+
+  /*
+   * Icons ride the pills only where the header has room for them — the prototype's own `nv.wide`
+   * behaviour. Below 1280 the labels alone are the nav, and the pill never collides with the
+   * right rail.
+   */
+  @media (width < 1280px) {
+    .nav-item svg {
+      display: none;
+    }
   }
 
   .nav-item {

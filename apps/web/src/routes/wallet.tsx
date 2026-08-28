@@ -589,11 +589,17 @@ function BalanceHero({
             */}
             <span
               className={cn(
-                'display text-display1 leading-none lg:text-displayHero',
-                balance?.book === 'unknown' ? 'text-neutral3' : 'text-ground',
+                'display leading-none',
+                // No figure yet renders as a QUIET dash, not a bar: Anton's em dash at hero size
+                // is a solid slab that reads as redaction rather than absence.
+                lead === null
+                  ? 'text-display3 text-neutral3'
+                  : balance?.book === 'unknown'
+                    ? 'text-display1 text-neutral3 lg:text-displayHero'
+                    : 'text-display1 text-ground lg:text-displayHero',
               )}
             >
-              {headline}
+              {lead === null ? '—' : headline}
             </span>
             {lead ? (
               <span className="display text-display4 text-neutral3">

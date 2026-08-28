@@ -78,9 +78,14 @@ export interface ActivityRowProps {
    * retryable row says it failed and says what stopped it, in words, without offering a lie.
    */
   onRetry?: (transaction: Transaction) => void
+  /**
+   * Open the receipt IN PLACE — [STUDIO] the detail is a sheet over the record, not a page turn.
+   * When absent the title falls back to the deep-link route, which is the same receipt at a URL.
+   */
+  onOpen?: (transaction: Transaction) => void
 }
 
-export function ActivityRow({ transaction, now, settling, onSettleShown, onRetry }: ActivityRowProps) {
+export function ActivityRow({ transaction, now, settling, onSettleShown, onRetry, onOpen }: ActivityRowProps) {
   const slot = rightSlot(transaction, now)
   const category = activityCategory(transaction)
   const counterparty = rowCounterparty(transaction)
@@ -103,16 +108,27 @@ export function ActivityRow({ transaction, now, settling, onSettleShown, onRetry
 
       <div className="flex min-w-0 flex-1 flex-col gap-s2">
         {/*
-          The TITLE is the link, not the row. See the header — this is the one element in the row
-          that is unambiguously the thing being named, and it keeps the inner controls legal.
+          The TITLE is the control, not the row. See the header — this is the one element in the
+          row that is unambiguously the thing being named, and it keeps the inner controls legal.
+          A button when the feed opens a modal; the route link otherwise.
         */}
-        <Link
-          to="/activity/$id"
-          params={{ id: transaction.id }}
-          className="focus-ring truncate text-body2 text-neutral1 no-underline hover:underline"
-        >
-          {rowTitle(transaction)}
-        </Link>
+        {onOpen ? (
+          <button
+            type="button"
+            onClick={() => onOpen(transaction)}
+            className="focus-ring cursor-pointer truncate bg-transparent p-s0 text-left text-body2 text-neutral1 hover:underline"
+          >
+            {rowTitle(transaction)}
+          </button>
+        ) : (
+          <Link
+            to="/activity/$id"
+            params={{ id: transaction.id }}
+            className="focus-ring truncate text-body2 text-neutral1 no-underline hover:underline"
+          >
+            {rowTitle(transaction)}
+          </Link>
+        )}
 
         {/*
           THE SECOND LINE, in priority order: why it failed, then who the other party was, then
