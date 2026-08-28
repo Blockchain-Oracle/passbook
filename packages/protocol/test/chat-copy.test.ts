@@ -85,7 +85,7 @@ describe('a public directory is described as public', () => {
     expect(copy.DIRECTORY_SEARCH_PLACEHOLDER).toBe('A name, or an address starting 0x')
     expect(copy.DIRECTORY_NAME_TAKEN).toBe('That name is already claimed by another address.')
     expect(copy.DIRECTORY_NAME_MALFORMED).toBe(
-      'Names are 3 to 20 characters, lower-case letters, numbers and underscores.',
+      'Names are 3 to 20 characters: lower-case letters, numbers, underscores and hyphens.',
     )
     expect(copy.DIRECTORY_CLAIM_NEEDS_REGISTRATION).toBe(
       'Claiming a name proves you hold the key registered to this address, so the account has to be ' +

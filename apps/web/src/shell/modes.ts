@@ -1,7 +1,7 @@
 //
 // The closed mode enum, and the two directions of coupling that make it mean something.
 //
-// Routes are MODES of one shell. There are six, they are coequal, and adding a seventh is a
+// Routes are MODES of one shell. There are seven, they are coequal, and adding an eighth is a
 // compile error until the enum grows — that is the whole product rule, expressed as types.
 //
 // READ THIS BEFORE TRUSTING THE `satisfies` LINE BELOW. On its own it is half-vacuous. Measured, in
@@ -23,7 +23,7 @@ import type { RoutePaths } from '@tanstack/router-core'
 type Paths = RoutePaths<RegisteredRouter['routeTree']>
 
 /**
- * The six modes, in nav order.
+ * The seven modes, in nav order.
  *
  * A seventh entry with no route below is TS1360 + TS7053 — four diagnostics, exit 2. The order here
  * is the order the header renders, so this list is the nav's source of truth as well as the enum's.

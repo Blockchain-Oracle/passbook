@@ -70,7 +70,7 @@ function Profile() {
           </Link>
           <Link
             to="/pay/$address"
-            params={{ address: entry.address }}
+            params={{ address: `@${entry.name}` }}
             preload="intent"
             className="focus-ring flex-1 rounded-control border border-solid border-accent1 bg-accent2 py-s10 text-center text-buttonLabel3 text-accent1 no-underline"
           >

@@ -30,7 +30,7 @@ export type PoolHealthReading = DegradedReading
 //
 // ── THE READING IS SHARED, BECAUSE THE STATE IS GLOBAL ────────────────────────────────────
 //
-// A paused pool stops all six surfaces at once. If each surface re-derived that for itself there
+// A paused pool stops all seven surfaces at once. If each surface re-derived that for itself there
 // would be six readers and six chances to disagree, and the first surface to forget would render a
 // live CTA over a dead pool. Worse in the other direction: a surface that hardcodes a degraded
 // blocker to demonstrate the wiring claims the pool is paused when it is not — which is the exact

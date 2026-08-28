@@ -97,7 +97,7 @@ export const DIRECTORY_NAME_IS_NOT_IDENTITY =
 export const DIRECTORY_NAME_TAKEN = 'That name is already claimed by another address.'
 
 export const DIRECTORY_NAME_MALFORMED =
-  'Names are 3 to 20 characters, lower-case letters, numbers and underscores.'
+  'Names are 3 to 20 characters: lower-case letters, numbers, underscores and hyphens.'
 
 export const DIRECTORY_CLAIM_NEEDS_REGISTRATION =
   'Claiming a name proves you hold the key registered to this address, so the account has to be ' +

@@ -75,7 +75,7 @@ export const ONBOARDING_STAGES: readonly OnboardingStage[] = [
 ]
 
 /**
- * The row title per stage — one table, so six surfaces cannot spell `Relay` six ways.
+ * The row title per stage — one table, so seven surfaces cannot spell `Relay` seven ways.
  *
  * Present tense nouns, not verbs in flight: the row title names the STEP and the right-hand slot
  * carries what is happening to it. `Proving — 0:14 elapsed` belongs in the label ladder
@@ -83,11 +83,11 @@ export const ONBOARDING_STAGES: readonly OnboardingStage[] = [
  * would reflow — which §7.7 forbids at 40px.
  */
 export const STAGE_TITLES: Readonly<Record<PipelineStage, string>> = {
-  build: 'Build',
+  build: 'Prepare',
   prove: 'Prove',
-  relay: 'Relay',
-  mature: 'Mature',
-  confirmed: 'Confirmed',
+  relay: 'Sign & broadcast',
+  mature: 'Pool accepts',
+  confirmed: 'Confirm',
   // Account creation's four. They live HERE, in the one table, for the reason the table exists —
   // and not beside their notes in `onboarding-copy.ts`, which would have made a second place to
   // spell `Register` and guaranteed the two would eventually disagree.

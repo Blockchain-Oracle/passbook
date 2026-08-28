@@ -4,7 +4,7 @@
 // Confirm does five things in the lazy graph: mints a bearer escrow secret, mints the Pedersen
 // vector for the choice, seals choice+blinds to the proposal's tally key, lays the payload out,
 // and sends it as the `gov-ballot` kind — the ComputeAndInvoke ride where the POOL injects the
-// anonymous voter handle. The weight is escrowed until close; the stored position is the claim.
+// per-contract voter handle. The weight is escrowed until close; the stored position is the claim.
 //
 import { useCallback, useMemo, useState, useSyncExternalStore } from 'react'
 
@@ -19,12 +19,16 @@ import {
 import { DISCLOSURE_HEADLINE } from '@strk20/protocol/disclosure-copy'
 
 import { cn } from '../../lib/cn'
-import { APP_CONTRACTS } from '../../shell/app-contracts'
+import {
+  APP_CONTRACTS,
+  GOVERNANCE_WRITE_SAFETY,
+  GOVERNANCE_WRITES_ENABLED,
+} from '../../shell/app-contracts'
 import { currentBlocker, getHealth, subscribeHealth } from '../../shell/pool-health'
 import { toast } from '../../shell/toast-store'
 import { useBalance } from '../../shell/use-balance'
 import { addPosition } from '../../shell/use-positions'
-import { stageLabels } from '../../shell/stage-labels'
+import { stageLabel } from '../../shell/stage-labels'
 import { useSend } from '../../shell/use-send'
 import { useSession, shortenFelt } from '../../shell/session'
 import { findToken, useTokenList } from '../../shell/use-token-list'
@@ -33,7 +37,6 @@ import { AmountInput, useAmountField } from '../AmountInput'
 import { BlockedButton } from '../BlockedButton'
 import { Text } from '../ui/Text'
 
-const STAGE_LABEL: Record<string, string> = stageLabels('Building the ballot…')
 
 export function BallotTicket({
   house,
@@ -78,6 +81,7 @@ export function BallotTicket({
   const weight = memberMode ? 1n : amount.wei
 
   const blocker =
+    (!GOVERNANCE_WRITE_SAFETY.enabled ? GOVERNANCE_WRITE_SAFETY.because : null) ??
     currentBlocker(health) ??
     (!ready ? 'This browser has no account yet' : null) ??
     (choice < 0 || choice >= proposal.options ? 'Pick a side' : null) ??
@@ -88,6 +92,7 @@ export function BallotTicket({
         (amount.short ? `Not enough shielded ${symbol}` : null)))
 
   const onConfirm = useCallback(async () => {
+    if (!GOVERNANCE_WRITES_ENABLED) return
     const contract = APP_CONTRACTS.governance
     if (!contract || !ready || weight === null || (weight === 0n && !memberMode)) return
 
@@ -141,7 +146,9 @@ export function BallotTicket({
       // The escrow's claim, stored before anything dismissible — the markets' rule.
       addPosition({
         venue: 'governance',
+        kind: 'gov-ballot',
         id: proposal.id,
+        houseId: house.id,
         secret: escrow.secret,
         commitment: escrow.commitment,
         createdAt: Date.now(),
@@ -159,7 +166,7 @@ export function BallotTicket({
   }, [ready, weight, choice, memberMode, house, proposal, symbol, decimals, sending, onClose])
 
   return (
-    <ResponsiveDialog open={open} onOpenChange={(next) => (next ? undefined : onClose())} label="Ballot" modal>
+    <ResponsiveDialog open={open} onOpenChange={(next) => (next ? undefined : onClose())} label="Ballot" modal dismissible={sending.stage === null}>
       <div className="flex min-h-0 flex-col gap-s12 overflow-y-auto">
         <div className="flex flex-col gap-s2">
           <Text variant="kicker">Sealed ballot · quorum {quorumPct(proposal)}%</Text>
@@ -217,7 +224,7 @@ export function BallotTicket({
         </Text>
 
         <BlockedButton
-          blocker={sending.stage ? (STAGE_LABEL[sending.stage] ?? 'Working…') : (blocker ?? sending.problem)}
+          blocker={sending.stage ? stageLabel(sending.stage) : (blocker ?? sending.problem)}
           action={choice === GOV_OPT_FOR ? 'Cast FOR, sealed' : choice === GOV_OPT_AGAINST ? 'Cast AGAINST, sealed' : 'Cast ABSTAIN, sealed'}
           onPress={() => void onConfirm()}
         />

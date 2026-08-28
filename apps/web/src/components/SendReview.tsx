@@ -40,11 +40,14 @@ export interface SendReviewProps {
   /** Already formatted by the caller, which owns the token's decimals. */
   amountDisplay: string
   recipient: string
+  /** Human context from a payment request. It is not included in the chain transaction. */
+  requestNote?: string
   meter: LinkabilityModel
   /** Absent while the action cannot be performed; the CTA says why instead of vanishing. */
   onConfirm?: () => void
   /** What stops the confirm, as a sentence. */
   blocker?: string | null
+  dismissible?: boolean
 }
 
 export function SendReview({
@@ -53,9 +56,11 @@ export function SendReview({
   token,
   amountDisplay,
   recipient,
+  requestNote,
   meter,
   onConfirm,
   blocker = null,
+  dismissible = true,
 }: SendReviewProps) {
   //
   // `self-submit`, NOT `pool-send`, and the difference is the whole reason the context exists.
@@ -69,13 +74,13 @@ export function SendReview({
   return (
     // MODAL, because this is a decision. The scrim dims the form behind it and catches the click
     // that dismisses — the first thing anyone tries.
-    <ResponsiveDialog open={open} onOpenChange={onOpenChange} label="Review send" modal>
+    <ResponsiveDialog open={open} onOpenChange={onOpenChange} label="Review send" modal dismissible={dismissible}>
       <div className="flex min-h-0 w-full min-w-0 flex-col gap-s16">
         <div className="flex items-start justify-between gap-s12">
           <Text variant="body2" as="h2" className="text-neutral2">
             You&rsquo;re sending
           </Text>
-          <button
+          {dismissible ? <button
             type="button"
             onClick={() => onOpenChange(false)}
             aria-label="Close"
@@ -84,7 +89,7 @@ export function SendReview({
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
               <path d="M6 6L18 18M18 6L6 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
             </svg>
-          </button>
+          </button> : null}
         </div>
 
         {/* A tall modal scrolls its MIDDLE. The header and the button stay put, so the one control
@@ -105,6 +110,17 @@ export function SendReview({
               {recipient}
             </Text>
           </div>
+
+          {requestNote ? (
+            <div className="flex flex-col gap-s4 rounded-card border border-solid border-surface3 p-s12">
+              <Text variant="body4" className="text-neutral2">
+                Request note · not written on chain
+              </Text>
+              <Text variant="body3" className="break-words text-neutral1">
+                {requestNote}
+              </Text>
+            </div>
+          ) : null}
 
           <div className="h-px w-full bg-surface3" />
 

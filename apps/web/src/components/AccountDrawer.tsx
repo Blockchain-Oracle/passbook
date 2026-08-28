@@ -348,7 +348,7 @@ function MainPanel({
 }
 
 /**
- * The active account: gold-washed, and the whole card is the copy control.
+ * The active account: lime-washed, and the whole card is the copy control.
  *
  * The address is a `<button>` wrapping the mono string rather than a string with a button beside
  * it, because the string IS the affordance — every wallet has taught people that tapping an
@@ -457,7 +457,6 @@ function LockedPanel({
           onChange={setPassword}
           onSubmit={unlock}
           autoComplete="current-password"
-          autoFocus
           disabled={busy}
         />
       ) : null}

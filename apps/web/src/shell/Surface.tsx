@@ -87,7 +87,7 @@ export function NotFoundSurface() {
     <Surface routeId={NOT_FOUND_ROUTE_ID}>
       <h1 className="text-heading3">No such page</h1>
       <p className="text-body3 text-neutral2">
-        This address does not name anything in Passbook. The six modes in the header are all of it.
+        This address does not name anything in Passbook. The seven modes in the header are all of it.
       </p>
     </Surface>
   )

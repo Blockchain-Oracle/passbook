@@ -2,11 +2,14 @@ import { createFileRoute, Link } from '@tanstack/react-router'
 import { useCallback, useMemo, useState, useSyncExternalStore } from 'react'
 
 import { parseAmountInput, toPlainText } from '@strk20/protocol/amount'
+import { BRIDGE_USDC } from '@strk20/protocol/bridge'
+import { STRK_TOKEN } from '@strk20/protocol/constants'
 import { meterFor } from '@strk20/protocol/linkability'
 import { maxSeverity } from '@strk20/protocol/privacy'
 import { SELF_LINK_SEVERITY, selfLinkAgainst } from '@strk20/protocol/self-link'
 import { SELF_LINK_SENTENCE } from '@strk20/protocol/linkability-copy'
 import type { TokenInfo } from '@strk20/protocol/token-list'
+import { parsePayLinkSearch, parseRecipientReference, type PayAsset } from '@strk20/protocol/pay-link'
 import { voyagerTxUrl } from '@strk20/protocol/transaction'
 
 import { BlockedButton } from '../components/BlockedButton'
@@ -20,13 +23,20 @@ import { Text } from '../components/ui/Text'
 import { currentBlocker, getHealth, subscribeHealth } from '../shell/pool-health'
 import { useBalance } from '../shell/use-balance'
 import { useCrowd } from '../shell/use-crowd'
-import { maybeAddress, toFeltHex } from '@strk20/protocol/address'
 import { useFundingWallet } from '../shell/funding-wallet'
 import { useRecipient } from '../shell/use-recipient'
 import { useSend } from '../shell/use-send'
 import { useSession, shortenFelt } from '../shell/session'
 import { findToken, useTokenList } from '../shell/use-token-list'
 import { Surface } from '../shell/Surface'
+import { stageLabel } from '../shell/stage-labels'
+
+interface SendSearch {
+  to?: string
+  asset?: PayAsset
+  amount?: string
+  note?: string
+}
 
 export const Route = createFileRoute('/send')({
   /**
@@ -42,9 +52,18 @@ export const Route = createFileRoute('/send')({
    * form rather than a plausible-looking wrong one. It is also only a SEED: the field stays fully
    * editable, because a prefill nobody can correct is a prefill that has to be right every time.
    */
-  validateSearch: (search: Record<string, unknown>): { to?: string } => {
-    const to = maybeAddress(typeof search.to === 'string' ? search.to : null)
-    return to === null ? {} : { to: toFeltHex(to) }
+  validateSearch: (search: Record<string, unknown>): SendSearch => {
+    const out: SendSearch = {}
+    if (typeof search.to === 'string') {
+      const recipient = parseRecipientReference(search.to)
+      if (recipient.ok) {
+        out.to =
+          recipient.value.kind === 'address' ? recipient.value.address : recipient.value.display
+      }
+    }
+    const request = parsePayLinkSearch(search)
+    if (request.ok) Object.assign(out, request.value)
+    return out
   },
   component: Send,
 })
@@ -95,13 +114,15 @@ function Send() {
   const { balance, read, refresh } = useBalance(ready?.address ?? null, ready?.accountKey ?? null)
   const sending = useSend(read, ready)
 
-  const [amount, setAmount] = useState('')
+  const request = Route.useSearch()
+  const [amount, setAmount] = useState(request.amount ?? '')
   // Seeded from `?to=`, then owned by the field. `useState`'s initialiser rather than an effect:
   // an effect that wrote the search param into state would fight the user every time the URL
   // changed under them, and would overwrite something they had already typed.
-  const { to } = Route.useSearch()
-  const [recipient, setRecipient] = useState(to ?? '')
-  const [chosen, setChosen] = useState<string | null>(null)
+  const [recipient, setRecipient] = useState(request.to ?? '')
+  const [chosen, setChosen] = useState<string | null>(() =>
+    request.asset === 'STRK' ? STRK_TOKEN : request.asset === 'USDC' ? BRIDGE_USDC : null,
+  )
   const [picking, setPicking] = useState(false)
   // ONE FLAG FOR THE WHOLE REVIEW FLOW, not one per dialog — the bumps take their turn while any
   // remain unacknowledged, and the review takes it once none do. See `bridge.tsx` for the full
@@ -154,7 +175,7 @@ function Send() {
   // that reorders the list.
   const token = useMemo(() => {
     if (chosen === null) return sendable[0] ?? null
-    return sendable.find((t) => BigInt(t.address) === BigInt(chosen)) ?? sendable[0] ?? null
+    return sendable.find((t) => BigInt(t.address) === BigInt(chosen)) ?? null
   }, [chosen, sendable])
 
   /** What this account holds in the chosen token, from the same walk the amount is checked against. */
@@ -202,8 +223,8 @@ function Send() {
   //
   const fundingWallet = useFundingWallet()
   const selfLink = useMemo(
-    () => selfLinkAgainst(recipient, fundingWallet ? [fundingWallet.address] : []),
-    [recipient, fundingWallet],
+    () => selfLinkAgainst(status.kind === 'registered' ? status.address : recipient, fundingWallet ? [fundingWallet.address] : []),
+    [recipient, status, fundingWallet],
   )
 
   const meterSeverity = maxSeverity([
@@ -265,13 +286,15 @@ function Send() {
       case 'checking':
         return 'Checking the recipient'
       case 'invalid':
-        return 'That is not a Starknet address'
+        return status.because
       case 'self':
         return 'That is your own address'
       case 'unregistered':
         return status.door.message
       case 'unreadable':
         return 'The recipient could not be checked'
+      case 'unresolved-name':
+        return status.because
       case 'registered':
         return null
     }
@@ -292,13 +315,14 @@ function Send() {
   } | null>(null)
 
   const onConfirm = useCallback(async () => {
-    if (!token || parsed.wei === null) return
+    if (!token || parsed.wei === null || status.kind !== 'registered') return
     const outcome = await sending.send({
       kind: 'transfer',
-      recipient: recipient.trim(),
+      recipient: status.address,
       token: token.address,
       symbol: token.symbol,
       amount: parsed.wei,
+      label: status.name ? `Pay @${status.name}` : `Send ${token.symbol}`,
     })
 
     if (!outcome.ok) return
@@ -308,7 +332,7 @@ function Send() {
       // since edited rewrite the receipt for a transaction that already happened.
       amount: toPlainText(parsed.wei, token.decimals),
       symbol: token.symbol,
-      recipient: recipient.trim(),
+      recipient: status.name ? `@${status.name} · ${status.address}` : status.address,
     })
     setAsked(false)
     setAmount('')
@@ -327,7 +351,7 @@ function Send() {
     // it would hold the one piece of good news behind the slowest call on the screen.
     //
     refresh()
-  }, [token, parsed.wei, recipient, sending, refresh])
+  }, [token, parsed.wei, status, sending, refresh])
 
   return (
     <Surface routeId={Route.fullPath}>
@@ -342,6 +366,18 @@ function Send() {
           A private transfer to another pool account. The recipient sees who sent it — private is not
           anonymous to the person you are paying.
         </Text>
+
+        {request.note ? (
+          <div className="flex flex-col gap-s4 rounded-card border border-solid border-surface3 p-s12">
+            <Text variant="kicker">Payment request</Text>
+            <Text variant="body3" className="break-words text-neutral1">
+              {request.note}
+            </Text>
+            <Text variant="body4" className="text-neutral3">
+              This note is context from the link. It is not written into the transaction.
+            </Text>
+          </div>
+        ) : null}
 
         {sent ? <Sent {...sent} onDismiss={() => setSent(null)} /> : null}
 
@@ -437,7 +473,8 @@ function Send() {
           }}
           token={token}
           amountDisplay={parsed.wei === null ? '0' : toPlainText(parsed.wei, token.decimals)}
-          recipient={recipient.trim()}
+          recipient={status.kind === 'registered' ? status.address : recipient.trim()}
+          requestNote={request.note}
           meter={meter}
           onConfirm={onConfirm}
           //
@@ -448,9 +485,10 @@ function Send() {
           //
           blocker={
             sending.stage
-              ? (STAGE_LABEL[sending.stage] ?? 'Working…')
+              ? stageLabel(sending.stage)
               : sending.problem
           }
+          dismissible={sending.stage === null}
         />
       ) : null}
 
@@ -556,10 +594,3 @@ function Sent({
  * exists on chain before the pool will let it be spent — so it says what is being waited for rather
  * than naming the state.
  */
-const STAGE_LABEL: Record<string, string> = {
-  build: 'Building the send…',
-  prove: 'Proving…',
-  relay: 'Signing and broadcasting…',
-  mature: 'Waiting for the pool to accept it…',
-  confirmed: 'Confirming on chain…',
-}

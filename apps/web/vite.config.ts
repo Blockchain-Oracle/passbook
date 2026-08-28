@@ -124,7 +124,7 @@ export default defineConfig((configEnv) => {
     ) as {
       Markets?: { contractAddress?: string }
       Launch?: { contractAddress?: string }
-      Governance?: { contractAddress?: string }
+      Governance?: { contractAddress?: string; classHash?: string }
       pragma?: string
     }
     const wire = (key: string, value: string | undefined) => {
@@ -136,6 +136,7 @@ export default defineConfig((configEnv) => {
     wire('VITE_PASSBOOK_LAUNCH_ADDRESS', evidence.Launch?.contractAddress)
     wire('VITE_PASSBOOK_PRAGMA_ADDRESS', evidence.pragma)
     wire('VITE_PASSBOOK_GOVERNANCE_ADDRESS', evidence.Governance?.contractAddress)
+    wire('VITE_PASSBOOK_GOVERNANCE_CLASS_HASH', evidence.Governance?.classHash)
   } catch {
     // Pre-deployment is an ordinary state; the app runs in it and says so honestly.
   }

@@ -34,15 +34,27 @@ import { SESSION_KEYS } from './session-store.js'
 
 /** Which contract a position belongs to. They share a shape and nothing else. */
 export type PositionVenue = 'market' | 'launch' | 'governance'
+export type PositionKind =
+  | 'market-bet'
+  | 'market-seed'
+  | 'launch-buy'
+  | 'launch-founder'
+  | 'gov-ballot'
+  | 'gov-delegation'
+  | 'gov-founder'
 
 /** One bearer claim, everything needed to find it again and to spend it. */
 export interface StoredPosition {
   venue: PositionVenue
+  /** The contract role, so terminal doors never guess from human-authored labels. */
+  kind?: PositionKind
   /**
    * The market, launch or house this position is in. `-1` is the create-time sentinel: a
    * founder's claim is written before the chain assigns the house its id.
    */
   id: number
+  /** Governance proposal ids are global, but record pages still need the owning House. */
+  houseId?: number
   /** Bearer material. Never rendered, never logged, never sent anywhere but the pool. */
   secret: string
   /** `poseidon(secret)`. Public — it is already on chain. Safe to render and to search by. */
@@ -106,6 +118,16 @@ function isPosition(value: unknown): value is StoredPosition {
     typeof p.commitment === 'string' &&
     FELT.test(p.commitment) &&
     typeof p.createdAt === 'number' &&
+    (p.kind === undefined ||
+      p.kind === 'market-bet' ||
+      p.kind === 'market-seed' ||
+      p.kind === 'launch-buy' ||
+      p.kind === 'launch-founder' ||
+      p.kind === 'gov-ballot' ||
+      p.kind === 'gov-delegation' ||
+      p.kind === 'gov-founder') &&
+    (p.houseId === undefined ||
+      (typeof p.houseId === 'number' && Number.isInteger(p.houseId) && p.houseId >= 0)) &&
     (p.label === undefined || typeof p.label === 'string') &&
     (p.txHash === undefined || typeof p.txHash === 'string')
   )

@@ -57,7 +57,7 @@ const router = createRouter({
       <h1 className="text-heading3">This screen could not load</h1>
       <p className="text-body3 text-neutral2">
         Something on this page failed while it was being built. The rest of Passbook is unaffected —
-        the six modes in the header all still work.
+        the seven modes in the header all still work.
       </p>
     </Surface>
   ),

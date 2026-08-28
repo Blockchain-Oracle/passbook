@@ -51,6 +51,7 @@ export interface SwapReviewProps {
   onConfirm?: () => void
   /** What stops the confirm, as a sentence. */
   blocker?: string | null
+  dismissible?: boolean
 }
 
 export function SwapReview({
@@ -68,11 +69,12 @@ export function SwapReview({
   disclosure,
   onConfirm,
   blocker = null,
+  dismissible = true,
 }: SwapReviewProps) {
   return (
     // MODAL, because this is a decision. The scrim dims the form behind it and catches the click
     // that dismisses — the first thing anyone tries.
-    <ResponsiveDialog open={open} onOpenChange={onOpenChange} label="Review swap" modal>
+    <ResponsiveDialog open={open} onOpenChange={onOpenChange} label="Review swap" modal dismissible={dismissible}>
       {/*
         `w-full`, NOT a fixed width. `.pb-dialog` is already `max-width: 420px` with 24px of padding
         on each side, so a 420px child inside it overflows by 48px — which is exactly what this
@@ -85,7 +87,7 @@ export function SwapReview({
           </Text>
           {/* Every dialog needs a visible way out. Escape and the scrim both work, and neither is
               discoverable. */}
-          <button
+          {dismissible ? <button
             type="button"
             onClick={() => onOpenChange(false)}
             aria-label="Close"
@@ -99,7 +101,7 @@ export function SwapReview({
                 strokeLinecap="round"
               />
             </svg>
-          </button>
+          </button> : null}
         </div>
 
         {/*

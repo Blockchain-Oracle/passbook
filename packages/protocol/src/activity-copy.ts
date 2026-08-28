@@ -26,7 +26,7 @@
 /**
  * The feed header's standing line, in its AMENDED form.
  *
- * The original claim — that nobody can join the six surfaces up — is false on this protocol
+ * The original claim — that nobody can join the seven surfaces up — is false on this protocol
  * and would be falsifiable by a judge in one call: the auditor holds an escrowed copy of every
  * viewing key, and the relayer sees each submission it carries. What IS true is the narrower
  * claim, so the narrower claim is what ships, with the two parties who see more named in the
@@ -37,7 +37,7 @@
  * never an on-chain link, so there is nothing on the chain for another user to follow.
  */
 export const SURFACES_STANDING_LINE =
-  'Your six surfaces are unlinkable to other users — this view is assembled in your browser, ' +
+  'Your seven surfaces are unlinkable to other users — this view is assembled in your browser, ' +
   'not stored on-chain. The auditor and the relayer see more.'
 
 // ── Discovery honesty: what reading your own notes exposes (AC5) ──────────────────────────

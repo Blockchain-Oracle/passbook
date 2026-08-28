@@ -17,6 +17,7 @@ import { ActivityTape } from '../components/launch/ActivityTape'
 import { BetTicket } from '../components/markets/BetTicket'
 import { MarketRoom } from '../components/markets/MarketRoom'
 import { PairMark } from '../components/markets/PairMark'
+import { MarketPositionSettlements } from '../components/PositionSettlement'
 import { PriceChart } from '../components/PriceChart'
 import { Button } from '../components/ui/Button'
 import { Text } from '../components/ui/Text'
@@ -224,8 +225,8 @@ function MarketRecord() {
                   </button>
                 </div>
                 <Text variant="body4" className="text-neutral3">
-                  The bet size is public. The bettor is not — your stake arrives through the pool
-                  as a bearer commitment.
+                  The size and transaction submitter are public. The Markets record stores a
+                  bearer commitment instead of your account address.
                 </Text>
               </section>
             ) : (
@@ -257,7 +258,7 @@ function MarketRecord() {
               </Button>
             </section>
 
-            <RecordPositions marketId={market.id} />
+            <RecordPositions market={market} symbol={symbol} decimals={decimals} />
           </aside>
         </div>
 
@@ -277,43 +278,19 @@ function MarketRecord() {
 }
 
 /** The browser's own claims on THIS market, each pointing at its transaction. */
-function RecordPositions({ marketId }: { marketId: number }) {
+function RecordPositions({
+  market,
+  symbol,
+  decimals,
+}: {
+  market: NonNullable<ReturnType<typeof useMarkets>['markets'][number]>
+  symbol: string
+  decimals: number
+}) {
   const positions = usePositions()
-  const held = positions.filter((p) => p.venue === 'market' && p.id === marketId)
+  const held = positions.filter((p) => p.venue === 'market' && p.id === market.id)
   if (held.length === 0) return null
-  return (
-    <section className="flex flex-col gap-s6 rounded-large border border-solid border-surface3 p-s16">
-      <Text variant="kicker">Your positions here</Text>
-      {held.map((p) => {
-        const href = p.txHash ? voyagerTxUrl(p.txHash) : null
-        return (
-          <div key={p.commitment} className="flex flex-col">
-            <Text variant="body4" className="text-neutral1">
-              {p.label ?? `Market ${p.id}`}
-            </Text>
-            <span className="flex items-baseline gap-s8">
-              <Text variant="mono" className="truncate text-neutral3">
-                {shortenFelt(p.commitment, 10, 8)}
-              </Text>
-              {href ? (
-                <a
-                  href={href}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="focus-ring shrink-0 font-mono text-mono text-accent1"
-                >
-                  tx ↗
-                </a>
-              ) : null}
-            </span>
-          </div>
-        )
-      })}
-      <Text variant="body4" className="text-neutral3">
-        The bet size is public. The bettor is not.
-      </Text>
-    </section>
-  )
+  return <MarketPositionSettlements positions={held} market={market} symbol={symbol} decimals={decimals} />
 }
 
 function Crumb({ name }: { name?: string }) {

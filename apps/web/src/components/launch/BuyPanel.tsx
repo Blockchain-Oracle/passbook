@@ -32,11 +32,20 @@ import { useSend } from '../../shell/use-send'
 import { useSession, shortenFelt } from '../../shell/session'
 import { findToken, useTokenList } from '../../shell/use-token-list'
 import { ResponsiveDialog } from '../../shell/ResponsiveDialog'
+import { stageLabel } from '../../shell/stage-labels'
 import { BlockedButton } from '../BlockedButton'
 import { Text } from '../ui/Text'
-import { STAGE_LABEL } from './phase'
 
-export function BuyForm({ launch, onDone }: { launch: OnChainLaunch; onDone?: () => void }) {
+
+export function BuyForm({
+  launch,
+  onDone,
+  onRunningChange,
+}: {
+  launch: OnChainLaunch
+  onDone?: () => void
+  onRunningChange?: (running: boolean) => void
+}) {
   const health = useSyncExternalStore(subscribeHealth, getHealth, getHealth)
   const { tokens } = useTokenList()
   const stake = findToken(tokens, launch.stakeToken)
@@ -47,6 +56,9 @@ export function BuyForm({ launch, onDone }: { launch: OnChainLaunch; onDone?: ()
   const ready = session.status === 'ready' ? session : null
   const { balance, read } = useBalance(ready?.address ?? null, ready?.accountKey ?? null)
   const sending = useSend(read, ready)
+  useEffect(() => {
+    onRunningChange?.(sending.stage !== null)
+  }, [onRunningChange, sending.stage])
 
   const [unitsRaw, setUnitsRaw] = useState('1')
   const units = /^\d+$/.test(unitsRaw.trim()) ? Number(unitsRaw.trim()) : null
@@ -119,6 +131,7 @@ export function BuyForm({ launch, onDone }: { launch: OnChainLaunch; onDone?: ()
     // Stored the moment the send succeeds — the secret IS the claim on these units.
     addPosition({
       venue: 'launch',
+      kind: 'launch-buy',
       id: launch.id,
       secret: minted.secret,
       commitment: minted.commitment,
@@ -152,7 +165,7 @@ export function BuyForm({ launch, onDone }: { launch: OnChainLaunch; onDone?: ()
             placeholder="1"
             inputMode="numeric"
             aria-label="Units to buy"
-            className="focus-ring numeric min-w-0 flex-1 bg-transparent font-mono text-heading3 text-neutral1 outline-none placeholder:text-neutral3"
+            className="focus-ring numeric min-w-0 flex-1 bg-transparent font-mono text-heading3 text-neutral1 placeholder:text-neutral3"
           />
           <span className="shrink-0 rounded-pill border border-solid border-surface3Hovered bg-insetHovered px-s12 py-s6 text-buttonLabel4 text-neutral1">
             units
@@ -187,7 +200,7 @@ export function BuyForm({ launch, onDone }: { launch: OnChainLaunch; onDone?: ()
 
       <BlockedButton
         blocker={
-          sending.stage ? (STAGE_LABEL[sending.stage] ?? 'Working…') : (blocker ?? sending.problem)
+          sending.stage ? stageLabel(sending.stage) : (blocker ?? sending.problem)
         }
         action={units !== null && units > 0 ? `Buy ${units} unit${units === 1 ? '' : 's'}` : 'Buy'}
         onPress={() => void onConfirm()}
@@ -206,8 +219,16 @@ export function BuyTicket({
   open: boolean
   onClose: () => void
 }) {
+  const [running, setRunning] = useState(false)
+
   return (
-    <ResponsiveDialog open={open} onOpenChange={(next) => (next ? undefined : onClose())} label="Buy" modal>
+    <ResponsiveDialog
+      open={open}
+      onOpenChange={(next) => (next ? undefined : onClose())}
+      label="Buy"
+      modal
+      dismissible={!running}
+    >
       <div className="flex min-h-0 flex-col gap-s12 overflow-y-auto">
         <div className="flex items-baseline justify-between gap-s8">
           <Text variant="subheading2" as="h2" className="text-neutral1">
@@ -217,7 +238,7 @@ export function BuyTicket({
             Epoch {currentEpoch(launch) + 1} of {launch.epochs} — same price for everyone inside it
           </Text>
         </div>
-        <BuyForm launch={launch} onDone={onClose} />
+        <BuyForm launch={launch} onDone={onClose} onRunningChange={setRunning} />
       </div>
     </ResponsiveDialog>
   )

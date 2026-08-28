@@ -13,7 +13,11 @@ import { parseAmountInput } from '@strk20/protocol/amount'
 import { PROPOSAL_ACTION, PROPOSAL_MODE, type OnChainHouse } from '@strk20/protocol/governance-reads'
 
 import { cn } from '../../lib/cn'
-import { APP_CONTRACTS } from '../../shell/app-contracts'
+import {
+  APP_CONTRACTS,
+  GOVERNANCE_WRITE_SAFETY,
+  GOVERNANCE_WRITES_ENABLED,
+} from '../../shell/app-contracts'
 import { invokeSponsoredOrDirect } from '../../shell/submit'
 import { toast } from '../../shell/toast-store'
 import { useSession } from '../../shell/session'
@@ -70,6 +74,7 @@ export function ProposeDialog({
   }, [recipient])
 
   const blocker =
+    (!GOVERNANCE_WRITE_SAFETY.enabled ? GOVERNANCE_WRITE_SAFETY.because : null) ??
     (!ready ? 'This browser has no account yet' : null) ??
     (question.trim() === '' ? 'Ask the question' : null) ??
     (question.trim().length > 400 ? 'Four hundred characters at most' : null) ??
@@ -80,7 +85,7 @@ export function ProposeDialog({
     (busy ? 'Proposing…' : null)
 
   const onConfirm = useCallback(async () => {
-    if (!ready) return
+    if (!GOVERNANCE_WRITES_ENABLED || !ready) return
     setBusy(true)
     try {
       // The Teller mints the key this vote seals to. 404 = this deployment cannot count votes.
@@ -143,7 +148,7 @@ export function ProposeDialog({
   }, [ready, house.id, question, permanent, abstain, windowIdx, spend, amount.wei, recipient, onClose])
 
   return (
-    <ResponsiveDialog open={open} onOpenChange={(next) => (next ? undefined : onClose())} label="Propose" modal>
+    <ResponsiveDialog open={open} onOpenChange={(next) => (next ? undefined : onClose())} label="Propose" modal dismissible={!busy}>
       <div className="flex min-h-0 flex-col gap-s12 overflow-y-auto">
         <Text variant="subheading2" as="h2" className="text-neutral1">
           Put it to {house.metadata || `House ${house.id}`}
@@ -159,7 +164,7 @@ export function ProposeDialog({
             rows={2}
             placeholder="Pay 40 STRK from the treasury to fund the meetup?"
             aria-label="The proposal"
-            className="focus-ring w-full resize-y rounded-control border border-solid border-surface3 bg-raised px-s12 py-s8 text-body3 text-neutral1 outline-none placeholder:text-neutral3"
+            className="focus-ring w-full resize-y rounded-control border border-solid border-surface3 bg-raised px-s12 py-s8 text-body3 text-neutral1 placeholder:text-neutral3"
           />
         </label>
 
@@ -227,7 +232,7 @@ export function ProposeDialog({
                 onChange={(e) => setAmountRaw(e.target.value)}
                 inputMode="decimal"
                 aria-label="Spend amount"
-                className="focus-ring w-full rounded-control border border-solid border-surface3 bg-raised px-s12 py-s8 font-mono text-body3 text-neutral1 outline-none"
+                className="focus-ring w-full rounded-control border border-solid border-surface3 bg-raised px-s12 py-s8 font-mono text-body3 text-neutral1"
               />
             </label>
             <label className="flex min-w-0 flex-[2] flex-col gap-s4">
@@ -239,7 +244,7 @@ export function ProposeDialog({
                 onChange={(e) => setRecipient(e.target.value)}
                 placeholder="0x…"
                 aria-label="Recipient address"
-                className="focus-ring w-full rounded-control border border-solid border-surface3 bg-raised px-s12 py-s8 font-mono text-body3 text-neutral1 outline-none placeholder:text-neutral3"
+                className="focus-ring w-full rounded-control border border-solid border-surface3 bg-raised px-s12 py-s8 font-mono text-body3 text-neutral1 placeholder:text-neutral3"
               />
             </label>
           </div>
@@ -248,7 +253,8 @@ export function ProposeDialog({
         <Text variant="body4" className="text-neutral3">
           Proposing is public — your address signs it. If it passes, execution is permissionless:
           anyone can fire it, and the treasury pays its named recipient in the open. The FUNDERS
-          of that treasury stay anonymous; its spending never is.
+          are represented by bearer commitments rather than addresses in the House record, while
+          the funding transaction's submitter remains public. Treasury spending is fully public.
         </Text>
 
         <BlockedButton blocker={blocker} action="Open the ballot box" onPress={() => void onConfirm()} />

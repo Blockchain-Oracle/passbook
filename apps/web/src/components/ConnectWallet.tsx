@@ -1,5 +1,5 @@
 //
-// The Connect Ready Wallet panel — the card, the picker, and the deposit rail behind it.
+// The Connect Ready Wallet panel — the card, the picker, and the public-funding rail behind it.
 //
 // ── IT LIVES IN THE ACCOUNT MODAL NOW, AND THAT WAS THE REVIEW'S RULING ───────────────────
 //
@@ -22,14 +22,15 @@
 import { useEffect, useMemo, useState } from 'react'
 
 import { toPlainText } from '@strk20/protocol/amount'
+import { BRIDGE_USDC } from '@strk20/protocol/bridge'
 import { STRK_TOKEN } from '@strk20/protocol/constants'
-import { PUBLIC_DEPOSIT_NOTICE } from '@strk20/protocol/wallet-capability'
+import { PUBLIC_FUNDING_NOTICE } from '@strk20/protocol/wallet-capability'
 
 import { cn } from '../lib/cn'
 import {
   connectWallet,
-  depositToPassbook,
   disconnectWallet,
+  fundPublicAccount,
   listWallets,
   useFundingWallet,
   type DiscoveredWallet,
@@ -40,14 +41,17 @@ import { ResponsiveDialog } from '../shell/ResponsiveDialog'
 import { Button } from './ui/Button'
 import { Text } from './ui/Text'
 
-/** 18 decimals, STRK's. The rail moves STRK only — the pool's fee token and the app's default. */
-const STRK_DECIMALS = 18n
+const FUNDING_ASSETS = {
+  STRK: { address: STRK_TOKEN, decimals: 18 },
+  USDC: { address: BRIDGE_USDC, decimals: 6 },
+} as const
+type FundingAsset = keyof typeof FUNDING_ASSETS
 
-function parseStrk(raw: string): bigint | null {
+function parseFundingAmount(raw: string, decimals: number): bigint | null {
   const trimmed = raw.trim()
-  if (!/^\d+(\.\d{1,18})?$/.test(trimmed)) return null
+  if (!new RegExp(`^\\d+(\\.\\d{1,${decimals}})?$`).test(trimmed)) return null
   const [whole, frac = ''] = trimmed.split('.')
-  return BigInt(whole!) * 10n ** STRK_DECIMALS + BigInt(frac.padEnd(18, '0') || '0')
+  return BigInt(whole!) * 10n ** BigInt(decimals) + BigInt(frac.padEnd(decimals, '0') || '0')
 }
 
 export function ConnectWallet() {
@@ -108,7 +112,7 @@ export function ConnectWallet() {
               Disconnect
             </Button>
           </div>
-          <DepositRail walletName={wallet.name} />
+          <PublicFundingRail walletName={wallet.name} />
         </>
       ) : (
         <Button variant="secondary" size="md" className="self-start" onClick={() => setPicking(true)}>
@@ -123,7 +127,7 @@ export function ConnectWallet() {
         place in the app to imply otherwise.
       */}
       <Text variant="body4" className="text-neutral3">
-        {PUBLIC_DEPOSIT_NOTICE}
+        {PUBLIC_FUNDING_NOTICE}
       </Text>
 
       {wallet && wallet.support === 'unsupported' ? (
@@ -142,17 +146,19 @@ export function ConnectWallet() {
 /**
  * The rail the connection exists for — money in, from the connected wallet, one press.
  *
- * `depositToPassbook` shipped with the funding store and had zero call sites until this form:
+ * `fundPublicAccount` names the boundary it crosses: this is public funding, not shielding.
  * the connection could be made and then did nothing. The wallet pops to sign its own transfer —
  * this app never holds that key — and the notice above the form has already said the transfer
  * is public.
  */
-function DepositRail({ walletName }: { walletName: string }) {
+function PublicFundingRail({ walletName }: { walletName: string }) {
   const session = useSession()
   const ready = session.status === 'ready' ? session : null
+  const [asset, setAsset] = useState<FundingAsset>('STRK')
   const [raw, setRaw] = useState('')
   const [busy, setBusy] = useState(false)
-  const wei = useMemo(() => parseStrk(raw), [raw])
+  const config = FUNDING_ASSETS[asset]
+  const wei = useMemo(() => parseFundingAmount(raw, config.decimals), [config.decimals, raw])
 
   if (!ready) return null
   return (
@@ -160,14 +166,29 @@ function DepositRail({ walletName }: { walletName: string }) {
       <Text variant="body4" className="uppercase text-neutral3">
         Add money from {walletName}
       </Text>
+      <div className="flex gap-s6" aria-label="Public funding asset">
+        {(Object.keys(FUNDING_ASSETS) as FundingAsset[]).map((symbol) => (
+          <Button
+            key={symbol}
+            variant={asset === symbol ? 'primary' : 'tertiary'}
+            size="sm"
+            onClick={() => {
+              setAsset(symbol)
+              setRaw('')
+            }}
+          >
+            {symbol}
+          </Button>
+        ))}
+      </div>
       <div className="flex gap-s8">
         <input
           value={raw}
           onChange={(e) => setRaw(e.target.value)}
           inputMode="decimal"
           placeholder="5"
-          aria-label="Amount of STRK to move in"
-          className="focus-ring w-full min-w-0 flex-1 rounded-control border border-solid border-surface3 bg-raised px-s12 py-s8 font-mono text-body3 text-neutral1 outline-none placeholder:text-neutral3"
+          aria-label={`Amount of ${asset} to fund publicly`}
+          className="focus-ring w-full min-w-0 flex-1 rounded-control border border-solid border-surface3 bg-raised px-s12 py-s8 font-mono text-body3 text-neutral1 placeholder:text-neutral3"
         />
         <Button
           variant="secondary"
@@ -176,22 +197,17 @@ function DepositRail({ walletName }: { walletName: string }) {
           onClick={() => {
             if (wei === null || wei === 0n) return
             setBusy(true)
-            void depositToPassbook(STRK_TOKEN, wei, ready.address).then((result) => {
+            void fundPublicAccount(config.address, wei, ready.address).then((result) => {
               setBusy(false)
               if (result.ok) {
                 setRaw('')
                 toast({
                   kind: 'success',
-                  title: `${toPlainText(wei, 18)} STRK on its way`,
-                  // NO "shield it from the wallet screen". That sentence pointed at a button that
-                  // has never existed: there is no `shield` SendKind and no public → shielded
-                  // pipeline in this build. Promising a door the app does not have is how "the
-                  // money arrived and nothing happened" became the most common thing to hear about
-                  // this product. What it says now is exactly what is true.
-                  detail: `Signed in ${walletName}. It lands at your address as public STRK, where it pays your fees and gas.`,
+                  title: `${toPlainText(wei, config.decimals)} ${asset} on its way`,
+                  detail: `Signed in ${walletName}. It lands at your embedded address as public ${asset}; Shield now is a separate Passbook transaction.`,
                 })
               } else {
-                toast({ kind: 'error', title: 'The deposit was not sent', detail: result.because })
+                toast({ kind: 'error', title: 'Public funding was not sent', detail: result.because })
               }
             })
           }}

@@ -309,7 +309,8 @@ function MarketPositions() {
         )
       })}
       <Text variant="body4" className="text-neutral3">
-        The bet size is public. The bettor is not.
+        Bet sizes and transaction submitters are public; Markets records bearer commitments
+        instead of bettor addresses.
       </Text>
     </section>
   )

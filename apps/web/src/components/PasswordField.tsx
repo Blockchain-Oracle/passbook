@@ -68,7 +68,7 @@ export function PasswordField({
           autoComplete={autoComplete}
           autoFocus={autoFocus}
           disabled={disabled}
-          className="focus-ring numeric w-full rounded-control bg-inset px-s12 py-s12 text-body2 text-neutral1 outline-none"
+          className="focus-ring numeric w-full rounded-control bg-inset px-s12 py-s12 text-body2 text-neutral1"
         />
         {/*
           A reveal toggle, not a "show password" checkbox, and it is `aria-pressed` rather than a

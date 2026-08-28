@@ -77,7 +77,7 @@ describe('the four cell states each carry a word, a shape and a meaning', () => 
 
 describe('every review context resolves to something', () => {
   it('declares fifteen, and the table covers exactly those fifteen', () => {
-    // Ten shipped with the six surfaces; the Houses brought five (docs/governance.md §4.2).
+    // Ten shipped before Houses; the seventh surface brought five (docs/governance.md §4.2).
     expect(VISIBILITY_CONTEXTS).toHaveLength(15)
     expect(Object.keys(MATRICES).sort()).toEqual([...VISIBILITY_CONTEXTS].sort())
   })
@@ -216,7 +216,7 @@ describe('matrixDelta shows the difference and nothing else', () => {
   })
 })
 
-describe('the review vocabulary maps onto the six surfaces', () => {
+describe('the review vocabulary maps onto the seven surfaces', () => {
   it('gives every context a surface', () => {
     for (const context of VISIBILITY_CONTEXTS) {
       expect(CONTEXT_SURFACE[context], context).toBeTruthy()

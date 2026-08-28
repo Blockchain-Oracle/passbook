@@ -36,6 +36,7 @@ import { useSend } from '../shell/use-send'
 import { useSession } from '../shell/session'
 import { findToken, useTokenList } from '../shell/use-token-list'
 import { Surface } from '../shell/Surface'
+import { stageLabel } from '../shell/stage-labels'
 
 export const Route = createFileRoute('/bridge')({
   component: Bridge,
@@ -426,9 +427,10 @@ function Bridge() {
               : fee.stale
                 ? 'Re-reading the fee…'
                 : sending.stage
-                  ? (STAGE_LABEL[sending.stage] ?? 'Working…')
+                  ? stageLabel(sending.stage)
                   : sending.problem
         }
+        dismissible={sending.stage === null}
       />
 
       <ChainSelector
@@ -534,13 +536,6 @@ function Row({ label, value }: { label: string; value: string }) {
  * render "Working…" for a state that has a name. `relay` is reworded for the reason it is
  * everywhere else: this browser is not relaying to anyone, it is signing and broadcasting.
  */
-const STAGE_LABEL: Record<string, string> = {
-  build: 'Building the crossing…',
-  prove: 'Proving…',
-  relay: 'Signing and broadcasting…',
-  mature: 'Waiting for the pool…',
-  confirmed: 'Confirming on chain…',
-}
 
 /**
  * The destination chain, as the form's FIRST decision.

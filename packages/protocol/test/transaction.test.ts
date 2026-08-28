@@ -112,7 +112,7 @@ describe('surface attribution — the honesty invariant', () => {
 
   it('nothing in the projection can invent one', () => {
     // The title of a reconstructed row comes from what the CHAIN published, never from a guess at
-    // which of the six surfaces produced it. A `note-spent` is a swap, a bridge exit, a bet and a
+    // which of the seven surfaces produced it. A `note-spent` is a swap, a bridge exit, a bet and a
     // chat payment all at once as far as the record is concerned.
     const row = activityRowModel(settled(noteSpent('0x1')), NOW)
     expect(row.title).toBe('Note spent')
@@ -243,7 +243,7 @@ describe('system notes', () => {
 
 describe('rightSlot', () => {
   it('an in-flight row spins, and names the stage rather than spinning anonymously', () => {
-    expect(rightSlot(inFlight({}, '0xfeed'), NOW + 1_000)).toEqual({ kind: 'spinner', text: 'Relay' })
+    expect(rightSlot(inFlight({}, '0xfeed'), NOW + 1_000)).toEqual({ kind: 'spinner', text: 'Sign & broadcast' })
   })
 
   it('past the patience bound it says so, and links out', () => {

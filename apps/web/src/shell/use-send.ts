@@ -26,16 +26,21 @@
 // fresher or staler walk than the screen is a send whose numbers do not match what was agreed to.
 //
 import { useCallback, useState } from 'react'
+import { recordLocal } from '@strk20/protocol/activity-store'
 import type { DiscoveryResult } from '@strk20/protocol/discovery'
 import type { AppInvokeLeg, BridgeLeg, SendFailure, SendResult, SwapLeg } from '@strk20/protocol/send'
 import { SEND_STAGES, type SendStage } from '@strk20/protocol/pipeline-stage'
+import { voyagerTxUrl, type ActivitySurface } from '@strk20/protocol/transaction'
 
 import { walletSubmitter } from './funding-wallet'
+import { GOVERNANCE_WRITE_SAFETY } from './app-contracts'
 import {
   clearPipeline,
   failPipeline,
+  finishPipeline,
   getPipeline,
   reachStage,
+  setPipelineSubmission,
   startPipeline,
 } from './pipeline-store'
 import { makeSelfSubmit } from './submit'
@@ -73,6 +78,10 @@ export interface SendAsk {
   bridge?: BridgeLeg
   /** Required on every app kind, refused on every other — `planSend` enforces both directions. */
   app?: AppInvokeLeg
+  /** The local Activity category. Never inferred from an on-chain event. */
+  surface?: ActivitySurface
+  /** The words used by both the shell row and Activity. */
+  label?: string
 }
 
 export interface SendState {
@@ -108,6 +117,9 @@ export function useSend(read: DiscoveryResult | null, session: {
       if (!session) {
         return refuse({ kind: 'bad-input', reason: 'This browser has no account yet.' })
       }
+      if (ask.kind.startsWith('gov-') && !GOVERNANCE_WRITE_SAFETY.enabled) {
+        return refuse({ kind: 'bad-input', reason: GOVERNANCE_WRITE_SAFETY.because })
+      }
       // A send needs the notes, and the notes come from a walk that COMPLETED. Planning against a
       // failed walk would spend whatever subset happened to arrive, which is a different send from
       // the one on screen.
@@ -132,25 +144,46 @@ export function useSend(read: DiscoveryResult | null, session: {
       if (existing && (existing.failedAt !== null || existing.reached.includes('confirmed'))) {
         clearPipeline()
       }
-      let narrating = false
-      try {
-        startPipeline({
-          label: `Sending ${ask.symbol}`,
-          stages: SEND_STAGES,
-          startedAt: Date.now(),
-          cancel: null,
+      if (getPipeline() !== null) {
+        return refuse({
+          kind: 'lock-unavailable',
+          reason: 'Another transaction is still running in this tab.',
         })
-        narrating = true
-      } catch {
-        // A live pipeline holds the row. Not an error for THIS send.
+      }
+
+      const operationId = makeOperationId()
+      const label = ask.label ?? labelFor(ask)
+      const surface = ask.surface ?? surfaceFor(ask.kind)
+      const startedAt = Date.now()
+      startPipeline({
+        id: operationId,
+        operation: ask.kind,
+        route: typeof location === 'undefined' ? '/wallet' : location.pathname,
+        label,
+        stages: SEND_STAGES,
+        startedAt,
+        cancel: null,
+      })
+      let narrating = true
+      const recordStage = (stage: SendStage, transactionHash: string | null = null) => {
+        recordLocal({
+          id: operationId,
+          chain: { state: 'optimistic', submittedAt: startedAt, stage, transactionHash },
+          surface,
+          label,
+        })
       }
       let lastStage: SendStage = 'build'
       const onStage = (stage: SendStage) => {
         lastStage = stage
         setStage(stage)
-        if (narrating) reachStage(stage)
+        if (narrating) {
+          reachStage(stage)
+          recordStage(stage)
+        }
       }
-      if (narrating) reachStage('build')
+      reachStage('build')
+      recordStage('build')
 
       try {
         const [{ sendShielded }, { Account, RpcProvider }, { NET }] = await Promise.all([
@@ -199,7 +232,40 @@ export function useSend(read: DiscoveryResult | null, session: {
 
         setResult(outcome)
         setStage(null)
-        if (narrating && !outcome.ok) failPipeline(lastStage)
+        if (outcome.ok) {
+          const submittedBy = external ? 'wallet' : outcome.submittedBy === 'relayer' ? 'relayer' : 'embedded'
+          setPipelineSubmission({
+            transactionHash: outcome.transactionHash,
+            explorerUrl: voyagerTxUrl(outcome.transactionHash),
+            submittedBy,
+          })
+          finishPipeline('confirmed')
+          recordStage('confirmed', outcome.transactionHash)
+        } else {
+          const transactionHash = failureTransactionHash(outcome.failure)
+          if (transactionHash) {
+            setPipelineSubmission({
+              transactionHash,
+              explorerUrl: voyagerTxUrl(transactionHash),
+              submittedBy: external ? 'wallet' : 'embedded',
+            })
+          }
+          const confirmationUnknown = outcome.failure.kind === 'confirmation-unknown'
+          if (confirmationUnknown) finishPipeline('confirmation-unknown')
+          else failPipeline(lastStage)
+          recordLocal({
+            id: operationId,
+            chain: {
+              state: 'failed',
+              retryable: transactionHash === null,
+              reason: describe(outcome.failure),
+              transactionHash,
+              submitted: transactionHash !== null,
+            },
+            surface,
+            label,
+          })
+        }
         return outcome
       } catch (error) {
         // Everything `sendShielded` models arrives as a typed failure; this catches what it
@@ -207,16 +273,66 @@ export function useSend(read: DiscoveryResult | null, session: {
         // refusal rather than swallowed, because a send that vanished silently is one the user
         // will retry into a double-spend.
         if (narrating) failPipeline(lastStage)
-        return refuse({
+        const failure: SendFailure = {
           kind: 'bad-input',
           reason: error instanceof Error ? error.message : 'The send could not be started.',
+        }
+        recordLocal({
+          id: operationId,
+          chain: { state: 'failed', retryable: true, reason: describe(failure) },
+          surface,
+          label,
         })
+        return refuse(failure)
       }
     },
     [read, session?.address, session?.accountKey],
   )
 
   return { stage, result, problem: result && !result.ok ? describe(result.failure) : null, send, reset }
+}
+
+function makeOperationId(): string {
+  const suffix = globalThis.crypto?.randomUUID?.() ?? Math.random().toString(36).slice(2)
+  return `passbook-${Date.now()}-${suffix}`
+}
+
+function surfaceFor(kind: SendAsk['kind']): ActivitySurface {
+  if (kind === 'swap') return 'swap'
+  if (kind === 'bridge') return 'bridge'
+  if (kind.startsWith('market-')) return 'markets'
+  if (kind.startsWith('launch-')) return 'launch'
+  if (kind.startsWith('gov-')) return 'houses'
+  return 'wallet'
+}
+
+function labelFor(ask: SendAsk): string {
+  switch (ask.kind) {
+    case 'transfer': return `Send ${ask.symbol}`
+    case 'withdraw': return `Withdraw ${ask.symbol}`
+    case 'swap': return `Swap ${ask.symbol}`
+    case 'bridge': return `Bridge ${ask.symbol}`
+    case 'market-create': return 'Create market'
+    case 'market-bet': return `Place ${ask.symbol} bet`
+    case 'market-claim': return 'Claim market winnings'
+    case 'market-cashout': return 'Cash out market position'
+    case 'launch-buy': return `Buy launch with ${ask.symbol}`
+    case 'launch-redeem': return 'Redeem launch position'
+    case 'launch-refund': return 'Refund launch position'
+    case 'gov-ballot': return 'Cast sealed ballot'
+    case 'gov-join': return 'Join House'
+    case 'gov-delegate': return 'Delegate House vote'
+    case 'gov-fund': return `Fund House with ${ask.symbol}`
+    case 'gov-reclaim': return 'Reclaim House escrow'
+    case 'gov-revoke': return 'Revoke House delegation'
+  }
+}
+
+function failureTransactionHash(failure: SendFailure): string | null {
+  if ('transactionHash' in failure && typeof failure.transactionHash === 'string' && failure.transactionHash.trim()) {
+    return failure.transactionHash
+  }
+  return null
 }
 
 /**

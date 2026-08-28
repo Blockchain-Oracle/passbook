@@ -32,13 +32,16 @@
 //
 import { useEffect, useMemo, useState } from 'react'
 
+import { resolveRecipientReference } from '@strk20/protocol/pay-link'
 import type { DoorAInvite } from '@strk20/protocol/recipient'
+
+import { useDirectory } from './use-directory'
 
 export type RecipientStatus =
   /** Nothing typed yet. */
   | { readonly kind: 'idle' }
   /** Not a felt. */
-  | { readonly kind: 'invalid' }
+  | { readonly kind: 'invalid'; readonly because: string }
   /** The read is in flight, or the session has not arrived yet. */
   | { readonly kind: 'checking' }
   /** Your own address. Sends to yourself cost a fee and move nothing. */
@@ -47,14 +50,17 @@ export type RecipientStatus =
   | { readonly kind: 'unregistered'; readonly door: DoorAInvite }
   /** The chain could not be read. We do not know, rather than know. */
   | { readonly kind: 'unreadable'; readonly because: string }
+  /** A well-formed @name that no current directory entry owns. */
+  | { readonly kind: 'unresolved-name'; readonly because: string }
   /** Registered with the pool, and reachable. */
-  | { readonly kind: 'registered' }
+  | { readonly kind: 'registered'; readonly address: string; readonly name: string | null }
 
 /** How long a field sits still before its address is looked up. */
 const SETTLE_MS = 300
 
 export function useRecipient(raw: string, ownAddress: string | null): RecipientStatus {
   const [status, setStatus] = useState<RecipientStatus>({ kind: 'idle' })
+  const directory = useDirectory()
 
   // Trimmed once, here, so a pasted address with whitespace and one without are the same input to
   // everything below — including the effect's dependency list.
@@ -66,6 +72,29 @@ export function useRecipient(raw: string, ownAddress: string | null): RecipientS
       return
     }
 
+    const isName = recipient.startsWith('@')
+    if (isName && directory.loading) {
+      setStatus({ kind: 'checking' })
+      return
+    }
+    if (isName && directory.problem) {
+      setStatus({
+        kind: 'unreadable',
+        because: 'Names could not be loaded. Use the recipient’s address instead.',
+      })
+      return
+    }
+
+    const resolved = resolveRecipientReference(recipient, directory.entries)
+    if (!resolved.ok) {
+      setStatus(
+        resolved.kind === 'unresolved-name'
+          ? { kind: 'unresolved-name', because: resolved.because }
+          : { kind: 'invalid', because: resolved.because },
+      )
+      return
+    }
+
     let live = true
     // Announced before the wait, not after it. A field that says nothing for 300ms and then says
     // "reading" reads as a form that ignored the paste.
@@ -73,42 +102,40 @@ export function useRecipient(raw: string, ownAddress: string | null): RecipientS
 
     const timer = setTimeout(() => {
       void (async () => {
-        const [{ maybeAddress, sameAddress }, { preflightRecipient }] = await Promise.all([
+        const [{ sameAddress }, { preflightRecipient }] = await Promise.all([
           import('@strk20/protocol/address'),
           import('@strk20/protocol/recipient'),
         ])
         if (!live) return
 
-        if (maybeAddress(recipient) === null) {
-          setStatus({ kind: 'invalid' })
-          return
-        }
         // Checked before the call rather than after: reading your own key would answer
         // `registered`, and a form that accepts a send to yourself is a form that charges a fee to
         // move money from a pocket into the same pocket.
-        if (ownAddress !== null && sameAddress(recipient, ownAddress)) {
+        if (ownAddress !== null && sameAddress(resolved.address, ownAddress)) {
           setStatus({ kind: 'self' })
           return
         }
 
-        const route = await preflightRecipient(recipient)
+        const route = await preflightRecipient(resolved.address)
         if (!live) return
 
         setStatus(
           route.route === 'registered'
-            ? { kind: 'registered' }
+            ? { kind: 'registered', address: resolved.address, name: resolved.name }
             : route.route === 'unregistered'
               ? { kind: 'unregistered', door: route.door }
               : { kind: 'unreadable', because: route.reason },
         )
-      })()
+      })().catch((error: unknown) => {
+        if (live) setStatus({ kind: 'unreadable', because: String(error) })
+      })
     }, SETTLE_MS)
 
     return () => {
       live = false
       clearTimeout(timer)
     }
-  }, [recipient, ownAddress])
+  }, [recipient, ownAddress, directory.entries, directory.loading, directory.problem])
 
   return status
 }

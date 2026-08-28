@@ -193,7 +193,7 @@ export function NameClaim() {
  * makes "upload a picture" a thing an ordinary photo can actually do.
  *
  * The result is a `data:` URI and never a URL. `directory-name.ts`'s `AVATAR_PATTERN` enforces
- * that on both sides, and its comment carries the reason: an `<img src>` pointing at a third-party
+ * that on both sides, and its comment carries the reason: loading a profile image from a third-party
  * host would report to that host every time anybody opened a conversation with this peer.
  */
 function AvatarField({

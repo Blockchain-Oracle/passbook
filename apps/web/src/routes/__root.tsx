@@ -1,5 +1,5 @@
 //
-// THE SHELL. Six coequal modes, one chrome, ten routes that all take it.
+// THE SHELL. Seven coequal modes, one chrome, and one account gate above every route.
 //
 // WHY THE CHROME IS HERE AND NOT IN A `_shell` PATHLESS LAYOUT. Every route in this app takes
 // identical chrome, so a layout route buys nothing — and it costs the one trap the build gate
@@ -13,7 +13,7 @@
 //
 // WHAT THE ROOT'S OWN `errorComponent` IS FOR, since it is not what it looks like. `main.tsx` sets
 // `defaultErrorComponent`, which gives EVERY match its own CatchBoundary — that is what makes one
-// throwing surface degrade to `__error__` while this header and all six links survive. The
+// throwing surface degrade to `__error__` while this header and all seven links survive. The
 // consequence, accepted rather than worked around: this boundary never fires for a child's throw. It
 // is here for the root's own failures, which are the ones that take the whole shell with them.
 //
@@ -37,6 +37,7 @@ import { DegradedStrip } from '../components/DegradedStrip'
 import { ToastViewport } from '../shell/ToastViewport'
 import { Icon } from '../components/icons'
 import { MobileTabBar } from '../shell/MobileTabBar'
+import { OnboardingGate } from '../components/onboarding/OnboardingGate'
 
 //
 // THE PALETTE IS CODE-SPLIT, AND NOT FOR THE BYTE GATE.
@@ -96,7 +97,7 @@ const PALETTE_COMMANDS: readonly PaletteCommand[] = [
  * Where each action lands.
  *
  * Its own union rather than `PalettePath`, because an ACTION is not a nav destination: `/send` is a
- * real route but not one of the six modes, so it is deliberately absent from the nav type. Widening
+ * real route but not one of the seven modes, so it is deliberately absent from the nav type. Widening
  * `PalettePath` to admit it would have put Send in the navigation bar as a side effect of adding a
  * palette command.
  */
@@ -224,13 +225,13 @@ function RootLayout() {
         </Link>
 
         {/*
-          The six modes as STUDIO's centre pill, from the enum, in enum order. Driven from
+          The seven modes as STUDIO's centre pill, from the enum, in enum order. Driven from
           `MODE_ROUTES` rather than written out so the coupling is real in both directions: delete
           `markets.tsx` and this `<Link>` is one of the four places tsc names.
 
           `data-status="active"` and `aria-current="page"` are set by the router on the active link
           with no configuration — the active style keys off the first in authored CSS, and the second
-          is what a screen reader announces. Below 768px this nav is display:none and the same six
+          is what a screen reader announces. Below 768px this nav is display:none and the same seven
           links render in the tab bar at the bottom of the viewport — one enum, two projections.
         */}
         <nav aria-label="Modes" className="nav-pill">
@@ -252,7 +253,7 @@ function RootLayout() {
 
         {/*
           Settings sits OUTSIDE the modes nav on purpose. It is not a seventh mode — it is chrome
-          that the six modes share — and the cold-open rule is six enabled, unbadged nav items. It is
+          that the seven modes share — and the cold-open rule is seven enabled, unbadged nav items. It is
           here because the theme control lives on `/settings` and a route nothing links to is a route
           nobody can reach.
         */}
@@ -307,8 +308,8 @@ function RootLayout() {
 
       {/*
         THE DEGRADED STRIP SITS UNDER THE CHROME AND ABOVE EVERY SURFACE, because every state it
-        renders is app-wide — a paused pool stops all six surfaces at once, and repeating that
-        sentence per surface would be six places for it to drift.
+        renders is app-wide — a paused pool stops all seven surfaces at once, and repeating that
+        sentence per surface would be seven places for it to drift.
       */}
       <ShellHealth />
 
@@ -319,6 +320,9 @@ function RootLayout() {
         silently reintroduce the bug it exists to prevent, with no test able to see it.
       */}
       <PipelineRow />
+
+      {/* Account creation is shell state, so no route or deep link can render around it. */}
+      <OnboardingGate />
 
       <div>
         <Outlet />
@@ -471,4 +475,3 @@ function RootError() {
     </Surface>
   )
 }
-

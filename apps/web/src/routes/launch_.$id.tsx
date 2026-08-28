@@ -197,7 +197,12 @@ function LaunchDetail() {
                 ) : null}
               </section>
             )}
-            <YourPositions launchId={launch.id} />
+            <YourPositions
+              launchId={launch.id}
+              launch={launch}
+              stakeSymbol={symbol}
+              stakeDecimals={decimals}
+            />
           </aside>
         </div>
       </div>

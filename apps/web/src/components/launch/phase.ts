@@ -34,12 +34,3 @@ export const PHASE_CHIP: Record<Phase, string> = {
   failed: 'Refunding',
   missed: 'Refunding',
 }
-
-/** The pipeline stages, worded for a buy. Shared by the ticket dialog and the detail rail. */
-export const STAGE_LABEL: Record<string, string> = {
-  build: 'Building the buy…',
-  prove: 'Proving…',
-  relay: 'Signing and broadcasting…',
-  mature: 'Waiting for the pool to accept it…',
-  confirmed: 'Confirming on chain…',
-}

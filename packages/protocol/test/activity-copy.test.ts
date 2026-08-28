@@ -9,7 +9,7 @@ import { FORBIDDEN_CLAIMS } from '../src/forbidden-claims.js'
 describe('the book\'s copy ships byte-exact (AC5)', () => {
   it('the standing line claims only what is true, and names who sees more', () => {
     expect(copy.SURFACES_STANDING_LINE).toBe(
-      'Your six surfaces are unlinkable to other users — this view is assembled in your browser, ' +
+      'Your seven surfaces are unlinkable to other users — this view is assembled in your browser, ' +
         'not stored on-chain. The auditor and the relayer see more.',
     )
     // The amendment is the point. The banned original claimed nobody could join the surfaces

@@ -88,7 +88,7 @@
 
   /*
    * The kicker — "01 — account" over every surface title. Mono, uppercase, wide-tracked, faint.
-   * One class because it appears on all six surfaces and the palette, and eight utilities repeated
+   * One class because it appears on all seven surfaces and the palette, and eight utilities repeated
    * eight times is how one of them drifts.
    */
   .kicker {
@@ -263,7 +263,7 @@
    * account chip's address changes width. Uniswap's `NavBar` uses exactly this grid.
    *
    * It still wraps below the tab breakpoint — `grid-template-columns` is overridden to a single
-   * column there — because six modes plus a chip does not fit a phone, and a nav that scrolls
+   * column there — because seven modes plus a chip does not fit a phone, and a nav that scrolls
    * sideways is worse than one that takes two lines.
    */
   .app-header {
@@ -294,7 +294,7 @@
   }
 
   /*
-   * The brand's mark: STUDIO's gold square rotated 45° into a diamond, beside PASSBOOK set in the
+   * The brand's mark: STUDIO's lime square rotated 45° into a diamond, beside PASSBOOK set in the
    * display face. Decoration for a wordmark, so it is `aria-hidden` at the call site.
    */
   .brand-mark {
@@ -308,7 +308,7 @@
   /*
    * ── The pill nav [STUDIO] ────────────────────────────────────────────────────────────────
    *
-   * One rounded raised container holding the six modes as pills. It scrolls sideways INSIDE its own
+   * One rounded raised container holding the seven modes as pills. It scrolls sideways INSIDE its own
    * box when the header is narrow — never wrapping, never scrolling the page — and the scrollbar is
    * hidden because a 4px bar inside a 99px pill reads as a rendering defect.
    */
@@ -365,7 +365,7 @@
   }
 
   /*
-   * The active mode: STUDIO's gold-tint pill with gold ink. `data-status="active"` and
+   * The active mode: STUDIO's lime-tint pill with lime ink. `data-status="active"` and
    * `aria-current="page"` are both set by the router on the matching link with no configuration —
    * this styles the first, and the second is what is announced. Never a class computed in JS: two
    * sources for one state drift.
@@ -423,7 +423,7 @@
    * ── The mobile tab bar [STUDIO] ──────────────────────────────────────────────────────────
    *
    * Below 768px the pill nav leaves the header and the modes live here: a fixed bottom bar with
-   * a raised gold action button at its centre. `z-fixed` from the adopted stacking scale — a fixed
+   * a raised lime action button at its centre. `z-fixed` from the adopted stacking scale — a fixed
    * bar after the header in document order would otherwise rely on paint order alone.
    */
   .tab-bar {
@@ -459,7 +459,7 @@
   }
 
   /*
-   * The centre action button: gold, circular, lifted out of the bar. Its size is the one 52 on the
+   * The centre action button: lime, circular, lifted out of the bar. Its size is the one 52 on the
    * sheet, written as arithmetic on two steps rather than a literal.
    */
   .tab-plus {
@@ -536,7 +536,7 @@
    * ── The onboarding takeover [STUDIO] ─────────────────────────────────────────────────────
    *
    * The first-run flow owns the whole viewport, and the glow is its one piece of atmosphere: a
-   * faint gold radial bleeding in from above the fold. `accent2` because the glow IS the
+   * faint lime radial bleeding in from above the fold. `accent2` because the glow IS the
    * filled-accent tint doing what a tint is for — a wash, never ink — and it re-themes with the
    * accent instead of hardcoding a lime nobody can restyle.
    */

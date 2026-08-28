@@ -8,12 +8,22 @@
 //
 import type { SendStage } from '@strk20/protocol/pipeline-stage'
 
-export function stageLabels(building: string): Record<SendStage, string> {
-  return {
-    build: building,
-    prove: 'Proving…',
-    relay: 'Waiting for the signature, then broadcasting…',
-    mature: 'Waiting for the pool to accept it…',
-    confirmed: 'Confirming on chain…',
-  }
+/**
+ * The five user-facing status lines, shared by every money flow.
+ *
+ * The optional argument is retained for source compatibility with older call sites, but the
+ * first stage is deliberately no longer surface-specific. A route saying "Building the bet"
+ * while the shell said "Prepare" created two narrators for one operation.
+ */
+const LABEL: Record<SendStage, string> = {
+  build: 'Preparing…',
+  prove: 'Proving…',
+  relay: 'Signing and broadcasting…',
+  mature: 'Waiting for the pool to accept it…',
+  confirmed: 'Confirming…',
+}
+
+/** One canonical lookup; routes never materialize their own stage-label table. */
+export function stageLabel(stage: SendStage): string {
+  return LABEL[stage]
 }

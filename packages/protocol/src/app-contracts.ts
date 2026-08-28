@@ -3,8 +3,7 @@
 //
 // ── WHY THIS IS A PARSER AND NOT A CONSTANT ───────────────────────────────────────────────
 //
-// These addresses do not exist until `scripts/ops/deploy-markets-launch.ts` runs, and when they do
-// exist they are facts about one deployment rather than protocol constants like the pool or STRK.
+// These addresses are facts about one deployment rather than protocol constants like the pool or STRK.
 // Writing them into a logic file would mean a source edit is what makes a deployment real, and the
 // two would drift the first time anything was redeployed.
 //
@@ -15,12 +14,12 @@
 //
 // PURE. No `fs`, no `fetch`, no `process`. The browser cannot read the evidence file and the
 // relayer cannot import a browser shim, so I/O belongs to the caller and parsing belongs here,
-// which is also what makes the "not deployed yet" path testable without a filesystem.
+// which also makes a missing-evidence path testable without a filesystem.
 //
 // ── ABSENT IS A FIRST-CLASS ANSWER ────────────────────────────────────────────────────────
 //
-// Before the declares land, every field here is `undefined`, and that is a state the app runs in
-// rather than an error. A markets surface with no Markets address renders its coming-state; the
+// When evidence is absent, every field here is `undefined`, and that is a state the app runs in
+// rather than an error. A markets surface with no Markets address renders an unavailable state; the
 // relayer's allowlist simply never permits calls to a contract it has no address for, which fails
 // closed. Neither one should be throwing at boot because a deployment has not happened yet.
 //
@@ -44,6 +43,37 @@ export interface AppContracts {
   launchTokenClassHash?: string
   /** The Governance contract (Houses). Absent until deployed. */
   governance?: string
+  /** The Governance class the evidence says that address runs. Required before writes are safe. */
+  governanceClassHash?: string
+}
+
+/** The corrected source built after the key-binding and exclusion-uniqueness fixes. */
+export const CORRECTED_GOVERNANCE_CLASS_HASH =
+  '0x61bd2b40dd4dbf1fb9620023854e834dbd4e87cc84bc60839fcb4dc76f78c40'
+
+/** The class currently recorded on mainnet. Reads stay available; new writes are unsafe. */
+export const VULNERABLE_GOVERNANCE_CLASS_HASH =
+  '0x7240c52656a0a5250649b4db768fbe6ad43e794b11d036ebb19904ff4bb8f20'
+
+export type GovernanceWriteSafety =
+  | { readonly enabled: true }
+  | { readonly enabled: false; readonly because: string }
+
+/** Fail closed unless both an address and the specifically reviewed corrected class are present. */
+export function governanceWriteSafety(contracts: AppContracts): GovernanceWriteSafety {
+  if (!contracts.governance) {
+    return { enabled: false, because: 'No Governance deployment is recorded.' }
+  }
+  if (contracts.governanceClassHash !== CORRECTED_GOVERNANCE_CLASS_HASH) {
+    return {
+      enabled: false,
+      because:
+        contracts.governanceClassHash === VULNERABLE_GOVERNANCE_CLASS_HASH
+          ? 'This Governance deployment predates the tally-key and exclusion fixes. It is read-only until a corrected deployment is separately authorized.'
+          : 'This Governance class is not the reviewed corrected class. Writes are disabled until deployment evidence is updated.',
+    }
+  }
+  return { enabled: true }
 }
 
 /** Nothing is deployed. The state the app starts life in, and runs in perfectly well. */
@@ -112,6 +142,8 @@ export function parseAppContracts(raw: string | null | undefined): AppContracts 
 
   const governance = nested(record, 'Governance', 'contractAddress')
   if (governance) contracts.governance = governance
+  const governanceClassHash = nested(record, 'Governance', 'classHash')
+  if (governanceClassHash) contracts.governanceClassHash = governanceClassHash
 
   return contracts
 }
@@ -133,5 +165,7 @@ export function appContractsFromEnv(env: Record<string, string | undefined>): Ap
   if (pragma) contracts.pragma = pragma
   const governance = address(env.PASSBOOK_GOVERNANCE_ADDRESS)
   if (governance) contracts.governance = governance
+  const governanceClassHash = address(env.PASSBOOK_GOVERNANCE_CLASS_HASH)
+  if (governanceClassHash) contracts.governanceClassHash = governanceClassHash
   return contracts
 }

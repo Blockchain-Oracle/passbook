@@ -1,6 +1,13 @@
 import { describe, it, expect } from 'vitest'
 
-import { appContractsFromEnv, parseAppContracts, NO_APP_CONTRACTS } from '../src/app-contracts.js'
+import {
+  appContractsFromEnv,
+  CORRECTED_GOVERNANCE_CLASS_HASH,
+  governanceWriteSafety,
+  parseAppContracts,
+  NO_APP_CONTRACTS,
+  VULNERABLE_GOVERNANCE_CLASS_HASH,
+} from '../src/app-contracts.js'
 
 //
 // The addresses do not exist until the deploy script runs, so "not deployed yet" is a state the app
@@ -12,6 +19,7 @@ const MARKETS = '0x750ec8f6c6c96f1e66129f84ac8ca798973bb3e5fd9384269706a7e079f43
 const LAUNCH = '0x7c4a3f7cd257beb5a8243fb1cd3ac3e5f59b36f08a436bbd657ef214c970d22'
 const PRAGMA = '0x2a85bd616f912537c50a49a4076db02c00b29b2cdc8a197ce92ed1837fa875b'
 const TOKEN_CLASS = '0x6bc12b93be701b35f48d30acdf4caddf9fe603a3d7ca4f2ce8444a175262782'
+const GOVERNANCE = '0xdbe265829e0f1c859f3a8c1bd8fcfb0a774836b9e07191c6a624a59e37f9bf'
 
 /** The shape `scripts/ops/deploy-markets-launch.ts` actually writes. */
 const deployment = JSON.stringify({
@@ -86,6 +94,34 @@ describe('before anything is deployed', () => {
   })
 })
 
+describe('Governance write safety', () => {
+  it('keeps the currently deployed vulnerable class readable but not writable', () => {
+    const contracts = parseAppContracts(
+      JSON.stringify({
+        Governance: {
+          contractAddress: GOVERNANCE,
+          classHash: VULNERABLE_GOVERNANCE_CLASS_HASH,
+        },
+      }),
+    )
+    expect(contracts).toEqual({
+      governance: GOVERNANCE,
+      governanceClassHash: VULNERABLE_GOVERNANCE_CLASS_HASH,
+    })
+    expect(governanceWriteSafety(contracts)).toMatchObject({ enabled: false })
+  })
+
+  it('enables writes only for the reviewed corrected class', () => {
+    expect(
+      governanceWriteSafety({
+        governance: GOVERNANCE,
+        governanceClassHash: CORRECTED_GOVERNANCE_CLASS_HASH,
+      }),
+    ).toEqual({ enabled: true })
+    expect(governanceWriteSafety({ governance: GOVERNANCE })).toMatchObject({ enabled: false })
+  })
+})
+
 //
 // The browser has no filesystem, so its addresses arrive as build-time env. The same VALIDATION
 // applies on both sides even though the same parser cannot.
@@ -97,8 +133,16 @@ describe('the browser’s route to the same addresses', () => {
         PASSBOOK_MARKETS_ADDRESS: MARKETS,
         PASSBOOK_LAUNCH_ADDRESS: LAUNCH,
         PASSBOOK_PRAGMA_ADDRESS: PRAGMA,
+        PASSBOOK_GOVERNANCE_ADDRESS: GOVERNANCE,
+        PASSBOOK_GOVERNANCE_CLASS_HASH: CORRECTED_GOVERNANCE_CLASS_HASH,
       }),
-    ).toEqual({ markets: MARKETS, launch: LAUNCH, pragma: PRAGMA })
+    ).toEqual({
+      markets: MARKETS,
+      launch: LAUNCH,
+      pragma: PRAGMA,
+      governance: GOVERNANCE,
+      governanceClassHash: CORRECTED_GOVERNANCE_CLASS_HASH,
+    })
   })
 
   it('holds env to the same validation the file gets', () => {

@@ -44,6 +44,7 @@ export interface BridgeReviewProps {
   /** Absent while the action cannot be performed; the CTA says why instead of vanishing. */
   onConfirm?: () => void
   blocker?: string | null
+  dismissible?: boolean
 }
 
 export function BridgeReview({
@@ -58,6 +59,7 @@ export function BridgeReview({
   meter,
   onConfirm,
   blocker = null,
+  dismissible = true,
 }: BridgeReviewProps) {
   //
   // THE PANEL'S SEVERITY DOES NOT ROUTE TO THIS BUTTON, and that is deliberate rather than an
@@ -69,13 +71,13 @@ export function BridgeReview({
   const disclosure = disclosureFor('bridge-exit')
 
   return (
-    <ResponsiveDialog open={open} onOpenChange={onOpenChange} label="Review crossing" modal>
+    <ResponsiveDialog open={open} onOpenChange={onOpenChange} label="Review crossing" modal dismissible={dismissible}>
       <div className="flex min-h-0 w-full min-w-0 flex-col gap-s16">
         <div className="flex items-start justify-between gap-s12">
           <Text variant="body2" as="h2" className="text-neutral2">
             You&rsquo;re sending USDC to {chain.name}
           </Text>
-          <button
+          {dismissible ? <button
             type="button"
             onClick={() => onOpenChange(false)}
             aria-label="Close"
@@ -84,7 +86,7 @@ export function BridgeReview({
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
               <path d="M6 6L18 18M18 6L6 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
             </svg>
-          </button>
+          </button> : null}
         </div>
 
         <div className="-mx-s4 flex min-h-0 flex-1 flex-col gap-s16 overflow-y-auto px-s4">

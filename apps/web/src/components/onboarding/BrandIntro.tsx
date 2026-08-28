@@ -127,7 +127,7 @@ export function BrandIntro({ tagline = 'Private money that behaves like money', 
       onClick={finish}
       className="intro-stage"
     >
-      {/* Same gold wash as the conversion takeover, so the two surfaces are visibly one family. */}
+      {/* Same lime wash as the conversion takeover, so the two surfaces are visibly one family. */}
       <div className="onboarding-glow pointer-events-none absolute inset-s0" />
 
       <span className="intro-mark">

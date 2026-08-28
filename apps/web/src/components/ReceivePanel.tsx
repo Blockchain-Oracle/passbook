@@ -22,10 +22,16 @@
 // is where a substituted address would differ — so "Show full" is not a nicety, it is the control
 // that makes visual verification possible at all.
 //
-import { useCallback, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
 
 import { ADDRESS_IS_EXACT_BEFORE_DEPLOY, COPIED, COPY_ADDRESS } from '@strk20/protocol/account-copy'
+import {
+  buildPayLink,
+  parsePayLinkSearch,
+  PAY_NOTE_MAX_CHARS,
+  type PayAsset,
+} from '@strk20/protocol/pay-link'
 
 import { cn } from '../lib/cn'
 import { toast } from '../shell/toast-store'
@@ -45,8 +51,26 @@ export interface ReceivePanelProps {
 export default function ReceivePanel({ address }: ReceivePanelProps) {
   const [copied, setCopied] = useState(false)
   const [showFull, setShowFull] = useState(false)
+  const [mode, setMode] = useState<'address' | 'request'>('address')
+  const [asset, setAsset] = useState<PayAsset>('STRK')
+  const [amount, setAmount] = useState('')
+  const [note, setNote] = useState('')
 
-  const copy = useCallback(() => {
+  const request = useMemo(
+    () => parsePayLinkSearch({ asset, amount, note }),
+    [asset, amount, note],
+  )
+  const requestPath = useMemo(
+    () => (request.ok ? buildPayLink(address, request.value) : null),
+    [address, request],
+  )
+  const requestUrl = useMemo(() => {
+    if (!requestPath) return null
+    return typeof window === 'undefined' ? requestPath : `${window.location.origin}${requestPath}`
+  }, [requestPath])
+  const qrValue = mode === 'request' && requestUrl ? requestUrl : address
+
+  const copy = useCallback((value: string, label: string) => {
     //
     // NO OPTIONAL CHAINING ON `clipboard`. `navigator.clipboard?.writeText(…).then(ok, fail)`
     // short-circuits the whole chain when the API is absent, so NEITHER branch runs — and absent is
@@ -57,12 +81,12 @@ export default function ReceivePanel({ address }: ReceivePanelProps) {
     if (!navigator.clipboard) {
       toast({
         kind: 'error',
-        title: 'The address could not be copied',
+        title: `The ${label} could not be copied`,
         detail: 'This browser does not offer the clipboard here — it needs a secure (https) page.',
       })
       return
     }
-    navigator.clipboard.writeText(address).then(
+    navigator.clipboard.writeText(value).then(
       () => {
         setCopied(true)
         window.setTimeout(() => setCopied(false), 1600)
@@ -70,13 +94,13 @@ export default function ReceivePanel({ address }: ReceivePanelProps) {
       (cause: unknown) => {
         toast({
           kind: 'error',
-          title: 'The address could not be copied',
-          detail: 'This browser refused the clipboard. Select the address and copy it by hand.',
+          title: `The ${label} could not be copied`,
+          detail: `This browser refused the clipboard. Select the ${label} and copy it by hand.`,
         })
         console.warn('clipboard write failed', cause)
       },
     )
-  }, [address])
+  }, [])
 
   const shown =
     showFull || address.length <= LEAD + TAIL + 1
@@ -101,6 +125,69 @@ export default function ReceivePanel({ address }: ReceivePanelProps) {
         usable width on a 1440px screen. One column is the right answer in the box it is actually in.
       */}
       <div className="flex flex-col items-center gap-s12">
+        <div className="flex w-full rounded-pill bg-inset p-s4" aria-label="Receive format">
+          {(['address', 'request'] as const).map((choice) => (
+            <button
+              key={choice}
+              type="button"
+              aria-pressed={mode === choice}
+              onClick={() => {
+                setMode(choice)
+                setCopied(false)
+              }}
+              className={cn(
+                'focus-ring min-h-s36 flex-1 rounded-pill px-s12 text-buttonLabel3 capitalize',
+                mode === choice ? 'bg-accent1 text-ground' : 'text-neutral2 hover:text-neutral1',
+              )}
+            >
+              {choice}
+            </button>
+          ))}
+        </div>
+
+        {mode === 'request' ? (
+          <div className="grid w-full min-w-0 grid-cols-1 gap-s8 rounded-card border border-solid border-surface3 p-s12 sm:grid-cols-2">
+            <label className="flex min-w-0 flex-col gap-s4">
+              <span className="text-body4 text-neutral2">Asset</span>
+              <select
+                value={asset}
+                onChange={(event) => setAsset(event.target.value as PayAsset)}
+                className="focus-ring min-h-s44 rounded-control border border-solid border-surface3 bg-raised px-s12 text-body3 text-neutral1"
+              >
+                <option value="STRK">STRK</option>
+                <option value="USDC">USDC</option>
+              </select>
+            </label>
+            <label className="flex min-w-0 flex-col gap-s4">
+              <span className="text-body4 text-neutral2">Amount · optional</span>
+              <input
+                value={amount}
+                onChange={(event) => setAmount(event.target.value)}
+                inputMode="decimal"
+                placeholder="0"
+                aria-invalid={!request.ok || undefined}
+                className="focus-ring numeric min-h-s44 min-w-0 rounded-control border border-solid border-surface3 bg-raised px-s12 text-body3 text-neutral1"
+              />
+            </label>
+            <label className="flex min-w-0 flex-col gap-s4 sm:col-span-2">
+              <span className="text-body4 text-neutral2">Note · optional, not on chain</span>
+              <textarea
+                value={note}
+                onChange={(event) => setNote(event.target.value)}
+                maxLength={PAY_NOTE_MAX_CHARS}
+                rows={2}
+                placeholder="What is this payment for?"
+                className="focus-ring min-w-0 resize-none rounded-control border border-solid border-surface3 bg-raised p-s12 text-body3 text-neutral1"
+              />
+            </label>
+            {!request.ok ? (
+              <Text variant="body4" className="text-irreversible sm:col-span-2" role="alert">
+                {request.because}
+              </Text>
+            ) : null}
+          </div>
+        ) : null}
+
         {/*
           `#fff` and `#131313` as literals: see the header. `marginSize={0}` because the card's own
           16px padding IS the quiet zone — letting the library draw a second one inside would shrink
@@ -110,7 +197,7 @@ export default function ReceivePanel({ address }: ReceivePanelProps) {
           className="relative flex shrink-0 rounded-card p-s16"
           style={{ backgroundColor: '#ffffff' }}
         >
-          <QRCodeSVG value={address} size={168} level="Q" marginSize={0} fgColor="#131313" bgColor="#ffffff" />
+          <QRCodeSVG value={qrValue} size={168} level="Q" marginSize={0} fgColor="#131313" bgColor="#ffffff" />
           {/*
             The disc, ringed in the same white as the card so the occlusion is a clean square the
             error correction can absorb rather than a ragged edge over live modules.
@@ -125,7 +212,7 @@ export default function ReceivePanel({ address }: ReceivePanelProps) {
 
         <div className="flex min-w-0 flex-1 flex-col gap-s8">
           <Text variant="body4" className="text-neutral3">
-            Your account address
+            {mode === 'request' ? 'Payment request link' : 'Your account address'}
           </Text>
           <code
             className={cn(
@@ -135,20 +222,32 @@ export default function ReceivePanel({ address }: ReceivePanelProps) {
               'select-all',
             )}
           >
-            {shown}
+            {mode === 'request' ? (requestUrl ?? 'Fix the request fields above') : shown}
           </code>
           <div className="flex flex-wrap gap-s8">
-            <Button variant="primary" size="sm" onClick={copy}>
-              {copied ? COPIED : COPY_ADDRESS}
+            <Button
+              variant="primary"
+              size="sm"
+              disabled={mode === 'request' && requestUrl === null}
+              onClick={() =>
+                copy(
+                  mode === 'request' ? (requestUrl ?? '') : address,
+                  mode === 'request' ? 'request link' : 'address',
+                )
+              }
+            >
+              {copied ? COPIED : mode === 'request' ? 'Copy request link' : COPY_ADDRESS}
             </Button>
-            <Button variant="tertiary" size="sm" onClick={() => setShowFull((on) => !on)}>
-              {showFull ? 'Show less' : 'Show full'}
-            </Button>
+            {mode === 'address' ? (
+              <Button variant="tertiary" size="sm" onClick={() => setShowFull((on) => !on)}>
+                {showFull ? 'Show less' : 'Show full'}
+              </Button>
+            ) : null}
           </div>
           <Text variant="body4" className="text-neutral3">
-            Anything sent to {shortenFelt(address, 8, 6)} lands in the pool for this account. A
-            deposit is public on chain — the amount and the sender are visible; what happens after
-            it is shielded is not.
+            {mode === 'request'
+              ? 'The link prefills Send. Its note is human context only and is not written into the transaction.'
+              : `Anything sent to ${shortenFelt(address, 8, 6)} reaches this public account first. The amount and sender are visible until those funds are shielded in a separate transaction.`}
           </Text>
         </div>
       </div>

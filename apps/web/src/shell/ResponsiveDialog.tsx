@@ -79,6 +79,8 @@ export interface ResponsiveDialogProps {
    * caller will need.
    */
   modal?: boolean | 'trap-focus'
+  /** False while closing would hide work or one-time material that cannot be recovered. */
+  dismissible?: boolean
   children: ReactNode
 }
 
@@ -87,6 +89,7 @@ export function ResponsiveDialog({
   onOpenChange,
   label,
   modal = false,
+  dismissible = true,
   children,
 }: ResponsiveDialogProps) {
   const isDesktop = useThreshold(SHEET_BELOW)
@@ -104,6 +107,7 @@ export function ResponsiveDialog({
 
   const handleOpenChange = useCallback(
     (next: boolean, details: Drawer.Root.ChangeEventDetails) => {
+      if (!next && !dismissible) return
       //
       // Only on the way OUT, and only when there is a backdrop to outlive. A non-modal popup has no
       // scrim, so holding the portal open past the popup's own animation would buy nothing and cost
@@ -120,7 +124,7 @@ export function ResponsiveDialog({
       }
       onOpenChange(next)
     },
-    [modal, onOpenChange],
+    [dismissible, modal, onOpenChange],
   )
 
   return (

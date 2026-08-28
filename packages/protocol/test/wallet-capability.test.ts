@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import {
   versionGte, assessByVersion, assessByProbe, resolveFundingCapability,
-  MIN_WALLET_API, PUBLIC_DEPOSIT_NOTICE,
+  MIN_WALLET_API, PUBLIC_FUNDING_NOTICE,
 } from '../src/wallet-capability.js'
 
 describe('versionGte', () => {
@@ -46,8 +46,8 @@ describe('capability gate order (FR-017, story 1.15)', () => {
     expect(probe).toHaveBeenCalledOnce()
   })
 
-  it('MIN_WALLET_API is 0.10.3 and the public-deposit notice exists', () => {
+  it('MIN_WALLET_API is 0.10.3 and the public-funding notice exists', () => {
     expect(MIN_WALLET_API).toBe('0.10.3')
-    expect(PUBLIC_DEPOSIT_NOTICE).toMatch(/deposit is public/i)
+    expect(PUBLIC_FUNDING_NOTICE).toMatch(/funding transfer is public/i)
   })
 })

@@ -3,8 +3,8 @@
 //
 // ── THE HARDEST SENTENCES HERE ARE THE EMPTY ONES ────────────────────────────────────────
 //
-// The contracts are written, tested and committed. They are NOT deployed. So both surfaces spend
-// most of their life rendering an absence, and there are exactly two honest ways to render one:
+// The contracts are deployed and their address evidence is verified. Empty boards still need one
+// of two honest treatments:
 // say what is missing and what will fill it, or show nothing. What they must never do is show a
 // plausible market with invented odds — a screenshot of that is indistinguishable from a working
 // product, which is the fixture-as-truth the anti-demo gate exists to stop.
@@ -12,9 +12,10 @@
 // ── AND THE PRIVACY CLAIM HERE IS NARROW ─────────────────────────────────────────────────
 //
 // `forbidden-claims.ts` names "amounts are private" as false on this protocol, and it is false on
-// exactly these two surfaces: every leg that touches an open note is public. A bet's SIZE and the
-// odds it moved are visible to anyone reading the chain. What is hidden is WHO. Every sentence
-// below that mentions privacy says that, and none of them says more.
+// exactly these two surfaces: every leg that touches an open note is public. A bet's SIZE, the
+// odds it moved and its transaction submitter are visible to anyone reading the chain. The narrow
+// protection is that Markets stores a bearer commitment instead of a bettor address. Every
+// sentence below that mentions privacy says that, and none of them says more.
 //
 // ── THE ANONYMITY CLAIM IS NARROWER STILL ────────────────────────────────────────────────
 //
@@ -30,8 +31,8 @@ export const MARKETS_TITLE = 'Markets'
 
 /** The standing line. Narrow on purpose — see the header. */
 export const MARKETS_STANDING_LINE =
-  'Take a side on where a price ends up. The size you bet and the odds you move are public; which ' +
-  'account placed the bet is not.'
+  'Take a side on where a price ends up. The size, odds movement and transaction submitter are ' +
+  'public; the Markets record stores a bearer commitment instead of a bettor address.'
 
 /**
  * The empty state before any deployment.
@@ -41,8 +42,8 @@ export const MARKETS_STANDING_LINE =
  * on a transaction". Those are very different things to be looking at.
  */
 export const MARKETS_NOT_DEPLOYED =
-  'No markets yet. The contract is written and tested but not deployed, so there is nothing to bet ' +
-  'on until it lands — the prices above are live from the same oracle a market will settle against.'
+  'The Markets deployment is missing from this build, so writes are unavailable. Prices remain ' +
+  'live from the same oracle a verified deployment settles against.'
 
 /** Deployed, and genuinely nothing open. Different fact, different sentence. */
 export const MARKETS_NONE_OPEN =
@@ -163,12 +164,11 @@ export const POSITION_SECRETS_ARE_MONEY =
 export const LAUNCH_TITLE = 'Launch'
 
 export const LAUNCH_STANDING_LINE =
-  'Buy into a token as it is being sold. The price and the progress are public; who is buying is ' +
-  'not.'
+  'Buy into a token as it is being sold. Price, progress and transaction submitter are public; ' +
+  'the Launch record stores a bearer commitment instead of a buyer address.'
 
 export const LAUNCH_NOT_DEPLOYED =
-  'No launches yet. The contract is written and tested but not deployed, so nothing can be created ' +
-  'until it lands.'
+  'The Launch deployment is missing from this build, so creation and buying are unavailable.'
 
 export const LAUNCH_NONE_OPEN =
   'No launches are open right now. Anyone can start one, and it graduates when it fills.'
@@ -193,8 +193,8 @@ export const LAUNCH_EPOCH_FACT =
  * is true is narrower and still worth saying — this contract never sees it.
  */
 export const LAUNCH_BUYER_HIDDEN =
-  'Buys arrive as withdrawals from the pool, so the launch records no buyer address. The price ' +
-  'action is fully visible; the buyers are not.'
+  'The Launch contract records a bearer commitment instead of a buyer address. The price action ' +
+  'and transaction submitter remain visible.'
 
 export const LAUNCH_GRADUATION =
   'When the sale fills, the token is deployed and every buyer can redeem their share.'

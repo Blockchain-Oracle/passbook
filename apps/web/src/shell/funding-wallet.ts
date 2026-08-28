@@ -344,7 +344,7 @@ export function disconnectWallet(): void {
 /** The minimum Wallet API version that means "this wallet can do STRK20 itself". */
 export { MIN_WALLET_API }
 
-export type DepositOutcome = { ok: true; txHash: string } | { ok: false; because: string }
+export type PublicFundingOutcome = { ok: true; txHash: string } | { ok: false; because: string }
 
 /**
  * The connected wallet as a SUBMIT EXECUTOR — Ready signs, Ready pays — or null.
@@ -386,7 +386,7 @@ export function walletSubmitter():
  *
  * ── THIS IS A PUBLIC TRANSFER AND THE UI MUST SAY SO BEFORE IT RUNS ───────────────────────
  *
- * `PUBLIC_DEPOSIT_NOTICE` is the sentence, and it is not decoration: the sender, the recipient and
+ * `PUBLIC_FUNDING_NOTICE` is the sentence, and it is not decoration: the sender, the recipient and
  * the amount are all on chain here. Privacy starts AFTER the deposit — when the funds are shielded
  * into the pool — and a UI that implied otherwise would be making the one claim about this product
  * that is most tempting and most false.
@@ -396,11 +396,11 @@ export function walletSubmitter():
  * Same encoding trap as the relayer's drip: `transfer` takes low and high felts, and emitting one
  * makes the ERC-20 read the next slot as the high half.
  */
-export async function depositToPassbook(
+export async function fundPublicAccount(
   token: string,
   amountWei: bigint,
   passbookAddress: string,
-): Promise<DepositOutcome> {
+): Promise<PublicFundingOutcome> {
   const live = account
   if (!live) return { ok: false, because: 'No wallet is connected.' }
 
@@ -422,7 +422,7 @@ export async function depositToPassbook(
   } catch (e) {
     return {
       ok: false,
-      because: `The deposit was not sent: ${e instanceof Error ? e.message : String(e)}`,
+      because: `The public funding transfer was not sent: ${e instanceof Error ? e.message : String(e)}`,
     }
   }
 }

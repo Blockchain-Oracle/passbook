@@ -21,8 +21,8 @@
 // `directory.ts` re-exports every name below, so no existing caller changes.
 //
 
-/** Lowercase handle, 3–20 of [a-z0-9_]. Enforced on BOTH sides; normalize before testing. */
-export const DIRECTORY_NAME_PATTERN = /^[a-z0-9_]{3,20}$/
+/** Lowercase handle, 3–20 of [a-z0-9_-]. Enforced on BOTH sides; normalize before testing. */
+export const DIRECTORY_NAME_PATTERN = /^[a-z0-9_-]{3,20}$/
 
 export function normalizeDirectoryName(raw: string): string {
   return raw.trim().toLowerCase()

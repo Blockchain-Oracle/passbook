@@ -4,24 +4,49 @@
 // the section says so rather than implying an account somewhere remembers you.
 //
 import { voyagerTxUrl } from '@strk20/protocol/transaction'
+import type { OnChainLaunch } from '@strk20/protocol/app-reads'
 
 import { usePositions } from '../../shell/use-positions'
 import { shortenFelt } from '../../shell/session'
+import { GOVERNANCE_WRITE_SAFETY } from '../../shell/app-contracts'
+import { LaunchPositionSettlements } from '../PositionSettlement'
 import { Text } from '../ui/Text'
 
 export function YourPositions({
   launchId,
   venue = 'launch',
+  launch,
+  stakeSymbol,
+  stakeDecimals,
+  governanceHouseId,
 }: {
   launchId?: number
   /** Which contract's claims to list — the launch surface's default, the Houses pass their own. */
   venue?: 'launch' | 'market' | 'governance'
+  /** A launch record supplies live chain state so terminal redeem/refund doors can be shown. */
+  launch?: OnChainLaunch
+  stakeSymbol?: string
+  stakeDecimals?: number
+  governanceHouseId?: number
 }) {
   const positions = usePositions()
   const held = positions.filter(
-    (p) => p.venue === venue && (launchId === undefined || p.id === launchId),
+    (p) =>
+      p.venue === venue &&
+      (launchId === undefined || p.id === launchId) &&
+      (governanceHouseId === undefined || p.houseId === governanceHouseId),
   )
   if (held.length === 0) return null
+  if (venue === 'launch' && launch && stakeSymbol !== undefined && stakeDecimals !== undefined) {
+    return (
+      <LaunchPositionSettlements
+        positions={held}
+        launch={launch}
+        stakeSymbol={stakeSymbol}
+        stakeDecimals={stakeDecimals}
+      />
+    )
+  }
 
   return (
     <section className="flex flex-col gap-s6 rounded-large border border-solid border-surface3 p-s16">
@@ -54,8 +79,11 @@ export function YourPositions({
         )
       })}
       <Text variant="body4" className="text-neutral3">
-        Each position is a bearer secret this browser keeps — it rides the recovery backup with
-        your notes.
+        {venue === 'governance'
+          ? GOVERNANCE_WRITE_SAFETY.enabled
+            ? 'Ballot and delegation exits appear only when their proposal state permits them.'
+            : `Settlement is read-only on this Governance deployment: ${GOVERNANCE_WRITE_SAFETY.because}`
+          : 'Each position is a bearer secret this browser keeps — it rides the recovery backup with your notes.'}
       </Text>
     </section>
   )

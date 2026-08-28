@@ -286,20 +286,20 @@ export const GOV_NOT_ANONYMITY =
   'StarkWare’s auditor escrow applies here as everywhere.'
 
 export const GOV_JOIN_ROLL =
-  'Joining puts an anonymous handle on the House’s roll. The public sees the member count move, ' +
-  'never a member list.'
+  'Joining puts a pool-derived handle, not your address, on the House’s roll. The submitting ' +
+  'account remains visible on the transaction.'
 
 export const GOV_DELEGATE_POT =
-  'The delegate’s pot grows by this amount, in public. Whose tokens grew it never exists ' +
-  'on-chain — not even the delegate learns the source.'
+  'The delegate’s pot grows by this amount in public. The House stores a derived delegator handle, ' +
+  'while the transaction submitter remains visible.'
 
 export const GOV_FUND_GIVEN =
   'The treasury grows by this amount, in public, and the gift has no way back — a treasury that ' +
   'could be clawed back one donor at a time would not be a treasury.'
 
 export const GOV_RECLAIM_BEARER =
-  'The escrow comes back as a fresh note to whoever presents the bearer secret — the exit is as ' +
-  'unlinkable as the entry.'
+  'The escrow comes back as a fresh note to whoever presents the bearer secret. The settlement ' +
+  'transaction and its submitter remain visible.'
 
 export const DISCLOSURE_HEADLINE = {
   'pool-send': POOL_SEES,

@@ -126,7 +126,7 @@ export function DestinationField({
           aria-label={`Destination address on ${chain.name}`}
           aria-invalid={showProblem || undefined}
           className={cn(
-            'numeric min-h-s36 w-full bg-transparent text-body2 outline-none',
+            'numeric min-h-s36 w-full bg-transparent text-body2',
             'placeholder:font-sans placeholder:text-neutral3',
             showProblem ? 'text-irreversible' : 'text-neutral1',
           )}

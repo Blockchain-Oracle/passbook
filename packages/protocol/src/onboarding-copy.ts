@@ -292,8 +292,8 @@ export function createFeeNote(feeStrk: string | null): string {
       ? 'the pool’s registration fee'
       : `the pool’s ${feeStrk} STRK registration fee`
   return (
-    `Creating the account is one transaction, staked by the faucet — deploy gas, ${fee}, and a ` +
-    'starter balance. It lands in your history as an ordinary receipt, with its hash. The faucet ' +
+    `Account setup runs as an automatic ladder: one faucet drip, account deployment, ${fee}, and ` +
+    'confirmation. Each submitted transaction keeps its own receipt and hash in Activity. The faucet ' +
     'gives once, enough for your first few transactions; after that the account pays its own way. ' +
     'If the faucet is dry you can fund the account yourself from any wallet — the address is on ' +
     'this screen.'

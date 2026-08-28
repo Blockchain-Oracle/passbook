@@ -14,14 +14,14 @@ requirement: the app and the document cannot ship apart, and a test would only p
 the moment the suite ran.
 
 <!-- generated:source -->
-*Generated from `packages/protocol/src/visibility-matrix.ts` and `packages/protocol/src/disclosure-copy.ts` — sha256 3065e114c19985b810a73ffa160b4b6fa7330f60b2d2dada4e1daba4865d5682. Regenerate with `pnpm run render:privacy`; do not hand-edit anything between the generated markers.*
+*Generated from `packages/protocol/src/visibility-matrix.ts` and `packages/protocol/src/disclosure-copy.ts` — sha256 8e2b8753b3c91f2c0b73b74aca075342d997ac19bc4573da43acbb42b3b6f69f. Regenerate with `pnpm run render:privacy`; do not hand-edit anything between the generated markers.*
 <!-- /generated:source -->
 
 ---
 
 ## The claim this product makes, in one sentence
 
-Your six surfaces are **unlinkable to other users**. That is the whole claim and it is deliberately
+Your seven surfaces are **unlinkable to other users**. That is the whole claim and it is deliberately
 narrower than the one every product in this category makes: the account view is assembled in your
 browser and is not stored on chain, so there is nothing on the chain for another user to follow.
 
@@ -287,7 +287,7 @@ what each action exposes.
 <!-- generated:gov-join -->
 ### Joining a House
 
-> Joining puts an anonymous handle on the House’s roll. The public sees the member count move, never a member list.
+> Joining puts a pool-derived handle, not your address, on the House’s roll. The submitting account remains visible on the transaction.
 
 |  | You | Relayer | Everyone | Auditor |
 |---|---|---|---|---|
@@ -297,13 +297,13 @@ what each action exposes.
 | **Timing** | Sees | Sees | Sees | Sees |
 | **Network address** | Sees | Sees | Hidden | Hidden |
 
-1. The public sees the House’s member COUNT move, never a member list — the roll is anonymous handles the pool derives, and no list of them exists to publish.
+1. The public sees the House’s member COUNT move; the roll stores pool-derived handles instead of addresses. The transaction submitter remains visible.
 <!-- /generated:gov-join -->
 
 <!-- generated:gov-delegate -->
 ### Delegating voting weight
 
-> The delegate’s pot grows by this amount, in public. Whose tokens grew it never exists on-chain — not even the delegate learns the source.
+> The delegate’s pot grows by this amount in public. The House stores a derived delegator handle, while the transaction submitter remains visible.
 
 |  | You | Relayer | Everyone | Auditor |
 |---|---|---|---|---|
@@ -313,7 +313,7 @@ what each action exposes.
 | **Timing** | Sees | Sees | Sees | Sees |
 | **Network address** | Sees | Sees | Hidden | Hidden |
 
-1. The pot grew by this amount, in public. Whose tokens grew it does not exist on-chain — not even the delegate learns the source.
+1. The pot grew by this amount in public. The House stores a derived delegator handle, and the transaction submitter remains visible.
 <!-- /generated:gov-delegate -->
 
 <!-- generated:gov-fund -->
@@ -333,7 +333,7 @@ what each action exposes.
 <!-- generated:gov-reclaim -->
 ### Reclaiming ballot escrow
 
-> The escrow comes back as a fresh note to whoever presents the bearer secret — the exit is as unlinkable as the entry.
+> The escrow comes back as a fresh note to whoever presents the bearer secret. The settlement transaction and its submitter remain visible.
 
 |  | You | Relayer | Everyone | Auditor |
 |---|---|---|---|---|

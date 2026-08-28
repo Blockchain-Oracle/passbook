@@ -17,7 +17,7 @@ import { currentBlocker, getHealth, subscribeHealth } from '../../shell/pool-hea
 import { toast } from '../../shell/toast-store'
 import { useBalance } from '../../shell/use-balance'
 import { addPosition } from '../../shell/use-positions'
-import { stageLabels } from '../../shell/stage-labels'
+import { stageLabel } from '../../shell/stage-labels'
 import { useSend } from '../../shell/use-send'
 import { useSession } from '../../shell/session'
 import { useTokenList } from '../../shell/use-token-list'
@@ -26,7 +26,6 @@ import { BlockedButton } from '../BlockedButton'
 import { Text } from '../ui/Text'
 import { PairMark } from './PairMark'
 
-const STAGE_LABEL: Record<string, string> = stageLabels('Building the market…')
 
 /** How long a new market runs. The floor is the contract's own rule, and the short tier says so. */
 const WINDOWS = [
@@ -125,6 +124,7 @@ export function CreateMarket({ open, onClose }: { open: boolean; onClose: () => 
     if (!outcome.ok) return
     addPosition({
       venue: 'market',
+      kind: 'market-seed',
       // The new market's id is `market_count` before this landed; the next poll renders it. The
       // position label carries the QUESTION, which is what the user will recognise it by.
       id: -1,
@@ -143,7 +143,7 @@ export function CreateMarket({ open, onClose }: { open: boolean; onClose: () => 
   }, [strk, strike8dp, parsedSeed.wei, pair, chosen, sending, decimals, onClose])
 
   return (
-    <ResponsiveDialog open={open} onOpenChange={(next) => (next ? undefined : onClose())} label="Create a market" modal>
+    <ResponsiveDialog open={open} onOpenChange={(next) => (next ? undefined : onClose())} label="Create a market" modal dismissible={sending.stage === null}>
       <div className="flex min-h-0 flex-col gap-s12 overflow-y-auto">
         <Text variant="subheading2" as="h2" className="text-neutral1">
           Create a market
@@ -193,7 +193,7 @@ export function CreateMarket({ open, onClose }: { open: boolean; onClose: () => 
               placeholder="0"
               inputMode="decimal"
               aria-label="Strike price in dollars"
-              className="focus-ring numeric min-w-0 flex-1 bg-transparent font-mono text-heading3 text-neutral1 outline-none placeholder:text-neutral3"
+              className="focus-ring numeric min-w-0 flex-1 bg-transparent font-mono text-heading3 text-neutral1 placeholder:text-neutral3"
             />
           </div>
           <Text variant="body4" className="text-neutral3" as="span">
@@ -241,7 +241,7 @@ export function CreateMarket({ open, onClose }: { open: boolean; onClose: () => 
               placeholder="0"
               inputMode="decimal"
               aria-label="Seed amount"
-              className="focus-ring numeric min-w-0 flex-1 bg-transparent font-mono text-heading3 text-neutral1 outline-none placeholder:text-neutral3"
+              className="focus-ring numeric min-w-0 flex-1 bg-transparent font-mono text-heading3 text-neutral1 placeholder:text-neutral3"
             />
             <span className="shrink-0 rounded-pill border border-solid border-surface3Hovered bg-insetHovered px-s12 py-s6 text-buttonLabel4 text-neutral1">
               STRK
@@ -257,7 +257,7 @@ export function CreateMarket({ open, onClose }: { open: boolean; onClose: () => 
         <BlockedButton
           blocker={
             sending.stage
-              ? (STAGE_LABEL[sending.stage] ?? 'Working…')
+              ? stageLabel(sending.stage)
               : (blocker ?? sending.problem)
           }
           action="Open this market"

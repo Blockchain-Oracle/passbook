@@ -64,7 +64,7 @@ export type RoutePathsAreNotWidened = Assert<Not<Ext<string, Paths>>>
 //
 // ---- routes are modes: the coupling, in both directions ------------------------------------------
 //
-// `shell/modes.ts` says which routes are the six modes and which are ancillary. On its own that is
+// `shell/modes.ts` says which routes are the seven modes and which are ancillary. On its own that is
 // half a contract — it can only be wrong about modes. These two assertions close the other half, and
 // all three artifacts ship together or none of the coupling is sound.
 //
@@ -78,7 +78,7 @@ export type RoutePathsAreNotWidened = Assert<Not<Ext<string, Paths>>>
 // of a vacuous guard is silence; this one gets louder.
 //
 
-/** Every route the tree declares is either one of the six modes or a named ancillary page. */
+/** Every route the tree declares is either one of the seven modes or a named ancillary page. */
 export type EveryRouteIsClassified = Assert<Ext<Paths, ClassifiedPath>>
 
 /** And nothing in that vocabulary names a route that does not exist. */
@@ -94,10 +94,10 @@ export type EveryClassifiedPathIsARoute = Assert<Ext<ClassifiedPath, Paths>>
 // point.
 //
 //
-// ---- the six surfaces are the six modes -----------------------------------------------------
+// ---- the seven surfaces are the seven modes -------------------------------------------------
 //
 // `@strk20/protocol/transaction` declares `ActivitySurface` — which surface originated a
-// transaction — and it has to be the same six as the router's modes. The list is duplicated rather
+// transaction — and it has to be the same seven as the router's modes. The list is duplicated rather
 // than imported because the protocol package must not reach the router's types, and a duplicated
 // list is a list that drifts. These two assertions are what make the duplication safe, and they
 // live here for the reason the route coupling above does: this file is where cross-artifact
@@ -116,10 +116,10 @@ export type EveryModeIsASurface = Assert<Ext<Mode, ActivitySurface>>
 export type EverySurfaceIsAMode = Assert<Ext<ActivitySurface, Mode>>
 
 //
-// ---- the review vocabulary belongs to the six surfaces ---------------------------------------
+// ---- the review vocabulary belongs to the seven surfaces -------------------------------------
 //
 // `@strk20/protocol/visibility-matrix` declares the ten review contexts a disclosure panel can be
-// asked for, and each of them has to live on one of the six modes — a context on a seventh surface
+// asked for, and each of them has to live on one of the seven modes — a context on an eighth surface
 // is a panel with no screen to render on, and a surface with no context is a Review that would have
 // to render an empty matrix, which is the one thing story 6.7 forbids.
 //
@@ -141,7 +141,7 @@ export type EveryContextIsASurface = Assert<
   Ext<(typeof CONTEXT_SURFACE)[VisibilityContext], ActivitySurface>
 >
 
-/** And the reverse map is keyed by exactly the six surfaces — no more, no fewer. */
+/** And the reverse map is keyed by exactly the seven surfaces — no more, no fewer. */
 export type EverySurfaceHasAContext = Assert<Ext<ActivitySurface, keyof typeof SURFACE_CONTEXT>>
 export type EveryContextKeyIsASurface = Assert<Ext<keyof typeof SURFACE_CONTEXT, ActivitySurface>>
 
