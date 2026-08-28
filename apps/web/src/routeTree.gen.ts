@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as BridgeRouteImport } from './routes/bridge'
 import { Route as ChatRouteImport } from './routes/chat'
+import { Route as HousesRouteImport } from './routes/houses'
 import { Route as LaunchRouteImport } from './routes/launch'
 import { Route as MarketsRouteImport } from './routes/markets'
 import { Route as SendRouteImport } from './routes/send'
@@ -39,6 +40,11 @@ const BridgeRoute = BridgeRouteImport.update({
 const ChatRoute = ChatRouteImport.update({
   id: '/chat',
   path: '/chat',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const HousesRoute = HousesRouteImport.update({
+  id: '/houses',
+  path: '/houses',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LaunchRoute = LaunchRouteImport.update({
@@ -111,6 +117,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/bridge': typeof BridgeRoute
   '/chat': typeof ChatRouteWithChildren
+  '/houses': typeof HousesRoute
   '/launch': typeof LaunchRoute
   '/markets': typeof MarketsRoute
   '/send': typeof SendRoute
@@ -128,6 +135,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/bridge': typeof BridgeRoute
+  '/houses': typeof HousesRoute
   '/launch': typeof LaunchRoute
   '/markets': typeof MarketsRoute
   '/send': typeof SendRoute
@@ -147,6 +155,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/bridge': typeof BridgeRoute
   '/chat': typeof ChatRouteWithChildren
+  '/houses': typeof HousesRoute
   '/launch': typeof LaunchRoute
   '/markets': typeof MarketsRoute
   '/send': typeof SendRoute
@@ -167,6 +176,7 @@ export interface FileRouteTypes {
     | '/'
     | '/bridge'
     | '/chat'
+    | '/houses'
     | '/launch'
     | '/markets'
     | '/send'
@@ -184,6 +194,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/bridge'
+    | '/houses'
     | '/launch'
     | '/markets'
     | '/send'
@@ -202,6 +213,7 @@ export interface FileRouteTypes {
     | '/'
     | '/bridge'
     | '/chat'
+    | '/houses'
     | '/launch'
     | '/markets'
     | '/send'
@@ -221,6 +233,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   BridgeRoute: typeof BridgeRoute
   ChatRoute: typeof ChatRouteWithChildren
+  HousesRoute: typeof HousesRoute
   LaunchRoute: typeof LaunchRoute
   MarketsRoute: typeof MarketsRoute
   SendRoute: typeof SendRoute
@@ -255,6 +268,13 @@ declare module '@tanstack/react-router' {
       path: '/chat'
       fullPath: '/chat'
       preLoaderRoute: typeof ChatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/houses': {
+      id: '/houses'
+      path: '/houses'
+      fullPath: '/houses'
+      preLoaderRoute: typeof HousesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/launch': {
@@ -367,6 +387,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   BridgeRoute: BridgeRoute,
   ChatRoute: ChatRouteWithChildren,
+  HousesRoute: HousesRoute,
   LaunchRoute: LaunchRoute,
   MarketsRoute: MarketsRoute,
   SendRoute: SendRoute,

@@ -46,7 +46,7 @@ import type { PipelineStage } from './pipeline-stage.js'
  * surface are different mistakes and both are TS2344. The list is duplicated rather than imported
  * because `modes.ts` reaches the router's types and this package must not.
  */
-export const ACTIVITY_SURFACES = ['wallet', 'chat', 'swap', 'bridge', 'markets', 'launch'] as const
+export const ACTIVITY_SURFACES = ['wallet', 'chat', 'swap', 'bridge', 'markets', 'launch', 'houses'] as const
 
 export type ActivitySurface = (typeof ACTIVITY_SURFACES)[number]
 

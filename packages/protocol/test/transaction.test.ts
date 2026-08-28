@@ -94,9 +94,9 @@ function failed(retryable: boolean, reason: string): Transaction {
   return { id: 'local-2', chain: { state: 'failed', retryable, reason }, surface: 'chat', label: 'Send' }
 }
 
-describe('the six surfaces', () => {
-  it('is closed at six, in nav order', () => {
-    expect(ACTIVITY_SURFACES).toEqual(['wallet', 'chat', 'swap', 'bridge', 'markets', 'launch'])
+describe('the seven surfaces', () => {
+  it('is closed at seven, in nav order — houses joined with the governance story', () => {
+    expect(ACTIVITY_SURFACES).toEqual(['wallet', 'chat', 'swap', 'bridge', 'markets', 'launch', 'houses'])
   })
 
   it('labels every kind the record can hold', () => {

@@ -36,6 +36,8 @@ import {
   BRIDGE_WAY_OUT,
   CHAT_AUDITOR_DERIVES,
   DISCLOSURE_HEADLINE,
+  GOV_NOT_ANONYMITY,
+  GOV_TELLER_PEEK,
   LAUNCH_CROWD,
   MARKETS_DENOMINATIONS,
   NOTES_STAY,
@@ -244,6 +246,68 @@ const TABLE = {
     authored: false,
     context: 'launch-sell',
     because: unauthoredReason('launch-sell'),
+  },
+
+  // ── The Houses (docs/governance.md §15's shipped sentences). The Teller is a NAMED party on
+  //    the ballot panel, beside the relayer and the auditor — that placement is the disclosure.
+  'gov-ballot': {
+    authored: true,
+    context: 'gov-ballot',
+    lines: [
+      leaves(DISCLOSURE_HEADLINE['gov-ballot'], 'low'),
+      leaves(GOV_TELLER_PEEK, 'low'),
+      leaves(GOV_NOT_ANONYMITY, 'low'),
+      leaves(AUDITOR_ESCROW, 'low'),
+    ],
+    wayOut: null,
+  },
+
+  'gov-join': {
+    authored: true,
+    context: 'gov-join',
+    lines: [
+      leaves(DISCLOSURE_HEADLINE['gov-join'], 'low'),
+      stays(NOTES_STAY),
+      leaves(RELAYER_SEES, 'low'),
+      leaves(AUDITOR_ESCROW, 'low'),
+    ],
+    wayOut: null,
+  },
+
+  'gov-delegate': {
+    authored: true,
+    context: 'gov-delegate',
+    lines: [
+      leaves(DISCLOSURE_HEADLINE['gov-delegate'], 'low'),
+      stays(NOTES_STAY),
+      leaves(RELAYER_SEES, 'low'),
+      leaves(AUDITOR_ESCROW, 'low'),
+    ],
+    wayOut: null,
+  },
+
+  'gov-fund': {
+    authored: true,
+    context: 'gov-fund',
+    lines: [
+      leaves(DISCLOSURE_HEADLINE['gov-fund'], 'medium'),
+      stays(NOTES_STAY),
+      leaves(RELAYER_SEES, 'low'),
+      leaves(AUDITOR_ESCROW, 'low'),
+    ],
+    wayOut: null,
+  },
+
+  'gov-reclaim': {
+    authored: true,
+    context: 'gov-reclaim',
+    lines: [
+      leaves(DISCLOSURE_HEADLINE['gov-reclaim'], 'low'),
+      stays(NOTES_STAY),
+      leaves(RELAYER_SEES, 'low'),
+      leaves(AUDITOR_ESCROW, 'low'),
+    ],
+    wayOut: null,
   },
 } as const satisfies Record<VisibilityContext, Disclosure>
 

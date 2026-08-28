@@ -14,7 +14,7 @@ requirement: the app and the document cannot ship apart, and a test would only p
 the moment the suite ran.
 
 <!-- generated:source -->
-*Generated from `packages/protocol/src/visibility-matrix.ts` and `packages/protocol/src/disclosure-copy.ts` — sha256 aa0590efa8b83a06384c2b5b54750844f1af26978b17430fe5ce00bb968b954b. Regenerate with `pnpm run render:privacy`; do not hand-edit anything between the generated markers.*
+*Generated from `packages/protocol/src/visibility-matrix.ts` and `packages/protocol/src/disclosure-copy.ts` — sha256 3065e114c19985b810a73ffa160b4b6fa7330f60b2d2dada4e1daba4865d5682. Regenerate with `pnpm run render:privacy`; do not hand-edit anything between the generated markers.*
 <!-- /generated:source -->
 
 ---
@@ -259,6 +259,90 @@ size that identifies you.
 
 > **Nobody has written this one down.** Nobody has written the disclosure for selling before graduation. FR-046 pins the mechanism and EXPERIENCE §L6 records every sell-side sentence as unwritten, flagged for the sell spec when it is sequenced. Until then the product says the true thing instead: selling before graduation is not yet available.
 <!-- /generated:launch-sell -->
+
+---
+
+## Houses
+
+Governance on the pool: your tokens are the ballot, the Teller is a named party, and the chain
+itself refuses a wrong tally. `docs/governance.md` carries the whole design; these tables carry
+what each action exposes.
+
+<!-- generated:gov-ballot -->
+### Casting a sealed ballot
+
+> Your ballot’s weight is public. Your ballot’s choice is sealed. Your identity is neither on the ballot nor derivable from it.
+
+|  | You | Relayer | Everyone | Auditor |
+|---|---|---|---|---|
+| **Amount** | Sees | Sees | Sees | Sees |
+| **Sender** | Sees | Hidden | Conditional [1] | Sees |
+| **Recipient** | Sees | Sees | Sees | Sees |
+| **Timing** | Sees | Sees | Sees | Sees |
+| **Network address** | Sees | Sees | Hidden | Hidden |
+
+1. Your ballot’s weight is public. Your choice is sealed — until close, our Teller can read choices early; it cannot forge, drop or miscount them, because the contract checks the math before a tally can publish. Your identity is neither on the ballot nor derivable from it.
+<!-- /generated:gov-ballot -->
+
+<!-- generated:gov-join -->
+### Joining a House
+
+> Joining puts an anonymous handle on the House’s roll. The public sees the member count move, never a member list.
+
+|  | You | Relayer | Everyone | Auditor |
+|---|---|---|---|---|
+| **Amount** | Not applicable | Not applicable | Not applicable | Not applicable |
+| **Sender** | Sees | Hidden | Conditional [1] | Sees |
+| **Recipient** | Sees | Sees | Sees | Sees |
+| **Timing** | Sees | Sees | Sees | Sees |
+| **Network address** | Sees | Sees | Hidden | Hidden |
+
+1. The public sees the House’s member COUNT move, never a member list — the roll is anonymous handles the pool derives, and no list of them exists to publish.
+<!-- /generated:gov-join -->
+
+<!-- generated:gov-delegate -->
+### Delegating voting weight
+
+> The delegate’s pot grows by this amount, in public. Whose tokens grew it never exists on-chain — not even the delegate learns the source.
+
+|  | You | Relayer | Everyone | Auditor |
+|---|---|---|---|---|
+| **Amount** | Sees | Sees | Sees | Sees |
+| **Sender** | Sees | Hidden | Conditional [1] | Sees |
+| **Recipient** | Sees | Sees | Sees | Sees |
+| **Timing** | Sees | Sees | Sees | Sees |
+| **Network address** | Sees | Sees | Hidden | Hidden |
+
+1. The pot grew by this amount, in public. Whose tokens grew it does not exist on-chain — not even the delegate learns the source.
+<!-- /generated:gov-delegate -->
+
+<!-- generated:gov-fund -->
+### Funding a House treasury
+
+> The treasury grows by this amount, in public, and the gift has no way back — a treasury that could be clawed back one donor at a time would not be a treasury.
+
+|  | You | Relayer | Everyone | Auditor |
+|---|---|---|---|---|
+| **Amount** | Sees | Sees | Sees | Sees |
+| **Sender** | Sees | Hidden | Hidden | Sees |
+| **Recipient** | Sees | Sees | Sees | Sees |
+| **Timing** | Sees | Sees | Sees | Sees |
+| **Network address** | Sees | Sees | Hidden | Hidden |
+<!-- /generated:gov-fund -->
+
+<!-- generated:gov-reclaim -->
+### Reclaiming ballot escrow
+
+> The escrow comes back as a fresh note to whoever presents the bearer secret — the exit is as unlinkable as the entry.
+
+|  | You | Relayer | Everyone | Auditor |
+|---|---|---|---|---|
+| **Amount** | Sees | Sees | Sees | Sees |
+| **Sender** | Sees | Hidden | Hidden | Sees |
+| **Recipient** | Sees | Hidden | Hidden | Sees |
+| **Timing** | Sees | Sees | Sees | Sees |
+| **Network address** | Sees | Sees | Hidden | Hidden |
+<!-- /generated:gov-reclaim -->
 
 ---
 

@@ -28,7 +28,7 @@ type Paths = RoutePaths<RegisteredRouter['routeTree']>
  * A seventh entry with no route below is TS1360 + TS7053 — four diagnostics, exit 2. The order here
  * is the order the header renders, so this list is the nav's source of truth as well as the enum's.
  */
-export const MODES = ['wallet', 'chat', 'swap', 'bridge', 'markets', 'launch'] as const
+export const MODES = ['wallet', 'chat', 'swap', 'bridge', 'markets', 'launch', 'houses'] as const
 
 export type Mode = (typeof MODES)[number]
 
@@ -46,6 +46,7 @@ export const MODE_ROUTES = {
   bridge: '/bridge',
   markets: '/markets',
   launch: '/launch',
+  houses: '/houses',
 } as const satisfies Record<Mode, Paths>
 
 /**
@@ -62,6 +63,7 @@ export const MODE_LABELS = {
   bridge: 'Bridge',
   markets: 'Markets',
   launch: 'Launch',
+  houses: 'Houses',
 } as const satisfies Record<Mode, string>
 
 /**

@@ -668,6 +668,13 @@ export function planSend(
           `be 0, and it carried ${request.amount}`,
       )
     }
+  } else if (request.kind === 'gov-ballot') {
+    // A ballot's amount is the NEW escrow, and zero is a legal amount of new escrow: a
+    // one-member-one-vote ballot escrows nothing, and a pure change of mind re-commits the
+    // weight already locked. Negative is still nonsense.
+    if (request.amount < 0n) {
+      return bad(`refusing to send ${request.amount}: an amount cannot be negative`)
+    }
   } else if (request.amount <= 0n) {
     return bad(`refusing to send ${request.amount}: an amount must be positive`)
   }
@@ -1190,8 +1197,9 @@ export function planSend(
     request.kind === 'bridge' ||
     // A FUNDING OP WITHDRAWS AND A SETTLING ONE DOES NOT. That single difference is the whole
     // structural split between the two app shapes: money going in leaves the pool here, money
-    // coming back arrives through the open notes above.
-    isFundingKind(request.kind)
+    // coming back arrives through the open notes above. The one funding kind with a legal zero
+    // (a value-less ballot) withdraws nothing — a zero Withdraw is a revert wearing a plan.
+    (isFundingKind(request.kind) && request.amount > 0n)
   ) {
     expectedActions.push({
       variant: CLIENT_ACTION.Withdraw,
@@ -1364,8 +1372,9 @@ export function planToValidatableActions(plan: SendPlan): ValidatableAction[] {
     request.kind === 'bridge' ||
     // A FUNDING OP WITHDRAWS AND A SETTLING ONE DOES NOT. That single difference is the whole
     // structural split between the two app shapes: money going in leaves the pool here, money
-    // coming back arrives through the open notes above.
-    isFundingKind(request.kind)
+    // coming back arrives through the open notes above. The one funding kind with a legal zero
+    // (a value-less ballot) withdraws nothing — a zero Withdraw is a revert wearing a plan.
+    (isFundingKind(request.kind) && request.amount > 0n)
   ) {
     out.push({ type: 'Withdraw', token: request.token, amount: request.amount })
   }
@@ -1846,11 +1855,13 @@ export async function proveSend(input: ProveSendInput): Promise<ProvedSend> {
     if (same(token, plan.request.token)) {
       if (plan.request.kind === 'transfer') {
         t.transfer({ recipient: plan.request.recipient, amount: plan.request.amount })
-      } else {
+      } else if (plan.request.amount > 0n) {
         // A SWAP AND A BRIDGE BOTH TAKE THIS BRANCH. Their recipient is a helper contract, checked
         // in `planSend` to be the same contract the invoke leg names — so this is the leg that
         // hands the amount over. For a swap the invoke below is the instruction to give it back;
-        // for a bridge it is the instruction to burn it.
+        // for a bridge it is the instruction to burn it. The zero guard is the value-less
+        // ballot's: when the fee token IS the house token, this group exists for the fee alone,
+        // and a zero Withdraw would revert the transaction it rode in.
         t.withdraw({ recipient: plan.request.recipient, amount: plan.request.amount })
       }
     }

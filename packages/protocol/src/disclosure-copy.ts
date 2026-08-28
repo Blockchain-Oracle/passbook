@@ -271,6 +271,36 @@ export const LAUNCH_CROWD =
  * The two unauthored contexts are absent on purpose: a headline for a context whose disclosure
  * nobody wrote is the guess this story exists to refuse.
  */
+// ── The Houses (docs/governance.md §15 — the sentences we ship, verbatim from the spec) ────
+
+export const GOV_BALLOT_VISIBLE =
+  'Your ballot’s weight is public. Your ballot’s choice is sealed. Your identity is neither on ' +
+  'the ballot nor derivable from it.'
+
+export const GOV_TELLER_PEEK =
+  'Until close, our Teller can read choices early; it cannot forge, drop, or miscount them — ' +
+  'the contract checks the math before a tally can publish.'
+
+export const GOV_NOT_ANONYMITY =
+  'Voting requires a registered pool account. This is privacy, not anonymity from the protocol — ' +
+  'StarkWare’s auditor escrow applies here as everywhere.'
+
+export const GOV_JOIN_ROLL =
+  'Joining puts an anonymous handle on the House’s roll. The public sees the member count move, ' +
+  'never a member list.'
+
+export const GOV_DELEGATE_POT =
+  'The delegate’s pot grows by this amount, in public. Whose tokens grew it never exists ' +
+  'on-chain — not even the delegate learns the source.'
+
+export const GOV_FUND_GIVEN =
+  'The treasury grows by this amount, in public, and the gift has no way back — a treasury that ' +
+  'could be clawed back one donor at a time would not be a treasury.'
+
+export const GOV_RECLAIM_BEARER =
+  'The escrow comes back as a fresh note to whoever presents the bearer secret — the exit is as ' +
+  'unlinkable as the entry.'
+
 export const DISCLOSURE_HEADLINE = {
   'pool-send': POOL_SEES,
   'self-submit': SELF_SUBMIT_SENDER,
@@ -280,4 +310,9 @@ export const DISCLOSURE_HEADLINE = {
   'bridge-exit': BRIDGE_SCOPE,
   'markets-bet': MARKETS_BET_VISIBLE,
   'launch-buy': LAUNCH_IDENTITY,
+  'gov-ballot': GOV_BALLOT_VISIBLE,
+  'gov-join': GOV_JOIN_ROLL,
+  'gov-delegate': GOV_DELEGATE_POT,
+  'gov-fund': GOV_FUND_GIVEN,
+  'gov-reclaim': GOV_RECLAIM_BEARER,
 } as const

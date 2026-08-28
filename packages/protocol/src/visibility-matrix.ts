@@ -185,6 +185,11 @@ export const VISIBILITY_CONTEXTS = [
   'markets-exit',
   'launch-buy',
   'launch-sell',
+  'gov-ballot',
+  'gov-join',
+  'gov-delegate',
+  'gov-fund',
+  'gov-reclaim',
 ] as const
 
 export type VisibilityContext = (typeof VISIBILITY_CONTEXTS)[number]
@@ -200,6 +205,11 @@ export const CONTEXT_LABELS = {
   'markets-exit': 'Selling a position early',
   'launch-buy': 'Buying into a launch',
   'launch-sell': 'Selling before graduation',
+  'gov-ballot': 'Casting a sealed ballot',
+  'gov-join': 'Joining a House',
+  'gov-delegate': 'Delegating voting weight',
+  'gov-fund': 'Funding a House treasury',
+  'gov-reclaim': 'Reclaiming ballot escrow',
 } as const satisfies Record<VisibilityContext, string>
 
 /**
@@ -221,6 +231,11 @@ export const CONTEXT_SURFACE = {
   'markets-exit': 'markets',
   'launch-buy': 'launch',
   'launch-sell': 'launch',
+  'gov-ballot': 'houses',
+  'gov-join': 'houses',
+  'gov-delegate': 'houses',
+  'gov-fund': 'houses',
+  'gov-reclaim': 'houses',
 } as const satisfies Record<VisibilityContext, string>
 
 /**
@@ -239,6 +254,8 @@ export const SURFACE_CONTEXT = {
   bridge: 'bridge-exit',
   markets: 'markets-bet',
   launch: 'launch-buy',
+  // The ballot is what a House ordinarily does, `markets → markets-bet`'s reasoning.
+  houses: 'gov-ballot',
 } as const satisfies Record<string, VisibilityContext>
 
 // ── The notes, and the two refusals ───────────────────────────────────────────────────────
@@ -314,6 +331,21 @@ const LAUNCH_SELL_UNAUTHORED =
   'EXPERIENCE §L6 records every sell-side sentence as unwritten, flagged for the sell spec when it ' +
   'is sequenced. Until then the product says the true thing instead: selling before graduation is ' +
   'not yet available.'
+
+// ── The governance qualifiers (docs/governance.md §15's sentences, cell-sized) ────────────
+
+const GOV_BALLOT_SEALED =
+  'Your ballot’s weight is public. Your choice is sealed — until close, our Teller can read ' +
+  'choices early; it cannot forge, drop or miscount them, because the contract checks the math ' +
+  'before a tally can publish. Your identity is neither on the ballot nor derivable from it.'
+
+const GOV_JOIN_COUNT_ONLY =
+  'The public sees the House’s member COUNT move, never a member list — the roll is anonymous ' +
+  'handles the pool derives, and no list of them exists to publish.'
+
+const GOV_DELEGATE_SOURCE =
+  'The pot grew by this amount, in public. Whose tokens grew it does not exist on-chain — not ' +
+  'even the delegate learns the source.'
 
 // ── The matrices ──────────────────────────────────────────────────────────────────────────
 
@@ -501,6 +533,86 @@ export const MATRICES = {
     authored: false,
     context: 'launch-sell',
     because: LAUNCH_SELL_UNAUTHORED,
+  },
+
+  //
+  // ── The Houses (docs/governance.md §4.2 — that table, dropped in as promised) ───────────
+  //
+  // The recurring sentence, stated once: YOUR BALLOT'S WEIGHT IS PUBLIC, YOUR CHOICE IS SEALED,
+  // AND YOU ARE NEITHER ON THE BALLOT NOR DERIVABLE FROM IT. The pool's identity_key is a
+  // per-contract anonymous handle; the relayer submits, so the on-chain sender is ours; the
+  // TELLER — a named party beside the relayer and the auditor — can read choices early in both
+  // modes and can never miscount them (the contract checks the math before a tally can publish).
+  //
+  'gov-ballot': {
+    authored: true,
+    context: 'gov-ballot',
+    cells: {
+      // The weight is public per-ballot BY CONSTRUCTION — the sponsor's own amount rule.
+      amount: row(SEES, SEES, SEES, SEES),
+      sender: row(
+        SEES,
+        HIDDEN,
+        conditional(GOV_BALLOT_SEALED),
+        SEES,
+      ),
+      recipient: row(SEES, SEES, SEES, SEES),
+      timing: row(SEES, SEES, SEES, SEES),
+      ip: row(SEES, SEES, HIDDEN, HIDDEN),
+    },
+  },
+
+  'gov-join': {
+    authored: true,
+    context: 'gov-join',
+    cells: {
+      // A join moves no value at all — the zero-value ComputeAndInvoke.
+      amount: row(ABSENT, ABSENT, ABSENT, ABSENT),
+      sender: row(SEES, HIDDEN, conditional(GOV_JOIN_COUNT_ONLY), SEES),
+      recipient: row(SEES, SEES, SEES, SEES),
+      timing: row(SEES, SEES, SEES, SEES),
+      ip: row(SEES, SEES, HIDDEN, HIDDEN),
+    },
+  },
+
+  'gov-delegate': {
+    authored: true,
+    context: 'gov-delegate',
+    cells: {
+      amount: row(SEES, SEES, SEES, SEES),
+      // The RFP's own sentence, kept literally: the pot grows in public and its source never
+      // exists on-chain — not even the delegate learns it.
+      sender: row(SEES, HIDDEN, conditional(GOV_DELEGATE_SOURCE), SEES),
+      recipient: row(SEES, SEES, SEES, SEES),
+      timing: row(SEES, SEES, SEES, SEES),
+      ip: row(SEES, SEES, HIDDEN, HIDDEN),
+    },
+  },
+
+  'gov-fund': {
+    authored: true,
+    context: 'gov-fund',
+    cells: {
+      amount: row(SEES, SEES, SEES, SEES),
+      sender: row(SEES, HIDDEN, HIDDEN, SEES),
+      recipient: row(SEES, SEES, SEES, SEES),
+      timing: row(SEES, SEES, SEES, SEES),
+      ip: row(SEES, SEES, HIDDEN, HIDDEN),
+    },
+  },
+
+  'gov-reclaim': {
+    authored: true,
+    context: 'gov-reclaim',
+    cells: {
+      amount: row(SEES, SEES, SEES, SEES),
+      // The claim is a bearer secret: whoever presents it is nobody in particular, and the exit
+      // is as unlinkable as the entry.
+      sender: row(SEES, HIDDEN, HIDDEN, SEES),
+      recipient: row(SEES, HIDDEN, HIDDEN, SEES),
+      timing: row(SEES, SEES, SEES, SEES),
+      ip: row(SEES, SEES, HIDDEN, HIDDEN),
+    },
   },
 } as const satisfies Record<VisibilityContext, VisibilityMatrix>
 
