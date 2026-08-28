@@ -113,6 +113,7 @@ import {
   isDrippableAddress,
 } from './faucet.js'
 import { asAddress, toFeltHex } from '../../protocol/src/address.js'
+import { handleLogoGenerate, handleLogoPin, type LogoService } from './logo.js'
 
 // R10 names `POST /submit`; the browser posts to the same-origin `/api/submit`, which
 // a dev-server proxy or edge rule normally rewrites. Accepting both means the two
@@ -165,6 +166,12 @@ const ROOM_SEND_PATHS = new Set(['/room/send', '/api/room/send'])
 // The chain feed (see `chain-feed.ts`). A POST that streams, for ROOM_STREAM_PATHS' reasons
 // verbatim — same gates, same framing, same client-side reader discipline.
 const CHAIN_STREAM_PATHS = new Set(['/chain/stream', '/api/chain/stream'])
+
+// The logo studio (`logo.ts`). Each route exists only when its key does — the faucet's
+// no-ledger-no-route rule, applied per upstream: a relayer with a Pinata JWT and no Gemini key
+// pins uploads and 404s generation, and the create form reads each 404 as "this lane is off".
+const LOGO_PIN_PATHS = new Set(['/logo/pin', '/api/logo/pin'])
+const LOGO_GENERATE_PATHS = new Set(['/logo/generate', '/api/logo/generate'])
 
 // An upstream that will not answer in this long is an upstream the caller has already
 // given up on, and a request left hanging is a socket the relayer keeps paying for.
@@ -311,10 +318,23 @@ async function handle(req: IncomingMessage, res: ServerResponse, opts: RelayerSe
   // No feed, no route — the invite rule again: a deployment with nothing to stream answers 404,
   // and the browser's store reads that as "poll for yourself", which it already knows how to do.
   const isChainStream = opts.chainFeed !== undefined && CHAIN_STREAM_PATHS.has(url)
+  // Per-route key gating: each logo lane exists exactly when its credential does.
+  const isLogoPin = opts.logos?.pinataJwt !== undefined && LOGO_PIN_PATHS.has(url)
+  const isLogoGenerate = opts.logos?.geminiKey !== undefined && LOGO_GENERATE_PATHS.has(url)
   if (
     !isFeeRecipient &&
     (req.method !== 'POST' ||
-      !(isSubmit || isInvite || isRoom || isDirectory || isFaucet || isChainStream || QUOTE_PATHS.has(url)))
+      !(
+        isSubmit ||
+        isInvite ||
+        isRoom ||
+        isDirectory ||
+        isFaucet ||
+        isChainStream ||
+        isLogoPin ||
+        isLogoGenerate ||
+        QUOTE_PATHS.has(url)
+      ))
   ) {
     send(res, 404, { error: 'not found' })
     return
@@ -402,6 +422,22 @@ async function handle(req: IncomingMessage, res: ServerResponse, opts: RelayerSe
   // signer's host is a connection-exhaustion primitive pointed at everything else this port does.
   if (isChainStream) {
     await handleChainStream(req, res, opts)
+    return
+  }
+  // BEHIND ALL FOUR GATES — these two spend a credential's quota and, for generation, real
+  // money per call; the meters inside the handlers are what bound a caller the gates admitted.
+  if (isLogoPin || isLogoGenerate) {
+    let body: unknown
+    try {
+      body = await readJsonBody(req)
+    } catch (e) {
+      send(res, 400, { error: String(e) })
+      return
+    }
+    const visitor = visitorId(clientIp(req), opts.visitorSalt ?? '', (opts.now ?? Date.now)())
+    await (isLogoPin
+      ? handleLogoPin(req, res, opts.logos!, visitor, body, send)
+      : handleLogoGenerate(req, res, opts.logos!, visitor, body, send))
     return
   }
   await (isSubmit ? handleSubmit(req, res, opts) : handleQuote(req, res, opts))
@@ -1692,6 +1728,12 @@ export interface RelayerServerOptions {
    * polls the chain for itself — the shape this app shipped with, kept as the honest fallback.
    */
   chainFeed?: ChainFeed
+  /**
+   * The logo studio (`logo.ts`). Each of its two routes is gated on its own credential being
+   * present in the service — absent key, absent route — and the whole service absent means both
+   * are 404 and the create form degrades to the seeded disc.
+   */
+  logos?: LogoService
 }
 
 export function createRelayerServer(options: RelayerServerOptions): Server {
@@ -2393,6 +2435,22 @@ async function main(): Promise<void> {
       : undefined
   chainFeed?.start()
 
+  // The logo studio — constructed when at least one key exists. Meters are in-memory for the
+  // quote counter's reason: quota is egress, not money owed to anyone, and fresh quota on
+  // restart is cheaper than an unwritable disk stopping logo uploads.
+  const pinataJwt = process.env.RELAYER_PINATA_JWT || undefined
+  const geminiKey = process.env.RELAYER_GEMINI_KEY || undefined
+  const logos: LogoService | undefined =
+    pinataJwt || geminiKey
+      ? {
+          pinataJwt,
+          geminiKey,
+          imageModel: process.env.RELAYER_GEMINI_IMAGE_MODEL || undefined,
+          pinCounter: createQuoteCounter(20, 200),
+          generateCounter: createQuoteCounter(10, 100),
+        }
+      : undefined
+
   const server = createRelayerServer({
     // `details` is undefined for a plain submission, which is what `execute` already
     // defaults to — so a `{calls}`-only body goes out byte-identical to before, and a
@@ -2425,6 +2483,7 @@ async function main(): Promise<void> {
     directory,
     faucet,
     chainFeed,
+    logos,
   })
 
   // ── The settlement keeper ───────────────────────────────────────────────────────────────
@@ -2522,6 +2581,12 @@ async function main(): Promise<void> {
         : feedWanted
           ? 'chain feed: idle — nothing deployed to stream'
           : 'chain feed: disabled by RELAYER_CHAIN_FEED=off',
+    )
+    console.log(
+      logos
+        ? `logo studio: pin ${logos.pinataJwt ? 'on (20/visitor · 200/day)' : 'OFF — no RELAYER_PINATA_JWT'} · ` +
+            `generate ${logos.geminiKey ? `on via ${logos.imageModel ?? 'gemini-2.5-flash-image'} (10/visitor · 100/day)` : 'OFF — no RELAYER_GEMINI_KEY'}`
+        : 'logo studio: off — set RELAYER_PINATA_JWT / RELAYER_GEMINI_KEY to offer it',
     )
     console.log(
       sponsorConfig.invites

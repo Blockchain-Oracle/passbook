@@ -241,11 +241,14 @@ no redirect is ever followed.
 |---|---|---|
 | `avnuQuotes` | `starknet.api.avnu.fi` | keyless |
 | `circleIris` | `iris-api.circle.com` | keyless |
+| `pinataUploads` | `uploads.pinata.cloud` | server-side credential attached |
+| `geminiImages` | `generativelanguage.googleapis.com` | server-side credential attached |
 
 Calls the browser still makes **directly**, and what each costs the user:
 
 - **Starknet JSON-RPC reads (starknet_call and class-hash lookups) go straight to the RPC hosts** — the RPC provider sees the visitor IP alongside which contracts they read, though not which note or key the read is about.
 - **Explorer links open Voyager in the user’s own browser** — the explorer sees the visitor IP together with the transaction they clicked, so a link followed is a link attributed. Copy the hash instead to avoid it.
+- **Token logos render straight from the public IPFS gateway (gateway.pinata.cloud)** — the gateway sees the visitor IP alongside which token logos their browser loaded — which pages they LOOKED at, never anything they did. Uploading goes through the relay; only viewing is browser-direct, because proxying every image render would make this process a CDN.
 <!-- /generated:proxy -->
 
 "Everything is proxied" would be the easy sentence and it would be false, which is why the

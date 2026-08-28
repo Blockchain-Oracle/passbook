@@ -1539,7 +1539,7 @@ describe('third-party proxy (FR-029 / AD-7, story 1.5)', () => {
     expect(PROXY_EXCEPTIONS.length).toBeGreaterThan(0)
     for (const e of PROXY_EXCEPTIONS) {
       expect(e.what).toBeTruthy()
-      expect(e.where).toMatch(/\.js:[1-9]\d*$/)   // checkable against the source
+      expect(e.where).toMatch(/\.(js|ts):[1-9]\d*$/)   // checkable against the source
       expect(e.leaks.length).toBeGreaterThan(20)
     }
     expect(PROXY_EXCEPTIONS.some((e) => /JSON-RPC/i.test(e.what))).toBe(true)

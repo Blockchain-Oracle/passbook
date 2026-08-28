@@ -13,6 +13,12 @@ export interface ProxyTarget {
 export const PROXY_TARGETS = {
   avnuQuotes: { host: 'starknet.api.avnu.fi', injectsCredential: false },   // quote API is keyless
   circleIris: { host: 'iris-api.circle.com', injectsCredential: false },
+  // The logo studio's two upstreams (`logo.ts`) — reached by its own purpose-built handlers, not
+  // the generic /quote route, but listed HERE because this record is the census of every host
+  // this process talks to, and the first two `injectsCredential: true` entries are exactly what
+  // the D-35a discipline reserved the flag for: the JWT and the key live in server env only.
+  pinataUploads: { host: 'uploads.pinata.cloud', injectsCredential: true },
+  geminiImages: { host: 'generativelanguage.googleapis.com', injectsCredential: true },
 } as const satisfies Record<string, ProxyTarget>
 
 export type ProxyTargetName = keyof typeof PROXY_TARGETS
@@ -53,6 +59,15 @@ export const PROXY_EXCEPTIONS: readonly ProxyException[] = [
     leaks:
       'the explorer sees the visitor IP together with the transaction they clicked, so a ' +
       'link followed is a link attributed. Copy the hash instead to avoid it.',
+  },
+  {
+    what: 'Token logos render straight from the public IPFS gateway (gateway.pinata.cloud)',
+    where: 'packages/protocol/src/token-media.ts:18',
+    leaks:
+      'the gateway sees the visitor IP alongside which token logos their browser loaded — ' +
+      'which pages they LOOKED at, never anything they did. Uploading goes through the relay; ' +
+      'only viewing is browser-direct, because proxying every image render would make this ' +
+      'process a CDN.',
   },
 ] as const
 
