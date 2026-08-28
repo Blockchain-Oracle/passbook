@@ -1,0 +1,9 @@
+{
+  "step": "tally",
+  "describe": "the Teller counts, the curve accepts, the key goes on-chain forever",
+  "tallyTx": "0x16bd3806cab40f1628e25c62ab8453d7af487b2c7006f0820f0d63405cbff0b",
+  "keyTx": "0x475b97c46df69c24fbf92429a9ce03a0df3779a4a23415b2d51960b36c25227",
+  "finalState": 2,
+  "governance": "0xdbe265829e0f1c859f3a8c1bd8fcfb0a774836b9e07191c6a624a59e37f9bf",
+  "verifiedAt": "2026-08-28T11:05:40.899Z"
+}
