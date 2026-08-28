@@ -20,8 +20,14 @@ import type { ElementType, HTMLAttributes, ReactNode } from 'react'
 import { cn } from '../../lib/cn'
 import { Skeleton } from './Skeleton'
 
-/** The design authority's type steps. `mono` is the only one that also changes family. */
+/** The design authority's type steps. `mono`, `kicker` and the `display*` steps change family. */
 export type TextVariant =
+  | 'displayHero'
+  | 'display1'
+  | 'display2'
+  | 'display3'
+  | 'display4'
+  | 'kicker'
   | 'heading1'
   | 'heading2'
   | 'heading3'
@@ -45,6 +51,13 @@ export type TextVariant =
 // file is a literal for that reason.
 //
 const SIZE: Record<TextVariant, string> = {
+  // The display voice rides with its size: Anton, uppercase, weight pinned at the face's one cut.
+  displayHero: 'display text-displayHero',
+  display1: 'display text-display1',
+  display2: 'display text-display2',
+  display3: 'display text-display3',
+  display4: 'display text-display4',
+  kicker: 'kicker',
   heading1: 'text-heading1',
   heading2: 'text-heading2',
   heading3: 'text-heading3',
@@ -63,6 +76,10 @@ const SIZE: Record<TextVariant, string> = {
 
 /** Which element each step means. Everything not listed is a `<span>`. */
 const TAG: Partial<Record<TextVariant, ElementType>> = {
+  display1: 'h1',
+  display2: 'h1',
+  display3: 'h2',
+  display4: 'h3',
   heading1: 'h1',
   heading2: 'h2',
   heading3: 'h3',
