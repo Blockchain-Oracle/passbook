@@ -29,7 +29,11 @@
 //
 import { NET } from '@strk20/protocol/constants'
 import { OZ_ACCOUNT_CLASS_HASH } from '@strk20/protocol/account-address'
-import type { SubmitResponseBody } from '@strk20/protocol/relayer-wire'
+// Static on purpose: both are runtime leaves already in the eager graph (faucet.ts / wallet.tsx
+// import them statically), so a dynamic import here would split nothing and trip the build
+// gate's INEFFECTIVE_DYNAMIC_IMPORT check.
+import { RELAYER_PATHS, type SubmitResponseBody } from '@strk20/protocol/relayer-wire'
+import { readAccountStatus } from './account-status'
 
 /** What `send.ts` hands an executor: the assembled calls plus the V3 proof fields. */
 export interface SubmitDetails {
@@ -167,6 +171,61 @@ export async function invokeDirect(
           : 'The transaction did not complete.',
     }
   }
+}
+
+/**
+ * A creation invoke, the way the infrastructure was designed to carry it: the RELAYER signs and
+ * pays gas, because the caller is a pool-native user whose STRK is shielded — the L2 address
+ * usually holds nothing. `allowlist.ts` permits `create_house`/`propose` on the Governor for
+ * exactly this ("the creator is a commitment… this key signing a creation identifies nobody"),
+ * and the app simply never asked until now: `CreateHouse` self-signed with gas nobody had, which
+ * is why "it didn't even work".
+ *
+ * FALLS BACK to the browser's own key when the relayer refuses or is unreachable — but only
+ * after reading the ladder: telling an unfunded, undeployed account to self-sign buys the same
+ * opaque RPC error this function exists to end. The refusal names the rung and the fix instead.
+ */
+export async function invokeSponsoredOrDirect(
+  accountKey: string,
+  address: string,
+  call: SubmitCall,
+): Promise<DeployResult> {
+  let relayerBecause: string | null = null
+  try {
+    const response = await fetch(RELAYER_PATHS.submit, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ calls: [call] }),
+    })
+    const body = (await response.json().catch(() => ({}))) as SubmitResponseBody
+    if (response.ok && body.transactionHash) {
+      // The relayer broadcast it; acceptance is still worth waiting for, because the surface's
+      // next poll must see the result — the same rule `invokeDirect` states.
+      const { RpcProvider } = await import('starknet')
+      const provider = new RpcProvider({ nodeUrl: NET.rpc[0]! })
+      await provider.waitForTransaction(body.transactionHash)
+      return { ok: true, transactionHash: body.transactionHash }
+    }
+    relayerBecause = body.notice ?? body.error ?? `the relayer answered ${response.status}`
+  } catch {
+    relayerBecause = 'the relayer could not be reached'
+  }
+
+  // The sponsored path is out. Self-signing is only offered when it can actually work.
+  const status = await readAccountStatus(address)
+  if (status.rung === 'unfunded' || status.rung === 'undeployed' || status.rung === 'unknown') {
+    const fix =
+      status.rung === 'unfunded'
+        ? 'this address holds no STRK for gas — fund it from the wallet screen, or try again when the relayer is back'
+        : status.rung === 'undeployed'
+          ? 'this account is not deployed yet — the wallet screen has the deploy step'
+          : (status.because ?? 'the account could not be read')
+    return {
+      ok: false,
+      because: `The sponsored path failed (${relayerBecause}), and signing it yourself is not possible yet: ${fix}.`,
+    }
+  }
+  return invokeDirect(accountKey, address, call)
 }
 
 /**

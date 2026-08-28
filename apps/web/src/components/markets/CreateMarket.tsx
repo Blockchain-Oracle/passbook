@@ -137,6 +137,7 @@ export function CreateMarket({ open, onClose }: { open: boolean; onClose: () => 
       commitment: minted.commitment,
       createdAt: Date.now(),
       label: `Seeded ${pair} above $${strikeDisplay(strike8dp)} · ${toPlainText(parsedSeed.wei, decimals)} STRK`,
+      txHash: outcome.transactionHash,
     })
     toast({
       kind: 'success',

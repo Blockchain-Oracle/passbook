@@ -22,6 +22,7 @@ import { Route as WalletRouteImport } from './routes/wallet'
 import { Route as ActivityIdRouteImport } from './routes/activity.$id'
 import { Route as ChatIndexRouteImport } from './routes/chat.index'
 import { Route as ChatPeerRouteImport } from './routes/chat.$peer'
+import { Route as HousesIdRouteImport } from './routes/houses_.$id'
 import { Route as LaunchIdRouteImport } from './routes/launch_.$id'
 import { Route as PayAddressRouteImport } from './routes/pay.$address'
 import { Route as TokenAddressRouteImport } from './routes/token.$address'
@@ -92,6 +93,11 @@ const ChatPeerRoute = ChatPeerRouteImport.update({
   path: '/$peer',
   getParentRoute: () => ChatRoute,
 } as any)
+const HousesIdRoute = HousesIdRouteImport.update({
+  id: '/houses_/$id',
+  path: '/houses/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LaunchIdRoute = LaunchIdRouteImport.update({
   id: '/launch_/$id',
   path: '/launch/$id',
@@ -126,6 +132,7 @@ export interface FileRoutesByFullPath {
   '/wallet': typeof WalletRoute
   '/activity/$id': typeof ActivityIdRoute
   '/chat/$peer': typeof ChatPeerRoute
+  '/houses/$id': typeof HousesIdRoute
   '/launch/$id': typeof LaunchIdRoute
   '/pay/$address': typeof PayAddressRoute
   '/token/$address': typeof TokenAddressRoute
@@ -144,6 +151,7 @@ export interface FileRoutesByTo {
   '/wallet': typeof WalletRoute
   '/activity/$id': typeof ActivityIdRoute
   '/chat/$peer': typeof ChatPeerRoute
+  '/houses/$id': typeof HousesIdRoute
   '/launch/$id': typeof LaunchIdRoute
   '/pay/$address': typeof PayAddressRoute
   '/token/$address': typeof TokenAddressRoute
@@ -164,6 +172,7 @@ export interface FileRoutesById {
   '/wallet': typeof WalletRoute
   '/activity/$id': typeof ActivityIdRoute
   '/chat/$peer': typeof ChatPeerRoute
+  '/houses_/$id': typeof HousesIdRoute
   '/launch_/$id': typeof LaunchIdRoute
   '/pay/$address': typeof PayAddressRoute
   '/token/$address': typeof TokenAddressRoute
@@ -185,6 +194,7 @@ export interface FileRouteTypes {
     | '/wallet'
     | '/activity/$id'
     | '/chat/$peer'
+    | '/houses/$id'
     | '/launch/$id'
     | '/pay/$address'
     | '/token/$address'
@@ -203,6 +213,7 @@ export interface FileRouteTypes {
     | '/wallet'
     | '/activity/$id'
     | '/chat/$peer'
+    | '/houses/$id'
     | '/launch/$id'
     | '/pay/$address'
     | '/token/$address'
@@ -222,6 +233,7 @@ export interface FileRouteTypes {
     | '/wallet'
     | '/activity/$id'
     | '/chat/$peer'
+    | '/houses_/$id'
     | '/launch_/$id'
     | '/pay/$address'
     | '/token/$address'
@@ -241,6 +253,7 @@ export interface RootRouteChildren {
   SwapRoute: typeof SwapRoute
   WalletRoute: typeof WalletRoute
   ActivityIdRoute: typeof ActivityIdRoute
+  HousesIdRoute: typeof HousesIdRoute
   LaunchIdRoute: typeof LaunchIdRoute
   PayAddressRoute: typeof PayAddressRoute
   TokenAddressRoute: typeof TokenAddressRoute
@@ -340,6 +353,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ChatPeerRouteImport
       parentRoute: typeof ChatRoute
     }
+    '/houses_/$id': {
+      id: '/houses_/$id'
+      path: '/houses/$id'
+      fullPath: '/houses/$id'
+      preLoaderRoute: typeof HousesIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/launch_/$id': {
       id: '/launch_/$id'
       path: '/launch/$id'
@@ -395,6 +415,7 @@ const rootRouteChildren: RootRouteChildren = {
   SwapRoute: SwapRoute,
   WalletRoute: WalletRoute,
   ActivityIdRoute: ActivityIdRoute,
+  HousesIdRoute: HousesIdRoute,
   LaunchIdRoute: LaunchIdRoute,
   PayAddressRoute: PayAddressRoute,
   TokenAddressRoute: TokenAddressRoute,

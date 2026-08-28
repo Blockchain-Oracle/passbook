@@ -83,6 +83,16 @@ export const EVENT_KEY = {
   Failed: '0x29b6695cc078fec6f5eaa1763a4568ff856dfa63ebfa86719d6a43e911ffb23',
   Redeemed: '0x23e7cec2fb91669c83bda0a76c5b9291e64043ae4d6c7dece25843a6a1124ae',
   Refunded: '0x1e3aa8099bfbb7b9fee513355876c379349ac1dca81cd9eb4e0653e784ff985',
+  // The Governor's public history — the events were always emitted; nothing consumed them.
+  HouseCreated: '0x2553dfcdac928ed8545204c4385fa899d589476a55fae013f5c53a0718c919f',
+  ProposalCreated: '0x2c0d1d9d0efb5c7398b67924974bb430e0de82d366c7ee89e068943383c0181',
+  BallotCast: '0x22533cc45c07d80b456838832204cdd6d1f5a258aea753af84470c65b830573',
+  Joined: '0xe186c9f9ae6099cab4fdeed472d27d45d775496082bf874ded47d4058dfc7c',
+  TreasuryFunded: '0x314a49f14ef9154e2bc7f4f0c7b6453d83c74e3ae63ceca7f5a1cfe209d6d5c',
+  TallyPublished: '0x18f4c17a4677ce43e2ebdc7476b4c9a54407ba407d3f83ae5618780212aa137',
+  KeyPublished: '0xeff458ede0c729d0265ba767fc2c494b2b9e388296fdfe9f57c18d4f02d370',
+  Executed: '0x1f4317aae43f6c24b2b85c6d8b21d5fa0a28cee0476cd52ca5d60d4787aab78',
+  ProposalVoided: '0x3fc7d79ef885017803ff9a4b389bcd2ab4e4d2ec92a89e6aea2557fb81bd4c7',
 } as const
 
 /** One connected stream. The same testability argument as `RoomSubscriber`, verbatim. */
@@ -103,6 +113,8 @@ export interface ChainFeedDeps {
   markets?: string
   /** The Launch contract, or absent. */
   launch?: string
+  /** The Governor, or absent. Its events feed the Houses surfaces' activity. */
+  governance?: string
   /**
    * The price reader. A function rather than an oracle address so the `starknet`-reaching
    * import (`pragma.ts` → `rpc.ts`) stays at the composition root and tests need no chain.
@@ -128,7 +140,10 @@ const felt = (value: unknown): string | null =>
  * Null, never a throw: the tape is a convenience rendering of public history, and one undecodable
  * event — a contract upgrade, a struct edit, RPC noise — must cost that row, not the feed.
  */
-export function decodeTapeEvent(source: 'markets' | 'launch', ev: RawEvent): TapeItem | null {
+export function decodeTapeEvent(
+  source: 'markets' | 'launch' | 'governance',
+  ev: RawEvent,
+): TapeItem | null {
   if (!Array.isArray(ev.keys) || !Array.isArray(ev.data)) return null
   const keys = ev.keys.map(felt)
   const data = ev.data.map(felt)
@@ -184,6 +199,63 @@ export function decodeTapeEvent(source: 'markets' | 'launch', ev: RawEvent): Tap
           txHash,
           block,
         }
+      }
+      return null
+    }
+
+    if (source === 'governance') {
+      // Every Governor event carries its entity id as the single #[key] after the selector.
+      const entityId = keys.length > 1 ? toNum(at(keys, 1)) : 0
+      if (k('HouseCreated') && data.length >= 3) {
+        return { kind: 'house-created', houseId: entityId, token: at(data, 0), txHash, block }
+      }
+      if (k('ProposalCreated') && data.length >= 6) {
+        return {
+          kind: 'proposal-created',
+          proposalId: entityId,
+          houseId: toNum(at(data, 0)),
+          deadline: toNum(at(data, 3)),
+          txHash,
+          block,
+        }
+      }
+      // `sealed` (choice ciphertext) rides the event past the weight; the tape carries the
+      // PUBLIC half only — weight and sequence — the same split §4.2 draws for the chain itself.
+      if (k('BallotCast') && data.length >= 3) {
+        return { kind: 'gov-ballot', proposalId: entityId, weight: at(data, 1), seq: toNum(at(data, 2)), txHash, block }
+      }
+      if (k('Joined') && data.length >= 1) {
+        return { kind: 'gov-joined', houseId: entityId, memberCount: toNum(at(data, 0)), txHash, block }
+      }
+      if (k('TreasuryFunded') && data.length >= 2) {
+        return {
+          kind: 'treasury-funded',
+          houseId: entityId,
+          amount: at(data, 0),
+          treasuryAfter: at(data, 1),
+          txHash,
+          block,
+        }
+      }
+      if (k('TallyPublished') && data.length >= 4) {
+        return {
+          kind: 'tally-published',
+          proposalId: entityId,
+          tallyFor: at(data, 0),
+          tallyAgainst: at(data, 1),
+          outcome: toNum(at(data, 3)),
+          txHash,
+          block,
+        }
+      }
+      if (k('KeyPublished') && data.length >= 1) {
+        return { kind: 'key-published', proposalId: entityId, txHash, block }
+      }
+      if (k('Executed') && data.length >= 2) {
+        return { kind: 'gov-executed', proposalId: entityId, amount: at(data, 1), txHash, block }
+      }
+      if (k('ProposalVoided')) {
+        return { kind: 'proposal-voided', proposalId: entityId, txHash, block }
       }
       return null
     }
@@ -252,7 +324,11 @@ export class ChainFeed {
   private problem: string | null = null
 
   /** Last block whose events were folded into the tape, per contract. -1 means "not yet". */
-  private scanned: Record<'markets' | 'launch', number> = { markets: -1, launch: -1 }
+  private scanned: Record<'markets' | 'launch' | 'governance', number> = {
+    markets: -1,
+    launch: -1,
+    governance: -1,
+  }
 
   private appTimer: ReturnType<typeof setInterval> | null = null
   private priceTimer: ReturnType<typeof setInterval> | null = null
@@ -389,9 +465,10 @@ export class ChainFeed {
   }
 
   private async tickTape(transport: Transport): Promise<void> {
-    const sources: Array<['markets' | 'launch', string]> = []
+    const sources: Array<['markets' | 'launch' | 'governance', string]> = []
     if (this.deps.markets) sources.push(['markets', this.deps.markets])
     if (this.deps.launch) sources.push(['launch', this.deps.launch])
+    if (this.deps.governance) sources.push(['governance', this.deps.governance])
     if (sources.length === 0) return
 
     const latestRaw = await transport('starknet_blockNumber', [])

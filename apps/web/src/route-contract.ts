@@ -183,3 +183,4 @@ export type HasLaunchDetailRoute = Assert<Ext<'/launch/$id', Paths>>
 export type HasTokenRoute = Assert<Ext<'/token/$address', Paths>>
 export type HasProfileRoute = Assert<Ext<'/u/$name', Paths>>
 export type HasHousesRoute = Assert<Ext<'/houses', Paths>>
+export type HasHouseRecordRoute = Assert<Ext<'/houses/$id', Paths>>

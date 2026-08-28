@@ -60,6 +60,58 @@ describe('decodeTapeEvent', () => {
     })
     expect(redeem).toEqual({ kind: 'redeem', launchId: 3, units: 4, amount: '0x64', txHash: '0xbeef', block: 9 })
   })
+
+  it('decodes the Governor side — the public half of a ballot, never the sealed part', () => {
+    // BallotCast data: identity_key, weight, seq, then the sealed span. The tape row carries
+    // weight and seq only — the same public/sealed split the contract draws.
+    const ballot = decodeTapeEvent('governance', {
+      keys: [EVENT_KEY.BallotCast, '0x0'],
+      data: ['0x123abc', '0x10a741a462780000', '0x1', '0x4', '0x1', '0x2', '0x3', '0x4'],
+      transaction_hash: '0x448e',
+      block_number: 13989678,
+    })
+    expect(ballot).toEqual({
+      kind: 'gov-ballot',
+      proposalId: 0,
+      weight: '0x10a741a462780000',
+      seq: 1,
+      txHash: '0x448e',
+      block: 13989678,
+    })
+
+    const funded = decodeTapeEvent('governance', {
+      keys: [EVENT_KEY.TreasuryFunded, '0x2'],
+      data: ['0x64', '0xc8'],
+      transaction_hash: '0xfeed',
+      block_number: 11,
+    })
+    expect(funded).toEqual({
+      kind: 'treasury-funded',
+      houseId: 2,
+      amount: '0x64',
+      treasuryAfter: '0xc8',
+      txHash: '0xfeed',
+      block: 11,
+    })
+
+    const house = decodeTapeEvent('governance', {
+      keys: [EVENT_KEY.HouseCreated, '0x1'],
+      data: ['0xabc', '0x0', '0x0'],
+      transaction_hash: '0x1198',
+      block_number: 7,
+    })
+    expect(house).toEqual({ kind: 'house-created', houseId: 1, token: '0xabc', txHash: '0x1198', block: 7 })
+
+    // A markets-side key arriving tagged as governance is not one of the Governor's rows.
+    expect(
+      decodeTapeEvent('governance', {
+        keys: [EVENT_KEY.BetPlaced, '0x1'],
+        data: ['0x1', '0x2', '0x3', '0x4', '0x5', '0x6'],
+        transaction_hash: '0x1',
+        block_number: 1,
+      }),
+    ).toBeNull()
+  })
 })
 
 // A market's 13 felts: pair 'BTC/USD', strike, deadline, token, up, down, k.lo, k.hi, seed,

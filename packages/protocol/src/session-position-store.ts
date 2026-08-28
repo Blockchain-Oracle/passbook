@@ -38,7 +38,10 @@ export type PositionVenue = 'market' | 'launch' | 'governance'
 /** One bearer claim, everything needed to find it again and to spend it. */
 export interface StoredPosition {
   venue: PositionVenue
-  /** The market or launch this position is in. */
+  /**
+   * The market, launch or house this position is in. `-1` is the create-time sentinel: a
+   * founder's claim is written before the chain assigns the house its id.
+   */
   id: number
   /** Bearer material. Never rendered, never logged, never sent anywhere but the pool. */
   secret: string
@@ -54,6 +57,12 @@ export interface StoredPosition {
    * describe" is indistinguishable from a bug.
    */
   label?: string
+  /**
+   * The transaction that created it, when the submitting surface had it. A record row that
+   * cannot point at its own transaction is what "I don't see the transaction hash" complains
+   * about; optional because positions stored before this field existed still parse.
+   */
+  txHash?: string
 }
 
 export const POSITION_RECORD_VERSION = 1
@@ -83,16 +92,22 @@ function isPosition(value: unknown): value is StoredPosition {
   if (typeof value !== 'object' || value === null) return false
   const p = value as Record<string, unknown>
   return (
-    (p.venue === 'market' || p.venue === 'launch') &&
+    // EVERY member of `PositionVenue`, or money disappears: this guard used to accept only
+    // market/launch while `CreateHouse` was already writing `governance` rows with the `-1`
+    // create-time sentinel — each re-read filtered them out, and the next `add()` rewrote the
+    // record without them. A validator that rejects what the app writes is the exact
+    // "destroying money to avoid a branch" this function's caller warns about.
+    (p.venue === 'market' || p.venue === 'launch' || p.venue === 'governance') &&
     typeof p.id === 'number' &&
     Number.isInteger(p.id) &&
-    p.id >= 0 &&
+    p.id >= -1 &&
     typeof p.secret === 'string' &&
     FELT.test(p.secret) &&
     typeof p.commitment === 'string' &&
     FELT.test(p.commitment) &&
     typeof p.createdAt === 'number' &&
-    (p.label === undefined || typeof p.label === 'string')
+    (p.label === undefined || typeof p.label === 'string') &&
+    (p.txHash === undefined || typeof p.txHash === 'string')
   )
 }
 

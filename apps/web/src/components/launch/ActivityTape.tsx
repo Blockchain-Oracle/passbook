@@ -12,6 +12,7 @@
 //
 import type { TapeItem } from '@strk20/protocol/chain-feed-wire'
 import type { OnChainLaunch, OnChainMarket } from '@strk20/protocol/app-reads'
+import type { OnChainHouse, OnChainProposal } from '@strk20/protocol/governance-reads'
 import { marketQuestion, strikeDisplay } from '@strk20/protocol/app-reads'
 import { toPlainText } from '@strk20/protocol/amount'
 import { voyagerTxUrl } from '@strk20/protocol/transaction'
@@ -24,15 +25,27 @@ import { Text } from '../ui/Text'
 export type TapeScope =
   | { launchId: number }
   | { marketId: number }
-  | { family: 'markets' | 'launch' }
+  /**
+   * One House's record: its own rows plus its proposals' rows. The proposal ids ride in the
+   * scope because a proposal event does not carry its house — the caller has the decoded
+   * proposals and the tape should not re-derive that join.
+   */
+  | { houseId: number; proposalIds?: readonly number[] }
+  | { family: 'markets' | 'launch' | 'governance' }
   | null
 
 function inScope(item: TapeItem, scope: TapeScope): boolean {
   if (scope === null) return true
   if ('family' in scope) {
-    return scope.family === 'markets' ? 'marketId' in item : 'launchId' in item
+    if (scope.family === 'markets') return 'marketId' in item
+    if (scope.family === 'launch') return 'launchId' in item
+    return 'houseId' in item || 'proposalId' in item
   }
   if ('launchId' in scope) return 'launchId' in item && item.launchId === scope.launchId
+  if ('houseId' in scope) {
+    if ('houseId' in item && item.houseId === scope.houseId) return true
+    return 'proposalId' in item && (scope.proposalIds ?? []).includes(item.proposalId)
+  }
   return 'marketId' in item && item.marketId === scope.marketId
 }
 
@@ -42,6 +55,8 @@ export function tapeSentence(
   markets: readonly OnChainMarket[],
   launches: readonly OnChainLaunch[],
   tokens: readonly TokenInfo[],
+  houses: readonly OnChainHouse[] = [],
+  proposals: readonly OnChainProposal[] = [],
 ): string {
   const market = 'marketId' in item ? markets.find((m) => m.id === item.marketId) : undefined
   const launch = 'launchId' in item ? launches.find((l) => l.id === item.launchId) : undefined
@@ -53,6 +68,14 @@ export function tapeSentence(
   const launchName = launch
     ? launch.symbol || launch.name || `Launch #${launch.id}`
     : `Launch #${'launchId' in item ? item.launchId : '?'}`
+  const house = 'houseId' in item ? houses.find((h) => h.id === item.houseId) : undefined
+  const proposal = 'proposalId' in item ? proposals.find((p) => p.id === item.proposalId) : undefined
+  const houseName = house?.metadata || `House #${'houseId' in item ? item.houseId : '?'}`
+  const proposalName = proposal?.metadata
+    ? `“${proposal.metadata.slice(0, 60)}”`
+    : `Proposal #${'proposalId' in item ? item.proposalId : '?'}`
+  // A proposal row's stake is its house's token; a house row's is its own.
+  const govStake = stake(house?.token ?? (proposal ? houses.find((h) => h.id === proposal.houseId)?.token : undefined))
 
   switch (item.kind) {
     case 'market-created':
@@ -92,6 +115,24 @@ export function tapeSentence(
       const t = stake(launch?.stakeToken)
       return `${toPlainText(BigInt(item.amount), t.decimals)} ${t.symbol} reclaimed from ${launchName}`
     }
+    case 'house-created':
+      return `New House — ${houseName} is standing`
+    case 'proposal-created':
+      return `The box opened on ${proposalName} — ${houses.find((h) => h.id === item.houseId)?.metadata || `House #${item.houseId}`}`
+    case 'gov-ballot':
+      return `A sealed ballot landed on ${proposalName} — ${toPlainText(BigInt(item.weight), govStake.decimals)} ${govStake.symbol} escrowed, choice sealed`
+    case 'gov-joined':
+      return `Someone joined ${houseName} — ${item.memberCount} member${item.memberCount === 1 ? '' : 's'} now, none of them named`
+    case 'treasury-funded':
+      return `${toPlainText(BigInt(item.amount), govStake.decimals)} ${govStake.symbol} into the ${houseName} treasury — now ${toPlainText(BigInt(item.treasuryAfter), govStake.decimals)}`
+    case 'tally-published':
+      return `Tally published on ${proposalName} — ${toPlainText(BigInt(item.tallyFor), govStake.decimals)} for, ${toPlainText(BigInt(item.tallyAgainst), govStake.decimals)} against, curve-checked`
+    case 'key-published':
+      return `The seal came off ${proposalName} — the tally key is on-chain, anyone can recount`
+    case 'gov-executed':
+      return `Executed — ${proposalName} paid out ${toPlainText(BigInt(item.amount), govStake.decimals)} ${govStake.symbol}`
+    case 'proposal-voided':
+      return `Voided — ${proposalName} never published a tally in its window; escrows reclaim in full`
   }
 }
 
@@ -99,6 +140,8 @@ export function ActivityTape({
   items,
   markets,
   launches,
+  houses = [],
+  proposals = [],
   scope = null,
   emptyLine,
   limit = 40,
@@ -106,6 +149,9 @@ export function ActivityTape({
   items: readonly TapeItem[]
   markets: readonly OnChainMarket[]
   launches: readonly OnChainLaunch[]
+  /** Decoded Houses, when a surface has them — names and stake tokens for governance rows. */
+  houses?: readonly OnChainHouse[]
+  proposals?: readonly OnChainProposal[]
   scope?: TapeScope
   /** The specific sentence for THIS surface's nothing — never a generic blank. */
   emptyLine: string
@@ -132,7 +178,7 @@ export function ActivityTape({
             className="flex items-baseline gap-s12 border-b border-solid border-surface3 py-s8 last:border-b-0"
           >
             <Text variant="body3" className="min-w-0 flex-1 text-neutral1">
-              {tapeSentence(item, markets, launches, tokens)}
+              {tapeSentence(item, markets, launches, tokens, houses, proposals)}
             </Text>
             <span className="flex shrink-0 items-baseline gap-s8">
               <Text variant="mono" className="text-neutral3">

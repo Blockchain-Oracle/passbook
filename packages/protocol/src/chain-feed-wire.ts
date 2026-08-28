@@ -106,6 +106,18 @@ export type TapeItem =
   | { kind: 'launch-failed'; launchId: number; sold: number; raised: string; txHash: string; block: number }
   | { kind: 'redeem'; launchId: number; units: number; amount: string; txHash: string; block: number }
   | { kind: 'refund'; launchId: number; amount: string; txHash: string; block: number }
+  // ── The Governor's public history (governance.cairo). Weights and amounts stay felt strings
+  //    like every other row; identities never appear because the contract never emits one —
+  //    ballots carry a pool-derived pseudonymous handle the tape deliberately does not carry.
+  | { kind: 'house-created'; houseId: number; token: string; txHash: string; block: number }
+  | { kind: 'proposal-created'; proposalId: number; houseId: number; deadline: number; txHash: string; block: number }
+  | { kind: 'gov-ballot'; proposalId: number; weight: string; seq: number; txHash: string; block: number }
+  | { kind: 'gov-joined'; houseId: number; memberCount: number; txHash: string; block: number }
+  | { kind: 'treasury-funded'; houseId: number; amount: string; treasuryAfter: string; txHash: string; block: number }
+  | { kind: 'tally-published'; proposalId: number; tallyFor: string; tallyAgainst: string; outcome: number; txHash: string; block: number }
+  | { kind: 'key-published'; proposalId: number; txHash: string; block: number }
+  | { kind: 'gov-executed'; proposalId: number; amount: string; txHash: string; block: number }
+  | { kind: 'proposal-voided'; proposalId: number; txHash: string; block: number }
 
 /**
  * The latest reading per pair — the full `PragmaPrice`, not a bare number, so staleness checks

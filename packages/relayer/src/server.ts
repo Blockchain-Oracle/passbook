@@ -2499,6 +2499,7 @@ async function main(): Promise<void> {
       ? new ChainFeed({
           markets: appContracts.markets,
           launch: appContracts.launch,
+          governance: appContracts.governance,
           readPrices: appContracts.pragma
             ? async () => {
                 const { readAllMedians } = await import('../../protocol/src/pragma.js')

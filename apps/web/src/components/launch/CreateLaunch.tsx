@@ -17,7 +17,7 @@ import { cn } from '../../lib/cn'
 import { downscaleToLogo } from '../../lib/downscale-image'
 import { APP_CONTRACTS } from '../../shell/app-contracts'
 import { generateLogo, pinLogo } from '../../shell/logo-service'
-import { invokeDirect } from '../../shell/submit'
+import { invokeSponsoredOrDirect } from '../../shell/submit'
 import { toast } from '../../shell/toast-store'
 import { useSession } from '../../shell/session'
 import { useTokenList } from '../../shell/use-token-list'
@@ -160,7 +160,7 @@ export function CreateLaunch({ open, onClose }: { open: boolean; onClose: () => 
         `0x${deadline.toString(16)}`,
         minted.commitment,
       ]
-      const outcome = await invokeDirect(ready.accountKey, ready.address, {
+      const outcome = await invokeSponsoredOrDirect(ready.accountKey, ready.address, {
         contractAddress: APP_CONTRACTS.launch!,
         entrypoint: 'create_launch',
         calldata,
@@ -177,6 +177,7 @@ export function CreateLaunch({ open, onClose }: { open: boolean; onClose: () => 
         commitment: minted.commitment,
         createdAt: Date.now(),
         label: `Creator of ${symbolClean} — sweeps the raise on graduation`,
+        txHash: outcome.transactionHash,
       })
       toast({
         kind: 'success',

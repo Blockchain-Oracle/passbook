@@ -7,6 +7,7 @@
 // NEVER a leaderboard, because the direction is sealed and a bar chart of it would be a lie.
 // "Quorum reached, outcome sealed" is a state no transparent voting product can render.
 //
+import { Link } from '@tanstack/react-router'
 import { useCallback, useMemo, useState } from 'react'
 
 import { toPlainText } from '@strk20/protocol/amount'
@@ -60,32 +61,47 @@ export function HouseCard({
 
   return (
     <section className="flex flex-col gap-s12 rounded-large border border-solid border-surface3 bg-raised p-s16">
-      <div className="flex items-center gap-s8">
-        <Text variant="subheading1" as="h2" className="min-w-0 flex-1 truncate text-neutral1">
-          {house.metadata || `House ${house.id}`}
-        </Text>
-        <span className="rounded-pill border border-solid border-surface3 px-s8 py-s2 font-mono text-mono text-neutral2">
-          {invite ? `${house.memberCount} members · invite` : 'open'}
-        </span>
-        {house.counting === HOUSE_COUNTING.member ? (
+      {/*
+        THE HEADER IS THE DOOR IN. "I can't even go inside a particular DAO" was the review —
+        the name and the fact row link into the House's record page, while the vote buttons and
+        the three doors below keep working in place.
+      */}
+      <Link
+        to="/houses/$id"
+        params={{ id: String(house.id) }}
+        preload="intent"
+        className="focus-ring group flex flex-col gap-s8 no-underline"
+      >
+        <div className="flex items-center gap-s8">
+          <Text variant="subheading1" as="h2" className="min-w-0 flex-1 truncate text-neutral1">
+            {house.metadata || `House ${house.id}`}
+          </Text>
           <span className="rounded-pill border border-solid border-surface3 px-s8 py-s2 font-mono text-mono text-neutral2">
-            1 member · 1 vote
+            {invite ? `${house.memberCount} members · invite` : 'open'}
           </span>
-        ) : null}
-      </div>
+          {house.counting === HOUSE_COUNTING.member ? (
+            <span className="rounded-pill border border-solid border-surface3 px-s8 py-s2 font-mono text-mono text-neutral2">
+              1 member · 1 vote
+            </span>
+          ) : null}
+        </div>
 
-      <div className="flex items-baseline gap-s12 font-mono text-mono text-neutral3">
-        <span>
-          treasury{' '}
-          <span className="text-neutral1">
-            {toPlainText(house.treasury, decimals)} {symbol}
+        <div className="flex items-baseline gap-s12 font-mono text-mono text-neutral3">
+          <span>
+            treasury{' '}
+            <span className="text-neutral1">
+              {toPlainText(house.treasury, decimals)} {symbol}
+            </span>
           </span>
-        </span>
-        <span>
-          quorum {toPlainText(house.quorum, house.counting === HOUSE_COUNTING.member ? 0 : decimals)}
-          {house.counting === HOUSE_COUNTING.member ? ' voices' : ` ${symbol}`}
-        </span>
-      </div>
+          <span>
+            quorum {toPlainText(house.quorum, house.counting === HOUSE_COUNTING.member ? 0 : decimals)}
+            {house.counting === HOUSE_COUNTING.member ? ' voices' : ` ${symbol}`}
+          </span>
+          <span className="flex-1 text-right text-neutral3 opacity-0 transition-opacity group-hover:opacity-100">
+            the record →
+          </span>
+        </div>
+      </Link>
 
       {proposals.length === 0 ? (
         <Text variant="body4" className="text-neutral3">
@@ -137,7 +153,7 @@ export function HouseCard({
 }
 
 /** One proposal as its box. Open: participation without direction. Settled: the accepted tally. */
-function ProposalRow({
+export function ProposalRow({
   proposal,
   now,
   symbol,
@@ -222,8 +238,8 @@ function ProposalRow({
   )
 }
 
-/** Fund the pot — anonymously, and there is no way back. */
-function FundDialog({ house, open, onClose }: { house: OnChainHouse; open: boolean; onClose: () => void }) {
+/** Fund the pot — anonymously, and there is no way back. Shared with the House record page. */
+export function FundDialog({ house, open, onClose }: { house: OnChainHouse; open: boolean; onClose: () => void }) {
   const { tokens } = useTokenList()
   const stake = findToken(tokens, house.token)
   const symbol = stake?.symbol ?? shortenFelt(house.token, 4, 3)
@@ -296,7 +312,7 @@ function FundDialog({ house, open, onClose }: { house: OnChainHouse; open: boole
 }
 
 /** Join the roll — a zero-value ComputeAndInvoke, the whole payload being that you are someone. */
-function JoinDialog({ house, open, onClose }: { house: OnChainHouse; open: boolean; onClose: () => void }) {
+export function JoinDialog({ house, open, onClose }: { house: OnChainHouse; open: boolean; onClose: () => void }) {
   const session = useSession()
   const ready = session.status === 'ready' ? session : null
   const { read } = useBalance(ready?.address ?? null, ready?.accountKey ?? null)

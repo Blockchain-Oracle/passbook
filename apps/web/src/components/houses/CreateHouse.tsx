@@ -1,5 +1,10 @@
 //
-// Activate a House — one direct call, creator = commitment (the `create_launch` precedent).
+// Create a House — relayer-signed by design, creator = commitment.
+//
+// The allowlist permits `create_house` from the relayer's key precisely because the creator is a
+// commitment: the signing key identifies nobody. Pool-native users hold no public STRK for gas,
+// so the sponsored path is the primary one; self-signing is the fallback, offered only when the
+// ladder says it can work.
 //
 // The invite secret for a members' club is minted HERE and shown ONCE: it is the door key, it
 // never goes anywhere but this screen and the copies its creator hands out, and the chain holds
@@ -13,7 +18,7 @@ import { HOUSE_COUNTING, HOUSE_MEMBERSHIP } from '@strk20/protocol/governance-re
 
 import { cn } from '../../lib/cn'
 import { APP_CONTRACTS } from '../../shell/app-contracts'
-import { invokeDirect } from '../../shell/submit'
+import { invokeSponsoredOrDirect } from '../../shell/submit'
 import { toast } from '../../shell/toast-store'
 import { useSession } from '../../shell/session'
 import { useTokenList } from '../../shell/use-token-list'
@@ -34,6 +39,9 @@ export function CreateHouse({ open, onClose }: { open: boolean; onClose: () => v
   const [memberVotes, setMemberVotes] = useState(false)
   const [inviteSecret, setInviteSecret] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  // Rendered INSIDE the dialog: a toast alone leaves the form sitting unchanged behind it, which
+  // on a phone reads as "nothing happened".
+  const [problem, setProblem] = useState<string | null>(null)
 
   const strk = useMemo(() => tokens.find((t) => t.symbol === 'STRK') ?? null, [tokens])
   const decimals = strk?.decimals ?? 18
@@ -49,11 +57,12 @@ export function CreateHouse({ open, onClose }: { open: boolean; onClose: () => v
       ? (quorum.problem ??
         (quorum.wei === null || quorum.wei === 0n ? 'Set a quorum — the weight a vote needs to be real' : null))
       : null) ??
-    (busy ? 'Activating…' : null)
+    (busy ? 'Creating…' : null)
 
   const onConfirm = useCallback(async () => {
     if (!ready || !strk) return
     setBusy(true)
+    setProblem(null)
     try {
       const { mintPositionSecret } = await import('@strk20/protocol/commitment')
       const creator = mintPositionSecret()
@@ -69,13 +78,14 @@ export function CreateHouse({ open, onClose }: { open: boolean; onClose: () => v
         ...encodeByteArray(name.trim()),
         creator.commitment,
       ]
-      const outcome = await invokeDirect(ready.accountKey, ready.address, {
+      const outcome = await invokeSponsoredOrDirect(ready.accountKey, ready.address, {
         contractAddress: APP_CONTRACTS.governance!,
         entrypoint: 'create_house',
         calldata,
       })
       if (!outcome.ok) {
-        toast({ kind: 'error', title: 'The House was not activated', detail: outcome.because })
+        setProblem(outcome.because)
+        toast({ kind: 'error', title: 'The House was not created', detail: outcome.because })
         return
       }
       addPosition({
@@ -85,6 +95,7 @@ export function CreateHouse({ open, onClose }: { open: boolean; onClose: () => v
         commitment: creator.commitment,
         createdAt: Date.now(),
         label: `Founder of ${name.trim()}`,
+        txHash: outcome.transactionHash,
       })
       if (door) {
         // Shown once. The dialog stays open on this state until the creator dismisses it.
@@ -100,7 +111,7 @@ export function CreateHouse({ open, onClose }: { open: boolean; onClose: () => v
   }, [ready, strk, name, quorum.wei, thresholdPct, invite, memberVotes, onClose])
 
   return (
-    <ResponsiveDialog open={open} onOpenChange={(next) => (next ? undefined : onClose())} label="Activate a House" modal>
+    <ResponsiveDialog open={open} onOpenChange={(next) => (next ? undefined : onClose())} label="Create a House" modal>
       <div className="flex min-h-0 flex-col gap-s12 overflow-y-auto">
         {inviteSecret ? (
           <>
@@ -126,7 +137,7 @@ export function CreateHouse({ open, onClose }: { open: boolean; onClose: () => v
         ) : (
           <>
             <Text variant="subheading2" as="h2" className="text-neutral1">
-              Activate a House
+              Create a House
             </Text>
             <Text variant="body4" className="text-neutral2">
               A House is governance on a token: sealed ballots, a treasury anyone can fund
@@ -207,12 +218,19 @@ export function CreateHouse({ open, onClose }: { open: boolean; onClose: () => v
             </div>
 
             <Text variant="body4" className="text-neutral3">
-              Activating is an ordinary transaction — your address signs it, the way any deploy is
-              public. Your FOUNDER claim is a bearer secret this browser stores; the members, when
-              they come, are anonymous handles even to you.
+              The relayer signs this one — the chain records your FOUNDER claim as a commitment
+              that identifies nobody, and this browser keeps its bearer secret. Only if the
+              relayer is away does your own address sign instead, publicly, the way any deploy is.
+              The members, when they come, are anonymous handles even to you.
             </Text>
 
-            <BlockedButton blocker={blocker} action="Activate it" onPress={() => void onConfirm()} />
+            {problem ? (
+              <Text variant="body4" className="text-exposed" role="status">
+                {problem}
+              </Text>
+            ) : null}
+
+            <BlockedButton blocker={blocker} action="Create it" onPress={() => void onConfirm()} />
           </>
         )}
       </div>
