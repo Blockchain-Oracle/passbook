@@ -1,13 +1,15 @@
 /*
- * GENERATED FILE — DO NOT EDIT.
+ * The STUDIO design tokens, and shadcn's variable contract bound to them.
  *
- * source: apps/web/design/tokens.yaml  sha256 96050afdf0b547ba1534a3c203a56aa1696b54c9f39137347f2bb199cc578f38
+ * Hand-owned. This used to be generated from `tokens.yaml` by a 667-line renderer and checked by a
+ * 1,721-line script that re-parsed the compiled output to confirm the renderer had worked — 2,900
+ * lines of machinery to produce what `@theme` does natively. All of it is deleted; edit this file.
  *
- * Regenerate with `pnpm run render:tokens` after editing tokens.yaml, and commit the result.
- * and the yaml disagree, so a hand-edit here is caught rather than shipped. tokens.yaml is the
- * verbatim frontmatter of the UX design authority.
- * locally. The banner carries the SOURCE HASH and no timestamp, so regenerating an unchanged
- * sheet produces a byte-identical file and the gate stays about drift.
+ * TWO NAMESPACES ARE CLOSED, and only two. `--color-*` and `--font-*` reset to `initial`, so
+ * `bg-red-500`, `bg-white` and `text-white` generate no rule: every colour is a named token and
+ * every typeface is one of three. Geometry stays OPEN — spacing, radii, shadows, easings and
+ * animations — because a component library is written in `h-8 gap-1.5 rounded-lg shadow-xs
+ * animate-spin`, and closing those made every such component render unstyled and silent.
  */
 
 @custom-variant dark {
@@ -18,19 +20,9 @@
 }
 
 @theme static {
-  /* Close the default vocabulary. 21 namespaces, ~419 keys, of which 288 are colours.
-     After this an off-sheet utility generates NO RULE — `bg-red-500` is absent rather than
-     empty. `bg-white`, `bg-black` and `text-white` die with it: any white or black this app
-     needs is a named token. What survives the wipe is closed by scripts/lint-tokens.mjs. */
-  --color-*: initial;  --spacing: initial;  --spacing-*: initial;
-  --font-*: initial;  --font-weight-*: initial;  --text-*: initial;
-  --tracking-*: initial;  --leading-*: initial;  --breakpoint-*: initial;
-  --container-*: initial;  --radius-*: initial;  --shadow-*: initial;
-  --inset-shadow-*: initial;  --drop-shadow-*: initial;  --text-shadow-*: initial;
-  --ease-*: initial;  --animate-*: initial;  --blur-*: initial;
-  --perspective-*: initial;  --aspect-*: initial;  --default-*: initial;
+  --color-*: initial;  --font-*: initial;
 
-  /* colours — 31 light values; the dark sheets below redeclare all 31 */
+  /* colours — 31 light values; the dark blocks below redeclare all 31 */
   --color-ground: #E7E6E1;
   --color-raised: #F4F3EF;
   --color-raisedHovered: #EFEEE9;
@@ -63,6 +55,14 @@
   --color-irreversibleHovered: #832E44;
   --color-irreversibleTint: rgba(163,58,85,0.10);
 
+  /* boundary — WHERE the money lives, orthogonal to severity above. The axis the app never had. */
+  --color-shielded: #3F6B12;
+  --color-shieldedTint: rgba(63,107,18,0.13);
+  --color-shieldedEdge: rgba(63,107,18,0.42);
+  --color-public: #6E5A05;
+  --color-publicTint: rgba(110,90,5,0.13);
+  --color-publicEdge: rgba(110,90,5,0.42);
+
   /* typeface */
   --font-sans: 'Archivo Variable', 'Inter', system-ui, sans-serif;
   --font-display: 'Anton', 'Archivo Variable', system-ui, sans-serif;
@@ -71,77 +71,45 @@
   --font-weight-medium: 600;
   --font-weight-bold: 700;
 
-  /* type scale — a compound key emits size, leading, tracking and weight in ONE utility */
-  --text-displayHero: 76px;
-  --text-displayHero--line-height: 64px;
-  --text-displayHero--letter-spacing: 0.004em;
-  --text-display1: 62px;
-  --text-display1--line-height: 56px;
-  --text-display1--letter-spacing: 0.004em;
-  --text-display2: 44px;
-  --text-display2--line-height: 40px;
-  --text-display2--letter-spacing: 0.004em;
-  --text-display3: 29px;
-  --text-display3--line-height: 28px;
-  --text-display3--letter-spacing: 0.004em;
-  --text-display4: 19px;
-  --text-display4--line-height: 20px;
-  --text-display4--letter-spacing: 0.02em;
-  --text-heading1: 52px;
-  --text-heading1--line-height: 56px;
-  --text-heading1--letter-spacing: -0.02em;
-  --text-heading2: 36px;
-  --text-heading2--line-height: 40px;
-  --text-heading2--letter-spacing: -0.01em;
-  --text-heading3: 24px;
-  --text-heading3--line-height: 28px;
-  --text-heading3--letter-spacing: -0.005em;
-  --text-subheading1: 18px;
-  --text-subheading1--line-height: 24px;
-  --text-subheading2: 16px;
-  --text-subheading2--line-height: 24px;
-  --text-body1: 18px;
-  --text-body1--line-height: 24px;
-  --text-body2: 16px;
-  --text-body2--line-height: 24px;
-  --text-body3: 14px;
-  --text-body3--line-height: 24px;
-  --text-body4: 12px;
-  --text-body4--line-height: 20px;
-  --text-mono: 12px;
-  --text-mono--line-height: 16px;
-  --text-kicker: 11px;
-  --text-kicker--line-height: 16px;
-  --text-kicker--letter-spacing: 0.16em;
-  --text-navLabel: 11px;
-  --text-navLabel--line-height: 16px;
-  --text-navLabel--letter-spacing: 0.12em;
-  --text-navLabel--font-weight: 700;
-  --text-buttonLabel1: 18px;
-  --text-buttonLabel1--line-height: 24px;
-  --text-buttonLabel1--font-weight: 600;
-  --text-buttonLabel2: 16px;
-  --text-buttonLabel2--line-height: 24px;
-  --text-buttonLabel2--font-weight: 600;
-  --text-buttonLabel3: 14px;
-  --text-buttonLabel3--line-height: 20px;
-  --text-buttonLabel3--font-weight: 600;
-  --text-buttonLabel4: 12px;
-  --text-buttonLabel4--line-height: 16px;
-  --text-buttonLabel4--font-weight: 600;
+  /* type scale — one compound key emits size, leading, tracking and weight in ONE utility */
+  --text-displayHero: 76px;      --text-displayHero--line-height: 64px;     --text-displayHero--letter-spacing: 0.004em;
+  --text-display1: 62px;         --text-display1--line-height: 56px;        --text-display1--letter-spacing: 0.004em;
+  --text-display2: 44px;         --text-display2--line-height: 40px;        --text-display2--letter-spacing: 0.004em;
+  --text-display3: 29px;         --text-display3--line-height: 28px;        --text-display3--letter-spacing: 0.004em;
+  --text-display4: 19px;         --text-display4--line-height: 20px;        --text-display4--letter-spacing: 0.02em;
+  --text-heading1: 52px;         --text-heading1--line-height: 56px;        --text-heading1--letter-spacing: -0.02em;
+  --text-heading2: 36px;         --text-heading2--line-height: 40px;        --text-heading2--letter-spacing: -0.01em;
+  --text-heading3: 24px;         --text-heading3--line-height: 28px;        --text-heading3--letter-spacing: -0.005em;
+  --text-subheading1: 18px;      --text-subheading1--line-height: 24px;
+  --text-subheading2: 16px;      --text-subheading2--line-height: 24px;
+  --text-body1: 18px;            --text-body1--line-height: 24px;
+  --text-body2: 16px;            --text-body2--line-height: 24px;
+  --text-body3: 14px;            --text-body3--line-height: 24px;
+  --text-body4: 12px;            --text-body4--line-height: 20px;
+  --text-mono: 12px;             --text-mono--line-height: 16px;
+  --text-kicker: 11px;           --text-kicker--line-height: 16px;          --text-kicker--letter-spacing: 0.16em;
+  --text-navLabel: 11px;         --text-navLabel--line-height: 16px;        --text-navLabel--letter-spacing: 0.12em;   --text-navLabel--font-weight: 700;
+  --text-buttonLabel1: 18px;     --text-buttonLabel1--line-height: 24px;    --text-buttonLabel1--font-weight: 600;
+  --text-buttonLabel2: 16px;     --text-buttonLabel2--line-height: 24px;    --text-buttonLabel2--font-weight: 600;
+  --text-buttonLabel3: 14px;     --text-buttonLabel3--line-height: 20px;    --text-buttonLabel3--font-weight: 600;
+  --text-buttonLabel4: 12px;     --text-buttonLabel4--line-height: 16px;    --text-buttonLabel4--font-weight: 600;
 
-  /* radii */
+  /* radii — house names, plus the sm/md/lg shadcn components are written in */
+  --radius: 12px;
   --radius-none: 0px;
   --radius-badge: 6px;
+  --radius-sm: 8px;
   --radius-small: 8px;
+  --radius-md: 10px;
   --radius-control: 12px;
+  --radius-lg: 12px;
   --radius-card: 16px;
   --radius-large: 20px;
   --radius-xl: 24px;
   --radius-hero: 32px;
   --radius-pill: 9999px;
 
-  /* breakpoints — all eight, because the wipe above removed Tailwind's five defaults too */
+  /* breakpoints — STUDIO's five match Tailwind's defaults exactly, by measurement */
   --breakpoint-2xs: 360px;
   --breakpoint-xs: 380px;
   --breakpoint-popover: 450px;
@@ -151,31 +119,15 @@
   --breakpoint-xl: 1280px;
   --breakpoint-2xl: 1536px;
 
-  /* spacing — NAMED steps, never numeric */
-  /* `--spacing` and `--spacing-*` are wiped above and the steps are named `s<N>`, so `p-4`
-     generates nothing at all. With the numeric form it would compile to 4px — four times off
-     every human and codegen prior, lint-clean and invisible to the eye. A loud no-op beats a
-     quiet 4x error. Fraction modifiers do not work on named steps (`p-s4/2` → no rule),
-     which is the point: no hidden half-step vocabulary. */
-  --spacing-s0: 0px;
-  --spacing-s1: 1px;
-  --spacing-s2: 2px;
-  --spacing-s4: 4px;
-  --spacing-s6: 6px;
-  --spacing-s8: 8px;
-  --spacing-s12: 12px;
-  --spacing-s16: 16px;
-  --spacing-s18: 18px;
-  --spacing-s20: 20px;
-  --spacing-s24: 24px;
-  --spacing-s28: 28px;
-  --spacing-s32: 32px;
-  --spacing-s36: 36px;
-  --spacing-s40: 40px;
-  --spacing-s48: 48px;
+  /* spacing — named `s<N>` steps stay the house vocabulary; `--spacing` makes `p-4` mean 16px */
+  --spacing: 0.25rem;
+  --spacing-s0: 0px;    --spacing-s1: 1px;    --spacing-s2: 2px;    --spacing-s4: 4px;
+  --spacing-s6: 6px;    --spacing-s8: 8px;    --spacing-s12: 12px;  --spacing-s16: 16px;
+  --spacing-s18: 18px;  --spacing-s20: 20px;  --spacing-s24: 24px;  --spacing-s28: 28px;
+  --spacing-s32: 32px;  --spacing-s36: 36px;  --spacing-s40: 40px;  --spacing-s48: 48px;
   --spacing-s60: 60px;
 
-  /* motion — plain @theme keys, var()-referenced and theme-reactive; zero @utility rules */
+  /* motion */
   --transition-duration-simple: 80ms;
   --transition-duration-fastExit: 80ms;
   --transition-duration-fast: 100ms;
@@ -196,16 +148,61 @@
   --ease-attention: cubic-bezier(0.17,0.17,0,1);
   --ease-linear: linear;
 
-  /* shadows — whole-value indirection; the literal fallback is load-bearing, not belt-and-braces */
+  /* shadows — whole-value indirection so the dark blocks can swap them */
   --shadow-short: var(--sh-short, 0 1px 4px 0 rgba(40,40,36,0.08));
   --shadow-medium: var(--sh-medium, 0 10px 28px -6px rgba(40,40,36,0.16));
   --shadow-large: var(--sh-large, 0 24px 80px rgba(40,40,36,0.24));
 }
 
-/* Unlayered from here down — see the cascade-layer law in render-design-tokens.mjs. */
+/*
+ * SHADCN'S CONTRACT, pointed at the tokens above.
+ *
+ * `@theme inline` is the documented way to define theme keys that reference other CSS variables.
+ * Because every `--color-*` below is redeclared on `:root` by the dark blocks, `bg-background`
+ * follows the theme with no `.dark` class and no second palette — which is why there is no
+ * `@custom-variant dark (&:is(.dark *))` here. One dark variant is defined, at the top of this file.
+ */
+@theme inline {
+  --color-background: var(--color-ground);
+  --color-foreground: var(--color-neutral1);
+  --color-card: var(--color-raised);
+  --color-card-foreground: var(--color-neutral1);
+  --color-popover: var(--color-raised);
+  --color-popover-foreground: var(--color-neutral1);
+  --color-primary: var(--color-accent1);
+  --color-primary-foreground: var(--color-ground);
+  --color-secondary: var(--color-inset);
+  --color-secondary-foreground: var(--color-neutral1);
+  --color-muted: var(--color-inset);
+  --color-muted-foreground: var(--color-neutral2);
+  --color-accent: var(--color-accent2);
+  --color-accent-foreground: var(--color-accent1);
+  --color-destructive: var(--color-irreversible);
+  --color-destructive-foreground: var(--color-ground);
+  --color-surface: var(--color-raised);
+  --color-surface-foreground: var(--color-neutral1);
+  --color-border: var(--color-surface3);
+  --color-input: var(--color-surface3);
+  --color-ring: var(--color-accent1);
+
+  --color-sidebar: var(--color-raised);
+  --color-sidebar-foreground: var(--color-neutral1);
+  --color-sidebar-primary: var(--color-accent1);
+  --color-sidebar-primary-foreground: var(--color-ground);
+  --color-sidebar-accent: var(--color-accent2);
+  --color-sidebar-accent-foreground: var(--color-accent1);
+  --color-sidebar-border: var(--color-surface3);
+  --color-sidebar-ring: var(--color-accent1);
+
+  --color-chart-1: var(--color-accent1);
+  --color-chart-2: var(--color-settled);
+  --color-chart-3: var(--color-exposed);
+  --color-chart-4: var(--color-irreversible);
+  --color-chart-5: var(--color-neutral2);
+}
+
 :root {
-  /* `color-scheme` is the only thing that flips native scrollbars, form controls and the
-     default canvas. No colour token does it, and nothing else will. */
+  /* The only thing that flips native scrollbars, form controls and the default canvas. */
   color-scheme: light;
   --sh-short: 0 1px 4px 0 rgba(40,40,36,0.08);
   --sh-medium: 0 10px 28px -6px rgba(40,40,36,0.16);
@@ -246,6 +243,12 @@
     --color-irreversible: #F2A0B4;
     --color-irreversibleHovered: #F7B8C7;
     --color-irreversibleTint: rgba(242,160,180,0.12);
+    --color-shielded: #C8F57F;
+    --color-shieldedTint: rgba(200,245,127,0.12);
+    --color-shieldedEdge: rgba(200,245,127,0.42);
+    --color-public: #F2DC4E;
+    --color-publicTint: rgba(242,220,78,0.12);
+    --color-publicEdge: rgba(242,220,78,0.42);
     --sh-short: 0 1px 4px 0 rgba(0,0,0,0.35);
     --sh-medium: 0 12px 32px -6px rgba(0,0,0,0.5);
     --sh-large: 0 24px 80px rgba(0,0,0,0.6);
@@ -286,6 +289,12 @@
   --color-irreversible: #F2A0B4;
   --color-irreversibleHovered: #F7B8C7;
   --color-irreversibleTint: rgba(242,160,180,0.12);
+  --color-shielded: #C8F57F;
+  --color-shieldedTint: rgba(200,245,127,0.12);
+  --color-shieldedEdge: rgba(200,245,127,0.42);
+  --color-public: #F2DC4E;
+  --color-publicTint: rgba(242,220,78,0.12);
+  --color-publicEdge: rgba(242,220,78,0.42);
   --sh-short: 0 1px 4px 0 rgba(0,0,0,0.35);
   --sh-medium: 0 12px 32px -6px rgba(0,0,0,0.5);
   --sh-large: 0 24px 80px rgba(0,0,0,0.6);
