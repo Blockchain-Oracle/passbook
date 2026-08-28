@@ -72,8 +72,10 @@ export const PRICE_STRIP_SOURCE =
 export const PRICE_STALE = 'Not updated recently'
 
 /** The series is this session's, and the copy refuses to imply otherwise. */
-export const PRICE_SERIES_IS_SESSION =
-  'This line is what this page has watched since you opened it, not a market history.'
+export const PRICE_SERIES_PROVENANCE =
+  'This line is what the relay has witnessed — up to a day of oracle readings that survive your ' +
+  'reload, still not a market history. When the live feed is unreachable it narrows to what this ' +
+  'page has watched itself, and says so by getting shorter.'
 
 /**
  * What the dashed line on the chart is, before any market exists.
@@ -88,9 +90,9 @@ export const PRICE_SERIES_IS_SESSION =
  * true by construction, and exactly the shape a strike will take. The sentence says which it is,
  * because a dashed line on a price chart otherwise reads as a target somebody set.
  */
-export const CHART_REFERENCE_IS_SESSION_OPEN =
-  'The dashed line is the first price this page saw — green above it, red below. A market puts its ' +
-  'own level there instead.'
+export const CHART_REFERENCE_IS_WINDOW_OPEN =
+  'The dashed line is the first price of the drawn window — green above it, red below. A market ' +
+  'puts its own level there instead.'
 
 // ── Betting ───────────────────────────────────────────────────────────────────────────────
 
