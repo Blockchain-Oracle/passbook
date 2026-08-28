@@ -49,6 +49,18 @@ export type ClientAction =
   | { type: 'SetViewingKey'; random: bigint }
   | { type: 'OpenChannel'; recipientAddr: string; index: number; random: bigint; salt: bigint }
   | { type: 'InvokeExternal'; contractAddress: string; calldata: readonly string[] }
+  | {
+      /**
+       * `ComputeAndInvokeInput { contract_address, compute_additional_data, invoke_additional_data }`
+       * — the pool derives the caller's per-helper identity key, calls the target's
+       * `privacy_compute` with `[identity_key, ...compute]`, and forwards the result plus
+       * `invoke` into `privacy_invoke_with_computation`. The governance wire (§2.1).
+       */
+      type: 'ComputeAndInvoke'
+      contractAddress: string
+      compute: readonly string[]
+      invoke: readonly string[]
+    }
 
 const toFelt = (v: bigint | number | string): string =>
   typeof v === 'string' ? (v.startsWith('0x') ? v : `0x${BigInt(v).toString(16)}`) : `0x${BigInt(v).toString(16)}`
@@ -75,6 +87,15 @@ export function encodeClientActions(actions: readonly ClientAction[]): string[] 
         toFelt(a.index),
         toFelt(a.random),
         toFelt(a.salt),
+      )
+    } else if (a.type === 'ComputeAndInvoke') {
+      out.push(
+        toFelt(CLIENT_ACTION.ComputeAndInvoke),
+        toFelt(a.contractAddress),
+        toFelt(a.compute.length),
+        ...a.compute.map(toFelt),
+        toFelt(a.invoke.length),
+        ...a.invoke.map(toFelt),
       )
     } else {
       out.push(
