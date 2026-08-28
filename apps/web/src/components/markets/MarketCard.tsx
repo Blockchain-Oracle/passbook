@@ -9,6 +9,8 @@
 //
 // The Room is the market's open thread — the same rail as every Talk tab, one press away.
 //
+import { Link } from '@tanstack/react-router'
+
 import type { PricePoint } from '@strk20/protocol/chain-feed-wire'
 import {
   MARKET_STATE,
@@ -91,9 +93,18 @@ export function MarketCard({
         </span>
       </div>
 
-      <Text variant="body2" className="font-medium text-neutral1">
-        {marketQuestion(market)}
-      </Text>
+      {/* The question is the door into the market's record page — the card keeps its two
+          price buttons working in place, but the market itself is now somewhere you can GO. */}
+      <Link
+        to="/markets/$id"
+        params={{ id: String(market.id) }}
+        preload="intent"
+        className="focus-ring no-underline"
+      >
+        <Text variant="body2" className="font-medium text-neutral1 hover:underline">
+          {marketQuestion(market)}
+        </Text>
+      </Link>
 
       <div className="flex items-baseline gap-s8">
         <Text variant="heading3" as="p" className="numeric text-neutral1">
