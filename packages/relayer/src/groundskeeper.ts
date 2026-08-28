@@ -40,12 +40,17 @@ const BOUNDS = {
 }
 
 /**
- * Nominal 70 minutes. `op_create` asserts a 3600-second floor for the standard tier and the
- * deadline is computed from THIS clock — proving plus inclusion eats two to three minutes, so a
- * nominal hour would arrive under the floor and revert at full gas (the WINDOW_TOO_SHORT lesson,
- * already paid for twice at ~2.5 STRK each).
+ * Nominal 24 hours (plus ten minutes of proving-and-inclusion margin — the WINDOW_TOO_SHORT
+ * lesson, already paid for twice at ~2.5 STRK each, says never compute a deadline this clock
+ * cannot deliver).
+ *
+ * A DAY, NOT AN HOUR, AND THE REASON IS THE FEE: every creation pays the pool's 6 STRK on top of
+ * its seed, so hourly windows across three pairs would burn ~480 STRK a day keeping an empty
+ * board busy. Daily standing markets cost three fees a day, the seeds reclaim after settlement,
+ * and a board that always shows today's question is the product Abu asked for — users who want
+ * fast action open their own short markets beside them.
  */
-const DEFAULT_WINDOW_SECONDS = 70 * 60
+const DEFAULT_WINDOW_SECONDS = 24 * 3600 + 600
 
 /** A market with less than this left on its clock no longer counts as covering its pair. */
 const DEFAULT_MIN_REMAINING_SECONDS = 15 * 60
@@ -409,7 +414,10 @@ export function openGroundskeeper(config: GroundskeeperConfig): Groundskeeper {
         const held = await shieldedStrk()
         const perMarket = config.seedWei + pool.feeWei
         if (held < perMarket) {
-          const depositWei = perMarket * 4n
+          // Two markets' worth per shield: each deposit pays its own pool fee, so batching
+          // beats a deposit per market — but the multiplier stays small because the relayer
+          // wallet also backs sponsorship and gas, and seeds flow back after settlement.
+          const depositWei = perMarket * 2n
           config.log?.(
             `groundskeeper: shielding ${formatStrk(depositWei)} for seeds (held ${formatStrk(held)})`,
           )
