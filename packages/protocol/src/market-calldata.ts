@@ -84,7 +84,6 @@ function felt(value: bigint | number | string): string | null {
 
 const U128 = 1n << 128n
 const U64 = 1n << 64n
-const U32 = 1n << 32n
 
 /** A felt that must fit the Cairo integer the contract will `try_into` it as. */
 function bounded(value: bigint | number | string, ceiling: bigint): string | null {

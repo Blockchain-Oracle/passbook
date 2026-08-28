@@ -135,6 +135,41 @@ export type DeployResult =
   | { readonly ok: false; readonly because: string }
 
 /**
+ * One ordinary invoke from the browser's account — no pool, no proof pair.
+ *
+ * `create_launch` is why this exists: `launch.cairo` keeps creation OUTSIDE `privacy_invoke` on
+ * purpose ("the creator is a commitment, so sponsorship gives the relayer nothing to sweep"), so
+ * it is a plain account call that moves no money. The caller's address IS on the transaction —
+ * which the create surface says in words — and the creator's CLAIM stays a bearer secret.
+ *
+ * Waits for acceptance before reporting, because the surface's next poll must see the result.
+ */
+export async function invokeDirect(
+  accountKey: string,
+  address: string,
+  call: SubmitCall,
+): Promise<DeployResult> {
+  try {
+    const { Account, RpcProvider } = await import('starknet')
+    const provider = new RpcProvider({ nodeUrl: NET.rpc[0]! })
+    const account = new Account({ provider, address, signer: accountKey })
+    const { transaction_hash } = await account.execute([call] as never)
+    await provider.waitForTransaction(transaction_hash)
+    return { ok: true, transactionHash: transaction_hash }
+  } catch (error) {
+    // The account paid for any attempt that reached the sequencer, so this says so rather than
+    // reading as though nothing happened.
+    return {
+      ok: false,
+      because:
+        error instanceof Error && error.message
+          ? `The transaction did not complete: ${error.message}`
+          : 'The transaction did not complete.',
+    }
+  }
+}
+
+/**
  * Deploy the account contract this key controls.
  *
  * ── THE ADDRESS IS CHECKED AGAINST THE KEY FIRST, AND THAT REFUSAL IS THE POINT ──────────

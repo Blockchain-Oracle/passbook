@@ -4,13 +4,13 @@ import {
   LAUNCH_BUYER_HIDDEN,
   LAUNCH_EPOCH_FACT,
   LAUNCH_GRADUATION,
-  LAUNCH_NONE_OPEN,
   LAUNCH_NOT_DEPLOYED,
   LAUNCH_REFUND,
   LAUNCH_STANDING_LINE,
   LAUNCH_TITLE,
 } from '@strk20/protocol/markets-copy'
 
+import { LaunchPanel } from '../components/LaunchPanel'
 import { Text } from '../components/ui/Text'
 import { cn } from '../lib/cn'
 import { LAUNCH_DEPLOYED } from '../shell/app-contracts'
@@ -53,18 +53,23 @@ function Launch() {
         </header>
 
         {/*
-          THE ABSENCE, FIRST AND PLAINLY. It leads rather than sitting under the explanation
-          because a reader arriving at an empty grid deserves to know why before they are taught
-          how it works — the alternative reads as a product hiding its own emptiness behind copy.
+          THE SALES, LIVE. `LaunchPanel` reads the deployed contract and renders every launch in
+          its true state — selling, sold out, graduated, refunding — with the buy ticket and the
+          create form behind real submissions. The absent arm survives for a build with no
+          deployment, plainly and first, exactly as before.
         */}
-        <section className="rounded-large border border-solid border-surface3 p-s16">
-          <Text variant="subheading2" as="h2">
-            {LAUNCH_DEPLOYED ? 'Nothing open' : 'Not open yet'}
-          </Text>
-          <Text variant="body3" className="mt-s4 max-w-[70ch] text-neutral2">
-            {LAUNCH_DEPLOYED ? LAUNCH_NONE_OPEN : LAUNCH_NOT_DEPLOYED}
-          </Text>
-        </section>
+        {LAUNCH_DEPLOYED ? (
+          <LaunchPanel />
+        ) : (
+          <section className="rounded-large border border-solid border-surface3 p-s16">
+            <Text variant="subheading2" as="h2">
+              Not open yet
+            </Text>
+            <Text variant="body3" className="mt-s4 max-w-[70ch] text-neutral2">
+              {LAUNCH_NOT_DEPLOYED}
+            </Text>
+          </section>
+        )}
 
         {/*
           The card grid the launches will fill. Rendered as the RULES today — same geometry, real
