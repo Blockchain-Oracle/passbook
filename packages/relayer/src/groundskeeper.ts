@@ -456,6 +456,28 @@ export function openGroundskeeper(config: GroundskeeperConfig): Groundskeeper {
       const { readPoolConstants } = await import('../../protocol/src/pool.js')
       const { STRK_TOKEN } = await import('../../protocol/src/constants.js')
       const { approveCeiling } = await import('../../protocol/src/fee-ceiling.js')
+      const { formatStrk } = await import('../../protocol/src/register.js')
+
+      //
+      // THE FUNDS FLOOR, CHECKED BEFORE ANYTHING IS PROVEN OR SIGNED. The bounds ceiling only
+      // gates the broadcast; a wallet that clears it but cannot ALSO cover the pool fee buys a
+      // revert at `collect_fee` — real gas burned, every sweep, three minutes apart. One free
+      // balance read makes that a sentence instead of a bill.
+      //
+      const pool = await readPoolConstants()
+      const ceiling =
+        BOUNDS.l2_gas.max_amount * BOUNDS.l2_gas.max_price_per_unit +
+        BOUNDS.l1_gas.max_amount * BOUNDS.l1_gas.max_price_per_unit +
+        BOUNDS.l1_data_gas.max_amount * BOUNDS.l1_data_gas.max_price_per_unit
+      const needed = pool.feeWei + ceiling
+      const balanceFelts = await transportCall(STRK_TOKEN, 'balanceOf', [config.address])
+      const held = BigInt(balanceFelts[0] ?? '0x0') + (BigInt(balanceFelts[1] ?? '0x0') << 128n)
+      if (held < needed) {
+        throw new Error(
+          `the wallet holds ${formatStrk(held)} public STRK and one creation needs ~${formatStrk(needed)} ` +
+            `(pool fee + gas ceiling) — top up ${config.address} to plant the board`,
+        )
+      }
 
       const seeder = mintPositionSecret()
       persist(seeder) // ON DISK BEFORE ANYTHING IS SIGNED — see the header.
@@ -471,7 +493,6 @@ export function openGroundskeeper(config: GroundskeeperConfig): Groundskeeper {
       })
       if (payload.state !== 'ready') throw new Error(payload.because)
 
-      const pool = await readPoolConstants()
       const txHash = await proveAndSubmit(
         (b) =>
           (b as {
