@@ -76,8 +76,9 @@ describe('the four cell states each carry a word, a shape and a meaning', () => 
 })
 
 describe('every review context resolves to something', () => {
-  it('declares ten, and the table covers exactly those ten', () => {
-    expect(VISIBILITY_CONTEXTS).toHaveLength(10)
+  it('declares fifteen, and the table covers exactly those fifteen', () => {
+    // Ten shipped with the six surfaces; the Houses brought five (docs/governance.md §4.2).
+    expect(VISIBILITY_CONTEXTS).toHaveLength(15)
     expect(Object.keys(MATRICES).sort()).toEqual([...VISIBILITY_CONTEXTS].sort())
   })
 
@@ -89,10 +90,10 @@ describe('every review context resolves to something', () => {
     }
   })
 
-  it('authors eight and refuses two, by name', () => {
+  it('authors thirteen and refuses two, by name', () => {
     const authored = VISIBILITY_CONTEXTS.filter((c) => matrixFor(c).authored)
     const refused = VISIBILITY_CONTEXTS.filter((c) => !matrixFor(c).authored)
-    expect(authored).toHaveLength(8)
+    expect(authored).toHaveLength(13)
     expect(refused).toEqual(UNAUTHORED)
   })
 })

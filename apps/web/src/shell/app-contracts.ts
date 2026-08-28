@@ -32,6 +32,7 @@ export const APP_CONTRACTS: AppContracts = appContractsFromEnv({
   PASSBOOK_MARKETS_ADDRESS: import.meta.env.VITE_PASSBOOK_MARKETS_ADDRESS as string | undefined,
   PASSBOOK_LAUNCH_ADDRESS: import.meta.env.VITE_PASSBOOK_LAUNCH_ADDRESS as string | undefined,
   PASSBOOK_PRAGMA_ADDRESS: import.meta.env.VITE_PASSBOOK_PRAGMA_ADDRESS as string | undefined,
+  PASSBOOK_GOVERNANCE_ADDRESS: import.meta.env.VITE_PASSBOOK_GOVERNANCE_ADDRESS as string | undefined,
 })
 
 /** True once the Markets contract has an address. Everything on `/markets` that submits keys on it. */
@@ -39,6 +40,9 @@ export const MARKETS_DEPLOYED = APP_CONTRACTS.markets !== undefined
 
 /** True once the Launch contract has an address. */
 export const LAUNCH_DEPLOYED = APP_CONTRACTS.launch !== undefined
+
+/** Whether the Governance (Houses) contract exists in this build. */
+export const GOVERNANCE_DEPLOYED = APP_CONTRACTS.governance !== undefined
 
 /**
  * The oracle the Markets contract was constructed with, when there is a deployment.

@@ -47,6 +47,14 @@ export interface SendAsk {
     | 'launch-buy'
     | 'launch-redeem'
     | 'launch-refund'
+    // The governance kinds (docs/governance.md §11.1): two ride ComputeAndInvoke, and the
+    // planner enforces each kind's shape — value-less join, zero-legal ballot, settling reclaims.
+    | 'gov-ballot'
+    | 'gov-join'
+    | 'gov-delegate'
+    | 'gov-fund'
+    | 'gov-reclaim'
+    | 'gov-revoke'
   recipient: string
   token: string
   symbol: string

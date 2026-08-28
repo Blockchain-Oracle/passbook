@@ -7,10 +7,17 @@ import { usePositions } from '../../shell/use-positions'
 import { shortenFelt } from '../../shell/session'
 import { Text } from '../ui/Text'
 
-export function YourPositions({ launchId }: { launchId?: number }) {
+export function YourPositions({
+  launchId,
+  venue = 'launch',
+}: {
+  launchId?: number
+  /** Which contract's claims to list — the launch surface's default, the Houses pass their own. */
+  venue?: 'launch' | 'market' | 'governance'
+}) {
   const positions = usePositions()
   const held = positions.filter(
-    (p) => p.venue === 'launch' && (launchId === undefined || p.id === launchId),
+    (p) => p.venue === venue && (launchId === undefined || p.id === launchId),
   )
   if (held.length === 0) return null
 

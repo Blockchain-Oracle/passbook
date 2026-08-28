@@ -19,6 +19,8 @@ export const ICON_PATHS = {
   bridge: 'M4 15c0-4 3.6-7 8-7s8 3 8 7M4 15h16M8 15v4M16 15v4',
   markets: 'M4 18h4v-4h4v-4h4V6h4',
   launch: 'M7 17L17 7M9 7h8v8',
+  // A house with a keyhole of a door — governance behind an ordinary front.
+  houses: 'M4 11l8-6 8 6M6 10v9h12v-9M12 13v3',
   send: 'M12 19V5M12 5l-6 6M12 5l6 6',
   receive: 'M12 5v14M12 19l6-6M12 19l-6-6',
   shield: 'M12 3l7 3v5.5c0 4.3-2.9 8.1-7 9.5-4.1-1.4-7-5.2-7-9.5V6l7-3z',

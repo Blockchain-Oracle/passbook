@@ -33,7 +33,7 @@ import type { SessionStore } from './session-store.js'
 import { SESSION_KEYS } from './session-store.js'
 
 /** Which contract a position belongs to. They share a shape and nothing else. */
-export type PositionVenue = 'market' | 'launch'
+export type PositionVenue = 'market' | 'launch' | 'governance'
 
 /** One bearer claim, everything needed to find it again and to spend it. */
 export interface StoredPosition {
