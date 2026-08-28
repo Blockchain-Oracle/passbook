@@ -10,6 +10,7 @@ import {
 } from '@strk20/protocol/account-copy'
 
 import { AccountLadder } from '../components/AccountLadder'
+import { Icon } from '../components/icons'
 import { ConversionPanel } from '../components/onboarding/ConversionPanel'
 import { BackupCeremony } from '../components/BackupCeremony'
 import { ActivityFeed } from '../components/ActivityFeed'
@@ -139,17 +140,7 @@ function Wallet() {
   return session.status === 'loading' ? (
     <Surface routeId={Route.fullPath}>
       {/* The same frame, so nothing moves sideways when the account arrives a beat after paint. */}
-      <WalletFrame
-        rail={
-          <>
-            <Text variant="heading3" as="h1">
-              Wallet
-            </Text>
-            <BalanceHero balance={null} loading address={null} />
-          </>
-        }
-        feed={null}
-      />
+      <WalletFrame rail={<BalanceHero balance={null} loading address={null} />} feed={null} />
     </Surface>
   ) : (
     <Surface routeId={Route.fullPath}>
@@ -249,17 +240,13 @@ function WalletAccount({ session }: { session: Extract<SessionState, { status: '
   return (
     <>
       <WalletFrame
+        head={
+          <Button variant="ghost" size="sm" onClick={refresh} disabled={loading}>
+            {loading ? 'Reading…' : 'Refresh'}
+          </Button>
+        }
         rail={
           <>
-            <div className="flex items-center justify-between gap-s12">
-              <Text variant="heading3" as="h1">
-                Wallet
-              </Text>
-              <Button variant="ghost" size="sm" onClick={refresh} disabled={loading}>
-                {loading ? 'Reading…' : 'Refresh'}
-              </Button>
-            </div>
-
             <BalanceHero balance={balance} loading={loading} address={session.address} />
 
             <ActionRow
@@ -384,18 +371,41 @@ function WalletAccount({ session }: { session: Extract<SessionState, { status: '
  * Separated from `WalletAccount` so the loading arm holds the same geometry rather than drawing a
  * narrower one that jumps sideways when the account arrives.
  */
-function WalletFrame({ rail, feed }: { rail: ReactNode; feed: ReactNode }) {
+function WalletFrame({
+  head,
+  rail,
+  feed,
+}: {
+  head?: ReactNode
+  rail: ReactNode
+  feed: ReactNode
+}) {
   return (
-    <div
-      className={cn(
-        'mx-auto flex w-full max-w-[480px] flex-col gap-s16',
-        // `items-start` so the rail does not stretch to the history's height, and `minmax(0,1fr)`
-        // so a wide row inside the feed cannot blow the column out.
-        'lg:grid lg:max-w-[1180px] lg:grid-cols-[380px_minmax(0,1fr)] lg:items-start lg:gap-s24',
-      )}
-    >
-      <div className="flex flex-col gap-s16">{rail}</div>
-      {feed}
+    <div className="mx-auto w-full max-w-[480px] lg:max-w-[1180px]">
+      {/*
+        The Studio surface header: kicker, Anton title, the one control at the right, and a
+        hairline underneath — full width, above both columns.
+      */}
+      <header className="mb-s20 flex items-end justify-between gap-s12 border-b border-solid border-surface3 pb-s12">
+        <div className="flex min-w-0 flex-col gap-s8">
+          <Text variant="kicker">01 — account</Text>
+          <Text variant="display2" as="h1" className="text-neutral1 lg:text-display1">
+            Wallet
+          </Text>
+        </div>
+        {head}
+      </header>
+      <div
+        className={cn(
+          'flex w-full flex-col gap-s16',
+          // `items-start` so the rail does not stretch to the history's height, and `minmax(0,1fr)`
+          // so a wide row inside the feed cannot blow the column out.
+          'lg:grid lg:grid-cols-[380px_minmax(0,1fr)] lg:items-start lg:gap-s24',
+        )}
+      >
+        <div className="flex flex-col gap-s16">{rail}</div>
+        {feed}
+      </div>
     </div>
   )
 }
@@ -485,46 +495,33 @@ function WalletLocked({
 function ActionRow({ onReceive, disabled }: { onReceive: () => void; disabled: boolean }) {
   const tile = cn(
     'focus-ring flex flex-1 cursor-pointer flex-col items-center gap-s6 rounded-card',
-    'border border-solid border-surface3 bg-raised px-s8 py-s12 no-underline',
+    'border border-solid border-surface3 bg-raised px-s6 py-s12 no-underline',
     'transition-colors duration-[var(--transition-duration-fastHeavy)] ease-glide',
-    'hover:bg-inset',
+    'hover:bg-raisedHovered',
   )
+  // The Studio tile label: uppercase, bold, wide-tracked — the navLabel step, so the four labels
+  // and the pill nav speak in one voice.
+  const label = 'text-navLabel uppercase text-neutral1'
 
   return (
-    <div className="flex gap-s8">
+    <div className="grid grid-cols-4 gap-s8">
       <Link to="/send" className={tile}>
-        <ActionGlyph d="M12 19V5M12 5l-6 6M12 5l6 6" />
-        <span className="text-buttonLabel3 text-neutral1">Send</span>
+        <span className="text-neutral2"><Icon name="send" size={19} /></span>
+        <span className={label}>Send</span>
       </Link>
       <button type="button" onClick={onReceive} disabled={disabled} className={cn(tile, 'disabled:opacity-60')}>
-        <ActionGlyph d="M12 5v14M12 19l6-6M12 19l-6-6" />
-        <span className="text-buttonLabel3 text-neutral1">Receive</span>
+        <span className="text-neutral2"><Icon name="receive" size={19} /></span>
+        <span className={label}>Receive</span>
       </button>
       <Link to="/swap" className={tile}>
-        <ActionGlyph d="M7 7h11l-3-3M17 17H6l3 3" />
-        <span className="text-buttonLabel3 text-neutral1">Swap</span>
+        <span className="text-neutral2"><Icon name="swap" size={19} /></span>
+        <span className={label}>Swap</span>
       </Link>
       <Link to="/bridge" className={tile}>
-        <ActionGlyph d="M4 15c0-4 3.6-7 8-7s8 3 8 7M4 15h16M8 15v4M16 15v4" />
-        <span className="text-buttonLabel3 text-neutral1">Bridge</span>
+        <span className="text-neutral2"><Icon name="bridge" size={19} /></span>
+        <span className={label}>Bridge</span>
       </Link>
     </div>
-  )
-}
-
-/** One 20px stroke glyph. `currentColor` so it follows the tile's ink in both themes. */
-function ActionGlyph({ d }: { d: string }) {
-  return (
-    <svg
-      width="20"
-      height="20"
-      viewBox="0 0 24 24"
-      fill="none"
-      aria-hidden="true"
-      className="text-neutral2"
-    >
-      <path d={d} stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
   )
 }
 
@@ -565,16 +562,16 @@ function BalanceHero({
         ? toPlainText(lead.wei, lead.decimals)
         : lead.wei.toString()
 
+  //
+  // THE INVERTED PANEL [STUDIO]. The hero is `neutral1` as a FILL with `ground` as its ink — bone
+  // card on the black app, black card on the bone one. `neutral3` is the one ink token that reads
+  // as the secondary voice on BOTH sides of that inversion (it is the middle of the ladder), which
+  // is what every muted line inside this section uses instead of neutral2.
+  //
   return (
-    <section
-      className={cn(
-        'flex flex-col gap-s12 rounded-large border border-solid border-surface3 bg-inset p-s16',
-      )}
-    >
+    <section className="flex flex-col gap-s16 rounded-large bg-neutral1 p-s20 text-ground">
       <div className="flex items-center justify-between gap-s8">
-        <Text variant="body4" className="text-neutral2">
-          Shielded balance
-        </Text>
+        <span className="kicker">Shielded balance</span>
         <SyncState loading={loading} book={balance?.book ?? null} />
       </div>
 
@@ -585,21 +582,21 @@ function BalanceHero({
         </Skeleton>
       ) : (
         <>
-          <div className="flex flex-wrap items-baseline gap-s8">
+          <div className="flex flex-wrap items-end gap-s8">
             {/*
-              `numeric` is the app's tabular-figures class. Without it the digits change width as
-              the value changes and the hero jitters on every refresh.
+              The figure is the display face now — Anton digits are near-tabular by construction,
+              and the panel exists for this number.
             */}
             <span
               className={cn(
-                'numeric text-heading1 leading-none',
-                balance?.book === 'unknown' ? 'text-neutral3' : 'text-neutral1',
+                'display text-display1 leading-none lg:text-displayHero',
+                balance?.book === 'unknown' ? 'text-neutral3' : 'text-ground',
               )}
             >
               {headline}
             </span>
             {lead ? (
-              <span className="text-subheading1 text-neutral2">
+              <span className="display text-display4 text-neutral3">
                 {known?.symbol ?? shortenFelt(lead.token, 4, 3)}
               </span>
             ) : null}
@@ -609,18 +606,18 @@ function BalanceHero({
           </div>
 
           {balance === null ? (
-            <Text variant="body3" className="text-neutral2">
+            <Text variant="body3" className="text-neutral3">
               Your shielded balance hasn&rsquo;t been read yet.
             </Text>
           ) : balance.tokens.length === 0 ? (
             <Text
               variant="body3"
-              className={balance.book === 'unknown' ? 'text-exposed' : 'text-neutral2'}
+              className={balance.book === 'unknown' ? 'text-exposed' : 'text-neutral3'}
             >
               {BOOK_SENTENCE[balance.book]}
             </Text>
           ) : balance.tokens.length > 1 ? (
-            <ul className="flex flex-col gap-s8 border-t border-solid border-surface3 pt-s12">
+            <ul className="flex flex-col gap-s8 border-t border-solid border-neutral3 pt-s12">
               {balance.tokens.slice(1).map((holding) => (
                 <HoldingRow key={holding.token} holding={holding} />
               ))}
@@ -634,7 +631,7 @@ function BalanceHero({
               provider reported immediately before walking, and the copy says exactly that.
             */}
             {balance?.blockNumber != null ? (
-              <Text variant="body4" className="numeric text-neutral3">
+              <Text variant="mono" className="numeric text-neutral3">
                 as of about block {balance.blockNumber.toLocaleString('en-US')}
               </Text>
             ) : (
@@ -643,7 +640,7 @@ function BalanceHero({
             {address ? (
               <span className="flex items-center gap-s6">
                 <IdentityDisc address={address} size={14} />
-                <Text variant="body4" className="numeric text-neutral3">
+                <Text variant="mono" className="numeric text-neutral3">
                   {shortenFelt(address)}
                 </Text>
               </span>

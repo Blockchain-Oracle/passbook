@@ -1,4 +1,4 @@
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, Link } from '@tanstack/react-router'
 import { useCallback, useMemo, useState, useSyncExternalStore } from 'react'
 
 import { parseAmountInput, toPlainText } from '@strk20/protocol/amount'
@@ -286,11 +286,11 @@ function Send() {
   return (
     <Surface routeId={Route.fullPath}>
       <div className="mx-auto flex w-full max-w-[480px] flex-col gap-s8">
-        <div className="flex items-center justify-between gap-s12">
-          <Text variant="heading3" as="h1">
-            Send
-          </Text>
-        </div>
+        <BackToWallet />
+        <Text variant="kicker">02 — transfer</Text>
+        <Text variant="display2" as="h1" className="text-neutral1">
+          Send
+        </Text>
 
         <Text variant="body4" className="text-neutral2">
           A private transfer to another pool account. The recipient sees who sent it — private is not
@@ -423,6 +423,18 @@ function Send() {
   )
 }
 
+/** The way back to the surface this form belongs to — `/send` is the wallet's act, not a mode. */
+function BackToWallet() {
+  return (
+    <Link
+      to="/wallet"
+      className="focus-ring self-start rounded-control text-body4 text-neutral3 no-underline hover:text-neutral1"
+    >
+      ← Wallet
+    </Link>
+  )
+}
+
 /**
  * The receipt for a transfer that landed.
  *
@@ -443,7 +455,7 @@ function Sent({
   onDismiss: () => void
 }) {
   return (
-    <section className="flex flex-col gap-s8 rounded-large bg-inset p-s16" aria-live="polite">
+    <section className="flex flex-col gap-s8 rounded-large bg-settledTint p-s16" aria-live="polite">
       <div className="flex items-start justify-between gap-s12">
         <Text variant="body2" className="text-neutral1">
           Sent {amount} {symbol}

@@ -61,7 +61,7 @@ function Activity() {
         <Receipt transaction={view.transaction} />
       ) : (
         <>
-          <h1 className="text-heading3">Activity</h1>
+          <h1 className="display text-display3 text-neutral1">The record</h1>
           {/*
             TWO SENTENCES FOR TWO FACTS, and they must not be merged. Before a read has run, an id
             we cannot find has not been looked for — saying "no such entry" would be a claim about
@@ -113,7 +113,7 @@ function Receipt({ transaction }: { transaction: Transaction }) {
 
   return (
     <>
-      <h1 className="text-heading3">{rowTitle(transaction)}</h1>
+      <h1 className="display text-display3 text-neutral1">{rowTitle(transaction)}</h1>
 
       {settled === null ? (
         // A row that never settled has no block, no commitment and no fee — it has a reason. Laying
