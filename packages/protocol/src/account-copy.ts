@@ -161,6 +161,15 @@ export const UNLOCK_DIFFERENT_IDENTITY =
 
 export const IMPORT_TITLE = 'Import an account'
 
+/**
+ * The way back in, offered BEFORE a key is generated.
+ *
+ * The onboarding gate makes `#root` inert, so every other route to the import panel is unreachable
+ * during a first run. Without this, a returning user on a second browser is walked through a fresh
+ * key and a second backup ceremony with no way to say they already have one.
+ */
+export const IMPORT_ENTRY_CTA = 'I already have an account'
+
 export const IMPORT_BODY =
   'Choose the recovery file you saved, then type the recovery code that opens it. You need both — ' +
   'either one on its own is useless, which is the point of having two.'

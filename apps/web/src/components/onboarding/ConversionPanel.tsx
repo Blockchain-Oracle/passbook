@@ -29,6 +29,7 @@
 //
 import { useCallback, useEffect, useRef, useState } from 'react'
 
+import { IMPORT_ENTRY_CTA, IMPORT_TITLE } from '@strk20/protocol/account-copy'
 import { POOL_SEES } from '@strk20/protocol/disclosure-copy'
 import { ONBOARDING_STAGES, type OnboardingStage } from '@strk20/protocol/pipeline-stage'
 import { stepsFor } from '@strk20/protocol/progress'
@@ -51,7 +52,6 @@ import {
   NAME_PLACEHOLDER,
   NAME_TITLE,
   ONBOARDING_STAGE_NOTES,
-  REGISTER_FUNDS_FLOOR_WEI,
   REGISTER_NEEDS_FUNDS,
   createFeeNote,
   deadlockFeeRow,
@@ -125,6 +125,12 @@ export interface ConversionPanelProps {
   problem?: string | null
   /** Renders the ceremony. Calls `onDone` when the code is confirmed and the file is saved. */
   renderBackup: (onDone: () => void) => React.ReactNode
+  /**
+   * Renders the import panel, when there is one to render. Omitted by account-management callers,
+   * which reach import through the drawer; supplied by the onboarding gate, which is the only
+   * caller that has made every other route to it inert.
+   */
+  renderImport?: (onDone: () => void) => React.ReactNode
   onDismiss: () => void
   /** First-time account creation is mandatory; later account-management uses may opt out. */
   dismissible?: boolean
@@ -142,6 +148,7 @@ export function ConversionPanel({
   fundsWei = null,
   problem = null,
   renderBackup,
+  renderImport,
   onDismiss,
   creation,
   dismissible = true,
@@ -153,15 +160,18 @@ export function ConversionPanel({
   // toggle is right there, and `NAME_CLAIM_NOTE` says plainly what claiming publishes.
   const [claimPublicly, setClaimPublicly] = useState(true)
   const [backupDone, setBackupDone] = useState(false)
+  const [importing, setImporting] = useState(false)
   const rootRef = useRef<HTMLDivElement>(null)
 
   const screen = SCREENS[index]!
   const running = creation.stage !== null
   const { done } = creation
 
-  // The honest gate — `null` funds reads as "unknown", which blocks nothing: an unreadable balance
-  // must not tell a funded user they are broke.
-  const fundsShort = fundsWei !== null && fundsWei < REGISTER_FUNDS_FLOOR_WEI
+  // Purely presentational: which sentence a STOPPED ladder gets. Zero, not the self-pay floor,
+  // because the sentence it picks opens "This account holds no STRK yet" — true at zero and a lie
+  // at 3 STRK. `null` funds reads as "unknown" and shows neither: an unreadable balance must not
+  // tell a funded user they are broke.
+  const fundsShort = fundsWei !== null && fundsWei === 0n
 
   // Escape dismisses — EXCEPT while the ladder is running. A keystroke must not close the panel
   // over a transaction that cannot be taken back.
@@ -248,6 +258,22 @@ export function ConversionPanel({
 
       <div className="relative flex flex-1">
         <div className="m-auto flex w-full max-w-[560px] flex-col gap-s12 px-s20 py-s36">
+          {importing && renderImport ? (
+            <>
+              <Text variant="display2" as="h2" className="display text-neutral1 md:text-display1">
+                {IMPORT_TITLE}
+              </Text>
+              {renderImport(() => setImporting(false))}
+              <button
+                type="button"
+                onClick={() => setImporting(false)}
+                className="focus-ring self-start rounded-control px-s8 py-s4 text-body4 text-neutral3 hover:text-neutral1"
+              >
+                Back
+              </button>
+            </>
+          ) : (
+            <>
           {done ? null : (
             <span className="kicker">{`Step ${index + 1} of ${SCREENS.length}`}</span>
           )}
@@ -273,6 +299,18 @@ export function ConversionPanel({
                   setIndex(1)
                 }}
               />
+            ) : null}
+
+            {/* Offered on the FIRST screen only — after a key is generated, importing over it is a
+                different and more dangerous act than arriving with one. */}
+            {screen === 'name' && renderImport ? (
+              <button
+                type="button"
+                onClick={() => setImporting(true)}
+                className="focus-ring self-start rounded-control px-s8 py-s4 text-body4 text-neutral3 underline hover:text-neutral1"
+              >
+                {IMPORT_ENTRY_CTA}
+              </button>
             ) : null}
 
             {screen === 'create' ? (
@@ -380,6 +418,8 @@ export function ConversionPanel({
               )
             ) : null}
           </div>
+            </>
+          )}
         </div>
       </div>
     </section>
