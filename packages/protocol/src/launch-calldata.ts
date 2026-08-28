@@ -24,7 +24,6 @@ export type LaunchOp = (typeof LAUNCH_OP)[keyof typeof LAUNCH_OP]
 
 export type { CalldataResult } from './market-calldata.js'
 
-const U128 = 1n << 128n
 const U64 = 1n << 64n
 const U32 = 1n << 32n
 

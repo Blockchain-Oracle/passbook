@@ -27,13 +27,26 @@
 //
 import { useCallback, useState } from 'react'
 import type { DiscoveryResult } from '@strk20/protocol/discovery'
-import type { BridgeLeg, SendFailure, SendResult, SwapLeg } from '@strk20/protocol/send'
+import type { AppInvokeLeg, BridgeLeg, SendFailure, SendResult, SwapLeg } from '@strk20/protocol/send'
 import type { SendStage } from '@strk20/protocol/pipeline-stage'
 
 import { makeSelfSubmit } from './submit'
 
 export interface SendAsk {
-  kind: 'transfer' | 'withdraw' | 'swap' | 'bridge'
+  kind:
+    | 'transfer'
+    | 'withdraw'
+    | 'swap'
+    | 'bridge'
+    // The app-contract kinds (Wave 3's pipeline, finally with surfaces on it). Funding kinds
+    // spend into our contracts; settling kinds mint the payout notes back.
+    | 'market-create'
+    | 'market-bet'
+    | 'market-claim'
+    | 'market-cashout'
+    | 'launch-buy'
+    | 'launch-redeem'
+    | 'launch-refund'
   recipient: string
   token: string
   symbol: string
@@ -42,6 +55,8 @@ export interface SendAsk {
   swap?: SwapLeg
   /** Required when `kind` is `'bridge'`. `planSend` refuses a crossing without one. */
   bridge?: BridgeLeg
+  /** Required on every app kind, refused on every other — `planSend` enforces both directions. */
+  app?: AppInvokeLeg
 }
 
 export interface SendState {
@@ -117,6 +132,7 @@ export function useSend(read: DiscoveryResult | null, session: {
             mode: 'self',
             ...(ask.swap ? { swap: ask.swap } : {}),
             ...(ask.bridge ? { bridge: ask.bridge } : {}),
+            ...(ask.app ? { app: ask.app } : {}),
             wallet: read.wallet,
           },
           {

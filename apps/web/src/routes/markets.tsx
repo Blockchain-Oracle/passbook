@@ -2,7 +2,6 @@ import { createFileRoute } from '@tanstack/react-router'
 import { useState } from 'react'
 
 import {
-  MARKETS_NONE_OPEN,
   MARKETS_NOT_DEPLOYED,
   MARKETS_STANDING_LINE,
   MARKETS_TITLE,
@@ -11,6 +10,7 @@ import {
 } from '@strk20/protocol/markets-copy'
 import { PRAGMA_PAIR_LIST, type PragmaPair } from '@strk20/protocol/pragma-pairs'
 
+import { MarketsPanel } from '../components/MarketsPanel'
 import { MarketsTour } from '../components/MarketsTour'
 import { PriceChart } from '../components/PriceChart'
 import { PriceStrip } from '../components/PriceStrip'
@@ -136,10 +136,10 @@ function Markets() {
           </section>
 
           {/*
-            THE TICKET SLOT. Once the contracts land this is where the bet ticket docks — the
-            `lg:static` responsive panel that is a slide-over on a phone and a docked column here.
-            Until then it holds the honest absence rather than a disabled form: a form that cannot
-            submit is a promise, and this surface has nothing to promise yet.
+            THE TICKET SLOT — live now. `MarketsPanel` reads the deployed contract, lists what is
+            genuinely open, and its Yes/No doors open a ticket whose quote and confirm are real.
+            The absent arm survives for a build with no deployment, exactly as before: never a
+            disabled form, because a form that cannot submit is a promise.
           */}
           <aside
             className={cn(
@@ -150,9 +150,13 @@ function Markets() {
             <Text variant="subheading2" as="h2">
               {MARKETS_DEPLOYED ? 'Open a position' : 'Not open yet'}
             </Text>
-            <Text variant="body3" className="text-neutral2">
-              {MARKETS_DEPLOYED ? MARKETS_NONE_OPEN : MARKETS_NOT_DEPLOYED}
-            </Text>
+            {MARKETS_DEPLOYED ? (
+              <MarketsPanel />
+            ) : (
+              <Text variant="body3" className="text-neutral2">
+                {MARKETS_NOT_DEPLOYED}
+              </Text>
+            )}
             <MarketsTour />
           </aside>
         </div>
