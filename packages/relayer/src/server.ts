@@ -140,6 +140,9 @@ const INVITE_STATUS_PATHS = new Set(['/invite/status', '/api/invite/status'])
 const DIRECTORY_CLAIM_PATHS = new Set(['/directory/claim', '/api/directory/claim'])
 const DIRECTORY_LIST_PATHS = new Set(['/directory/list', '/api/directory/list'])
 const DIRECTORY_AVATAR_PATHS = new Set(['/directory/avatar', '/api/directory/avatar'])
+// The X-binding leg. Server-to-server only — see the handler's note; deliberately NO literal
+// file under `api/directory/` so the browser-facing proxy never carries it.
+const DIRECTORY_XBIND_PATHS = new Set(['/directory/x-bind', '/api/directory/x-bind'])
 
 // The chat transport (B3). Both spellings for the same reason as SUBMIT_PATHS.
 //
@@ -310,7 +313,10 @@ async function handle(req: IncomingMessage, res: ServerResponse, opts: RelayerSe
   // Same rule again for the name directory: no ledger, no routes.
   const isDirectory =
     opts.directory !== undefined &&
-    (DIRECTORY_CLAIM_PATHS.has(url) || DIRECTORY_LIST_PATHS.has(url) || DIRECTORY_AVATAR_PATHS.has(url))
+    (DIRECTORY_CLAIM_PATHS.has(url) ||
+      DIRECTORY_LIST_PATHS.has(url) ||
+      DIRECTORY_AVATAR_PATHS.has(url) ||
+      DIRECTORY_XBIND_PATHS.has(url))
   // And again for the drip. NO LEDGER, NO ROUTE — and here that rule is doing more work than
   // elsewhere: the ledger is the only thing bounding how much of the relayer's wallet this route
   // can give away, so a faucet that ran without one would be an unmetered transfer endpoint.
@@ -603,6 +609,37 @@ async function handleDirectory(
   if (DIRECTORY_AVATAR_PATHS.has(url)) {
     const address = (parsed as { address?: unknown } | null)?.address
     send(res, 200, { avatar: directory.avatar(address) })
+    return
+  }
+
+  //
+  // THE X BINDING — a server-to-server leg, and the second secret is the boundary. The Vercel
+  // `api/x/link.js` function is the only intended caller: it verified a live X OAuth session
+  // before it got here. Two things keep a browser out. First, no literal file exists at
+  // `api/directory/x-bind.js`, so the same-origin proxy never routes the path (the measured
+  // single-segment catch-all fact). Second — because a routing accident must not become an
+  // identity oracle — the route additionally demands `x-passbook-xbind` matching
+  // `RELAYER_XBIND_SECRET`, a secret only the two servers hold. The forwarder attaches the auth
+  // token to EVERYTHING, so the auth token alone cannot distinguish our function from a browser.
+  //
+  if (DIRECTORY_XBIND_PATHS.has(url)) {
+    const expected = opts.xBindSecret
+    if (!expected) {
+      send(res, 404, { error: 'not found' })
+      return
+    }
+    if (!tokenMatches(expected, req.headers['x-passbook-xbind'])) {
+      send(res, 401, { error: 'missing or invalid x-passbook-xbind' })
+      return
+    }
+    try {
+      const outcome = await directory.bindX(parsed)
+      if (outcome.ok) send(res, 200, { ok: true })
+      else send(res, outcome.status, { error: outcome.error })
+    } catch (e) {
+      console.warn(`relayer: directory ledger write failed: ${String(e)}`)
+      send(res, 500, { error: 'the directory could not be written; the binding was not recorded' })
+    }
     return
   }
 
@@ -1734,6 +1771,11 @@ export interface RelayerServerOptions {
    * are 404 and the create form degrades to the seeded disc.
    */
   logos?: LogoService
+  /**
+   * The second secret on `/directory/x-bind` — held by this process and the Vercel `api/x/link`
+   * function, never the browser. Absent means the route is 404 and X binding is off.
+   */
+  xBindSecret?: string
 }
 
 export function createRelayerServer(options: RelayerServerOptions): Server {
@@ -2484,6 +2526,7 @@ async function main(): Promise<void> {
     faucet,
     chainFeed,
     logos,
+    xBindSecret: process.env.RELAYER_XBIND_SECRET || undefined,
   })
 
   // ── The settlement keeper ───────────────────────────────────────────────────────────────

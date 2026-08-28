@@ -17,7 +17,7 @@
 // consequence, accepted rather than worked around: this boundary never fires for a child's throw. It
 // is here for the root's own failures, which are the ones that take the whole shell with them.
 //
-import { Suspense, lazy, useCallback, useEffect, useState, useSyncExternalStore } from 'react'
+import { Suspense, lazy, useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { createRootRoute, Link, Outlet, useNavigate } from '@tanstack/react-router'
 import { ACTIVE_NETWORK, NET } from '@strk20/protocol/constants'
 
@@ -31,6 +31,8 @@ import { AccountChip } from '../components/AccountChip'
 import { BrandIntro } from '../components/onboarding/BrandIntro'
 import { UnreadBadge } from '../components/ConversationList'
 import { useTotalUnread } from '../shell/chat-bus'
+import { useDirectory } from '../shell/use-directory'
+import { shortenFelt } from '../shell/session'
 import { DegradedStrip } from '../components/DegradedStrip'
 import { ToastViewport } from '../shell/ToastViewport'
 import { Icon } from '../components/icons'
@@ -120,6 +122,26 @@ function RootLayout() {
   const navigate = useNavigate()
 
   //
+  // PEOPLE ARE COMMANDS. The directory is fetched once per session and searched locally (the
+  // relayer never learns who is looked for — `use-directory.ts`'s whole argument), so every
+  // claimed name rides the palette: typing `al` surfaces `@alice` under the actions, and Enter
+  // opens her page. Memoised on the entries' identity so the items array stays stable per load —
+  // the module-scope-array rule above, kept under a dynamic source.
+  //
+  const { entries } = useDirectory()
+  const paletteCommands = useMemo<readonly PaletteCommand[]>(
+    () => [
+      ...PALETTE_COMMANDS,
+      ...entries.map((entry) => ({
+        id: `person:${entry.name}`,
+        label: `@${entry.name}`,
+        detail: `${shortenFelt(entry.address, 6, 4)}${entry.xHandle ? ' · via 𝕏' : ''} — person`,
+      })),
+    ],
+    [entries],
+  )
+
+  //
   // TWO STATES, NOT ONE, AND THE SECOND IS THE WHOLE POINT OF THE SPLIT.
   //
   // `open` is what the palette is doing. `mounted` is whether its chunk has ever been asked for —
@@ -159,6 +181,10 @@ function RootLayout() {
       const action = PALETTE_ACTIONS[command.id]
       if (action) {
         void navigate({ to: action })
+        return
+      }
+      if (command.id.startsWith('person:')) {
+        void navigate({ to: '/u/$name', params: { name: command.id.slice('person:'.length) } })
         return
       }
       const destination = PALETTE_DESTINATIONS.find((d) => d.to === command.id)
@@ -317,7 +343,7 @@ function RootLayout() {
           <CommandPalette
             open={open}
             onOpenChange={setOpen}
-            commands={PALETTE_COMMANDS}
+            commands={paletteCommands}
             onRun={runCommand}
           />
         </Suspense>
