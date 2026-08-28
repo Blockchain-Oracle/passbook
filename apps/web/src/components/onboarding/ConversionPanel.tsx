@@ -131,10 +131,16 @@ export function ConversionPanel({
       ref={rootRef}
       tabIndex={-1}
       aria-label="Create an account"
-      className="focus-ring fixed inset-0 z-modal flex flex-col overflow-y-auto bg-ground"
+      /*
+        `inset-s0`, NEVER `inset-0`: the spacing scale is named (`s<N>`), so the numeric utility
+        generates NO RULE — a fixed overlay with no offsets sat mid-page, which is exactly the
+        loud-no-op the token sheet promises. The focus ring stays off this section: it takes
+        programmatic focus on open, and a gold outline around the whole viewport is not a ring.
+      */
+      className="fixed inset-s0 z-modal flex flex-col overflow-y-auto bg-ground outline-none"
     >
       {/* The gold radial wash. Atmosphere only, so it neither takes clicks nor reaches a reader. */}
-      <div aria-hidden="true" className="onboarding-glow pointer-events-none absolute inset-0" />
+      <div aria-hidden="true" className="onboarding-glow pointer-events-none absolute inset-s0" />
 
       <header className="relative flex items-center justify-between gap-s12 px-s24 py-s20">
         <span className="flex items-center gap-s8 text-neutral1">

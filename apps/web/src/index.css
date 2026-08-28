@@ -484,14 +484,20 @@
   }
 
   @media (width < 768px) {
+    /*
+     * The prototype's phone header is ONE 54px row: brand left, search and the account disc
+     * right. Flex rather than the desktop grid, nothing wraps, and the modes are in the tab bar.
+     */
     .app-header {
-      grid-template-columns: minmax(0, 1fr);
-      justify-items: start;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: nowrap;
     }
 
     .app-header-end {
-      justify-content: flex-start;
-      flex-wrap: wrap;
+      justify-content: flex-end;
+      flex-wrap: nowrap;
     }
 
     /* The modes move to the tab bar; the header keeps the brand, the search and the account. */

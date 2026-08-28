@@ -37,6 +37,7 @@ import { Suspense, lazy, useState } from 'react'
 
 import { useSession, shortenFelt } from '../shell/session'
 import { cn } from '../lib/cn'
+import { Icon } from './icons'
 import { IdentityDisc } from './IdentityDisc'
 import { Skeleton, SkeletonBox } from './ui/Skeleton'
 
@@ -74,6 +75,11 @@ export function AccountChip() {
 
   return (
     <>
+      {/*
+        THE PROTOTYPE'S CHIP ANATOMY, exactly: a 28px disc in a raised pill, the name stacked over
+        the short address (surrendered when the header is tight), and a chevron that says there is
+        a drawer behind it. `pl-s4 pr-s12` is its 5/12 asymmetric padding on the sheet's steps.
+      */}
       <button
         type="button"
         aria-haspopup="dialog"
@@ -83,15 +89,22 @@ export function AccountChip() {
           setOpen(true)
         }}
         className={cn(
-          'focus-ring inline-flex cursor-pointer items-center gap-s6 rounded-pill',
-          'border border-solid border-surface3 bg-raised px-s8 py-s4',
+          'focus-ring inline-flex cursor-pointer items-center gap-s8 rounded-pill',
+          'border border-solid border-surface3 bg-raised py-s4 pl-s4 pr-s12 text-left',
           'transition-colors duration-[var(--transition-duration-fastHeavy)] ease-glide',
-          'hover:bg-raisedHovered',
+          'hover:border-surface3Hovered hover:bg-raisedHovered',
         )}
       >
-        <IdentityDisc address={session.address} size={16} />
-        <span className="numeric text-body4 text-neutral1">
-          {session.label ?? shortenFelt(session.address)}
+        <IdentityDisc address={session.address} size={28} />
+        <span className="hidden min-w-0 flex-col items-start lg:flex">
+          <span className="max-w-[16ch] truncate text-body4 font-bold text-neutral1">
+            {session.label ?? shortenFelt(session.address)}
+          </span>
+          {session.label ? (
+            <span className="numeric font-mono text-body4 text-neutral3">
+              {shortenFelt(session.address)}
+            </span>
+          ) : null}
         </span>
         {/*
           THE LOCK IS A GLYPH AND A WORD, never a glyph alone. The epic's rule — semantic meaning
@@ -103,6 +116,9 @@ export function AccountChip() {
             <span aria-hidden="true">🔒</span> Locked
           </span>
         ) : null}
+        <span className="text-neutral3">
+          <Icon name="chevronDown" size={14} strokeWidth={2} />
+        </span>
       </button>
 
       {/*

@@ -77,26 +77,15 @@ export function SwapSettings({ slippageBps, onSlippageChange }: SwapSettingsProp
         aria-expanded={open}
         aria-label={`Slippage tolerance, currently ${current?.label ?? `${slippageBps / 100}%`}`}
         className={cn(
-          'focus-ring group flex min-h-s32 items-center gap-s4 rounded-pill px-s8',
-          'text-neutral2 transition-colors duration-[var(--transition-duration-simple)]',
-          'hover:bg-inset hover:text-neutral1',
+          // [STUDIO] The control IS the value: a mono pill reading "0.5% slippage", always —
+          // the prototype's header-right chip. A bare gear made the one number a swap enforces
+          // invisible until it was already wrong.
+          'focus-ring flex min-h-s32 items-center gap-s4 rounded-pill border border-solid border-surface3 bg-inset px-s12',
+          'font-mono text-body4 text-neutral2 transition-colors duration-[var(--transition-duration-simple)]',
+          'hover:border-surface3Hovered hover:text-neutral1',
         )}
       >
-        {/* Shown beside the gear only when it is NOT the default — a setting at its default needs
-            no label, and one that has been changed must not be silent about it. */}
-        {slippageBps !== 100 ? (
-          <Text variant="body4" className="numeric">
-            {current?.label ?? `${slippageBps / 100}%`}
-          </Text>
-        ) : null}
-        <span
-          className={cn(
-            'inline-flex transition-transform ease-glide',
-            'duration-[var(--transition-duration-simple)] group-hover:rotate-90',
-          )}
-        >
-          <GearIcon />
-        </span>
+        <span className="numeric">{current?.label ?? `${slippageBps / 100}%`} slippage</span>
       </button>
 
       {open ? (
@@ -104,7 +93,8 @@ export function SwapSettings({ slippageBps, onSlippageChange }: SwapSettingsProp
           role="dialog"
           aria-label="Swap settings"
           className={cn(
-            'absolute right-0 top-[calc(100%+var(--spacing-s4))] z-[2] w-[240px]',
+            // `right-s0` — the numeric `right-0` generates no rule on this sheet's named scale.
+            'absolute right-s0 top-[calc(100%+var(--spacing-s4))] z-[2] w-[240px]',
             'flex flex-col gap-s8 rounded-card border border-solid border-surface3',
             'bg-raised p-s12 shadow-short',
           )}
@@ -182,17 +172,3 @@ export function SwapSettings({ slippageBps, onSlippageChange }: SwapSettingsProp
   )
 }
 
-/** 20px, `currentColor`, so it follows the button's own hover colour. */
-function GearIcon() {
-  return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="2" />
-      <path
-        d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.2 2.2M16.9 16.9l2.2 2.2M19.1 4.9l-2.2 2.2M7.1 16.9l-2.2 2.2"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-      />
-    </svg>
-  )
-}
