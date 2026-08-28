@@ -14,7 +14,7 @@ import { useId, useState } from 'react'
 import { MIN_PASSWORD_LENGTH, passwordStrength } from '@strk20/protocol/session-vault'
 
 import { cn } from '../lib/cn'
-import { Text } from './ui/Text'
+import { Text } from './Text'
 
 export interface PasswordFieldProps {
   label: string

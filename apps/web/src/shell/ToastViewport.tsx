@@ -14,7 +14,7 @@ import { useSyncExternalStore } from 'react'
 
 import { cn } from '../lib/cn'
 import { dismissToast, getToasts, subscribeToasts, type Toast, type ToastKind } from './toast-store'
-import { Text } from '../components/ui/Text'
+import { Text } from '../components/Text'
 
 const KIND_STYLES: Record<ToastKind, { border: string; dot: string; label: string }> = {
   success: { border: 'border-settled/30', dot: 'bg-settled', label: 'Done' },

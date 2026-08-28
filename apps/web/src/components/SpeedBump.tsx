@@ -20,8 +20,8 @@
 import type { ReactNode } from 'react'
 
 import { ResponsiveDialog } from '../shell/ResponsiveDialog'
-import { Button } from './ui/Button'
-import { Text } from './ui/Text'
+import { Button } from './LegacyButton'
+import { Text } from './Text'
 
 export interface SpeedBumpModel {
   /** Stable id. It is what the acknowledgement is keyed on, so it must not encode the amount. */

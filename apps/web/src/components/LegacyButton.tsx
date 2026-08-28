@@ -29,7 +29,7 @@
 import { cva, type VariantProps } from 'class-variance-authority'
 import type { ButtonHTMLAttributes, ReactNode } from 'react'
 
-import { cn } from '../../lib/cn'
+import { cn } from '../lib/cn'
 
 export const buttonVariants = cva(
   // The invariant half. `focus-ring` is the app's existing authored focus treatment — kept, because

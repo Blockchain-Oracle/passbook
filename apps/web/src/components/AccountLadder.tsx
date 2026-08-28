@@ -20,8 +20,8 @@ import type { SendStage } from '@strk20/protocol/pipeline-stage'
 import type { AccountStatus, AccountRung } from '../shell/account-status'
 import { stageLabel } from '../shell/stage-labels'
 import { cn } from '../lib/cn'
-import { Button } from './ui/Button'
-import { Text } from './ui/Text'
+import { Button } from './LegacyButton'
+import { Text } from './Text'
 
 /**
  * The rungs in order. `unknown` is deliberately NOT one of them — it is the absence of a reading,

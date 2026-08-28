@@ -35,7 +35,7 @@ import { useSession, shortenFelt } from '../../shell/session'
 import { findToken, useTokenList } from '../../shell/use-token-list'
 import { ResponsiveDialog } from '../../shell/ResponsiveDialog'
 import { BlockedButton } from '../BlockedButton'
-import { Text } from '../ui/Text'
+import { Text } from '../Text'
 
 
 export function BetTicket({

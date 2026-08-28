@@ -39,7 +39,7 @@ import { useSession, shortenFelt } from '../shell/session'
 import { cn } from '../lib/cn'
 import { Icon } from './icons'
 import { IdentityDisc } from './IdentityDisc'
-import { Skeleton, SkeletonBox } from './ui/Skeleton'
+import { Skeleton } from './ui/skeleton'
 
 const AccountDrawer = lazy(() => import('./AccountDrawer'))
 
@@ -53,7 +53,7 @@ export function AccountChip() {
     // discipline the balance line keeps.
     return (
       <Skeleton className="inline-flex">
-        <SkeletonBox className="h-s20 w-[104px] rounded-pill" />
+        <Skeleton className="h-s20 w-[104px] rounded-pill" />
       </Skeleton>
     )
   }

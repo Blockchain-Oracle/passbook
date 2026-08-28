@@ -3,7 +3,7 @@ import { createFileRoute } from '@tanstack/react-router'
 import { CHAT_PICK_A_CONVERSATION } from '@strk20/protocol/chat-copy'
 import { CHAT_AUDITOR_DERIVES } from '@strk20/protocol/disclosure-copy'
 
-import { Text } from '../components/ui/Text'
+import { Text } from '../components/Text'
 
 export const Route = createFileRoute('/chat/')({
   component: ChatIndex,

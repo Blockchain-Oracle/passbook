@@ -24,7 +24,7 @@ import { logoDisplayUrl } from '@strk20/protocol/token-media'
 
 import { shortenFelt } from '../../shell/session'
 import { findToken, useTokenList } from '../../shell/use-token-list'
-import { Text } from '../ui/Text'
+import { Text } from '../Text'
 import { TokenLogo } from '../TokenLogo'
 import { PHASE_CHIP, phaseOf, type Phase } from './phase'
 

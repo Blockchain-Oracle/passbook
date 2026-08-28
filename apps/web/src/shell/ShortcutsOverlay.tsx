@@ -17,7 +17,7 @@
 import { useEffect } from 'react'
 
 import { ResponsiveDialog } from './ResponsiveDialog'
-import { Text } from '../components/ui/Text'
+import { Text } from '../components/Text'
 
 export interface ShortcutsOverlayProps {
   open: boolean

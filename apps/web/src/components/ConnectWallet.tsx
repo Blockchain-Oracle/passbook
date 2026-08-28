@@ -38,8 +38,8 @@ import {
 import { shortenFelt, useSession } from '../shell/session'
 import { toast } from '../shell/toast-store'
 import { ResponsiveDialog } from '../shell/ResponsiveDialog'
-import { Button } from './ui/Button'
-import { Text } from './ui/Text'
+import { Button } from './LegacyButton'
+import { Text } from './Text'
 
 const FUNDING_ASSETS = {
   STRK: { address: STRK_TOKEN, decimals: 18 },

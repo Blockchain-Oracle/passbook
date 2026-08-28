@@ -62,8 +62,8 @@ import { ImportPanel, ImportPanelStandalone } from './ImportPanel'
 import { ConnectWallet } from './ConnectWallet'
 import { IdentityDisc } from './IdentityDisc'
 import { PasswordField } from './PasswordField'
-import { Button } from './ui/Button'
-import { Text } from './ui/Text'
+import { Button } from './LegacyButton'
+import { Text } from './Text'
 
 /** Which panel is showing. `main` is the account list; the others are one job each. */
 type View = 'main' | 'import' | 'export' | 'connect'

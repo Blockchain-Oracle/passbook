@@ -24,8 +24,8 @@ import { useTokenList } from '../../shell/use-token-list'
 import { ResponsiveDialog } from '../../shell/ResponsiveDialog'
 import { addPosition } from '../../shell/use-positions'
 import { BlockedButton } from '../BlockedButton'
-import { Button } from '../ui/Button'
-import { Text } from '../ui/Text'
+import { Button } from '../LegacyButton'
+import { Text } from '../Text'
 import { TokenLogo } from '../TokenLogo'
 
 /** How long a new launch has to hit its target. */

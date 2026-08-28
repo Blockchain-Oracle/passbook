@@ -16,7 +16,7 @@ import {
 } from '@strk20/protocol/pay-link'
 
 import { IdentityDisc } from '../components/IdentityDisc'
-import { Text } from '../components/ui/Text'
+import { Text } from '../components/Text'
 import { shortenFelt } from '../shell/session'
 import { useDirectory } from '../shell/use-directory'
 import { Surface } from '../shell/Surface'

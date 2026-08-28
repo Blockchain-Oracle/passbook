@@ -86,7 +86,7 @@ import { receiptContext, type VisibilityContext } from '@strk20/protocol/visibil
 import { cn } from '../lib/cn'
 import { findToken, useTokenList } from '../shell/use-token-list'
 import { VisibilityMatrix } from './VisibilityMatrix'
-import { Text } from './ui/Text'
+import { Text } from './Text'
 
 export interface ActivityReceiptProps {
   transaction: Transaction

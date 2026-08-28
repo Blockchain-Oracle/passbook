@@ -203,6 +203,8 @@ export default defineConfig((configEnv) => {
     },
     resolve: {
       alias: {
+        // shadcn writes every generated import as `@/components/ui/...`. Mirrors tsconfig `paths`.
+        '@': resolve(import.meta.dirname, 'src'),
         '@starkware-libs/starknet-privacy-sdk/testing': SDK_TESTING_BROWSER,
       },
       // The alias resolves to ONE physical file. Without dedupe the rest of the SDK graph can be

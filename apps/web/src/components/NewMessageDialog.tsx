@@ -30,9 +30,9 @@ import { ResponsiveDialog } from '../shell/ResponsiveDialog'
 import { openConversation, rememberConversation } from '../shell/chat-bus'
 import { searchDirectory, useDirectory } from '../shell/use-directory'
 import { shortenFelt } from '../shell/session'
-import { Button } from './ui/Button'
+import { Button } from './LegacyButton'
 import { PeerAvatar } from './PeerAvatar'
-import { Text } from './ui/Text'
+import { Text } from './Text'
 
 export interface NewMessageDialogProps {
   open: boolean

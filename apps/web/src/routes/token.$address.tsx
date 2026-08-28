@@ -8,7 +8,7 @@ import { launchTalkTag } from '@strk20/protocol/open-room-tags'
 
 import { ActivityTape } from '../components/launch/ActivityTape'
 import { TalkThread } from '../components/launch/TalkThread'
-import { Text } from '../components/ui/Text'
+import { Text } from '../components/Text'
 import { TokenLogo, accentFor } from '../components/TokenLogo'
 import { shortenFelt } from '../shell/session'
 import { useChainFeed } from '../shell/chain-feed'

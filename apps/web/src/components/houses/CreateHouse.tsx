@@ -29,7 +29,7 @@ import { useTokenList } from '../../shell/use-token-list'
 import { ResponsiveDialog } from '../../shell/ResponsiveDialog'
 import { addPosition } from '../../shell/use-positions'
 import { BlockedButton } from '../BlockedButton'
-import { Text } from '../ui/Text'
+import { Text } from '../Text'
 
 export function CreateHouse({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { tokens } = useTokenList()

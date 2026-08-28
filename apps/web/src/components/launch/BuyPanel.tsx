@@ -34,7 +34,7 @@ import { findToken, useTokenList } from '../../shell/use-token-list'
 import { ResponsiveDialog } from '../../shell/ResponsiveDialog'
 import { stageLabel } from '../../shell/stage-labels'
 import { BlockedButton } from '../BlockedButton'
-import { Text } from '../ui/Text'
+import { Text } from '../Text'
 
 
 export function BuyForm({

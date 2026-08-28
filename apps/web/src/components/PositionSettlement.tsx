@@ -32,8 +32,8 @@ import { removePosition } from '../shell/use-positions'
 import { useSend, type SendState } from '../shell/use-send'
 import { BlockedButton } from './BlockedButton'
 import { ProgressMachine } from './ProgressMachine'
-import { Button } from './ui/Button'
-import { Text } from './ui/Text'
+import { Button } from './LegacyButton'
+import { Text } from './Text'
 
 
 type MarketReview = {

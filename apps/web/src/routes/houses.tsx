@@ -6,8 +6,8 @@ import { GOV_BALLOT_VISIBLE } from '@strk20/protocol/disclosure-copy'
 import { CreateHouse } from '../components/houses/CreateHouse'
 import { HouseCard } from '../components/houses/HouseCard'
 import { YourPositions } from '../components/launch/YourPositions'
-import { Button } from '../components/ui/Button'
-import { Text } from '../components/ui/Text'
+import { Button } from '../components/LegacyButton'
+import { Text } from '../components/Text'
 import {
   GOVERNANCE_DEPLOYED,
   GOVERNANCE_WRITE_SAFETY,

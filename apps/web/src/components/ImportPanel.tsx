@@ -14,8 +14,8 @@ import { IMPORT_ALREADY_HERE, IMPORT_BODY } from '@strk20/protocol/account-copy'
 import { cn } from '../lib/cn'
 import { importAccount, shortenFelt } from '../shell/session'
 import { toast } from '../shell/toast-store'
-import { Button } from './ui/Button'
-import { Text } from './ui/Text'
+import { Button } from './LegacyButton'
+import { Text } from './Text'
 
 /** A chosen recovery file, already read in this browser. */
 export interface ChosenFile {

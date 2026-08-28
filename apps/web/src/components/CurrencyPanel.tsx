@@ -20,7 +20,7 @@ import { AMOUNT_LINE_RATIO, fitAmountFontPx } from '@strk20/protocol/amount'
 import type { TokenInfo } from '@strk20/protocol/token-list'
 
 import { cn } from '../lib/cn'
-import { Text } from './ui/Text'
+import { Text } from './Text'
 import { TokenLogo } from './TokenLogo'
 
 //

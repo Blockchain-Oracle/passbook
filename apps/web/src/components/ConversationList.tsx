@@ -22,7 +22,7 @@ import type { ConversationSummary } from '@strk20/protocol/chat-log'
 import { cn } from '../lib/cn'
 import { shortenFelt } from '../shell/session'
 import { PeerAvatar } from './PeerAvatar'
-import { Text } from './ui/Text'
+import { Text } from './Text'
 
 /**
  * How long ago, in one or two characters.
