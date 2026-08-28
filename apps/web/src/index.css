@@ -14,16 +14,21 @@
 @import '../design/tokens.css';
 
 /*
- * The typeface, imported from fontsource's own entry point rather than hand-rolled.
+ * The three typefaces of the STUDIO direction, imported from fontsource's own entry points rather
+ * than hand-rolled.
  *
- * That file declares `font-weight: 100 700` — the face's TRUE variable axis. This matters more than
- * it looks: a narrowed `@font-face` descriptor (`font-weight: 400`, or any range that does not span
- * the axis) silently flattens every weight to one, with no error anywhere and no visual clue beyond
- * "the design looks a bit flat". `scripts/font-metrics.test.mjs` measures 485 against 535 in a real
- * browser so that failure cannot ship. Six subsets are declared; `unicode-range` means a latin page
- * downloads exactly one 45,712 B file.
+ * Archivo's `wght.css` declares `font-weight: 100 900` — the face's TRUE variable axis. This
+ * matters more than it looks: a narrowed `@font-face` descriptor silently flattens every weight to
+ * one, with no error anywhere and no visual clue beyond "the design looks a bit flat". Anton ships
+ * a single 400 cut and is only ever a display face — headings, uppercase, never body. Space Mono
+ * carries money, hashes and kickers; the two upright cuts are imported and the italics are not,
+ * because nothing on the sheet sets an italic. `unicode-range` subsets mean a latin page downloads
+ * one file per family.
  */
-@import '@fontsource-variable/ibm-plex-sans/wght.css';
+@import '@fontsource-variable/archivo/wght.css';
+@import '@fontsource/anton/index.css';
+@import '@fontsource/space-mono/400.css';
+@import '@fontsource/space-mono/700.css';
 
 /*
  * The layering vocabulary — Uniswap's z-index scale (their theme.css `--z-index-*`, ui zIndexes
@@ -50,8 +55,9 @@
 @layer base {
   /*
    * One global block, per the design authority. `text-wrap: pretty` on body and `balance` on
-   * headings are its call, not a preference. The base size is `body2` (16/24) — the authority's
-   * body step at the browser's own default size, so nothing on the page inherits an off-sheet size.
+   * headings are its call, not a preference. The base size is `body3` (14/20) — STUDIO is a denser
+   * sheet than the SPORE direction it replaced, and 14 is the prototype's own shell size — so
+   * nothing on the page inherits an off-sheet size.
    */
   html {
     font-family: var(--font-sans);
@@ -62,10 +68,36 @@
   body {
     background-color: var(--color-ground);
     color: var(--color-neutral1);
-    font-size: var(--text-body2);
-    line-height: var(--text-body2--line-height);
+    font-size: var(--text-body3);
+    line-height: var(--text-body3--line-height);
     font-weight: var(--font-weight-book);
     text-wrap: pretty;
+  }
+
+  /*
+   * The display voice — Anton, uppercase, tight leading — as ONE primitive rather than four
+   * utilities repeated beside every heading. Size stays at the call site (`text-display1` …), so
+   * this class is the voice and the step tokens are the volume. `font-weight` is pinned to 400
+   * because Anton ships one cut: any inherited weight would trigger faux-bolding in the browser.
+   */
+  .display {
+    font-family: var(--font-display);
+    font-weight: 400;
+    text-transform: uppercase;
+  }
+
+  /*
+   * The kicker — "01 — account" over every surface title. Mono, uppercase, wide-tracked, faint.
+   * One class because it appears on all six surfaces and the palette, and eight utilities repeated
+   * eight times is how one of them drifts.
+   */
+  .kicker {
+    font-family: var(--font-mono);
+    font-size: var(--text-kicker);
+    line-height: var(--text-kicker--line-height);
+    letter-spacing: var(--text-kicker--letter-spacing);
+    text-transform: uppercase;
+    color: var(--color-neutral3);
   }
 
   /*
@@ -226,13 +258,20 @@
   .app-header {
     position: sticky;
     top: var(--spacing-s0);
+    z-index: var(--z-index-header);
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
     align-items: center;
     gap: var(--spacing-s8) var(--spacing-s16);
     padding: var(--spacing-s12) var(--spacing-s16);
-    background-color: var(--color-raised);
+    background-color: var(--color-ground);
     border-bottom: var(--spacing-s1) solid var(--color-surface3);
+  }
+
+  @media (min-width: 1024px) {
+    .app-header {
+      padding-inline: var(--spacing-s32);
+    }
   }
 
   /* The right rail: pushed to the end of its own column, never wrapping under the tabs. */
@@ -241,6 +280,185 @@
     align-items: center;
     justify-content: flex-end;
     gap: var(--spacing-s8);
+  }
+
+  /*
+   * The brand's mark: STUDIO's gold square rotated 45° into a diamond, beside PASSBOOK set in the
+   * display face. Decoration for a wordmark, so it is `aria-hidden` at the call site.
+   */
+  .brand-mark {
+    flex: none;
+    width: var(--spacing-s12);
+    height: var(--spacing-s12);
+    background-color: var(--color-accent1);
+    transform: rotate(45deg);
+  }
+
+  /*
+   * ── The pill nav [STUDIO] ────────────────────────────────────────────────────────────────
+   *
+   * One rounded raised container holding the six modes as pills. It scrolls sideways INSIDE its own
+   * box when the header is narrow — never wrapping, never scrolling the page — and the scrollbar is
+   * hidden because a 4px bar inside a 99px pill reads as a rendering defect.
+   */
+  .nav-pill {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-s2);
+    min-width: 0;
+    padding: var(--spacing-s4);
+    background-color: var(--color-raised);
+    border: var(--spacing-s1) solid var(--color-surface3);
+    border-radius: var(--radius-pill);
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .nav-pill::-webkit-scrollbar {
+    display: none;
+  }
+
+  .nav-item {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--spacing-s6);
+    padding: var(--spacing-s8) var(--spacing-s12);
+    border-radius: var(--radius-pill);
+    color: var(--color-neutral2);
+    font-size: var(--text-navLabel);
+    line-height: var(--text-navLabel--line-height);
+    letter-spacing: var(--text-navLabel--letter-spacing);
+    font-weight: var(--text-navLabel--font-weight);
+    text-transform: uppercase;
+    white-space: nowrap;
+    text-decoration: none;
+    transition-property: color, background-color;
+    transition-duration: var(--transition-duration-fast);
+    transition-timing-function: var(--ease-snap);
+  }
+
+  .nav-item:hover {
+    color: var(--color-neutral1);
+    background-color: var(--color-inset);
+  }
+
+  /*
+   * The active mode: STUDIO's gold-tint pill with gold ink. `data-status="active"` and
+   * `aria-current="page"` are both set by the router on the matching link with no configuration —
+   * this styles the first, and the second is what is announced. Never a class computed in JS: two
+   * sources for one state drift.
+   */
+  .nav-item[data-status='active'] {
+    color: var(--color-accent1);
+    background-color: var(--color-accent2);
+  }
+
+  /*
+   * HOVERING THE MODE YOU ARE ALREADY IN — decided here rather than by source order.
+   *
+   * `.nav-item:hover` and `.nav-item[data-status='active']` have IDENTICAL specificity (0,2,0), so
+   * without this rule whichever is written last wins and reordering the file silently changes the
+   * behaviour. The ruling: the active tint stays, and hover deepens it — the link is still a link
+   * and still responds, without ever stopping looking like the current mode. Specificity (0,3,0)
+   * means this is true no matter where any of the three rules ends up.
+   */
+  .nav-item[data-status='active']:hover {
+    color: var(--color-accent1);
+    background-color: var(--color-accent2Hovered);
+  }
+
+  /*
+   * The right rail's round controls [STUDIO]: the search pill with its ⌘K, the settings toggle,
+   * the account chip's shell. Hairline-bordered pills on the page ground.
+   */
+  .icon-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--spacing-s8);
+    padding: var(--spacing-s8) var(--spacing-s12);
+    background-color: transparent;
+    border: var(--spacing-s1) solid var(--color-surface3);
+    border-radius: var(--radius-pill);
+    color: var(--color-neutral2);
+    text-decoration: none;
+    cursor: pointer;
+    transition-property: color, background-color;
+    transition-duration: var(--transition-duration-fast);
+    transition-timing-function: var(--ease-snap);
+  }
+
+  .icon-pill:hover {
+    color: var(--color-neutral1);
+    border-color: var(--color-surface3Hovered);
+  }
+
+  .icon-pill[data-status='active'] {
+    color: var(--color-accent1);
+    background-color: var(--color-accent2);
+  }
+
+  /*
+   * ── The mobile tab bar [STUDIO] ──────────────────────────────────────────────────────────
+   *
+   * Below 768px the pill nav leaves the header and the modes live here: a fixed bottom bar with
+   * a raised gold action button at its centre. `z-fixed` from the adopted stacking scale — a fixed
+   * bar after the header in document order would otherwise rely on paint order alone.
+   */
+  .tab-bar {
+    position: fixed;
+    inset-inline: var(--spacing-s0);
+    bottom: var(--spacing-s0);
+    z-index: var(--z-index-fixed);
+    display: none;
+    align-items: stretch;
+    padding: var(--spacing-s6) var(--spacing-s4) calc(var(--spacing-s6) + env(safe-area-inset-bottom));
+    background-color: var(--color-raised);
+    border-top: var(--spacing-s1) solid var(--color-surface3);
+  }
+
+  .tab-item {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--spacing-s2);
+    padding: var(--spacing-s6) var(--spacing-s0) var(--spacing-s4);
+    background: none;
+    border: none;
+    color: var(--color-neutral3);
+    font-size: var(--text-body4);
+    line-height: var(--text-body4--line-height);
+    text-decoration: none;
+    cursor: pointer;
+  }
+
+  .tab-item[data-status='active'] {
+    color: var(--color-accent1);
+  }
+
+  /*
+   * The centre action button: gold, circular, lifted out of the bar. Its size is the one 52 on the
+   * sheet, written as arithmetic on two steps rather than a literal.
+   */
+  .tab-plus {
+    flex: none;
+    align-self: flex-start;
+    width: calc(var(--spacing-s48) + var(--spacing-s4));
+    height: calc(var(--spacing-s48) + var(--spacing-s4));
+    margin: calc(var(--spacing-s20) * -1) var(--spacing-s6) var(--spacing-s0);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: var(--color-accent1);
+    color: var(--color-ground);
+    border: none;
+    border-radius: var(--radius-pill);
+    box-shadow: var(--shadow-medium);
+    cursor: pointer;
+  }
+
+  .tab-plus:hover {
+    background-color: var(--color-accent1Hovered);
   }
 
   @media (width < 768px) {
@@ -253,53 +471,20 @@
       justify-content: flex-start;
       flex-wrap: wrap;
     }
-  }
 
-  .nav-item {
-    display: inline-flex;
-    align-items: center;
-    padding: var(--spacing-s6) var(--spacing-s8);
-    border-radius: var(--radius-badge);
-    color: var(--color-neutral2);
-    font-size: var(--text-buttonLabel3);
-    line-height: var(--text-buttonLabel3--line-height);
-    font-weight: var(--font-weight-medium);
-    text-decoration: none;
-    transition-property: color, background-color;
-    transition-duration: var(--transition-duration-fast);
-    transition-timing-function: var(--ease-snap);
-  }
+    /* The modes move to the tab bar; the header keeps the brand, the search and the account. */
+    .app-header .nav-pill {
+      display: none;
+    }
 
-  .nav-item:hover {
-    color: var(--color-neutral1);
-    background-color: var(--color-insetHovered);
-  }
+    .tab-bar {
+      display: flex;
+    }
 
-  /*
-   * The active mode. `data-status="active"` and `aria-current="page"` are both set by the router on
-   * the matching link with no configuration — this styles the first, and the second is what is
-   * announced. Never a class computed in JS: two sources for one state drift.
-   */
-  .nav-item[data-status='active'] {
-    color: var(--color-neutral1);
-    background-color: var(--color-inset);
-  }
-
-  /*
-   * HOVERING THE MODE YOU ARE ALREADY IN — decided here rather than by source order.
-   *
-   * `.nav-item:hover` and `.nav-item[data-status='active']` have IDENTICAL specificity (0,2,0), so
-   * without this rule whichever is written last wins and reordering the file silently changes the
-   * behaviour. Written last, `:hover` would erase the active fill on hover, which is the one moment
-   * the user is least sure where they are; written last, the active rule swallows the hover and the
-   * current tab feels dead under the cursor.
-   *
-   * The ruling: the active fill stays, and hover lightens it — the link is still a link and still
-   * responds, without ever stopping looking like the current mode. Specificity (0,3,0) means this is
-   * true no matter where any of the three rules ends up.
-   */
-  .nav-item[data-status='active']:hover {
-    background-color: var(--color-insetHovered);
+    /* Clearance so the last thing on every surface can scroll out from under the fixed bar. */
+    body {
+      padding-bottom: calc(var(--spacing-s60) + var(--spacing-s20) + env(safe-area-inset-bottom));
+    }
   }
 
   /*

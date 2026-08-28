@@ -1,7 +1,7 @@
 /*
  * GENERATED FILE — DO NOT EDIT.
  *
- * source: apps/web/design/tokens.yaml  sha256 e63112a5f168c3ad255695d2f04041b58d0d530e87d4079f28043552e7a4ccf4
+ * source: apps/web/design/tokens.yaml  sha256 2685b82c4ff45b1fbf4000be9c51373229f4f340f6212db6d36a905fd04cb7bb
  *
  * Regenerate with `pnpm run render:tokens` after editing tokens.yaml, and commit the result.
  * and the yaml disagree, so a hand-edit here is caught rather than shipped. tokens.yaml is the
@@ -31,45 +31,62 @@
   --perspective-*: initial;  --aspect-*: initial;  --default-*: initial;
 
   /* colours — 31 light values; the dark sheets below redeclare all 31 */
-  --color-ground: #ffffff;
-  --color-raised: #ffffff;
-  --color-raisedHovered: #fcfcfc;
-  --color-inset: #f9f9f9;
-  --color-insetHovered: #f2f2f2;
-  --color-surface3: rgba(19,19,19,0.08);
-  --color-surface3Hovered: rgba(19,19,19,0.10);
-  --color-surface3Solid: #f2f2f2;
-  --color-surface4: rgba(255,255,255,0.64);
-  --color-scrim: rgba(0,0,0,0.60);
-  --color-neutral1: #131313;
-  --color-neutral1Hovered: rgba(19,19,19,0.83);
-  --color-neutral2: rgba(19,19,19,0.63);
-  --color-neutral2Hovered: rgba(19,19,19,0.83);
-  --color-neutral3: rgba(19,19,19,0.35);
-  --color-neutral3Hovered: rgba(19,19,19,0.55);
-  --color-accent1: #ff37c7;
-  --color-accent1Hovered: #e500a5;
-  --color-accent2: rgba(255,55,199,0.08);
-  --color-accent2Hovered: rgba(255,55,199,0.12);
-  --color-accent2Solid: #fff3fc;
-  --color-accent3: #131313;
-  --color-settled: #0c8911;
-  --color-settledHovered: #06742c;
-  --color-settledTint: rgba(15,194,68,0.06);
-  --color-exposed: #996f01;
-  --color-exposedHovered: #7a5801;
-  --color-exposedTint: rgba(255,191,23,0.10);
-  --color-irreversible: #e10f0f;
-  --color-irreversibleHovered: #bf0d0d;
-  --color-irreversibleTint: rgba(255,0,0,0.05);
+  --color-ground: #E7E6E1;
+  --color-raised: #F4F3EF;
+  --color-raisedHovered: #EFEEE9;
+  --color-inset: #DBDAD4;
+  --color-insetHovered: #CECDC6;
+  --color-surface3: rgba(10,10,10,0.12);
+  --color-surface3Hovered: rgba(10,10,10,0.24);
+  --color-surface3Solid: #CECDC6;
+  --color-surface4: rgba(244,243,239,0.64);
+  --color-scrim: rgba(20,20,18,0.5);
+  --color-neutral1: #0A0A0A;
+  --color-neutral1Hovered: rgba(10,10,10,0.83);
+  --color-neutral2: #55544F;
+  --color-neutral2Hovered: rgba(10,10,10,0.83);
+  --color-neutral3: #85847E;
+  --color-neutral3Hovered: #55544F;
+  --color-accent1: #3F6B12;
+  --color-accent1Hovered: #2E500A;
+  --color-accent2: rgba(63,107,18,0.13);
+  --color-accent2Hovered: rgba(63,107,18,0.20);
+  --color-accent2Solid: #DCE1D2;
+  --color-accent3: #3F6B12;
+  --color-settled: #2F6B45;
+  --color-settledHovered: #245536;
+  --color-settledTint: rgba(47,107,69,0.12);
+  --color-exposed: #6E5A05;
+  --color-exposedHovered: #574704;
+  --color-exposedTint: rgba(110,90,5,0.13);
+  --color-irreversible: #A33A55;
+  --color-irreversibleHovered: #832E44;
+  --color-irreversibleTint: rgba(163,58,85,0.10);
 
   /* typeface */
-  --font-sans: 'IBM Plex Sans Variable', 'Inter', system-ui, sans-serif;
-  --font-mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Monaco, 'Cascadia Mono', 'Segoe UI Mono', 'Roboto Mono', 'Courier New', monospace;
-  --font-weight-book: 485;
-  --font-weight-medium: 535;
+  --font-sans: 'Archivo Variable', 'Inter', system-ui, sans-serif;
+  --font-display: 'Anton', 'Archivo Variable', system-ui, sans-serif;
+  --font-mono: 'Space Mono', ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Monaco, 'Cascadia Mono', 'Segoe UI Mono', 'Roboto Mono', 'Courier New', monospace;
+  --font-weight-book: 400;
+  --font-weight-medium: 600;
+  --font-weight-bold: 700;
 
   /* type scale — a compound key emits size, leading, tracking and weight in ONE utility */
+  --text-displayHero: 76px;
+  --text-displayHero--line-height: 64px;
+  --text-displayHero--letter-spacing: 0.004em;
+  --text-display1: 62px;
+  --text-display1--line-height: 56px;
+  --text-display1--letter-spacing: 0.004em;
+  --text-display2: 44px;
+  --text-display2--line-height: 40px;
+  --text-display2--letter-spacing: 0.004em;
+  --text-display3: 29px;
+  --text-display3--line-height: 28px;
+  --text-display3--letter-spacing: 0.004em;
+  --text-display4: 19px;
+  --text-display4--line-height: 20px;
+  --text-display4--letter-spacing: 0.02em;
   --text-heading1: 52px;
   --text-heading1--line-height: 56px;
   --text-heading1--letter-spacing: -0.02em;
@@ -93,18 +110,25 @@
   --text-body4--line-height: 16px;
   --text-mono: 12px;
   --text-mono--line-height: 16px;
+  --text-kicker: 11px;
+  --text-kicker--line-height: 16px;
+  --text-kicker--letter-spacing: 0.16em;
+  --text-navLabel: 11px;
+  --text-navLabel--line-height: 16px;
+  --text-navLabel--letter-spacing: 0.12em;
+  --text-navLabel--font-weight: 700;
   --text-buttonLabel1: 18px;
   --text-buttonLabel1--line-height: 24px;
-  --text-buttonLabel1--font-weight: 535;
+  --text-buttonLabel1--font-weight: 600;
   --text-buttonLabel2: 16px;
   --text-buttonLabel2--line-height: 24px;
-  --text-buttonLabel2--font-weight: 535;
+  --text-buttonLabel2--font-weight: 600;
   --text-buttonLabel3: 14px;
   --text-buttonLabel3--line-height: 20px;
-  --text-buttonLabel3--font-weight: 535;
+  --text-buttonLabel3--font-weight: 600;
   --text-buttonLabel4: 12px;
   --text-buttonLabel4--line-height: 16px;
-  --text-buttonLabel4--font-weight: 535;
+  --text-buttonLabel4--font-weight: 600;
 
   /* radii */
   --radius-none: 0px;
@@ -173,9 +197,9 @@
   --ease-linear: linear;
 
   /* shadows — whole-value indirection; the literal fallback is load-bearing, not belt-and-braces */
-  --shadow-short: var(--sh-short, 0 1px 6px 2px rgba(19,19,19,0.03), 0 1px 2px 0 rgba(19,19,19,0.02));
-  --shadow-medium: var(--sh-medium, 0 6px 12px -3px rgba(19,19,19,0.04), 0 2px 5px -2px rgba(19,19,19,0.03));
-  --shadow-large: var(--sh-large, 0 10px 20px -5px rgba(19,19,19,0.05), 0 4px 12px -3px rgba(19,19,19,0.04));
+  --shadow-short: var(--sh-short, 0 1px 4px 0 rgba(40,40,36,0.08));
+  --shadow-medium: var(--sh-medium, 0 10px 28px -6px rgba(40,40,36,0.16));
+  --shadow-large: var(--sh-large, 0 24px 80px rgba(40,40,36,0.24));
 }
 
 /* Unlayered from here down — see the cascade-layer law in render-design-tokens.mjs. */
@@ -183,86 +207,86 @@
   /* `color-scheme` is the only thing that flips native scrollbars, form controls and the
      default canvas. No colour token does it, and nothing else will. */
   color-scheme: light;
-  --sh-short: 0 1px 6px 2px rgba(19,19,19,0.03), 0 1px 2px 0 rgba(19,19,19,0.02);
-  --sh-medium: 0 6px 12px -3px rgba(19,19,19,0.04), 0 2px 5px -2px rgba(19,19,19,0.03);
-  --sh-large: 0 10px 20px -5px rgba(19,19,19,0.05), 0 4px 12px -3px rgba(19,19,19,0.04);
+  --sh-short: 0 1px 4px 0 rgba(40,40,36,0.08);
+  --sh-medium: 0 10px 28px -6px rgba(40,40,36,0.16);
+  --sh-large: 0 24px 80px rgba(40,40,36,0.24);
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     color-scheme: dark;
-    --color-ground: #131313;
-    --color-raised: #1f1f1f;
-    --color-raisedHovered: #242424;
-    --color-inset: #1a1a1a;
-    --color-insetHovered: #242424;
-    --color-surface3: rgba(255,255,255,0.12);
-    --color-surface3Hovered: rgba(255,255,255,0.16);
-    --color-surface3Solid: #393939;
-    --color-surface4: rgba(255,255,255,0.20);
-    --color-scrim: rgba(0,0,0,0.60);
-    --color-neutral1: #ffffff;
-    --color-neutral1Hovered: rgba(255,255,255,0.85);
-    --color-neutral2: rgba(255,255,255,0.65);
-    --color-neutral2Hovered: rgba(255,255,255,0.85);
-    --color-neutral3: rgba(255,255,255,0.38);
-    --color-neutral3Hovered: rgba(255,255,255,0.58);
-    --color-accent1: #ff37c7;
-    --color-accent1Hovered: #e500a5;
-    --color-accent2: rgba(255,55,199,0.08);
-    --color-accent2Hovered: rgba(255,55,199,0.12);
-    --color-accent2Solid: #261621;
-    --color-accent3: #ffffff;
-    --color-settled: #21c95e;
-    --color-settledHovered: #15863c;
-    --color-settledTint: rgba(33,201,94,0.12);
-    --color-exposed: #ffbf17;
-    --color-exposedHovered: #ffdd0d;
-    --color-exposedTint: rgba(255,191,23,0.08);
-    --color-irreversible: #ff593c;
-    --color-irreversibleHovered: #ff401f;
-    --color-irreversibleTint: rgba(255,89,60,0.12);
-    --sh-short: 0 1px 3px 0 rgba(0,0,0,0.12), 0 1px 2px 0 rgba(0,0,0,0.24);
-    --sh-medium: 0 10px 15px -3px rgba(0,0,0,0.54), 0 4px 6px -2px rgba(0,0,0,0.40);
-    --sh-large: 0 16px 24px -6px rgba(0,0,0,0.60), 0 8px 12px -4px rgba(0,0,0,0.48);
+    --color-ground: #0A0A0A;
+    --color-raised: #151515;
+    --color-raisedHovered: #1D1D1D;
+    --color-inset: #1D1D1D;
+    --color-insetHovered: #2A2A2A;
+    --color-surface3: rgba(240,239,234,0.10);
+    --color-surface3Hovered: rgba(240,239,234,0.20);
+    --color-surface3Solid: #2A2A2A;
+    --color-surface4: rgba(240,239,234,0.20);
+    --color-scrim: rgba(0,0,0,0.72);
+    --color-neutral1: #F1F0EB;
+    --color-neutral1Hovered: rgba(241,240,235,0.85);
+    --color-neutral2: #A3A29C;
+    --color-neutral2Hovered: rgba(241,240,235,0.85);
+    --color-neutral3: #6D6C67;
+    --color-neutral3Hovered: #8B8A84;
+    --color-accent1: #C8F57F;
+    --color-accent1Hovered: #DAFA9F;
+    --color-accent2: rgba(200,245,127,0.12);
+    --color-accent2Hovered: rgba(200,245,127,0.20);
+    --color-accent2Solid: #2A3022;
+    --color-accent3: #C8F57F;
+    --color-settled: #8FD9A6;
+    --color-settledHovered: #A8E4B8;
+    --color-settledTint: rgba(143,217,166,0.12);
+    --color-exposed: #F2DC4E;
+    --color-exposedHovered: #F7E87A;
+    --color-exposedTint: rgba(242,220,78,0.12);
+    --color-irreversible: #F2A0B4;
+    --color-irreversibleHovered: #F7B8C7;
+    --color-irreversibleTint: rgba(242,160,180,0.12);
+    --sh-short: 0 1px 4px 0 rgba(0,0,0,0.35);
+    --sh-medium: 0 12px 32px -6px rgba(0,0,0,0.5);
+    --sh-large: 0 24px 80px rgba(0,0,0,0.6);
   }
 }
 
 /* Byte-identical to the block above, for the user who pinned dark against a light OS. */
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --color-ground: #131313;
-  --color-raised: #1f1f1f;
-  --color-raisedHovered: #242424;
-  --color-inset: #1a1a1a;
-  --color-insetHovered: #242424;
-  --color-surface3: rgba(255,255,255,0.12);
-  --color-surface3Hovered: rgba(255,255,255,0.16);
-  --color-surface3Solid: #393939;
-  --color-surface4: rgba(255,255,255,0.20);
-  --color-scrim: rgba(0,0,0,0.60);
-  --color-neutral1: #ffffff;
-  --color-neutral1Hovered: rgba(255,255,255,0.85);
-  --color-neutral2: rgba(255,255,255,0.65);
-  --color-neutral2Hovered: rgba(255,255,255,0.85);
-  --color-neutral3: rgba(255,255,255,0.38);
-  --color-neutral3Hovered: rgba(255,255,255,0.58);
-  --color-accent1: #ff37c7;
-  --color-accent1Hovered: #e500a5;
-  --color-accent2: rgba(255,55,199,0.08);
-  --color-accent2Hovered: rgba(255,55,199,0.12);
-  --color-accent2Solid: #261621;
-  --color-accent3: #ffffff;
-  --color-settled: #21c95e;
-  --color-settledHovered: #15863c;
-  --color-settledTint: rgba(33,201,94,0.12);
-  --color-exposed: #ffbf17;
-  --color-exposedHovered: #ffdd0d;
-  --color-exposedTint: rgba(255,191,23,0.08);
-  --color-irreversible: #ff593c;
-  --color-irreversibleHovered: #ff401f;
-  --color-irreversibleTint: rgba(255,89,60,0.12);
-  --sh-short: 0 1px 3px 0 rgba(0,0,0,0.12), 0 1px 2px 0 rgba(0,0,0,0.24);
-  --sh-medium: 0 10px 15px -3px rgba(0,0,0,0.54), 0 4px 6px -2px rgba(0,0,0,0.40);
-  --sh-large: 0 16px 24px -6px rgba(0,0,0,0.60), 0 8px 12px -4px rgba(0,0,0,0.48);
+  --color-ground: #0A0A0A;
+  --color-raised: #151515;
+  --color-raisedHovered: #1D1D1D;
+  --color-inset: #1D1D1D;
+  --color-insetHovered: #2A2A2A;
+  --color-surface3: rgba(240,239,234,0.10);
+  --color-surface3Hovered: rgba(240,239,234,0.20);
+  --color-surface3Solid: #2A2A2A;
+  --color-surface4: rgba(240,239,234,0.20);
+  --color-scrim: rgba(0,0,0,0.72);
+  --color-neutral1: #F1F0EB;
+  --color-neutral1Hovered: rgba(241,240,235,0.85);
+  --color-neutral2: #A3A29C;
+  --color-neutral2Hovered: rgba(241,240,235,0.85);
+  --color-neutral3: #6D6C67;
+  --color-neutral3Hovered: #8B8A84;
+  --color-accent1: #C8F57F;
+  --color-accent1Hovered: #DAFA9F;
+  --color-accent2: rgba(200,245,127,0.12);
+  --color-accent2Hovered: rgba(200,245,127,0.20);
+  --color-accent2Solid: #2A3022;
+  --color-accent3: #C8F57F;
+  --color-settled: #8FD9A6;
+  --color-settledHovered: #A8E4B8;
+  --color-settledTint: rgba(143,217,166,0.12);
+  --color-exposed: #F2DC4E;
+  --color-exposedHovered: #F7E87A;
+  --color-exposedTint: rgba(242,220,78,0.12);
+  --color-irreversible: #F2A0B4;
+  --color-irreversibleHovered: #F7B8C7;
+  --color-irreversibleTint: rgba(242,160,180,0.12);
+  --sh-short: 0 1px 4px 0 rgba(0,0,0,0.35);
+  --sh-medium: 0 12px 32px -6px rgba(0,0,0,0.5);
+  --sh-large: 0 24px 80px rgba(0,0,0,0.6);
 }
