@@ -22,9 +22,9 @@
 // `ACTIVE_NETWORK` is `mainnet`, so there is no faucet to proxy and nothing is free. Three
 // independent limits, and they fail in different directions on purpose:
 //
-//   1. ONCE PER ADDRESS, EVER. Burned through the ledger's atomic `tryClaim`, the same mechanism
-//      an invite code uses. This is the limit that makes the feature honest — a starter amount is
-//      for starting, and a second one is a withdrawal.
+//   1. ONCE PER ADDRESS, EVER. Burned through the ledger's atomic `tryClaim`. This is the limit
+//      that makes the feature honest — a starter amount is for starting, and a second one is a
+//      withdrawal.
 //   2. Per visitor per day, keyed on the hashed client IP like every other gate here.
 //   3. A global daily budget, which is the solvency floor and is never waived.
 //

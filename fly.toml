@@ -53,8 +53,6 @@ primary_region = "iad"
   # After `deploy-governance.ts --execute`, set this to the blockNumber it prints — the Teller's
   # event-scan floor:
   #   fly secrets set RELAYER_GOVERNANCE_FROM_BLOCK=<block>
-  # `RELAYER_INVITE_STORE` is deliberately absent — see the Dockerfile. A store path without
-  # `RELAYER_INVITE_ALLOWANCE` is a refusal to start, not a default, and invites are off here.
 
 # The durable half of the process. Two spend ledgers and the salt that keys hashed visitor ids —
 # lose them and every cap resets, which is the same as having no caps for whoever noticed.

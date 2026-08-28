@@ -2,7 +2,7 @@
 //
 // Without this, every restart hands the daily budget back out. A relayer that forgets what
 // it spent has no budget at all — it has a budget per uptime, and the operator learns the
-// difference from the balance. So the counters and the burned invite codes live in a named
+// difference from the balance. So the counters and the burned claims live in a named
 // file that outlives the process.
 //
 // Two deliberate limits, stated rather than discovered:
@@ -45,7 +45,7 @@ import { emptyBudget, type BudgetState } from './sponsorship.js'
 export interface PersistedLedger {
   salt: string
   budget: BudgetState
-  /** Invite codes already burned. Burns are permanent — a code spent last week stays spent. */
+  /** Claims already burned (the faucet's per-address drip keys). Burns are permanent — a key spent last week stays spent. */
   claimed: string[]
 }
 
@@ -156,7 +156,7 @@ function validate(path: string, value: unknown): PersistedLedger {
  * would make "the process died while saving" and "someone corrupted the ledger" the same
  * observable state.
  *
- * SHARED RATHER THAN COPIED, because the invite ledger (invite-store.ts) needs exactly this
+ * SHARED RATHER THAN COPIED, because every other file-backed ledger in this process needs exactly this
  * and a second hand-written copy is how one of the four steps below quietly goes missing from
  * one of them — and the missing step would only show up after a power loss, which is the one
  * occasion nobody gets to re-run.

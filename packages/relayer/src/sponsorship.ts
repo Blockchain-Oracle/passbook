@@ -1,7 +1,7 @@
 // Sponsorship budgeting (FR-053 / AD-7, story 1.5). The funded relayer key pays for a cold
 // visitor's first registration — bounded by a per-visitor cap AND a global daily budget, and
 // failing OPEN into pay-your-own-way (never a locked door). Pure decision + a stateful ledger
-// with atomic single-claim semantics for invite codes, persisted through an injected store.
+// with an atomic single-claim set, persisted through an injected store.
 
 import type { PersistedLedger, SponsorshipStore } from './sponsorship-store.js'
 
@@ -60,36 +60,16 @@ export function decideSponsorship(
   visitorId: string,
   now: number,
   notice: string = BUDGET_EXHAUSTED_NOTICE,
-  options: SpendOptions = {},
 ): SponsorDecision {
   const s = rolledToDay(state, now)
-  // THE DAILY BUDGET IS CHECKED FIRST AND IS NEVER WAIVED. Its order relative to the waiver
-  // below is the whole of "a waiver is not a bypass": whatever an invite entitles, it cannot
-  // reach past this line, because this is the relayer's solvency floor and not a courtesy.
+  // THE DAILY BUDGET IS CHECKED FIRST: it is the relayer's solvency floor and not a courtesy.
   if (s.dailyCount >= caps.daily) {
     return { allow: false, reason: 'daily-budget', notice }
   }
-  if (!options.waivePerVisitorCap && (s.perVisitor[visitorId] ?? 0) >= caps.perVisitor) {
+  if ((s.perVisitor[visitorId] ?? 0) >= caps.perVisitor) {
     return { allow: false, reason: 'visitor-cap', notice }
   }
   return { allow: true }
-}
-
-/**
- * Modifiers on one spend. Today there is exactly one, and it is narrow on purpose.
- *
- * `waivePerVisitorCap` is what a burned invite code buys (story 1.14) and it is ALL a burned
- * code buys. The per-visitor cap is a fairness limit — one free account per address per day —
- * and it is the one that misfires on a shared address: a stranger on a NAT-shared mobile IP whose
- * cap other strangers already spent is exactly who an invite is for. The daily budget is a
- * different kind of number and stays unconditional; see the check above.
- *
- * The waived spend is still RECORDED against the visitor, so the invited registration appears in
- * the counters like every other. Waiving the check is not the same as not counting, and a spend
- * that goes unrecorded is a spend the operator cannot find afterwards.
- */
-export interface SpendOptions {
-  waivePerVisitorCap?: boolean
 }
 
 /** Returns the state after recording one sponsored action for `visitorId` at `now`. Pure. */
@@ -103,10 +83,11 @@ export function commitSponsorship(state: BudgetState, visitorId: string, now: nu
 }
 
 /**
- * A stateful budget with an atomic single-claim ledger for invite codes, durable across restarts.
+ * A stateful budget with an atomic single-claim set (the faucet's once-per-address keys),
+ * durable across restarts.
  *
- * `tryClaim` burns a code exactly once — a second claim of the same code returns false without
- * spending budget (one sponsorship per code, burned before submission). The check-then-set is
+ * `tryClaim` burns a key exactly once — a second claim of the same key returns false without
+ * spending budget. The check-then-set is
  * atomic because nothing in it yields: the decision, the mutation and the store write are all
  * synchronous, so two concurrent requests cannot both observe the last unit of budget. That is
  * why `SponsorshipStore` is a synchronous interface and must stay one.
@@ -144,8 +125,8 @@ export class SponsorshipLedger {
     this.claimed = new Set(loaded.claimed)
   }
 
-  decide(visitorId: string, now: number = Date.now(), options: SpendOptions = {}): SponsorDecision {
-    return decideSponsorship(this.state, this.caps, visitorId, now, this.notice, options)
+  decide(visitorId: string, now: number = Date.now()): SponsorDecision {
+    return decideSponsorship(this.state, this.caps, visitorId, now, this.notice)
   }
 
   /**
@@ -159,8 +140,8 @@ export class SponsorshipLedger {
    * to spend rather than a spend nobody recorded; the exception reaches the caller, who
    * answers 500 rather than signing.
    */
-  spend(visitorId: string, now: number = Date.now(), options: SpendOptions = {}): SponsorDecision {
-    const d = this.decide(visitorId, now, options)
+  spend(visitorId: string, now: number = Date.now()): SponsorDecision {
+    const d = this.decide(visitorId, now)
     if (d.allow) {
       const next = commitSponsorship(this.state, visitorId, now)
       this.store.save({ salt: this.salt, budget: next, claimed: [...this.claimed] })
@@ -169,7 +150,7 @@ export class SponsorshipLedger {
     return d
   }
 
-  /** Atomic one-time claim of an invite code. True the first time, false forever after. */
+  /** Atomic one-time claim of a key (the faucet's `drip:<felt>`). True the first time, false forever after. */
   tryClaim(code: string): boolean {
     if (this.claimed.has(code)) return false
     const next: PersistedLedger = {

@@ -32,7 +32,7 @@
 //
 // ── NEVER THROWS ON THE WAY IN ───────────────────────────────────────────────────────────
 //
-// `parseStoredAccounts` follows `parseStoredInviteIntents`: localStorage is writable by any script
+// `parseStoredAccounts` reports rather than throws: localStorage is writable by any script
 // on this origin and by the user, so a malformed record is a state to report, not an exception in
 // the middle of a boot. `unreadable` is deliberately distinct from `absent` — the first must not
 // be treated as "no accounts yet", because that reading would generate a fresh key on top of a

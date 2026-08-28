@@ -144,7 +144,7 @@ export const SIGNERS: readonly Signer[] = [
       DEPLOYED_ACCOUNT_RULE,
       'Bounded by balance: fund it with what the current batch needs, not a treasury, so a mistake in any control costs a batch rather than a balance (see the operating rule in the `packages/relayer/src/server.ts` header).',
       'Bounded by the allowlist before the key is touched — `assertSubmittable` in `packages/relayer/src/allowlist.ts` decides what may be signed at all, and `approveCeiling` caps an approve against the LIVE pool fee, per submission.',
-      'Bounded by three durable ledger FILES, one per concern — the sponsorship budget and the plain-send cap (both `SponsorshipLedger` in `packages/relayer/src/sponsorship.ts`) and the invite ledger (`InviteLedger` in `packages/relayer/src/invite.ts`) — plus one in-memory quote counter (`createQuoteCounter` in `packages/relayer/src/server.ts`). Separate files on purpose: resetting a stuck send counter must not hand out a fresh day of free registrations, nor un-burn every claimed code.',
+      'Bounded by durable ledger FILES, one per concern — the sponsorship budget and the plain-send cap (both `SponsorshipLedger` in `packages/relayer/src/sponsorship.ts`) — plus one in-memory quote counter (`createQuoteCounter` in `packages/relayer/src/server.ts`). Separate files on purpose: resetting a stuck send counter must not hand out a fresh day of free registrations.',
       'Floor-paged: `createFundingMonitor` in `packages/relayer/src/funding-monitor.ts` pages ops at `WARNING_FEE_MULTIPLE` (five) live fees and refuses to sign below `REFUSAL_FEE_MULTIPLE` (two), so the warning always arrives before the door shuts.',
       'Authenticated when reachable off-loopback: with `RELAYER_AUTH_TOKEN` set, every request must carry a matching `x-relayer-auth` or the server answers `401 {"error":"missing or invalid x-relayer-auth"}` before touching the key, compared in constant time. Content-type is a CSRF control, not authentication, and behind a proxy every internet client arrives Origin-less — so a proxied deployment MUST set the token.',
     ],
@@ -271,14 +271,6 @@ const SPONSORED_SUBMIT_ROUTES = [
   'POST /submit (with `sponsored: true`)',
   'POST /api/submit (with `sponsored: true`)',
 ] as const
-const INVITE_ROUTES = [
-  'POST /invite/mint',
-  'POST /invite/claim',
-  'POST /invite/status',
-  'POST /api/invite/mint',
-  'POST /api/invite/claim',
-  'POST /api/invite/status',
-] as const
 const QUOTE_ROUTES = ['POST /quote', 'POST /api/quote'] as const
 // Both are POSTs, including the one that streams — see ROOM_STREAM_PATHS in server.ts for why.
 const ROOM_ROUTES = [
@@ -297,7 +289,7 @@ const CHAIN_FEED_ROUTES = ['POST /chain/stream', 'POST /api/chain/stream'] as co
  * registration are separate jobs that share one signing wallet, so a breached floor closes both.
  * That is still per-job degradation and not a global outage: each answers its own honest 503 from
  * its own gate, the fee-recipient read of the very same job keeps answering, and the quote proxy
- * and invite routes keep answering in the same process. The distinction is what
+ * keeps answering in the same process. The distinction is what
  * `topology.test.ts` proves — "two jobs cannot sign" and "the relayer is down" are different
  * sentences, and only the first one is true.
  *
@@ -379,7 +371,7 @@ export const RELAYER_JOBS: readonly RelayerJob[] = [
       'Pays a cold visitor\'s first registration out of the relayer\'s own balance — the one ' +
       'thing this product actually gives away. Same route as submission, distinguished by ' +
       '`sponsored: true` in the body, and charged to a different ledger because of it.',
-    routes: [...SPONSORED_SUBMIT_ROUTES, ...INVITE_ROUTES],
+    routes: [...SPONSORED_SUBMIT_ROUTES],
     degradeStates: [
       {
         id: 'sponsored/funding-floor',
@@ -392,12 +384,10 @@ export const RELAYER_JOBS: readonly RelayerJob[] = [
         noticeSource: 'RELAYER_DOWN_NOTICE (`packages/protocol/src/relayer-wire.ts`)',
         affectsRoutes: [...SPONSORED_SUBMIT_ROUTES],
         stillServedInThisJob:
-          'The invite routes still mint, claim and report — they burn no gas, so a wallet that ' +
-          'cannot pay a fee can still hand out and account for codes.',
+          'Nothing in this job signs without the wallet, so nothing in it keeps answering; the ' +
+          'registration waits for funding.',
         otherJobsUnaffected: ['quote proxy', 'chat transport'],
-        note:
-          'This is the row the cold-start caveat is about: see COLD_START_CAVEAT. An invite ' +
-          'claimed during a breach stays claimed, and the registration it buys waits for funding.',
+        note: 'This is the row the cold-start caveat is about: see COLD_START_CAVEAT.',
       },
       {
         id: 'sponsored/budget-exhausted',
@@ -409,41 +399,18 @@ export const RELAYER_JOBS: readonly RelayerJob[] = [
         reason: 'sponsorship-paused',
         noticeSource: 'BUDGET_EXHAUSTED_NOTICE (`packages/relayer/src/sponsorship.ts`)',
         affectsRoutes: [...SPONSORED_SUBMIT_ROUTES],
-        stillServedInThisJob: 'The invite routes still answer; a code minted today keeps for tomorrow.',
+        stillServedInThisJob: 'Nothing else lives in this job; the refusal is the whole answer.',
         otherJobsUnaffected: ['submission', 'quote proxy', 'chat transport'],
         note:
           'Fails OPEN into pay-your-own-way rather than into a locked door, and the notice says ' +
-          'so. A burned invite waives the per-visitor cap and never the daily budget.',
-      },
-      {
-        id: 'sponsored/invites-off',
-        trigger:
-          'Invites off — `RELAYER_INVITE_ALLOWANCE` unset, the master switch for the whole ' +
-          'invite sub-feature. There is no defensible default for how many free registrations ' +
-          'one address may hand strangers, so absent means off.',
-        answers: 'refusal',
-        status: 404,
-        reason: null,
-        noticeSource: null,
-        affectsRoutes: [...INVITE_ROUTES],
-        stillServedInThisJob:
-          'THE JOB ITSELF IS UNAFFECTED. Sponsored registration keeps working on ' +
-          '`POST /submit` with `sponsored: true`; only the invite sub-feature is absent. A code ' +
-          'presented on the submit path gets a typed 400 `invites-not-offered`, not a 404, ' +
-          'because there the client has already built a body around it.',
-        otherJobsUnaffected: ['submission', 'quote proxy', 'chat transport'],
-        note:
-          'Scoped to the invite routes, not to the job. The switch removes a door; it does not ' +
-          'close the building. Setting any other `RELAYER_INVITE_*` knob without the allowance ' +
-          'is a startup error, not a silent no-op — see `resolveInviteConfig` in ' +
-          '`packages/relayer/src/server.ts`.',
+          'so.',
       },
     ],
     builtToday: true,
     note:
       'Not a separate submit route from submission, and that is deliberate: one signing path, ' +
       'one allowlist, one place every gate lives. What makes it a separate JOB is that it draws ' +
-      'on a separate budget, owns the invite routes, and fails with separate copy.',
+      'on a separate budget and fails with separate copy.',
   },
   {
     job: 'quote proxy',

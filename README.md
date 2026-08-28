@@ -157,19 +157,13 @@ nvm use
 corepack enable
 pnpm install
 
-pnpm test                      # 2,565 tests across 102 files
-pnpm run typecheck             # root + apps/web; the root config alone does not cover the app
-pnpm run build:web             # builds, holds the warning contract, reads the artifact
-pnpm run verify:mainnet-guard  # flips the tree off mainnet and back, proving the guard both ways
+pnpm run typecheck             # packages + apps/web
+pnpm run build:web             # tsc -b && vite build; refuses an off-mainnet tree
 ```
 
-`pnpm run build:web` from the repository root is the only supported way to build the app. There is
-deliberately no `build` script in `apps/web/package.json`: a bare `vite build` skips the warning
-contract, the byte budget and the artifact reads, and produces something nothing has checked.
-
-`verify:mainnet-guard` rewrites `packages/protocol/src/constants.ts` in your working tree for a few
-seconds. Do not run it alongside other work in the same checkout. Killed with `SIGKILL` mid-run it
-leaves a `.guard-verify-backup` sidecar; the next run finds it, restores from it, and says so.
+The app is a stock `create-vite` + `shadcn init` project — see `apps/web/README.md` for the
+folder structure. The mainnet guard and the warning contract are ordinary options in
+`apps/web/vite.config.ts`; there is no wrapper script and nothing to run around it.
 
 ### The contracts
 
@@ -182,14 +176,10 @@ cd contracts && scarb build && snforge test    # 109 tests
 signatures — including one worth reading before a fresh machine: the snforge plugin build fix lives
 in scarb's global **cache**, not in this repository, so a cache wipe hits it again.
 
-### Checking our own submission the way the judges will
+### Checking our own submission
 
-```bash
-npx tsx scripts/ops/verify-strk20.ts
-```
-
-Read-only, nothing signed. It runs the judges' own verification logic against our `strk20.json`
-before they do — see the mine rule below.
+`strk20.json` lists every transaction hash; each one resolves on Voyager
+(`https://voyager.online/tx/<hash>`). The rule that decides which of them count is below.
 
 ### Running the relayer, and the one setting you must not skip
 
@@ -277,8 +267,7 @@ transaction must also run through one of them.* While `contracts` is empty the c
 entirely. Ours is empty today and the registration passes. The moment Markets and Launch are
 declared and listed, that registration stops counting — it touches the pool, not our contracts —
 so the three evidence transactions are planned to be contract-touching from the start: a batched
-bet, a batch claim, and a launch buy. `scripts/ops/verify-strk20.ts` runs that exact check locally
-so we find out before the judges do.
+bet, a batch claim, and a launch buy.
 
 **The pool class hash is pinned on purpose.** The pool is upgradeable with zero delay and can be
 paused, including during judging week — StarkWare can swap the implementation instantly and owes

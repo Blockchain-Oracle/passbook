@@ -4,73 +4,17 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Passbook</title>
-    <meta
-      name="description"
-      content="Private payments, chat and markets on Starknet."
-    />
+    <meta name="description" content="Private payments, chat and markets on Starknet." />
 
-    <!--
-      INSTALLABILITY.
-
-      `start_url` is `/wallet` rather than `/`, because an installed app opens where the user's own
-      money is. `/` is the surface for somebody arriving cold; a home-screen icon is pressed by
-      somebody who already has an account.
-
-      ── THE THEME COLOUR IS DECLARED TWICE, AND IT HAS TO BE ────────────────────────────────
-
-      `theme_color` in the manifest paints the installed app's title bar, and it is a single value
-      the manifest format has no way to vary. These two `<meta>` tags are what the BROWSER reads,
-      and they carry the light and dark values from `design/tokens.yaml` — `ground` in each mode, so
-      the browser chrome matches the page it sits above instead of framing it in the wrong colour.
-
-      The manifest's own `theme_color` is the dark one, because that is the value an installed
-      standalone window uses before any media query is evaluated.
-    -->
     <link rel="manifest" href="/manifest.webmanifest" />
     <meta name="theme-color" media="(prefers-color-scheme: light)" content="#E7E6E1" />
     <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#0A0A0A" />
-
     <link rel="icon" href="/icon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="/icon.svg" />
-
-    <!--
-      iOS reads none of the manifest. `apple-mobile-web-app-capable` is what makes an added-to-home-
-      screen Passbook open without Safari's chrome, and `status-bar-style: default` keeps the status
-      bar legible against both themes rather than forcing white-on-white in light mode.
-    -->
+    <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-title" content="Passbook" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-    <!--
-      BLOCKING and INLINE, and it must stay both.
-
-      The stylesheet follows the OS on its own, and does it well: a user who has not pinned a theme
-      gets the right one on the very first painted frame, with JavaScript disabled or slow. What CSS
-      cannot do is reach an EXPLICIT pin — `prefers-color-scheme` knows nothing about it — so a
-      pinned user is painted the OS theme first and corrected afterwards. Measured: at 400 ms of
-      script latency that correction arrives 404 ms late, and the entry bundle is 240,219 B. In a
-      deferred module script this is a guaranteed flash in production and invisible on localhost,
-      which is the worst combination available. Hence: here, first, blocking, before any stylesheet.
-
-      The try/catch is not defensive padding — Safari's private mode THROWS on localStorage access,
-      and an uncaught throw here would take the whole document's parsing with it.
-    -->
-    <script>
-      try {
-        var t = localStorage.getItem('passbook-theme')
-        // [STUDIO] Passbook OPENS DARK. A first visit stores the dark pin rather than following
-        // the OS — the ratified direction is mint-on-black, and a bone-light first paint reads as
-        // a different product. Light and follow-system remain one Settings click away; an explicit
-        // 'system' sentinel (written by Settings when the user chooses it) clears the default.
-        if (t !== 'dark' && t !== 'light' && t !== 'system') {
-          t = 'dark'
-          try {
-            localStorage.setItem('passbook-theme', 'dark')
-          } catch (e) {}
-        }
-        if (t === 'dark' || t === 'light') document.documentElement.dataset.theme = t
-      } catch (e) {}
-    </script>
   </head>
   <body>
     <div id="root"></div>

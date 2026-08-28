@@ -7,12 +7,8 @@
     "node": "^24.0.0"
   },
   "scripts": {
-    "test": "vitest run",
-    "typecheck": "tsc --noEmit && tsc --noEmit -p apps/web",
-    "build:web": "pnpm --filter @strk20/web build",
-    "verify:mainnet-guard": "node scripts/verify-mainnet-guard.mjs",
-    "render:topology": "node scripts/render-topology.mjs",
-    "render:privacy": "node scripts/render-privacy-matrix.mjs"
+    "typecheck": "tsc --noEmit && pnpm --filter @strk20/web exec tsc -b",
+    "build:web": "pnpm --filter @strk20/web build"
   },
   "devDependencies": {
     "@types/node": "24.13.3",

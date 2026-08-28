@@ -27,7 +27,7 @@ import { deriveViewingKey } from './identity.js'
 import { CLIENT_ACTION } from './message-book.js'
 import { approveCeiling } from './fee-ceiling.js'
 import { readPoolConstants, type PoolConstants } from './pool.js'
-import { normalizeInviteCode, RELAYER_PATHS, type SubmitBody, type SubmitResponseBody } from './relayer-wire.js'
+import { RELAYER_PATHS, type SubmitBody, type SubmitResponseBody } from './relayer-wire.js'
 import { withFallback } from './rpc.js'
 import { mapRegistrationError, preflightRegistration, type PreflightRoute } from './registration.js'
 import type { RegistrationStage } from './pipeline-stage.js'
@@ -576,22 +576,6 @@ export interface RegisterInput {
   /** Shown in the fee row as the submitter. */
   appName?: string
   relayerUrl?: string
-  /**
-   * The invite code this invitee claimed, when they arrived through one (story 1.14, FR-014).
-   *
-   * THIS IS THE WHOLE POINT OF THE INVITE FEATURE REACHING THE APP. A burned code waives the
-   * relayer's PER-VISITOR sponsorship cap, and without this field there is no way for the
-   * browser to present one — so the invitee this feature exists for, the stranger on a
-   * NAT-shared mobile address whose per-visitor cap other strangers already spent, would claim
-   * a code and then be refused `sponsorship-paused` while holding it.
-   *
-   * OPTIONAL, AND ITS ABSENCE CHANGES NOTHING. A registration without a code is the ordinary
-   * sponsored path, metered exactly as it was before this field existed.
-   *
-   * It is normalised and shape-checked before the pipeline spends anything, so a mistyped code
-   * is a free `bad-input` rather than a prover round-trip that ends in a 400 from the relayer.
-   */
-  invite?: string
 }
 
 /**
@@ -681,25 +665,6 @@ export async function registerSponsored(
   const fail = (failure: RegisterFailure): RegisterResult => ({ ok: false, stages, failure })
 
   const address = String(input.account.address)
-
-  // NORMALISED AT THE TOP, BEFORE ANYTHING IS READ, PROVEN OR POSTED. A code the relayer would
-  // refuse for its shape is a code we can refuse for free, and doing it here rather than at the
-  // submit call means a typo costs the invitee nothing instead of a prover round-trip that ends
-  // in a 400. `normalizeInviteCode` is the wire's — the same function the relayer validates
-  // with — so a code this accepts is a code that side will parse identically.
-  let invite: string | undefined
-  if (input.invite !== undefined) {
-    const normalized = normalizeInviteCode(input.invite)
-    if (normalized === null) {
-      return fail({
-        kind: 'bad-input',
-        reason:
-          `${JSON.stringify(input.invite)} is not an invite code, so it would be refused by the ` +
-          'relayer rather than waiving anything',
-      })
-    }
-    invite = normalized
-  }
 
   /**
    * Turns a pre-flight route into a decision, PROCEEDING ONLY on `unregistered`.
@@ -873,12 +838,6 @@ export async function registerSponsored(
         // treating every submission as one (story 1.16); without it a registration would be
         // metered against the plain-send cap and would never see the pay-your-own-way notice.
         sponsored: true,
-        // Only when there is one. A body with `invite: undefined` serialises without the key,
-        // so this is byte-identical to the uninvited body — but spreading rather than always
-        // writing the field keeps that true even if the serialisation ever changes, and it is
-        // the relayer's rule too: a code present on a body is a claim it VERIFIES, so sending
-        // an empty one would be asking to be refused.
-        ...(invite !== undefined ? { invite } : {}),
       })
     } catch (e) {
       // A refusal before delivery is free to retry; anything else may already be signed.
@@ -1062,10 +1021,9 @@ async function defaultConfirm(transactionHash: string): Promise<number | null> {
  * balance-delta cross-check is `evidence/sponsored-registration.json`, and every number
  * here resolves against the transaction hash below. This is the "no hardcoded cost" rule
  * kept the only way it can be: the literal exists because it was PAID, and it carries the
- * provenance to prove it. NOTHING RENDERS FROM IT YET: `inviteeRow` (invite.ts) still
- * takes its optional cost as a caller-supplied string, and wiring it — plus the copy
- * rework the two-transaction fact forces — is epic-6's recorded obligation
- * (deferred-work.md), not an accomplished fact.
+ * provenance to prove it. NOTHING RENDERS FROM IT YET: wiring it — plus the copy rework
+ * the two-transaction fact forces — is a recorded obligation (deferred-work.md), not an
+ * accomplished fact.
  *
  * TWO TRANSACTIONS, NOT ONE, and the second fact matters as much as the price: the prove
  * leg authenticates the registering user on-chain (`assert_valid_signature`'s SRC5 probe

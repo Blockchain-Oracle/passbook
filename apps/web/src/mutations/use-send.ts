@@ -1,0 +1,154 @@
+import { useMutation } from '@tanstack/react-query'
+import type { AppInvokeLeg, BridgeLeg, SendFailure, SendKind, SendResult, SwapLeg } from '@strk20/protocol/send'
+import { SEND_STAGES, type SendStage } from '@strk20/protocol/pipeline-stage'
+import type { ActivitySurface } from '@strk20/protocol/transaction'
+
+import { getSessionSnapshot } from '@/app/session'
+import { queryClient } from '@/app/query-client'
+import { explorerTx } from '@/lib/format'
+import { governanceWrites } from '@/queries/app'
+import { shieldedQuery } from '@/queries/shielded'
+import { describeSendFailure, failureTransactionHash, labelFor } from './describe'
+import { invalidateMoney, invalidateVenues } from './invalidate'
+import {
+  clearSettledPipeline,
+  failPipeline,
+  finishPipeline,
+  getPipeline,
+  reachStage,
+  setPipelineSubmission,
+  startPipeline,
+} from './pipeline-store'
+import { currentRoute, embeddedAccount, makeSelfSubmit, operationId } from './self-submit'
+
+export interface SendAsk {
+  kind: SendKind
+  recipient: string
+  token: string
+  symbol: string
+  amount: bigint
+  swap?: SwapLeg
+  bridge?: BridgeLeg
+  app?: AppInvokeLeg
+  surface?: ActivitySurface
+  label?: string
+  /** Optional narrator beside the pipeline store, for a button's own stage label. */
+  onStage?: (stage: SendStage) => void
+}
+
+const refused = (failure: SendFailure): SendResult => ({ ok: false, stages: [], failure })
+
+/**
+ * The one call into `sendShielded` for every surface that moves shielded value. Refuse-don't-throw:
+ * the result is always a `SendResult`, and every refusal below is a resolved `{ ok: false }`.
+ */
+async function send(ask: SendAsk): Promise<SendResult> {
+  const session = getSessionSnapshot()
+  if (session.status !== 'ready' || !session.address || !session.accountKey) {
+    return refused({ kind: 'bad-input', reason: 'This browser has no account yet.' })
+  }
+  const { address, accountKey } = session
+
+  if (ask.kind.startsWith('gov-')) {
+    const safety = governanceWrites()
+    if (!safety.enabled) return refused({ kind: 'bad-input', reason: safety.because })
+  }
+
+  // The notes come from a walk that COMPLETED. `fetchQuery` hands back the fresh cached walk (the
+  // reading the user sees) and re-walks a stale or failed one — a minutes-old read never gates a spend.
+  const read = await queryClient.fetchQuery(shieldedQuery(address, accountKey)).catch(() => undefined)
+  if (!read || read.state !== 'walked') {
+    return refused({
+      kind: 'blocked-rpc-unknown',
+      reason: 'Your balance could not be read, so nothing was sent. Try again in a moment.',
+    })
+  }
+
+  // One pipeline at a time. A settled row clears; a live one keeps its transaction.
+  clearSettledPipeline()
+  if (getPipeline() !== null) {
+    return refused({ kind: 'lock-unavailable', reason: 'Another transaction is still running in this tab.' })
+  }
+
+  const label = ask.label ?? labelFor(ask.kind, ask.symbol)
+  startPipeline({
+    id: operationId(),
+    operation: ask.kind,
+    route: currentRoute(),
+    label,
+    stages: SEND_STAGES,
+    startedAt: Date.now(),
+    cancel: null,
+  })
+  let lastStage: SendStage = 'build'
+  const onStage = (stage: SendStage) => {
+    lastStage = stage
+    reachStage(stage)
+    ask.onStage?.(stage)
+  }
+  onStage('build')
+
+  try {
+    const [{ sendShielded }, { account }] = await Promise.all([
+      import('@strk20/protocol/send'),
+      embeddedAccount(accountKey, address),
+    ])
+    const outcome = await sendShielded(
+      {
+        accountKey,
+        account: account as never,
+        kind: ask.kind,
+        recipient: ask.recipient,
+        token: ask.token,
+        symbol: ask.symbol,
+        amount: ask.amount,
+        // Self, always: the embedded account pays its own fee. The relayer path needs a funded
+        // relayer holding twice the live fee and refuses below it.
+        mode: 'self',
+        ...(ask.swap ? { swap: ask.swap } : {}),
+        ...(ask.bridge ? { bridge: ask.bridge } : {}),
+        ...(ask.app ? { app: ask.app } : {}),
+        wallet: read.wallet,
+      },
+      { selfSubmit: makeSelfSubmit(accountKey, address), onStage },
+    )
+
+    if (outcome.ok) {
+      setPipelineSubmission({
+        transactionHash: outcome.transactionHash,
+        explorerUrl: explorerTx(outcome.transactionHash),
+        submittedBy: outcome.submittedBy === 'relayer' ? 'relayer' : 'embedded',
+      })
+      finishPipeline('confirmed')
+      return outcome
+    }
+
+    const hash = failureTransactionHash(outcome.failure)
+    if (hash) setPipelineSubmission({ transactionHash: hash, explorerUrl: explorerTx(hash), submittedBy: 'embedded' })
+    // `confirmation-unknown` is not a failure: it may have landed.
+    if (outcome.failure.kind === 'confirmation-unknown') finishPipeline('confirmation-unknown')
+    else failPipeline(lastStage)
+    return outcome
+  } catch (error) {
+    // What the pipeline does not model — a chunk that would not load. Reported, never swallowed:
+    // a send that vanished silently is one the user retries into a double-spend.
+    failPipeline(lastStage)
+    return refused({ kind: 'bad-input', reason: error instanceof Error ? error.message : 'The send could not be started.' })
+  }
+}
+
+export function useSend() {
+  return useMutation({
+    mutationKey: ['send'],
+    mutationFn: send,
+    onSettled: (result) => {
+      void invalidateMoney()
+      if (result?.ok && result && 'submittedBy' in result) void invalidateVenues()
+    },
+  })
+}
+
+/** One sentence for a failed result, or `null`. */
+export function sendProblem(result: SendResult | undefined): string | null {
+  return result && !result.ok ? describeSendFailure(result.failure) : null
+}

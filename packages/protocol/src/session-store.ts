@@ -7,8 +7,8 @@
 // actually touches a browser storage API, and it is deliberately the smallest surface that
 // can carry the values this app is allowed to persist.
 //
-// THE LIST IS CLOSED, AND IT IS FOUR LONG. The account key, the `ready` projection of the
-// backup ceremony, the backup cadence record, and (story 1.14) the sender's invite intents.
+// THE LIST IS CLOSED. The account key, the `ready` projection of the backup ceremony, the
+// backup cadence record, the account list, the position secrets and the sealed vault.
 // Never a note, never a discovery result, never a Recovery Code, never a wrapped Recovery
 // File. See `session.ts`'s header for why each of those is excluded; `SESSION_KEYS` below is
 // the enforcement, because a value with no key here has nowhere to go.
@@ -49,16 +49,15 @@ export interface SessionStore {
 export type SessionKey = (typeof SESSION_KEYS)[keyof typeof SESSION_KEYS]
 
 /**
- * Every key this application is allowed to persist under, and there are exactly four.
+ * Every key this application is allowed to persist under.
  *
  * Namespaced so the app can be hosted on an origin it shares with something else without
  * either side stepping on the other, and so a human reading their own localStorage can tell
  * what belongs to this app.
  *
- * THE FOURTH ENTRY WAS ADDED DELIBERATELY BY STORY 1.14, which is the process this union exists
- * to force. Story 1.11 wrote "exactly three" and meant it; the count is not the rule. The rule
- * is that adding one is a reviewable decision with an argument attached, and the argument for
- * `inviteIntents` is written at the key below and again in `session-invite-store.ts`.
+ * Story 1.11 wrote "exactly three" and meant it; the count is not the rule. The rule is that
+ * adding one is a reviewable decision with an argument attached, and every entry past the
+ * first three carries its argument at the key below.
  */
 export const SESSION_KEYS = {
   /** The root Account Key (D33). The one secret this tier holds. */
@@ -68,28 +67,10 @@ export const SESSION_KEYS = {
   /** The backup cadence ladder and its status. */
   cadence: 'passbook.backup-cadence',
   /**
-   * Invite intents: what the SENDER TYPED when they attached money to an invite, plus where each
-   * one stands (story 1.14, FR-014/FR-060).
-   *
-   * IT HAS TO BE PERSISTED OR THE FEATURE DOES NOT EXIST. There is no escrow and no relayer-held
-   * record — deliberately, because relayer-opened channels would serialize globally on
-   * `INDEX_NOT_SEQUENTIAL` and would put the relayer's address on chain as the sender of
-   * somebody else's money. The sender's own app is therefore the only party holding the intent,
-   * and an intent that does not survive a reload is a promise the app forgets while the invitee
-   * is still reading the link.
-   *
-   * WHY IT IS NOT ON THE MUST-NEVER LIST, stated here because `amount` superficially resembles
-   * something that is: this record is what the user TYPED — a recipient they chose, a token they
-   * picked, an amount they entered, and a state this app set. Nothing in it is decrypted, nothing
-   * is discovered, and nothing is read out of the pool. It is not a cache of a balance; it is a
-   * note-to-self about money that has not moved. See `session-invite-store.ts` and `session.ts`.
-   */
-  inviteIntents: 'passbook.invite-intents',
-  /**
    * Every account this browser holds, which one is active, and whether the screen is locked
    * (Wave 1, `session-accounts.ts`).
    *
-   * THE FIFTH ENTRY, and it carries its argument like the fourth did. It holds ROOT KEYS, which
+   * It carries its argument, as every entry past the first three does. It holds ROOT KEYS, which
    * is the one thing on the "may be persisted" list already — entry 1 — so this widens the SHAPE
    * of what is stored, not the KIND. The exposure is unchanged: an origin compromise took the
    * account key before this key existed and takes it now, and `session-key.ts`'s plaintext note
@@ -109,9 +90,8 @@ export const SESSION_KEYS = {
    * The secrets that claim market positions and launch purchases (Wave 3,
    * `session-position-store.ts`).
    *
-   * THE SIXTH ENTRY, and it carries its argument like the fourth and fifth did. Unlike
-   * `inviteIntents` — which is a note-to-self about money that has not moved — this one IS the
-   * money. A position is bearer: `markets.cairo` and `launch.cairo` store `poseidon(secret)` and
+   * It carries its argument like the entries above it. Unlike them — records ABOUT keys and
+   * state — this one IS the money. A position is bearer: `markets.cairo` and `launch.cairo` store `poseidon(secret)` and
    * pay whoever reveals the secret. There is no address on it, no recovery path, and no second
    * copy anywhere. Losing this key is exactly as bad as losing a note.
    *
