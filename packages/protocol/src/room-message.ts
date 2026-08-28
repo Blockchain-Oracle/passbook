@@ -34,11 +34,22 @@ export type RoomMessage =
       /** An optional note the sender attached to the payment. */
       readonly text?: string
     }
+  | {
+      /**
+       * A post in an OPEN room — a token's Talk thread, where the key is publicly derivable
+       * (`open-room.ts`) and everyone on the page reads everything. `name` is the poster's
+       * CLAIMED directory handle, carried in the plaintext because an open room has no pairwise
+       * key to authenticate a sender with: it is a byline, not a proof, and surfaces say so.
+       */
+      readonly kind: 'post'
+      readonly text: string
+      readonly name?: string
+    }
   /** A message from a client that speaks a type this one does not. Rendered, never thrown. */
   | { readonly kind: 'unsupported'; readonly received: string }
 
 /** The wire discriminators. Single letters: every byte here is inside the message size cap. */
-const WIRE_KIND = { text: 't', payment: 'p' } as const
+const WIRE_KIND = { text: 't', payment: 'p', post: 'o' } as const
 
 export function encodeRoomMessage(message: RoomMessage): string {
   switch (message.kind) {
@@ -52,6 +63,12 @@ export function encodeRoomMessage(message: RoomMessage): string {
         c: message.token,
         h: message.transactionHash,
         ...(message.text === undefined ? {} : { b: message.text }),
+      })
+    case 'post':
+      return JSON.stringify({
+        k: WIRE_KIND.post,
+        b: message.text,
+        ...(message.name === undefined ? {} : { n: message.name }),
       })
     case 'unsupported':
       // Re-encoding something we could not read would forward a payload we never validated. A
@@ -100,6 +117,13 @@ export function decodeRoomMessage(plaintext: string): RoomMessage {
       token: wire.c,
       transactionHash: wire.h,
       ...(typeof wire.b === 'string' && wire.b.length > 0 ? { text: wire.b } : {}),
+    }
+  }
+  if (wire.k === WIRE_KIND.post && typeof wire.b === 'string' && wire.b.length > 0) {
+    return {
+      kind: 'post',
+      text: wire.b,
+      ...(typeof wire.n === 'string' && wire.n.length > 0 ? { name: wire.n } : {}),
     }
   }
   return { kind: 'unsupported', received: typeof wire.k === 'string' ? wire.k : 'unknown' }

@@ -12,8 +12,11 @@ import {
 import { toPlainText } from '@strk20/protocol/amount'
 import { logoDisplayUrl } from '@strk20/protocol/token-media'
 
+import { launchTalkTag } from '@strk20/protocol/open-room-tags'
+
 import { ActivityTape } from '../components/launch/ActivityTape'
 import { BuyForm } from '../components/launch/BuyPanel'
+import { TalkThread } from '../components/launch/TalkThread'
 import { Staircase } from '../components/launch/Staircase'
 import { YourPositions } from '../components/launch/YourPositions'
 import { PHASE_CHIP, PHASE_SENTENCE, phaseOf } from '../components/launch/phase'
@@ -154,6 +157,14 @@ function LaunchDetail() {
                 launches={read.launches}
                 scope={{ launchId: launch.id }}
                 emptyLine="No buys have landed in the feed's window yet — the next one appears here as it happens."
+              />
+            </section>
+
+            <section className="flex flex-col gap-s8 rounded-large border border-solid border-surface3 p-s16">
+              <Text variant="kicker">Talk</Text>
+              <TalkThread
+                tag={launchTalkTag(launch.id)}
+                emptyLine="Nobody has said anything about this sale yet. The room is open."
               />
             </section>
           </div>
