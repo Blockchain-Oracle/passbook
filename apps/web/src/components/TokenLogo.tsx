@@ -56,6 +56,16 @@ function discFor(seed: string): { bg: string; fg: string } {
   return DISCS[hash % DISCS.length]!
 }
 
+/**
+ * The token's ACCENT — the disc background its name seeds — for the surfaces that tint around a
+ * mark: a card's glow, a chart's stroke, a detail page's halo. Exported from here rather than
+ * re-derived so the mark and its glow can never disagree about what colour a token is, and so the
+ * off-token exception stays declared in exactly one file.
+ */
+export function accentFor(seed: string): string {
+  return discFor(seed).bg
+}
+
 export interface TokenLogoProps {
   /** The token's image, when the token list supplied one. */
   url?: string | null

@@ -98,6 +98,16 @@ export const ANCILLARY_PATHS = [
   // route nobody decided on.
   //
   '/chat/',
+  //
+  // THE TWO DETAIL PAGES OF THE LAUNCH SURFACE. `/launch/$id` is a sale in progress — the curve,
+  // its history, the buy rail; `/token/$address` is what a sale becomes after graduation (and the
+  // page any token address can land on). Neither is a seventh mode for `/send`'s reason: they are
+  // what the LAUNCH surface does, reached from its cards and its table, never from the nav. The
+  // underscore in `launch_.$id.tsx` is deliberate — the detail page stands alone rather than
+  // rendering inside the launchpad's layout.
+  //
+  '/launch/$id',
+  '/token/$address',
 ] as const satisfies readonly Paths[]
 
 /** Every route path this file accounts for. Compared against the tree in `route-contract.ts`. */

@@ -179,3 +179,5 @@ export type HasLaunchRoute = Assert<Ext<'/launch', Paths>>
 export type HasSendRoute = Assert<Ext<'/send', Paths>>
 export type HasActivityRoute = Assert<Ext<'/activity/$id', Paths>>
 export type HasPayRoute = Assert<Ext<'/pay/$address', Paths>>
+export type HasLaunchDetailRoute = Assert<Ext<'/launch/$id', Paths>>
+export type HasTokenRoute = Assert<Ext<'/token/$address', Paths>>
