@@ -325,8 +325,10 @@ export function ActivityFeed({
         modal
       >
         {openTransaction ? (
-          <div className="flex min-h-0 flex-col gap-s8 overflow-y-auto">
-            <ActivityReceipt transaction={openTransaction} />
+          // `gap-s12` matches the prototype's detail sheet, and `onClose` is what puts the × in
+          // its header — the deep-link route renders the same component and passes none.
+          <div className="flex min-h-0 flex-col gap-s12 overflow-y-auto">
+            <ActivityReceipt transaction={openTransaction} onClose={() => setOpenId(null)} />
           </div>
         ) : null}
       </ResponsiveDialog>
