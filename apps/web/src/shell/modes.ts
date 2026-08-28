@@ -108,6 +108,12 @@ export const ANCILLARY_PATHS = [
   //
   '/launch/$id',
   '/token/$address',
+  //
+  // A PERSON'S PAGE — the directory entry its holder signed, and nothing else. Reached from
+  // search and from anywhere a name renders; not a mode because people are who you act ON from
+  // the surfaces, not a surface of their own.
+  //
+  '/u/$name',
 ] as const satisfies readonly Paths[]
 
 /** Every route path this file accounts for. Compared against the tree in `route-contract.ts`. */

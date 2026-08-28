@@ -24,6 +24,7 @@ import { Route as ChatPeerRouteImport } from './routes/chat.$peer'
 import { Route as LaunchIdRouteImport } from './routes/launch_.$id'
 import { Route as PayAddressRouteImport } from './routes/pay.$address'
 import { Route as TokenAddressRouteImport } from './routes/token.$address'
+import { Route as UNameRouteImport } from './routes/u.$name'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -100,6 +101,11 @@ const TokenAddressRoute = TokenAddressRouteImport.update({
   path: '/token/$address',
   getParentRoute: () => rootRouteImport,
 } as any)
+const UNameRoute = UNameRouteImport.update({
+  id: '/u/$name',
+  path: '/u/$name',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -116,6 +122,7 @@ export interface FileRoutesByFullPath {
   '/launch/$id': typeof LaunchIdRoute
   '/pay/$address': typeof PayAddressRoute
   '/token/$address': typeof TokenAddressRoute
+  '/u/$name': typeof UNameRoute
   '/chat/': typeof ChatIndexRoute
 }
 export interface FileRoutesByTo {
@@ -132,6 +139,7 @@ export interface FileRoutesByTo {
   '/launch/$id': typeof LaunchIdRoute
   '/pay/$address': typeof PayAddressRoute
   '/token/$address': typeof TokenAddressRoute
+  '/u/$name': typeof UNameRoute
   '/chat': typeof ChatIndexRoute
 }
 export interface FileRoutesById {
@@ -150,6 +158,7 @@ export interface FileRoutesById {
   '/launch_/$id': typeof LaunchIdRoute
   '/pay/$address': typeof PayAddressRoute
   '/token/$address': typeof TokenAddressRoute
+  '/u/$name': typeof UNameRoute
   '/chat/': typeof ChatIndexRoute
 }
 export interface FileRouteTypes {
@@ -169,6 +178,7 @@ export interface FileRouteTypes {
     | '/launch/$id'
     | '/pay/$address'
     | '/token/$address'
+    | '/u/$name'
     | '/chat/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -185,6 +195,7 @@ export interface FileRouteTypes {
     | '/launch/$id'
     | '/pay/$address'
     | '/token/$address'
+    | '/u/$name'
     | '/chat'
   id:
     | '__root__'
@@ -202,6 +213,7 @@ export interface FileRouteTypes {
     | '/launch_/$id'
     | '/pay/$address'
     | '/token/$address'
+    | '/u/$name'
     | '/chat/'
   fileRoutesById: FileRoutesById
 }
@@ -219,6 +231,7 @@ export interface RootRouteChildren {
   LaunchIdRoute: typeof LaunchIdRoute
   PayAddressRoute: typeof PayAddressRoute
   TokenAddressRoute: typeof TokenAddressRoute
+  UNameRoute: typeof UNameRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -328,6 +341,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TokenAddressRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/u/$name': {
+      id: '/u/$name'
+      path: '/u/$name'
+      fullPath: '/u/$name'
+      preLoaderRoute: typeof UNameRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -357,6 +377,7 @@ const rootRouteChildren: RootRouteChildren = {
   LaunchIdRoute: LaunchIdRoute,
   PayAddressRoute: PayAddressRoute,
   TokenAddressRoute: TokenAddressRoute,
+  UNameRoute: UNameRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

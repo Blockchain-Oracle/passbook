@@ -23,6 +23,10 @@
 //
 
 import { toast } from './toast-store'
+// Static since the palette put the directory in the eager chunk (people-as-commands,
+// `__root.tsx`): `use-directory` is plain fetch over pure types, and a dynamic import of a
+// module the entry already carries is the exact INEFFECTIVE_DYNAMIC_IMPORT the gate flags.
+import { claimName } from './use-directory'
 
 export interface ClaimAfterRegistrationInput {
   /** What they typed on the name screen. Empty or absent means they did not opt in. */
@@ -48,10 +52,7 @@ export async function claimAfterRegistration(input: ClaimAfterRegistrationInput)
     // Dynamic for the build gate's reason, copied from `NameClaim.tsx`: `directory.ts` reaches
     // `starknet` for the curve signature, and a static import would drag the crypto graph into the
     // chunk that only wanted an onboarding panel.
-    const [{ signClaim }, { claimName }] = await Promise.all([
-      import('@strk20/protocol/directory'),
-      import('./use-directory'),
-    ])
+    const { signClaim } = await import('@strk20/protocol/directory')
 
     const signature = signClaim(name, input.address, input.viewingKey)
     const outcome = await claimName({ name, address: input.address, signature })

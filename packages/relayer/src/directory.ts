@@ -41,6 +41,8 @@ export interface DirectoryRecord {
   address: string
   avatar?: string
   claimedAt: number
+  /** Set only by `bindX` — the attested X identity behind this claim, never client-asserted. */
+  x?: { handle: string; id: string; boundAt: number }
 }
 
 interface Serialized {
@@ -54,6 +56,12 @@ export type ClaimOutcome = { ok: true } | { ok: false; status: number; error: st
 
 export interface Directory {
   claim(input: unknown, now?: number): Promise<ClaimOutcome>
+  /**
+   * A claim that arrived through a live X OAuth session (`api/x/link.js`, over the
+   * server-to-server channel — never the browser). Same proof as `claim` — the viewing-key
+   * signature over (name, address) — plus the relayer's own stamp of the session's handle.
+   */
+  bindX(input: unknown, now?: number): Promise<ClaimOutcome>
   list(): readonly DirectoryEntry[]
   avatar(address: unknown): string | null
 }
@@ -109,8 +117,13 @@ export function openDirectory(opts: {
     return null
   }
 
-  return {
-    async claim(input, now = Date.now()) {
+  // The one verification-and-write path, shared by both claim shapes: `x` is the only thing
+  // `bindX` adds, and it is a parameter here precisely so it cannot ride the public route.
+  async function applyClaim(
+    input: unknown,
+    now: number,
+    x?: { handle: string; id: string },
+  ): Promise<ClaimOutcome> {
       const body = input as {
         name?: unknown
         address?: unknown
@@ -171,15 +184,39 @@ export function openDirectory(opts: {
         // on every rename would punish exactly the client that downscales properly.
         avatar: avatar ?? existing?.avatar,
         claimedAt: existing?.claimedAt ?? now,
+        // A plain re-claim keeps an existing X stamp — renaming does not un-verify — while a
+        // bind writes or refreshes it. Only `bindX` can ever set one.
+        x: x ? { ...x, boundAt: now } : existing?.x,
       })
       persist()
       return { ok: true }
+  }
+
+  return {
+    claim(input, now = Date.now()) {
+      return applyClaim(input, now)
+    },
+
+    async bindX(input, now = Date.now()) {
+      const body = input as { xHandle?: unknown; xId?: unknown } | null
+      if (typeof body?.xHandle !== 'string' || !/^[A-Za-z0-9_]{1,15}$/.test(body.xHandle)) {
+        return { ok: false, status: 400, error: 'xHandle must be an X handle' }
+      }
+      if (typeof body?.xId !== 'string' || !/^\d{1,25}$/.test(body.xId)) {
+        return { ok: false, status: 400, error: 'xId must be the numeric X account id' }
+      }
+      return applyClaim(input, now, { handle: body.xHandle, id: body.xId })
     },
 
     list() {
       return [...byAddress.values()]
         .sort((a, b) => a.name.localeCompare(b.name))
-        .map(({ name, address, avatar }) => ({ name, address, hasAvatar: avatar !== undefined }))
+        .map(({ name, address, avatar, x }) => ({
+          name,
+          address,
+          hasAvatar: avatar !== undefined,
+          ...(x ? { xHandle: x.handle } : {}),
+        }))
     },
 
     avatar(address) {
