@@ -137,15 +137,44 @@ export type SendKind =
   | 'launch-buy'
   | 'launch-redeem'
   | 'launch-refund'
+  // ── The governance kinds (docs/governance.md §11.1) ─────────────────────────────────────
+  //
+  // Three of the five ride the two proven shapes: `gov-delegate` and `gov-fund` are FUNDING
+  // (money into the Governor, empty span back), `gov-reclaim` and `gov-revoke` are SETTLING
+  // (bearer secrets in, open notes out). What is new is HOW two of them reach the contract:
+  //
+  //   `gov-ballot` is funding-shaped but travels as ComputeAndInvoke — the pool injects the
+  //   anonymous voter handle, which an InvokeExternal cannot carry.
+  //
+  //   `gov-join` is the THIRD shape this union gained: value-less. No withdraw, no open notes —
+  //   the fee leg's own note spend is the transaction's replay protection — and the invoke is a
+  //   ComputeAndInvoke because joining a roll is nothing BUT the identity.
+  //
+  | 'gov-ballot'
+  | 'gov-join'
+  | 'gov-delegate'
+  | 'gov-fund'
+  | 'gov-reclaim'
+  | 'gov-revoke'
 
 /** The kinds that send value INTO one of our contracts and get an empty span back. */
-const FUNDING_KINDS = ['market-create', 'market-bet', 'launch-buy'] as const
+const FUNDING_KINDS = ['market-create', 'market-bet', 'launch-buy', 'gov-ballot', 'gov-delegate', 'gov-fund'] as const
 
 /** The kinds that mint open notes and are paid into them. */
-const SETTLING_KINDS = ['market-claim', 'market-cashout', 'launch-redeem', 'launch-refund'] as const
+const SETTLING_KINDS = [
+  'market-claim',
+  'market-cashout',
+  'launch-redeem',
+  'launch-refund',
+  'gov-reclaim',
+  'gov-revoke',
+] as const
+
+/** The kinds whose invoke is a `ComputeAndInvoke` — the pool injects the identity handle. */
+const COMPUTE_KINDS = ['gov-ballot', 'gov-join'] as const
 
 export function isAppKind(kind: SendKind): boolean {
-  return isFundingKind(kind) || isSettlingKind(kind)
+  return isFundingKind(kind) || isSettlingKind(kind) || kind === 'gov-join'
 }
 
 export function isFundingKind(kind: SendKind): boolean {
@@ -154,6 +183,10 @@ export function isFundingKind(kind: SendKind): boolean {
 
 export function isSettlingKind(kind: SendKind): boolean {
   return (SETTLING_KINDS as readonly string[]).includes(kind)
+}
+
+export function isComputeKind(kind: SendKind): boolean {
+  return (COMPUTE_KINDS as readonly string[]).includes(kind)
 }
 
 /**
@@ -279,6 +312,14 @@ export interface AppInvokeLeg {
   noteIdSlots: readonly number[]
   /** How many open notes this transaction must mint. See the note above — this one is load-bearing. */
   openNoteCount: number
+  /**
+   * Which pool entrypoint pair carries the invoke. `'invoke'` (the default) is the proven
+   * `InvokeExternal` → `privacy_invoke` path; `'compute'` is `ComputeAndInvoke` — the pool
+   * derives the caller's per-helper identity handle, calls `privacy_compute` with it, and the
+   * result rides into `privacy_invoke_with_computation`. The SAME `calldata` serves both halves
+   * of the compute pair, which is the Governor's wire (`governance.cairo`).
+   */
+  via?: 'invoke' | 'compute'
   /**
    * The token the payouts arrive in. Required whenever `openNoteCount` is non-zero.
    *
@@ -620,10 +661,10 @@ export function planSend(
   // it spends cover the relayer's fee and nothing else; the value in the transaction is arriving,
   // not leaving. Requiring a positive amount here would force callers to invent one, and an
   // invented amount is a `Withdraw` waiting to be built out of it.
-  if (isSettlingKind(request.kind)) {
+  if (isSettlingKind(request.kind) || request.kind === 'gov-join') {
     if (request.amount !== 0n) {
       return bad(
-        `a ${request.kind} sends nothing of yours — the payout is arriving — so its amount must ` +
+        `a ${request.kind} sends nothing of yours — so its amount must ` +
           `be 0, and it carried ${request.amount}`,
       )
     }
@@ -823,12 +864,21 @@ export function planSend(
     // contract returns an empty deposit span, so an open note in that transaction is an unmatched
     // one — and an unmatched open note reverts on chain after the fee, with the free
     // `compile_actions` view unable to see it coming.
-    if (isFundingKind(request.kind) && app.openNoteCount !== 0) {
+    if ((isFundingKind(request.kind) || request.kind === 'gov-join') && app.openNoteCount !== 0) {
       return bad(
         `a ${request.kind} is paid nothing back, so it must create no open notes, and this one ` +
           `asked for ${app.openNoteCount}. An open note nothing deposits into reverts the whole ` +
           'transaction after the fee is taken.',
       )
+    }
+    // The wire and the kind must agree about WHICH invoke pair carries this — two spellings of
+    // one fact, the op-code rule again. A ballot without the identity handle is not a ballot.
+    const via = app.via ?? 'invoke'
+    if (isComputeKind(request.kind) && via !== 'compute') {
+      return bad(`a ${request.kind} travels as ComputeAndInvoke, and this leg says '${via}'`)
+    }
+    if (!isComputeKind(request.kind) && via === 'compute') {
+      return bad(`a ${request.kind} travels as a plain invoke, and this leg says 'compute'`)
     }
     if (isSettlingKind(request.kind)) {
       if (app.openNoteCount === 0) {
@@ -1221,10 +1271,26 @@ export function planSend(
   if (app) {
     const felts: (bigint | null)[] = app.calldata.map((f) => BigInt(f))
     for (const slot of app.noteIdSlots) felts[slot] = null
-    expectedActions.push({
-      variant: CLIENT_ACTION.InvokeExternal,
-      fields: [BigInt(app.contract), BigInt(app.calldata.length), ...felts],
-    })
+    if ((app.via ?? 'invoke') === 'compute') {
+      // ComputeAndInvokeInput { contract_address, compute_len, ...compute, invoke_len, ...invoke }
+      // — the same calldata on both halves, which is the Governor's wire. Every felt is pinned:
+      // a compute kind never carries a note-id slot.
+      expectedActions.push({
+        variant: CLIENT_ACTION.ComputeAndInvoke,
+        fields: [
+          BigInt(app.contract),
+          BigInt(app.calldata.length),
+          ...felts,
+          BigInt(app.calldata.length),
+          ...felts,
+        ],
+      })
+    } else {
+      expectedActions.push({
+        variant: CLIENT_ACTION.InvokeExternal,
+        fields: [BigInt(app.contract), BigInt(app.calldata.length), ...felts],
+      })
+    }
   }
 
   const plan: SendPlan = {
@@ -1475,25 +1541,38 @@ function variantWidth(variant: number): number {
  */
 function actionWidthAt(span: readonly bigint[], at: number): number {
   const variant = Number(span[at]!)
-  if (variant !== CLIENT_ACTION.InvokeExternal) return variantWidth(variant)
+  if (variant !== CLIENT_ACTION.InvokeExternal && variant !== CLIENT_ACTION.ComputeAndInvoke) {
+    return variantWidth(variant)
+  }
 
-  // `[variant, contract_address, calldata_len, ...calldata]` — the prefix is at `at + 2`.
-  const declared = span[at + 2]
-  if (declared === undefined) {
-    throw new Error(
-      'refusing a compiled span whose InvokeExternal ends before its calldata length: there is ' +
-        'nothing to measure the rest of the action against',
-    )
+  // A bounded length read — a hostile or corrupt prefix would otherwise walk the cursor past the
+  // end of the span, and every subsequent action would be read from the wrong offset.
+  const spanLengthAt = (index: number, what: string): number => {
+    const declared = span[index]
+    if (declared === undefined) {
+      throw new Error(
+        `refusing a compiled span whose ${what} ends before its length prefix: there is ` +
+          'nothing to measure the rest of the action against',
+      )
+    }
+    if (declared < 0n || declared > BigInt(span.length)) {
+      throw new Error(
+        `refusing a compiled ${what} declaring ${declared} felt(s) in a span of ` +
+          `${span.length}: the length prefix is what the rest of the walk depends on`,
+      )
+    }
+    return Number(declared)
   }
-  // A hostile or corrupt length would otherwise walk the cursor past the end of the span, or into
-  // a negative index, and every subsequent action would be read from the wrong offset.
-  if (declared < 0n || declared > BigInt(span.length)) {
-    throw new Error(
-      `refusing a compiled InvokeExternal declaring ${declared} calldata felt(s) in a span of ` +
-        `${span.length}: the length prefix is what the rest of the walk depends on`,
-    )
+
+  if (variant === CLIENT_ACTION.InvokeExternal) {
+    // `[variant, contract_address, calldata_len, ...calldata]` — the prefix is at `at + 2`.
+    return 3 + spanLengthAt(at + 2, 'InvokeExternal')
   }
-  return 3 + Number(declared)
+  // ComputeAndInvoke: `[variant, contract_address, compute_len, ...compute, invoke_len,
+  // ...invoke]` — two self-describing spans, measured in sequence.
+  const compute = spanLengthAt(at + 2, 'ComputeAndInvoke (compute half)')
+  const invoke = spanLengthAt(at + 3 + compute, 'ComputeAndInvoke (invoke half)')
+  return 4 + compute + invoke
 }
 
 /**
@@ -1519,7 +1598,10 @@ export function expectedSpanFelts(actions: readonly (ExpectedSendAction | number
  */
 function plannedWidth(action: ExpectedSendAction | number): number {
   if (typeof action === 'number') return variantWidth(action)
-  if (action.variant !== CLIENT_ACTION.InvokeExternal) return variantWidth(action.variant)
+  // Both invoke variants: the plan itself carries every felt, so its width is self-describing.
+  if (action.variant !== CLIENT_ACTION.InvokeExternal && action.variant !== CLIENT_ACTION.ComputeAndInvoke) {
+    return variantWidth(action.variant)
+  }
   return action.fields.length + 1
 }
 
@@ -1855,31 +1937,43 @@ export async function proveSend(input: ProveSendInput): Promise<ProvedSend> {
       }
     }
 
-    builder.invoke(({ openNotes }) => {
-      // THE COUNT IS CHECKED AGAINST WHAT THE COMPILER ACTUALLY MINTED, not against what was
-      // asked for. The pool asserts every open note in the transaction was deposited into
-      // (`UNDEPOSITED_OPEN_NOTES`) and its free `compile_actions` view cannot see the mismatch —
-      // it no-ops the emission — so an unmatched note reverts on chain AFTER the fee is taken.
-      // This is the last place that can still be caught for nothing.
-      if (openNotes.length !== appLeg.openNoteCount) {
-        throw new Error(
-          `the compiler minted ${openNotes.length} open notes and this operation deposits into ` +
-            `${appLeg.openNoteCount}. Every open note must be deposited into or the pool reverts ` +
-            'the transaction after taking the fee — refusing to invoke.',
-        )
-      }
+    if ((appLeg.via ?? 'invoke') === 'compute') {
+      // The ComputeAndInvoke pair: the SDK carries the calldata to `privacy_compute` (after the
+      // pool-derived identity key) and to `privacy_invoke_with_computation` (after the compute
+      // result). One array, both halves — the Governor's wire. A compute kind mints no open
+      // notes, so there are no slots to fill and every felt was pinned at plan time.
+      builder.computeAndInvoke(() => ({
+        contractAddress: appLeg.contract,
+        computeAdditionalData: [...appLeg.calldata],
+        invokeAdditionalData: [...appLeg.calldata],
+      }))
+    } else {
+      builder.invoke(({ openNotes }) => {
+        // THE COUNT IS CHECKED AGAINST WHAT THE COMPILER ACTUALLY MINTED, not against what was
+        // asked for. The pool asserts every open note in the transaction was deposited into
+        // (`UNDEPOSITED_OPEN_NOTES`) and its free `compile_actions` view cannot see the mismatch —
+        // it no-ops the emission — so an unmatched note reverts on chain AFTER the fee is taken.
+        // This is the last place that can still be caught for nothing.
+        if (openNotes.length !== appLeg.openNoteCount) {
+          throw new Error(
+            `the compiler minted ${openNotes.length} open notes and this operation deposits into ` +
+              `${appLeg.openNoteCount}. Every open note must be deposited into or the pool reverts ` +
+              'the transaction after taking the fee — refusing to invoke.',
+          )
+        }
 
-      // The note ids, dropped into the slots the calldata builder reserved. In payload order, so
-      // entry `i`'s payout lands in the note the payload names for entry `i`.
-      const calldata = [...appLeg.calldata]
-      appLeg.noteIdSlots.forEach((slot, i) => {
-        const note = openNotes[i]
-        if (note === undefined) throw new Error(`no open note was minted for payout ${i + 1}`)
-        calldata[slot] = `0x${BigInt(note.noteId).toString(16)}`
+        // The note ids, dropped into the slots the calldata builder reserved. In payload order, so
+        // entry `i`'s payout lands in the note the payload names for entry `i`.
+        const calldata = [...appLeg.calldata]
+        appLeg.noteIdSlots.forEach((slot, i) => {
+          const note = openNotes[i]
+          if (note === undefined) throw new Error(`no open note was minted for payout ${i + 1}`)
+          calldata[slot] = `0x${BigInt(note.noteId).toString(16)}`
+        })
+
+        return { contractAddress: appLeg.contract, calldata }
       })
-
-      return { contractAddress: appLeg.contract, calldata }
-    })
+    }
   }
 
   const bridgeLeg = plan.request.kind === 'bridge' ? plan.request.bridge : undefined
