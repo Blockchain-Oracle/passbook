@@ -264,13 +264,19 @@ function Swap() {
       {/* The 480px column Uniswap uses for every value form. `mx-auto` so it centres on a desktop
           and `w-full` so it fills a phone. */}
       <div className="mx-auto flex w-full max-w-[480px] flex-col gap-s8">
-        {/* Title left, settings right — Uniswap's header row, and the place a gear is looked for. */}
+        <Text variant="kicker">03 — exchange</Text>
+        {/* Title left, settings right — the header row, and the place the slippage control is
+            looked for. */}
         <div className="flex items-center justify-between gap-s12">
-          <Text variant="heading3" as="h1">
+          <Text variant="display2" as="h1" className="text-neutral1">
             Swap
           </Text>
           <SwapSettings slippageBps={slippageBps} onSlippageChange={setSlippageBps} />
         </div>
+        <Text variant="body4" className="text-neutral2">
+          One transaction inside the pool — the proceeds land back as a shielded note. The amount is
+          public; who swapped is not.
+        </Text>
 
         {/* The two panels, welded: 2px apart with their facing corners squared, so they read as one
             control with a seam rather than two stacked cards. */}

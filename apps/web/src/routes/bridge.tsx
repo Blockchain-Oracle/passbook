@@ -286,11 +286,10 @@ function Bridge() {
   return (
     <Surface routeId={Route.fullPath}>
       <div className="mx-auto flex w-full max-w-[480px] flex-col gap-s8">
-        <div className="flex items-center justify-between gap-s12">
-          <Text variant="heading3" as="h1">
-            Bridge
-          </Text>
-        </div>
+        <Text variant="kicker">04 — exit</Text>
+        <Text variant="display2" as="h1" className="text-neutral1">
+          Bridge
+        </Text>
 
         {/* Said once, at the top, rather than discovered at the end of a form: this goes one way. */}
         <Text variant="body4" className="text-neutral2">
