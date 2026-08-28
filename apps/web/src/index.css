@@ -1603,29 +1603,13 @@
     animation-iteration-count: 1;
   }
 
-  /* The receipt's two columns: label above value on narrow, side by side once there is room. */
-  .receipt {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: var(--spacing-s2) var(--spacing-s16);
-    margin-block-start: var(--spacing-s8);
-  }
-
-  .receipt dd {
-    margin-block-end: var(--spacing-s8);
-    overflow-wrap: anywhere;
-  }
-
-  @media (min-width: 30rem) {
-    .receipt {
-      grid-template-columns: max-content 1fr;
-      align-items: baseline;
-    }
-
-    .receipt dd {
-      margin-block-end: var(--spacing-s0);
-    }
-  }
+  /*
+   * `.receipt` LIVED HERE AND IS DELETED, not orphaned. [Abu 2026-08-28] It was a two-column
+   * `max-content 1fr` grid holding the receipt's eight label/value rows, and the receipt no longer
+   * has eight rows or a grid: it has four flex lines with the value pushed right, and its two long
+   * hashes moved out into a mono block of their own. A rule nothing selects is a rule the next
+   * reader has to prove is dead before they may touch anything near it.
+   */
 
   /*
    * ── The disclosure panel (§7.5) ────────────────────────────────────────────────────────
