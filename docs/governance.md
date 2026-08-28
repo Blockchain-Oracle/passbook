@@ -382,6 +382,14 @@ but nothing else in this spec moves.
 
 ## 11. Protocol, relayer, and app integration — the compile-error checklist
 
+> **Freshness caveat:** this worktree forked from `master` at `0349529`, *before* the STUDIO
+> reskin and the live Markets/Launch panels landed on the mainline (`try-pnpm`:
+> `d8be098..f385bbf`, `0d39ad4` — `app-reads.ts`, `useMarkets`/`useLaunches`, `MarketsPanel`,
+> `LaunchPanel`, `invokeDirect`, bearer secrets via `use-positions`). Re-verify this section
+> against the merge target: the app-invoke groundwork the sweep reported as missing likely
+> already exists there, which *shrinks* the governance story. The checklist below is the
+> superset as seen from this fork.
+
 The repo makes a seventh surface a *deliberate* multi-file compile error. The full list, so
 nobody discovers it at 2am:
 
@@ -462,7 +470,10 @@ Decisions this settles:
 - **Logos**: keep Passbook's shipped seeded-disc fallback (`TokenLogo.tsx` — name-seeded palette;
   it matches Uniswap's `useColorSchemeFromSeed` monogram pattern almost exactly). Add
   **extracted-accent color** from the logo driving the card glow and chart stroke (their
-  `useSrcColor`) — SPORE-compatible since it's per-token identity, not palette drift.
+  `useSrcColor`) — per-token identity, not palette drift, so it composes with the ratified
+  design direction (STUDIO — Anton/lime/near-black — shipped on the mainline *after* this
+  worktree forked; this worktree still shows SPORE. Design tokens flow through
+  `apps/web/design/tokens.yaml` either way).
 - **IPFS via Pinata** (the alive option in 2026 — NFT.Storage's free pinning is dead;
   web3.storage is now Storacha with heavier auth): Uniswap's own upload pipeline is the template
   (`useTokenImageUpload`: blob preview instantly → upload → retry-backoff on fresh-CID 500s →
