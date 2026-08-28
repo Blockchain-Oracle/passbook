@@ -137,13 +137,15 @@ let account: import('starknet').WalletAccountV6 | null = null
 
 /** Everything the SDK side needs, loaded once and only when somebody presses Connect. */
 async function loadWalletTier() {
-  const [app, features, sdk, constants] = await Promise.all([
+  const [app, features, bridge, sdk, constants] = await Promise.all([
     import('@wallet-standard/app'),
     import('@starknet-io/get-starknet-wallet-standard/features'),
+    // The injected-wallet wrapper — the package's root export, dynamic like everything else here.
+    import('@starknet-io/get-starknet-wallet-standard'),
     import('starknet'),
     import('@strk20/protocol/constants'),
   ])
-  return { app, features, sdk, net: constants.NET, network: constants.ACTIVE_NETWORK }
+  return { app, features, bridge, sdk, net: constants.NET, network: constants.ACTIVE_NETWORK }
 }
 
 /**
@@ -154,12 +156,52 @@ async function loadWalletTier() {
  * offer a Solana wallet, `WalletAccountV6.connect` would fail on the missing feature, and the
  * user would read a type error as our bug.
  */
-async function starknetWallets() {
-  const { app, features } = await loadWalletTier()
-  return app
-    .getWallets()
-    .get()
-    .filter((wallet) => features.isStarknetWallet(wallet))
+/** One discovered wallet: the standard-shaped object plus, for injected ones, the raw SWO. */
+interface DiscoveredEntry {
+  /** Typed by the two fields this module reads; the full standard shape rides underneath. */
+  standard: { name: string; icon: string } & Record<string, unknown>
+  /** The `window.starknet_*` object, when that is where this wallet came from. */
+  injected: Record<string, unknown> | null
+}
+
+async function starknetWallets(): Promise<Map<string, DiscoveredEntry>> {
+  const { app, features, bridge } = await loadWalletTier()
+  const map = new Map<string, DiscoveredEntry>()
+  for (const wallet of app.getWallets().get()) {
+    if (features.isStarknetWallet(wallet)) {
+      map.set(wallet.name, { standard: wallet as never, injected: null })
+    }
+  }
+  //
+  // THE INJECTED HALF — the one that actually finds Ready. Real Starknet extensions announce as
+  // `window.starknet_<id>` (the get-starknet convention); almost none register into the
+  // wallet-standard registry the loop above reads. The measured symptom was exact: Ready
+  // installed, picker says "no Starknet wallet found". The bridge class this package ships
+  // (`StarknetInjectedWallet`) wraps an injected object into the standard shape — the app just
+  // never scanned the window for anything to wrap.
+  //
+  const w = globalThis as unknown as Record<string, unknown>
+  for (const key of Object.keys(w)) {
+    if (!key.startsWith('starknet')) continue
+    const swo = w[key] as Record<string, unknown> | null
+    if (
+      typeof swo?.name !== 'string' ||
+      typeof swo?.request !== 'function' ||
+      (typeof swo?.icon !== 'string' && typeof swo?.icon !== 'object')
+    ) {
+      continue
+    }
+    if (map.has(swo.name as string)) continue
+    try {
+      map.set(swo.name as string, {
+        standard: new bridge.StarknetInjectedWallet(swo as never) as never,
+        injected: swo,
+      })
+    } catch {
+      // An object that only looks like a wallet costs itself the listing, never the picker.
+    }
+  }
+  return map
 }
 
 /**
@@ -174,7 +216,11 @@ async function starknetWallets() {
 export async function listWallets(): Promise<DiscoveredWallet[]> {
   try {
     const found = await starknetWallets()
-    return found.map((wallet) => ({ id: wallet.name, name: wallet.name, icon: wallet.icon }))
+    return [...found.values()].map(({ standard }) => ({
+      id: standard.name,
+      name: standard.name,
+      icon: standard.icon,
+    }))
   } catch {
     // A discovery chunk that will not load is indistinguishable, from here, from a browser with
     // no wallets. Both mean "there is nothing to offer", and neither is worth an error dialog.
@@ -221,12 +267,16 @@ async function readCapability(
 export async function connectWallet(id: string): Promise<ConnectOutcome> {
   try {
     const { sdk, net, network: ACTIVE_NETWORK } = await loadWalletTier()
-    const found = (await starknetWallets()).find((w) => w.name === id)
-    if (!found) {
+    const entry = (await starknetWallets()).get(id)
+    if (!entry) {
       return { ok: false, because: 'That wallet is no longer available in this browser.' }
     }
+    // `connect` takes the standard-shaped wallet either way; the chain and capability queries
+    // below want the RAW injected object when there is one — those helpers speak SWO.
+    const found = entry.standard
+    const queryTarget = (entry.injected ?? entry.standard) as never
 
-    const walletAccount = await sdk.WalletAccountV6.connect({ nodeUrl: net.rpc[0] }, found)
+    const walletAccount = await sdk.WalletAccountV6.connect({ nodeUrl: net.rpc[0] }, found as never)
     const address = walletAccount.address
     if (!address) {
       // A connect that resolves without an address is a wallet that did not actually authorise
@@ -250,7 +300,7 @@ export async function connectWallet(id: string): Promise<ConnectOutcome> {
     // the provider we constructed it with — our own `net.rpc[0]` — and would therefore always
     // agree with `net.chainId`, which is a check that can never fail and never help.
     //
-    const chainId = await sdk.walletV6.requestChainId(found)
+    const chainId = await sdk.walletV6.requestChainId(queryTarget)
     if (BigInt(chainId) !== BigInt(net.chainId)) {
       return {
         ok: false,
@@ -258,7 +308,7 @@ export async function connectWallet(id: string): Promise<ConnectOutcome> {
       }
     }
 
-    const { support, walletApi } = await readCapability(sdk, found)
+    const { support, walletApi } = await readCapability(sdk, queryTarget)
 
     account = walletAccount
     publish({

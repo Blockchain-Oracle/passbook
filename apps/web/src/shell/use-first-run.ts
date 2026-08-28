@@ -1,19 +1,20 @@
 //
 // When the conversion panel opens, and when it must not.
 //
-// ── CONVERSION TRIGGERS ON INTENT, NEVER ON ARRIVAL ───────────────────────────────────────
+// ── THE FIRST ARRIVAL OPENS IT; EVERY LATER ONE NEEDS INTENT ──────────────────────────────
 //
-// `context/11-product-experience.md` §1 is explicit and this hook is its enforcement: the first
-// ninety seconds are read-heavy and nothing asks who the visitor is. The whole app is live on a
-// published account — they can open chat, type in the swap form, read a market — and EXACTLY THREE
-// things open conversion:
+// SUPERSEDES §1's "on intent, never on arrival" — Abu's 28-Aug review, on the deployed app as a
+// first-time visitor: "the onboarding flow... it's my first time on this site and I don't even
+// know. None of it is even happening." A first-timer landing on a wallet full of empty panels
+// with no guide IS the broken experience, whatever the old doctrine said. So:
 //
-//   1. pressing a primary action CTA with no account of their own
-//   2. pressing Receive
-//   3. arriving on an invite link
+//   1. the FIRST visit ever (no completion flag, no registered account) opens the flow on
+//      arrival, once per page load — dismissing it sticks for the visit
+//   2. after that, the original three intents reopen it: a primary action CTA with no account,
+//      Receive, an invite link
 //
-// Anything else — a page load, a scroll, a timer, a second visit — must not. A panel that opens on
-// arrival is the "Launch app" interstitial the brief spent its first paragraph refusing.
+// A second visit, a scroll, a timer still must not — the interstitial the brief refused was the
+// one that NEVER stops appearing, not the one that greets you once.
 //
 // ── AND IT IS A ROW, NOT A MODAL ──────────────────────────────────────────────────────────
 //
@@ -28,7 +29,24 @@ import { useCallback, useSyncExternalStore } from 'react'
 const SEEN_KEY = 'passbook.first-run-seen'
 
 /** What opened the panel. Carried so screen 4 can attribute a sponsored registration. */
-export type FirstRunTrigger = 'primary-action' | 'receive' | 'invite'
+export type FirstRunTrigger = 'primary-action' | 'receive' | 'invite' | 'arrival'
+
+/**
+ * The once-per-page-load latch for the arrival open. A module flag rather than state: dismissing
+ * the panel must hold for the whole visit, and remounting the wallet route must not re-greet.
+ */
+let arrivalOffered = false
+
+/**
+ * Open the flow for a first-ever visitor, once. The caller supplies what it already knows —
+ * whether an account is registered — and this refuses everywhere the greeting would be wrong:
+ * a finished conversion, a registered account, or a visit that was already greeted.
+ */
+export function offerFirstRunOnArrival(options: { registered: boolean }): void {
+  if (arrivalOffered || options.registered || hasSeenFirstRun() || state.open) return
+  arrivalOffered = true
+  emit({ open: true, trigger: 'arrival', inviter: null })
+}
 
 export interface FirstRunState {
   /** True while the panel should be on screen. */

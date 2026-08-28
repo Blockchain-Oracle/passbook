@@ -32,11 +32,17 @@ import { dirname } from 'node:path'
 import { PRAGMA_PAIRS, type PragmaPair } from '../../protocol/src/pragma-pairs.js'
 import { MARKET_STATE, type OnChainMarket } from '../../protocol/src/app-reads.js'
 
-/** Sized from the measured create probe (88M l2). Ceiling ≈ 7.4 STRK; actuals run far below. */
+/**
+ * Sized from the measured create probe (88M l2), with a lean margin instead of the ops scripts'
+ * fat one. THE CEILING IS A BALANCE REQUIREMENT, not a spend: the sequencer refuses any
+ * transaction whose worst-case bounds exceed the sender's balance ("Resources bounds … exceed
+ * balance", measured live 2026-08-28 at 6.98 STRK held vs ~9.5 reserved). A generous ceiling on
+ * a working wallet is free; on a lean one it is an outage. This one reserves ~4.7 STRK.
+ */
 const BOUNDS = {
-  l2_gas: { max_amount: 150_000_000n, max_price_per_unit: 50_000_000_000n },
-  l1_gas: { max_amount: 10_000n, max_price_per_unit: 200_000_000_000_000n },
-  l1_data_gas: { max_amount: 50_000n, max_price_per_unit: 300_000_000_000n },
+  l2_gas: { max_amount: 120_000_000n, max_price_per_unit: 35_000_000_000n },
+  l1_gas: { max_amount: 5_000n, max_price_per_unit: 100_000_000_000_000n },
+  l1_data_gas: { max_amount: 30_000n, max_price_per_unit: 300_000_000_000n },
 }
 
 /**
