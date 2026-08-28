@@ -166,6 +166,30 @@ export function fundRefused(because: string): string {
 
 export const FUND_CTA = 'Continue — register my key'
 
+/**
+ * What the register step needs IN HAND before its button can honestly be pressed: the ~6 STRK
+ * pool fee, deploy gas, and margin. One constant so the blocker, the guard in `onRegister` and
+ * the payer decision cannot each invent their own number.
+ */
+export const REGISTER_FUNDS_FLOOR_WEI = 7_500_000_000_000_000_000n
+
+/**
+ * The register screen's blocker when the account cannot pay yet — ZK Freighter's lesson,
+ * finally applied: SAY what is missing and where it goes, never a button that dies silently.
+ */
+export const REGISTER_NEEDS_FUNDS =
+  'This account holds no STRK yet, and registration is signed and paid from it — about 8 STRK ' +
+  'covers the fee, the deploy and gas. Send it to your address below from any wallet or ' +
+  'exchange; this screen notices when it lands.'
+
+/** Above the copyable address, wherever the flow asks the user to fund it themselves. */
+export const FUND_ADDRESS_HINT = 'Your address — send STRK here:'
+
+/** The live line once outside funding lands. `amount` rendered by the caller, never baked. */
+export function fundsArrived(amount: string): string {
+  return `${amount} STRK is here — that covers it.`
+}
+
 // ── Screen 6 — Register (the terminal screen) ─────────────────────────────────────────────
 
 export const REGISTER_TITLE = 'Register your key'

@@ -46,20 +46,27 @@ import {
   NAME_CTA,
   NAME_PLACEHOLDER,
   NAME_TITLE,
+  FUND_ADDRESS_HINT,
   REGISTER_CTA,
+  REGISTER_FUNDS_FLOOR_WEI,
+  REGISTER_NEEDS_FUNDS,
   REGISTER_STEPS,
   REGISTER_TITLE,
   REGISTERED_BODY,
   REGISTERED_CTA,
   REGISTERED_TITLE,
   deadlockBody,
+  fundsArrived,
   deadlockFeeRow,
   deadlockInvitedTitle,
   fundArrived,
   fundRefused,
 } from '@strk20/protocol/onboarding-copy'
 
+import { toPlainText } from '@strk20/protocol/amount'
+
 import { cn } from '../../lib/cn'
+import { INTRO_SOUND, play } from '../../shell/sound'
 import { Button } from '../ui/Button'
 import { Text } from '../ui/Text'
 
@@ -100,6 +107,12 @@ export interface ConversionPanelProps {
    * to say that everything worked.
    */
   onFund: () => Promise<{ ok: boolean; amount?: string; because?: string; txHash?: string }>
+  /** This browser's account address — the fallback funding target when the drip cannot stake. */
+  address: string
+  /** The account's live public STRK, off the wallet's status poll. `null` while unread. */
+  fundsWei?: bigint | null
+  /** The last registration failure, in a sentence — rendered ON the register screen. */
+  problem?: string | null
   /** Renders the ceremony. Calls `onDone` when the code is confirmed and the file is saved. */
   renderBackup: (onDone: () => void) => React.ReactNode
   /** Renders the four-step pipeline once registration is in flight. */
@@ -116,6 +129,9 @@ export function ConversionPanel({
   onGenerateKey,
   onRegister,
   onFund,
+  address,
+  fundsWei = null,
+  problem = null,
   renderBackup,
   renderPipeline,
   onDismiss,
@@ -126,10 +142,15 @@ export function ConversionPanel({
   const [claimPublicly, setClaimPublicly] = useState(false)
   const [backupDone, setBackupDone] = useState(false)
   const [registering, setRegistering] = useState(false)
-  const [funding, setFunding] = useState<{ done: boolean; message: string; txHash?: string }>({
+  const [funding, setFunding] = useState<{ done: boolean; ok: boolean; message: string; txHash?: string }>({
     done: false,
+    ok: false,
     message: FUND_PENDING,
   })
+
+  // The register screen's honest gate — ZK Freighter's lesson. `null` funds reads as "unknown",
+  // which blocks nothing: an unreadable balance must not tell a funded user they are broke.
+  const fundsShort = fundsWei !== null && fundsWei < REGISTER_FUNDS_FLOOR_WEI
   const rootRef = useRef<HTMLDivElement>(null)
 
   const screen = SCREENS[index]!
@@ -164,8 +185,11 @@ export function ConversionPanel({
   //
   useEffect(() => {
     // The terminal screen is `register` now — a confirmed write lands there and renders the
-    // "you're in" state; it never pulls the panel backwards.
-    if (registered) setIndex((i) => Math.max(i, SCREENS.indexOf('register')))
+    // "you're in" state; it never pulls the panel backwards. And it SOUNDS like arrival.
+    if (registered) {
+      setIndex((i) => Math.max(i, SCREENS.indexOf('register')))
+      play(INTRO_SOUND, 0.6)
+    }
   }, [registered])
 
   //
@@ -184,11 +208,14 @@ export function ConversionPanel({
       if (!live) return
       setFunding({
         done: true,
+        ok: result.ok,
         message: result.ok
           ? fundArrived(result.amount ?? '')
           : fundRefused(result.because ?? 'Starter STRK is not available right now.'),
         txHash: result.txHash,
       })
+      // The stake landing gets its little chime — gestures have long since unblocked audio.
+      if (result.ok) play(INTRO_SOUND, 0.45)
     })
     return () => {
       live = false
@@ -339,10 +366,20 @@ export function ConversionPanel({
               </a>
             ) : null}
             {/*
+              THE REFUSED-DRIP PATH IS A DOOR, NOT A WALL — ZK Freighter's funding screen, made
+              honest for mainnet: when the faucet cannot stake you, your own address is right
+              here to fund from anywhere, and the flow's balance poll notices the arrival.
+            */}
+            {funding.done && !funding.ok ? <AddressCard address={address} /> : null}
+            {funding.done && !funding.ok && fundsWei !== null && !fundsShort ? (
+              <Text variant="body3" className="text-settled" role="status">
+                {fundsArrived(toPlainText(fundsWei, 18))}
+              </Text>
+            ) : null}
+            {/*
               CONTINUE UNLOCKS WHEN THE REQUEST RESOLVES — success OR refusal. The next screen
-              is the registration this money pays for, so leaving before the answer exists would
-              race the payer decision; but a REFUSED drip must not trap anybody, because the
-              register screen's sponsored fallback covers exactly that case.
+              is the registration this money pays for; its own gate says what is missing when
+              somebody continues before funding anything.
             */}
             <Button variant="primary" size="lg" fill aria-disabled={!funding.done} onClick={() => funding.done && advance()}>
               {funding.done ? FUND_CTA : 'Asking for your stake…'}
@@ -370,6 +407,25 @@ export function ConversionPanel({
               </Text>
             )}
             {/*
+              THE GATE SPEAKS BEFORE THE BUTTON CAN FAIL. "Create account did nothing" was the
+              review — the button ran a registration that could not succeed and swallowed the
+              refusal into a surface behind this panel. Now: short funds block WITH the sentence
+              and the address; a real failure renders HERE, in red, where the press happened.
+            */}
+            {fundsShort ? (
+              <>
+                <Text variant="body4" className="text-neutral2">
+                  {REGISTER_NEEDS_FUNDS}
+                </Text>
+                <AddressCard address={address} />
+              </>
+            ) : null}
+            {problem ? (
+              <Text variant="body4" className="text-exposed" role="alert">
+                {problem}
+              </Text>
+            ) : null}
+            {/*
               THE LAST STEP IS THE ACTION. Yosuku's final screen sets a preference and ends in Done;
               ours ends in the irreversible thing — the Done above only exists once the chain
               confirmed it.
@@ -378,9 +434,9 @@ export function ConversionPanel({
               variant="primary"
               size="lg"
               fill
-              aria-disabled={registering}
+              aria-disabled={registering || fundsShort}
               onClick={async () => {
-                if (registering) return
+                if (registering || fundsShort) return
                 setRegistering(true)
                 try {
                   await onRegister()
@@ -391,7 +447,7 @@ export function ConversionPanel({
                 }
               }}
             >
-              {registering ? 'Registering…' : REGISTER_CTA}
+              {registering ? 'Registering…' : fundsShort ? 'Waiting for your STRK…' : REGISTER_CTA}
             </Button>
           </>
           )
@@ -400,6 +456,34 @@ export function ConversionPanel({
       </div>
       </div>
     </section>
+  )
+}
+
+/**
+ * The copyable funding target. The address IS the affordance — tapping it copies, the way every
+ * wallet has taught — with a state word on the right so the copy is confirmed where it happened.
+ */
+function AddressCard({ address }: { address: string }) {
+  const [copied, setCopied] = useState(false)
+  return (
+    <div className="flex flex-col gap-s4">
+      <Text variant="body4" className="uppercase text-neutral3">
+        {FUND_ADDRESS_HINT}
+      </Text>
+      <button
+        type="button"
+        onClick={() => {
+          void navigator.clipboard?.writeText(address).then(() => {
+            setCopied(true)
+            window.setTimeout(() => setCopied(false), 2000)
+          })
+        }}
+        className="focus-ring flex items-baseline gap-s8 rounded-card border border-solid border-surface3 bg-inset p-s12 text-left"
+      >
+        <span className="numeric min-w-0 flex-1 break-all font-mono text-body4 text-neutral1">{address}</span>
+        <span className="shrink-0 font-mono text-mono text-neutral3">{copied ? 'copied' : 'copy'}</span>
+      </button>
+    </div>
   )
 }
 
