@@ -34,6 +34,7 @@ export const SELECTOR = {
   get_launch: '0x311384b8f07fb7bcaf15cf41ea4fc846752894eeb3ed4b6926f10a13c3fa243',
   launch_name: '0x3b4e3053e26d78089f696e20cb6be2475a6983e3492da4870e909f39040bb77',
   launch_symbol: '0x3fe3c45b35be2ce898dd770cfddd5d58757d46fe9959e79df656deea301bcb0',
+  launch_logo: '0x258cd291f3689b9c76fc62d1def3b5b2b297dc5ec349211a7ac7f499b3c02b6',
   quote_buy: '0x14b48ce6868b115791fd52c2a56e57ac8a205144b03b21af265c85884881bde',
   create_launch: '0x385b6268c717439a1106322e5a47c12378406dc2126d7cfa29bb0d3bc88d7e0',
 } as const
@@ -69,6 +70,8 @@ export interface OnChainLaunch {
   id: number
   name: string
   symbol: string
+  /** `launch_logo` — empty string when the creator pointed at nothing, an `ipfs://CID` when set. */
+  logoUri: string
   stakeToken: string
   /** The deployed ERC20 — zero until graduation. */
   token: string
@@ -87,6 +90,12 @@ export interface OnChainLaunch {
 }
 
 export type Transport = (method: string, params: unknown) => Promise<unknown>
+
+/**
+ * The built-in transport, exported so a server-side caller (the relayer's chain feed) can ride
+ * the same host-failover loop instead of growing a second copy of it.
+ */
+export const defaultTransport: Transport = (method, params) => rpc(method, params)
 
 /** One JSON-RPC round trip, against each configured host in turn — `crowd-rpc.ts`'s shape. */
 async function rpc(method: string, params: unknown): Promise<unknown> {
@@ -219,12 +228,14 @@ export function decodeLaunch(
   felts: readonly string[],
   name: string,
   symbol: string,
+  logoUri = '',
 ): OnChainLaunch {
   if (felts.length < 12) throw new Error(`get_launch returned ${felts.length} felts; LaunchInfo is 12`)
   return {
     id,
     name,
     symbol,
+    logoUri,
     stakeToken: felts[0]!,
     token: felts[1]!,
     p0: toBig(felts[2]!),
@@ -275,13 +286,20 @@ export async function readLaunches(
   let problem: string | null = null
   for (const id of ids) {
     try {
-      const [info, nameFelts, symbolFelts] = await Promise.all([
+      const [info, nameFelts, symbolFelts, logoFelts] = await Promise.all([
         call(contract, SELECTOR.get_launch, [hex(id)], transport),
         call(contract, SELECTOR.launch_name, [hex(id)], transport),
         call(contract, SELECTOR.launch_symbol, [hex(id)], transport),
+        call(contract, SELECTOR.launch_logo, [hex(id)], transport),
       ])
       launches.push(
-        decodeLaunch(id, info, decodeByteArray(nameFelts).text, decodeByteArray(symbolFelts).text),
+        decodeLaunch(
+          id,
+          info,
+          decodeByteArray(nameFelts).text,
+          decodeByteArray(symbolFelts).text,
+          decodeByteArray(logoFelts).text,
+        ),
       )
     } catch (error) {
       problem = `Launch ${id} could not be read: ${error instanceof Error ? error.message : String(error)}`

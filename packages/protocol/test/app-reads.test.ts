@@ -235,10 +235,12 @@ describe('readMarkets', () => {
         [`${SELECTOR.get_launch}:0x0`]: LAUNCH_FELTS,
         [`${SELECTOR.launch_name}:0x0`]: ['0x0', '0x4e69676874204f776c', '0x9'],
         [`${SELECTOR.launch_symbol}:0x0`]: ['0x0', '0x4f574c', '0x3'],
+        // `ipfs://x` — the logo travels as a ByteArray like the name, empty when unset.
+        [`${SELECTOR.launch_logo}:0x0`]: ['0x0', '0x697066733a2f2f78', '0x8'],
       }),
     })
     expect(out.launches).toHaveLength(1)
-    expect(out.launches[0]).toMatchObject({ name: 'Night Owl', symbol: 'OWL' })
+    expect(out.launches[0]).toMatchObject({ name: 'Night Owl', symbol: 'OWL', logoUri: 'ipfs://x' })
     expect(out.problem).toBeNull()
   })
 

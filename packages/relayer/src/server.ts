@@ -103,6 +103,7 @@ import {
   type ProxyTargetName,
 } from './quote-proxy.js'
 import { isWireEnvelope, RoomHub, ROOM_HISTORY, ROOM_IDLE_MS } from './rooms.js'
+import { ChainFeed, APP_POLL_MS, PRICE_POLL_MS, HISTORY_BOUND } from './chain-feed.js'
 import {
   DRIP_ALREADY_CLAIMED,
   DRIP_BAD_ADDRESS,
@@ -160,6 +161,10 @@ const DIRECTORY_AVATAR_PATHS = new Set(['/directory/avatar', '/api/directory/ava
 const FAUCET_PATHS = new Set(['/faucet', '/api/faucet'])
 const ROOM_STREAM_PATHS = new Set(['/room/stream', '/api/room/stream'])
 const ROOM_SEND_PATHS = new Set(['/room/send', '/api/room/send'])
+
+// The chain feed (see `chain-feed.ts`). A POST that streams, for ROOM_STREAM_PATHS' reasons
+// verbatim — same gates, same framing, same client-side reader discipline.
+const CHAIN_STREAM_PATHS = new Set(['/chain/stream', '/api/chain/stream'])
 
 // An upstream that will not answer in this long is an upstream the caller has already
 // given up on, and a request left hanging is a socket the relayer keeps paying for.
@@ -303,10 +308,13 @@ async function handle(req: IncomingMessage, res: ServerResponse, opts: RelayerSe
   // elsewhere: the ledger is the only thing bounding how much of the relayer's wallet this route
   // can give away, so a faucet that ran without one would be an unmetered transfer endpoint.
   const isFaucet = opts.faucet !== undefined && FAUCET_PATHS.has(url)
+  // No feed, no route — the invite rule again: a deployment with nothing to stream answers 404,
+  // and the browser's store reads that as "poll for yourself", which it already knows how to do.
+  const isChainStream = opts.chainFeed !== undefined && CHAIN_STREAM_PATHS.has(url)
   if (
     !isFeeRecipient &&
     (req.method !== 'POST' ||
-      !(isSubmit || isInvite || isRoom || isDirectory || isFaucet || QUOTE_PATHS.has(url)))
+      !(isSubmit || isInvite || isRoom || isDirectory || isFaucet || isChainStream || QUOTE_PATHS.has(url)))
   ) {
     send(res, 404, { error: 'not found' })
     return
@@ -387,6 +395,13 @@ async function handle(req: IncomingMessage, res: ServerResponse, opts: RelayerSe
     await (ROOM_STREAM_PATHS.has(url)
       ? handleRoomStream(req, res, opts)
       : handleRoomSend(req, res, opts))
+    return
+  }
+  // BEHIND ALL FOUR GATES like the rooms, and for the rooms' reason — not because public chain
+  // state is a secret (it is not), but because an unauthenticated held-open stream on a funded
+  // signer's host is a connection-exhaustion primitive pointed at everything else this port does.
+  if (isChainStream) {
+    await handleChainStream(req, res, opts)
     return
   }
   await (isSubmit ? handleSubmit(req, res, opts) : handleQuote(req, res, opts))
@@ -761,6 +776,84 @@ async function handleRoomStream(
   res.on('close', () => {
     clearInterval(heartbeat)
     for (const attached of attachments) attached.unsubscribe()
+  })
+}
+
+/**
+ * `POST /api/chain/stream` — subscribe to the chain feed, and keep the socket open.
+ *
+ * `handleRoomStream`'s framing, verbatim, because that framing is production-proven: SSE over a
+ * POST body, a heartbeat for the middleboxes, cleanup on the RESPONSE's `close` (the request has
+ * already emitted its own by the time the body is read — see the room handler's note). The body
+ * is read and discarded: the feed has one channel, so there is nothing to select, but the empty
+ * JSON object is still required by the content-type gate that keeps cross-origin pages out.
+ */
+async function handleChainStream(
+  req: IncomingMessage,
+  res: ServerResponse,
+  opts: RelayerServerOptions,
+): Promise<void> {
+  let parsed: unknown
+  try {
+    parsed = await readJsonBody(req)
+  } catch (e) {
+    send(res, 400, { error: String(e) })
+    return
+  }
+  // EXACTLY `{}`, refused loudly otherwise. The feed has one channel today, so there is nothing
+  // for a body to select — and a body that names something is a client from a wire this server
+  // does not speak. Refusing now is what lets a future field mean something: silently ignoring
+  // unknown keys would make every later addition compatible-looking and wrong.
+  if (
+    typeof parsed !== 'object' ||
+    parsed === null ||
+    Array.isArray(parsed) ||
+    Object.keys(parsed).length !== 0
+  ) {
+    send(res, 400, { error: 'the chain stream takes an empty JSON object' })
+    return
+  }
+
+  const subscriber = {
+    deliver(payload: string) {
+      // A throw here is the feed's signal to drop this subscriber — deliberately NOT caught.
+      res.write(`data: ${payload}\n\n`)
+    },
+    end() {
+      res.end()
+    },
+  }
+
+  const attached = opts.chainFeed!.subscribe(subscriber)
+  if (!attached.ok) {
+    // Full is a 503 the browser treats as "poll for yourself" — degraded, never locked.
+    send(res, 503, { error: 'the feed is at capacity' })
+    return
+  }
+
+  res.writeHead(200, {
+    'content-type': 'text/event-stream',
+    'cache-control': 'no-store',
+    connection: 'keep-alive',
+    'x-accel-buffering': 'no',
+  })
+
+  // The hello carries the whole state — including the price history this browser was not open
+  // to witness — then live deltas ride the same socket. One ordering rule, the rooms' rule.
+  subscriber.deliver(attached.hello)
+
+  const heartbeat = setInterval(() => {
+    try {
+      res.write(': hb\n\n')
+    } catch {
+      // The socket died between writes; `close` below cleans up.
+    }
+  }, ROOM_HEARTBEAT_MS)
+  heartbeat.unref?.()
+
+  res.on('close', () => {
+    clearInterval(heartbeat)
+    attached.unsubscribe()
   })
 }
 
@@ -1594,6 +1687,11 @@ export interface RelayerServerOptions {
    * the route runs without one.
    */
   faucet?: SponsorshipLedger
+  /**
+   * The chain feed (`chain-feed.ts`). Absent means `/api/chain/stream` is 404 and every browser
+   * polls the chain for itself — the shape this app shipped with, kept as the honest fallback.
+   */
+  chainFeed?: ChainFeed
 }
 
 export function createRelayerServer(options: RelayerServerOptions): Server {
@@ -2274,6 +2372,27 @@ async function main(): Promise<void> {
   }, ROOM_IDLE_MS / 6)
   roomSweep.unref?.()
 
+  // The chain feed — one poller for every open tab (`chain-feed.ts`). Constructed whenever there
+  // is anything to stream; the price reader is passed in here so the `starknet`-reaching pragma
+  // import stays at this composition root. `RELAYER_CHAIN_FEED_STORE` keeps the price history on
+  // the volume; without it the history honestly starts over on each deploy.
+  const feedWanted = process.env.RELAYER_CHAIN_FEED !== 'off'
+  const chainFeed =
+    feedWanted && (appContracts.markets || appContracts.launch || appContracts.pragma)
+      ? new ChainFeed({
+          markets: appContracts.markets,
+          launch: appContracts.launch,
+          readPrices: appContracts.pragma
+            ? async () => {
+                const { readAllMedians } = await import('../../protocol/src/pragma.js')
+                return readAllMedians(appContracts.pragma)
+              }
+            : undefined,
+          storePath: process.env.RELAYER_CHAIN_FEED_STORE || undefined,
+        })
+      : undefined
+  chainFeed?.start()
+
   const server = createRelayerServer({
     // `details` is undefined for a plain submission, which is what `execute` already
     // defaults to — so a `{calls}`-only body goes out byte-identical to before, and a
@@ -2305,6 +2424,7 @@ async function main(): Promise<void> {
     rooms,
     directory,
     faucet,
+    chainFeed,
   })
 
   // ── The settlement keeper ───────────────────────────────────────────────────────────────
@@ -2392,6 +2512,16 @@ async function main(): Promise<void> {
     console.log(
       `rooms: ciphertext only, in memory · ${ROOM_HISTORY} messages kept per room · ` +
         `idle rooms dropped after ${ROOM_IDLE_MS / 60_000} minutes`,
+    )
+    console.log(
+      chainFeed
+        ? `chain feed: app reads every ${APP_POLL_MS / 1000}s · prices every ${PRICE_POLL_MS / 1000}s · ` +
+            `history ${HISTORY_BOUND}/pair · ` +
+            `${process.env.RELAYER_CHAIN_FEED_STORE ? `store ${process.env.RELAYER_CHAIN_FEED_STORE}` : 'NO STORE — history resets on deploy'} · ` +
+            `warmed ${chainFeed.stats().historyPoints} points`
+        : feedWanted
+          ? 'chain feed: idle — nothing deployed to stream'
+          : 'chain feed: disabled by RELAYER_CHAIN_FEED=off',
     )
     console.log(
       sponsorConfig.invites

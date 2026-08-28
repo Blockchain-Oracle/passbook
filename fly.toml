@@ -34,6 +34,9 @@ primary_region = "iad"
   # Found while verifying a README sentence that asserted it was durable. It is a public registry
   # people point other people at; losing it is worse than losing a cap, not better.
   RELAYER_DIRECTORY_STORE = "/data/directory.json"
+  # The chain feed's price history. Not a ledger — losing it costs a chart its past, not anyone
+  # a cap — but the volume is exactly where "the past this process witnessed" belongs.
+  RELAYER_CHAIN_FEED_STORE = "/data/chain-feed.jsonl"
   # `RELAYER_INVITE_STORE` is deliberately absent — see the Dockerfile. A store path without
   # `RELAYER_INVITE_ALLOWANCE` is a refusal to start, not a default, and invites are off here.
 
@@ -70,12 +73,16 @@ primary_region = "iad"
   min_machines_running = 1
 
   # A funded signer answering an unbounded number of concurrent requests is a funded signer whose
-  # rate limiting is somebody else's problem. These are low on purpose: the relayer serves one
-  # demo, and the ceiling should be reached by an attack rather than by a crowd.
+  # rate limiting is somebody else's problem. The ceiling should be reached by an attack rather
+  # than by a crowd — but "requests" COUNTS HELD STREAMS, and every open tab now legitimately
+  # holds two (the room stream and the chain feed). 40 was reached by twenty browsers; these
+  # numbers put the ceiling back where the argument wanted it, past any real crowd, while the
+  # feed's own MAX_FEED_SUBSCRIBERS (256) and the room hub's caps stay the tighter, per-resource
+  # refusals.
   [http_service.concurrency]
     type = "requests"
-    soft_limit = 40
-    hard_limit = 80
+    soft_limit = 200
+    hard_limit = 250
 
 # A TCP check, not an HTTP one, and that is a consequence of the auth gate rather than laziness:
 # every route on this server sits behind `x-relayer-auth`, so an unauthenticated HTTP probe gets a

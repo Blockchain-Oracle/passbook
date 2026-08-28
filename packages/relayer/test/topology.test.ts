@@ -30,6 +30,7 @@ import { MemoryInviteStore, emptyInvites } from '../src/invite-store.js'
 import { createFundingMonitor } from '../src/funding-monitor.js'
 import { createQuoteCounter, createRelayerServer, type RelayerServerOptions } from '../src/server.js'
 import { MAX_PUBLISH_PER_MINUTE, MAX_SUBSCRIBERS_PER_ROOM, RoomHub } from '../src/rooms.js'
+import { ChainFeed, MAX_FEED_SUBSCRIBERS } from '../src/chain-feed.js'
 import {
   COLD_START_CAVEAT,
   DEMO_CRITICAL,
@@ -124,6 +125,7 @@ async function fullRelayer(over: Partial<RelayerServerOptions> = {}) {
     feeRecipient: FEE_RECIPIENT,
     relayerState: () => 'ok',
     rooms: new RoomHub(),
+    chainFeed: new ChainFeed({ log: () => {}, warn: () => {} }),
     ...over,
   })
   // A listen() failure — a port that cannot be bound, a permissions problem — must REJECT rather
@@ -188,6 +190,45 @@ const inviteStatus = (port: number, code: string) =>
 
 /** Felts compare as numbers: `0x0a` and `0xA` are the same address written two ways. */
 const sameFelt = (a: string, b: string) => BigInt(a) === BigInt(b)
+
+/**
+ * Open the chain-feed stream and resolve on its FIRST frame — the hello. The `call` helper
+ * cannot read a stream (it waits for `end`, which a live stream never emits), so this reads
+ * until the first SSE separator and hangs up: the hello is the claim under test.
+ */
+function streamHello(port: number): Promise<{ status: number; frame: any }> {
+  return new Promise((resolve, reject) => {
+    const req = http.request(
+      { host: '127.0.0.1', port, path: '/api/chain/stream', method: 'POST', headers: JSON_HEADERS },
+      (res) => {
+        if (res.statusCode !== 200) {
+          let data = ''
+          res.on('data', (c) => (data += c))
+          res.on('end', () => resolve({ status: res.statusCode ?? 0, frame: data ? JSON.parse(data) : null }))
+          return
+        }
+        let buffer = ''
+        res.on('data', (chunk) => {
+          buffer += chunk
+          const end = buffer.indexOf('\n\n')
+          if (end === -1) return
+          const frame = buffer.slice(0, end)
+          req.destroy()
+          if (!frame.startsWith('data: ')) return reject(new Error(`expected an SSE data frame, got ${frame}`))
+          resolve({ status: 200, frame: JSON.parse(frame.slice('data: '.length)) })
+        })
+      },
+    )
+    req.setTimeout(REQUEST_TIMEOUT_MS, () => {
+      req.destroy(new Error(`the chain stream did not answer within ${REQUEST_TIMEOUT_MS}ms`))
+    })
+    req.on('error', (e) => {
+      // `req.destroy()` above surfaces as an error after resolve; a settled promise ignores it.
+      reject(e)
+    })
+    req.end('{}')
+  })
+}
 
 // ══ Half one: the topology data, pinned against AD-17 ═════════════════════════════════════
 
@@ -298,20 +339,22 @@ describe('the signer set is four, each with a host and a discipline (AD-17)', ()
   })
 })
 
-describe('the relayer has five jobs, each with its own degrade states (AD-17 + B3)', () => {
+describe('the relayer has six jobs, each with its own degrade states (AD-17 + B3)', () => {
   //
-  // FIVE, NOT AD-17's FOUR. `chat transport` is the room bus, which B3 put on this process
-  // instead of on the Cloudflare Durable Object AD-17 named — see `RelayerJobName`. The list is
+  // SIX, NOT AD-17's FOUR. `chat transport` is the room bus, which B3 put on this process
+  // instead of on the Cloudflare Durable Object AD-17 named — see `RelayerJobName`. `chain feed`
+  // is the M1 fan-out poller, on this process for the same one-machine reasons. The list is
   // still pinned exactly, because the point of pinning it is that a job cannot appear or vanish
   // without somebody deciding to change this line.
   //
-  it('is exactly {submission, sponsored registration, quote proxy, chat transport, stats}', () => {
-    expect(RELAYER_JOBS).toHaveLength(5)
+  it('is exactly {submission, sponsored registration, quote proxy, chat transport, chain feed, stats}', () => {
+    expect(RELAYER_JOBS).toHaveLength(6)
     expect(JOB_NAMES).toEqual([
       'submission',
       'sponsored registration',
       'quote proxy',
       'chat transport',
+      'chain feed',
       'stats',
     ])
   })
@@ -884,6 +927,50 @@ const SCENARIOS: Record<string, Scenario> = {
     )
     const rejoined = after.subscribe(room, { deliver() {}, end() {} })
     expect(rejoined.ok && rejoined.history).toHaveLength(1)   // only what arrived after the restart
+  },
+
+  // ── The chain feed. Public state only, and both rows are about staying honest. ───────────
+
+  'chain-feed/at-capacity': async () => {
+    const state = row('chain-feed/at-capacity')
+    const feed = new ChainFeed({ log: () => {}, warn: () => {} })
+    // The ceiling is reached by holding subscriptions, so hold exactly all of them.
+    for (let i = 0; i < MAX_FEED_SUBSCRIBERS; i++) {
+      const attached = feed.subscribe({ deliver() {}, end() {} })
+      expect(attached.ok).toBe(true)
+    }
+    const { port } = await fullRelayer({ chainFeed: feed })
+
+    const refused = await streamHello(port)
+    expect(refused.status).toBe(state.status)
+    expect(refused.frame).toEqual({ error: 'the feed is at capacity' })
+
+    // The row's claim: a full feed costs the feed, nothing else. A submission still signs and a
+    // quote still answers in the same process.
+    expect((await submit(port)).status).toBe(200)
+    expect((await quote(port)).status).toBe(200)
+  },
+
+  'chain-feed/source-degraded': async () => {
+    const state = row('chain-feed/source-degraded')
+    const feed = new ChainFeed({
+      markets: '0xM',
+      transport: () => Promise.reject(new Error('every RPC host is down')),
+      log: () => {},
+      warn: () => {},
+    })
+    await feed.tickApp()
+    const { port } = await fullRelayer({ chainFeed: feed })
+
+    // The stream still answers — the row's `status` — and the hello carries the honest sentence
+    // rather than pretending the rows it could not read do not exist.
+    const hello = await streamHello(port)
+    expect(hello.status).toBe(state.status)
+    expect(hello.frame.t).toBe('hello')
+    expect(hello.frame.problem).toContain('could not be read')
+
+    // And nothing else in the process noticed.
+    expect((await submit(port)).status).toBe(200)
   },
 }
 
