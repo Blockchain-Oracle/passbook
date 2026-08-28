@@ -2,6 +2,7 @@ import { createFileRoute, Link } from '@tanstack/react-router'
 import { Suspense, lazy, useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import type { BookState, ShieldedBalance, TokenBalance } from '@strk20/protocol/balances'
 import { BOOK_EMPTY, BOOK_NOT_REGISTERED, BOOK_UNKNOWN } from '@strk20/protocol/activity-copy'
+import { REGISTER_FUNDS_FLOOR_WEI, REGISTER_NEEDS_FUNDS } from '@strk20/protocol/onboarding-copy'
 import { toPlainText } from '@strk20/protocol/amount'
 import { STRK_TOKEN } from '@strk20/protocol/constants'
 import { KNOWN_TOKEN_DECIMALS } from '@strk20/protocol/token-scale'
@@ -214,6 +215,18 @@ function WalletAccount({ session }: { session: Extract<SessionState, { status: '
     offerFirstRunOnArrival({ registered: accountStatus.rung === 'ready' })
   }, [accountStatus])
 
+  //
+  // WHILE THE FLOW IS OPEN, THE LADDER WATCHES THE CHAIN — the fund and register screens both
+  // promise "this screen notices when your STRK lands", and a status that only re-reads on a
+  // button press cannot keep that promise. Ten seconds is block cadence, and it stops with the
+  // panel.
+  //
+  useEffect(() => {
+    if (!firstRun.open) return
+    const timer = window.setInterval(() => setStatusNonce((n) => n + 1), 10_000)
+    return () => window.clearInterval(timer)
+  }, [firstRun.open])
+
   const onRegister = useCallback(async () => {
     setRegisterProblem(null)
     setRegistering('build')
@@ -225,6 +238,13 @@ function WalletAccount({ session }: { session: Extract<SessionState, { status: '
     // problem, because to the user it is one action.
     //
     const standing = await readAccountStatus(session.address)
+    // The panel's gate should have said this already; this is the race-proof restatement — a
+    // registration that cannot be paid must fail with the sentence, never with a dead spinner.
+    if (standing.strkWei !== null && standing.strkWei < REGISTER_FUNDS_FLOOR_WEI) {
+      setRegistering(null)
+      setRegisterProblem(REGISTER_NEEDS_FUNDS)
+      return
+    }
     if (standing.rung === 'undeployed') {
       const deployed = await deployAccount(session.accountKey, session.address)
       if (!deployed.ok) {
@@ -357,6 +377,9 @@ function WalletAccount({ session }: { session: Extract<SessionState, { status: '
                 }}
                 onRegister={onRegister}
                 onFund={onFund}
+                address={session.address}
+                fundsWei={accountStatus?.strkWei ?? null}
+                problem={registerProblem}
                 registered={accountStatus?.rung === 'ready'}
                 renderBackup={(onDone) => (
                   <BackupCeremony
