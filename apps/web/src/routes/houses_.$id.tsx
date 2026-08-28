@@ -21,7 +21,11 @@ import { FundDialog, JoinDialog, ProposalRow } from '../components/houses/HouseC
 import { ProposeDialog } from '../components/houses/ProposeDialog'
 import { Button } from '../components/ui/Button'
 import { Text } from '../components/ui/Text'
-import { APP_CONTRACTS } from '../shell/app-contracts'
+import {
+  APP_CONTRACTS,
+  GOVERNANCE_WRITE_SAFETY,
+  GOVERNANCE_WRITES_ENABLED,
+} from '../shell/app-contracts'
 import { useChainFeed } from '../shell/chain-feed'
 import { useGovernance } from '../shell/use-governance'
 import { findToken, useTokenList } from '../shell/use-token-list'
@@ -119,7 +123,7 @@ function HouseRecord() {
               {toPlainText(house.treasury, decimals)} {symbol}
             </Text>
             <Text variant="body4" className="text-neutral3">
-              in the treasury — grown anonymously, spent only by a passed vote
+              in the treasury — funding amounts are public; spending requires a passed vote
             </Text>
           </div>
         </header>
@@ -171,7 +175,7 @@ function HouseRecord() {
               <Text variant="subheading2" as="h2" className="text-neutral1">
                 The doors
               </Text>
-              <div className="flex flex-col gap-s6">
+              {GOVERNANCE_WRITES_ENABLED ? <div className="flex flex-col gap-s6">
                 <Button variant="primary" size="md" onClick={() => setProposing(true)}>
                   Propose
                 </Button>
@@ -183,10 +187,14 @@ function HouseRecord() {
                     Join with an invite
                   </Button>
                 ) : null}
-              </div>
+              </div> : (
+                <Text variant="body4" className="text-exposed">
+                  {GOVERNANCE_WRITE_SAFETY.enabled ? '' : GOVERNANCE_WRITE_SAFETY.because}
+                </Text>
+              )}
               <Text variant="body4" className="text-neutral3">
-                Every door is a real transaction through the pool — who walked through it is
-                nobody&rsquo;s to know.
+                Every door is a real transaction through the pool. The House stores derived
+                handles or commitments, while the transaction submitter remains visible.
               </Text>
             </section>
 
@@ -199,12 +207,12 @@ function HouseRecord() {
                 />
                 <Rule label="Passes above" value={`${house.thresholdBps / 100}% of the vote`} />
                 <Rule label="Counting" value={memberCounted ? 'one member, one vote' : `weight in ${symbol}`} />
-                <Rule label="Membership" value={invite ? 'invite only — the roll is anonymous handles' : 'open to any holder'} />
+                <Rule label="Membership" value={invite ? 'invite only — the roll stores derived handles, not addresses' : 'open to any holder'} />
                 <Rule label="Governor" value={shortenFelt(APP_CONTRACTS.governance ?? '0x0', 8, 6)} />
               </dl>
             </section>
 
-            <YourPositions venue="governance" />
+            <YourPositions venue="governance" governanceHouseId={house.id} />
           </aside>
         </div>
 

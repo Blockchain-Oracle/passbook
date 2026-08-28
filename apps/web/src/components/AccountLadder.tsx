@@ -15,8 +15,10 @@
 // fact expressed as layout.
 //
 import type { ReactNode } from 'react'
+import type { SendStage } from '@strk20/protocol/pipeline-stage'
 
 import type { AccountStatus, AccountRung } from '../shell/account-status'
+import { stageLabel } from '../shell/stage-labels'
 import { cn } from '../lib/cn'
 import { Button } from './ui/Button'
 import { Text } from './ui/Text'
@@ -76,7 +78,7 @@ export interface AccountLadderProps {
   /** Register with the pool. Rendered only when supplied AND the ceremony has opened the gate. */
   onRegister?: () => void
   /** Which of the four stages is running, or `null` when nothing is. */
-  registering?: string | null
+  registering?: SendStage | null
   registerProblem?: string | null
   /** The ceremony's terminal state. False keeps the button out of reach rather than disabled. */
   canRegister?: boolean
@@ -165,7 +167,7 @@ export function AccountLadder({
                         onClick={onRegister}
                         disabled={registering !== null}
                       >
-                        {registering ? STAGE_LABEL[registering] ?? 'Working…' : 'Register with the pool'}
+                        {registering ? stageLabel(registering) : 'Register with the pool'}
                       </Button>
                       <Text variant="body4" className="text-neutral2">
                         Costs the pool&rsquo;s fee plus gas, paid from this account. A failed attempt
@@ -204,21 +206,6 @@ export function AccountLadder({
       })}
     </ol>
   )
-}
-
-/**
- * What each pipeline stage is called on screen.
- *
- * The pipeline's own vocabulary is `build` / `prove` / `relay` / `confirmed`. `relay` is the one
- * that needs rewording here: this browser is not relaying to anyone, it is signing and
- * broadcasting, and showing a user the word for the architecture they are NOT using is how copy
- * ends up describing a different product.
- */
-const STAGE_LABEL: Record<string, string> = {
-  build: 'Building the registration…',
-  prove: 'Proving…',
-  relay: 'Signing and broadcasting…',
-  confirmed: 'Confirming on chain…',
 }
 
 /**

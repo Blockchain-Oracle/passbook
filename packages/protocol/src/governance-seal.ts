@@ -81,7 +81,7 @@ function unpackFeltsToBytes(felts: readonly string[], byteLength: number): Uint8
 }
 
 /**
- * The user's own anonymous voter handle at one helper — the pool's derivation
+ * The user's own per-helper voter handle — the pool's derivation
  * (`hashes.cairo:57`, read from source): `poseidon('IDENTITY_KEY_TAG:V1', addr, key, helper)`.
  * Computable only by its owner, which is what lets a delegate PUBLISH their handle (their pot's
  * address) without anyone else being able to work backwards from it.

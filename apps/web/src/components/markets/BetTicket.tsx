@@ -29,7 +29,7 @@ import { currentBlocker, getHealth, subscribeHealth } from '../../shell/pool-hea
 import { toast } from '../../shell/toast-store'
 import { useBalance } from '../../shell/use-balance'
 import { addPosition } from '../../shell/use-positions'
-import { stageLabels } from '../../shell/stage-labels'
+import { stageLabel } from '../../shell/stage-labels'
 import { useSend } from '../../shell/use-send'
 import { useSession, shortenFelt } from '../../shell/session'
 import { findToken, useTokenList } from '../../shell/use-token-list'
@@ -37,10 +37,6 @@ import { ResponsiveDialog } from '../../shell/ResponsiveDialog'
 import { BlockedButton } from '../BlockedButton'
 import { Text } from '../ui/Text'
 
-/** The shared stage table — `stage-labels.ts` — with this surface's own `build` word. */
-const STAGE_LABEL: Record<string, string> = {
-  ...stageLabels('Building the bet…'),
-}
 
 export function BetTicket({
   market,
@@ -150,6 +146,7 @@ export function BetTicket({
     //
     addPosition({
       venue: 'market',
+      kind: 'market-bet',
       id: market.id,
       secret: minted.secret,
       commitment: minted.commitment,
@@ -160,13 +157,14 @@ export function BetTicket({
     toast({
       kind: 'success',
       title: 'Position open',
-      detail: 'The size is public, the bettor is not. The claim secret is stored in this browser.',
+      detail:
+        'The size and transaction submitter are public. The bearer claim secret stays in this browser.',
     })
     onClose()
   }, [parsed.wei, market, side, symbol, decimals, sending, onClose])
 
   return (
-    <ResponsiveDialog open={open} onOpenChange={(next) => (next ? undefined : onClose())} label="Bet" modal>
+    <ResponsiveDialog open={open} onOpenChange={(next) => (next ? undefined : onClose())} label="Bet" modal dismissible={sending.stage === null}>
       <div className="flex min-h-0 flex-col gap-s12 overflow-y-auto">
         <div className="flex items-baseline justify-between gap-s8">
           <Text variant="subheading2" as="h2" className="text-neutral1">
@@ -218,7 +216,7 @@ export function BetTicket({
               placeholder="0"
               inputMode="decimal"
               aria-label="Stake"
-              className="focus-ring numeric min-w-0 flex-1 bg-transparent font-mono text-heading3 text-neutral1 outline-none placeholder:text-neutral3"
+              className="focus-ring numeric min-w-0 flex-1 bg-transparent font-mono text-heading3 text-neutral1 placeholder:text-neutral3"
             />
             <span className="shrink-0 rounded-pill border border-solid border-surface3Hovered bg-insetHovered px-s12 py-s6 text-buttonLabel4 text-neutral1">
               {symbol}
@@ -252,7 +250,7 @@ export function BetTicket({
         <BlockedButton
           blocker={
             sending.stage
-              ? (STAGE_LABEL[sending.stage] ?? 'Working…')
+              ? stageLabel(sending.stage)
               : (blocker ?? sending.problem)
           }
           action={

@@ -135,8 +135,8 @@ function Bubble({
             // Radius 18 with the facing corner flattened to 4 — the design authority's chat
             // geometry. It is what makes a run of bubbles read as one side speaking.
             'rounded-[18px] border border-solid px-s12 py-s8',
-            // STUDIO's sealed-room tints: mine is the gold wash with its hairline, theirs is a
-            // plain raised bubble. A tint rather than solid gold, so a wall of my messages does
+            // STUDIO's sealed-room tints: mine is the lime wash with its hairline, theirs is a
+            // plain raised bubble. A tint rather than solid lime, so a wall of my messages does
             // not shout.
             mine
               ? 'rounded-br-[4px] border-accent2Hovered bg-accent2 text-neutral1'

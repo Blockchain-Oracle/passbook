@@ -18,7 +18,37 @@
 //
 import type { PipelineStage } from '@strk20/protocol/pipeline-stage'
 
+export type PipelineSubmitter = 'embedded' | 'wallet' | 'relayer'
+export type PipelineTerminal = 'confirmed' | 'failed' | 'confirmation-unknown'
+
+export type PipelineOperation =
+  | 'registration'
+  | 'shield'
+  | 'transfer'
+  | 'withdraw'
+  | 'swap'
+  | 'bridge'
+  | 'market-create'
+  | 'market-bet'
+  | 'market-claim'
+  | 'market-cashout'
+  | 'launch-buy'
+  | 'launch-redeem'
+  | 'launch-refund'
+  | 'gov-ballot'
+  | 'gov-join'
+  | 'gov-delegate'
+  | 'gov-fund'
+  | 'gov-reclaim'
+  | 'gov-revoke'
+  | 'direct-contract'
+
 export interface RunningPipeline {
+  /** Stable across the shell row, Activity and the terminal receipt. */
+  id: string
+  operation: PipelineOperation
+  /** The route that started it. Informational only; navigation never owns the operation. */
+  route: string
   /** What the user is waiting on, in their words. Becomes the row's accessible name. */
   label: string
   stages: readonly PipelineStage[]
@@ -27,6 +57,12 @@ export interface RunningPipeline {
   replaced: readonly PipelineStage[]
   /** `Date.now()` at start. The row derives elapsed from it rather than counting ticks itself. */
   startedAt: number
+  /** The first time each real callback reached a stage. */
+  stageStartedAt: Partial<Record<PipelineStage, number>>
+  transactionHash: string | null
+  explorerUrl: string | null
+  submittedBy: PipelineSubmitter | null
+  terminal: PipelineTerminal | null
   /**
    * Whether anything has been handed to the relayer or the chain yet.
    *
@@ -64,8 +100,32 @@ export function getPipeline(): RunningPipeline | null {
 }
 
 export function startPipeline(
-  pipeline: Omit<RunningPipeline, 'reached' | 'failedAt' | 'replaced' | 'submitted'> &
-    Partial<Pick<RunningPipeline, 'reached' | 'failedAt' | 'replaced' | 'submitted'>>,
+  pipeline: Omit<
+    RunningPipeline,
+    | 'reached'
+    | 'failedAt'
+    | 'replaced'
+    | 'submitted'
+    | 'stageStartedAt'
+    | 'transactionHash'
+    | 'explorerUrl'
+    | 'submittedBy'
+    | 'terminal'
+  > &
+    Partial<
+      Pick<
+        RunningPipeline,
+        | 'reached'
+        | 'failedAt'
+        | 'replaced'
+        | 'submitted'
+        | 'stageStartedAt'
+        | 'transactionHash'
+        | 'explorerUrl'
+        | 'submittedBy'
+        | 'terminal'
+      >
+    >,
 ): void {
   //
   // ONE PIPELINE AT A TIME, AND THE SECOND ONE LOSES. Overwriting silently would drop a live
@@ -85,6 +145,11 @@ export function startPipeline(
     failedAt: null,
     replaced: [],
     submitted: false,
+    stageStartedAt: {},
+    transactionHash: null,
+    explorerUrl: null,
+    submittedBy: null,
+    terminal: null,
     ...pipeline,
   }
   emit()
@@ -102,6 +167,7 @@ export function reachStage(stage: PipelineStage): void {
   state = {
     ...state,
     reached: [...state.reached, stage],
+    stageStartedAt: { ...state.stageStartedAt, [stage]: Date.now() },
     // Once the relayer or the chain has it, cancel stops being offerable. `relay` is the boundary.
     submitted: state.submitted || stage === 'relay' || stage === 'mature' || stage === 'confirmed',
   }
@@ -110,7 +176,31 @@ export function reachStage(stage: PipelineStage): void {
 
 export function failPipeline(stage: PipelineStage): void {
   if (!state) return
-  state = { ...state, failedAt: stage }
+  state = { ...state, failedAt: stage, terminal: 'failed' }
+  emit()
+}
+
+/** Attach the public submission facts as soon as they are known. */
+export function setPipelineSubmission(input: {
+  transactionHash: string
+  explorerUrl?: string | null
+  submittedBy: PipelineSubmitter
+}): void {
+  if (!state) return
+  state = {
+    ...state,
+    submitted: true,
+    transactionHash: input.transactionHash,
+    explorerUrl: input.explorerUrl ?? state.explorerUrl,
+    submittedBy: input.submittedBy,
+  }
+  emit()
+}
+
+/** Mark the terminal meaning without throwing away the row or its receipt facts. */
+export function finishPipeline(terminal: PipelineTerminal): void {
+  if (!state) return
+  state = { ...state, terminal }
   emit()
 }
 

@@ -24,7 +24,11 @@ import {
 import { timeLeft } from '@strk20/protocol/app-reads'
 
 import { cn } from '../../lib/cn'
-import { APP_CONTRACTS } from '../../shell/app-contracts'
+import {
+  APP_CONTRACTS,
+  GOVERNANCE_WRITE_SAFETY,
+  GOVERNANCE_WRITES_ENABLED,
+} from '../../shell/app-contracts'
 import { toast } from '../../shell/toast-store'
 import { useBalance } from '../../shell/use-balance'
 import { useSend } from '../../shell/use-send'
@@ -122,19 +126,25 @@ export function HouseCard({
         </div>
       )}
 
-      <div className="flex gap-s6">
-        <Button variant="secondary" size="sm" onClick={() => setProposing(true)}>
-          Propose
-        </Button>
-        <Button variant="secondary" size="sm" onClick={() => setFunding(true)}>
-          Fund the treasury
-        </Button>
-        {invite ? (
-          <Button variant="secondary" size="sm" onClick={() => setJoining(true)}>
-            Join with an invite
+      {GOVERNANCE_WRITES_ENABLED ? (
+        <div className="flex gap-s6">
+          <Button variant="secondary" size="sm" onClick={() => setProposing(true)}>
+            Propose
           </Button>
-        ) : null}
-      </div>
+          <Button variant="secondary" size="sm" onClick={() => setFunding(true)}>
+            Fund the treasury
+          </Button>
+          {invite ? (
+            <Button variant="secondary" size="sm" onClick={() => setJoining(true)}>
+              Join with an invite
+            </Button>
+          ) : null}
+        </div>
+      ) : (
+        <Text variant="body4" className="text-exposed">
+          {GOVERNANCE_WRITE_SAFETY.enabled ? '' : GOVERNANCE_WRITE_SAFETY.because}
+        </Text>
+      )}
 
       {ballot ? (
         <BallotTicket
@@ -202,7 +212,7 @@ export function ProposalRow({
               {pct >= 100 ? 'quorum reached — outcome sealed' : `quorum ${pct}%`}
             </span>
           </div>
-          <div className="flex gap-s6">
+          {GOVERNANCE_WRITES_ENABLED ? <div className="flex gap-s6">
             <button
               type="button"
               onClick={() => onVote(GOV_OPT_FOR)}
@@ -217,7 +227,7 @@ export function ProposalRow({
             >
               Against — sealed
             </button>
-          </div>
+          </div> : null}
         </>
       ) : settledWithTally ? (
         <div className="flex items-center gap-s8 font-mono text-mono">
@@ -238,7 +248,7 @@ export function ProposalRow({
   )
 }
 
-/** Fund the pot — anonymously, and there is no way back. Shared with the House record page. */
+/** Fund the pot through the pool; the amount and transaction submitter remain visible. */
 export function FundDialog({ house, open, onClose }: { house: OnChainHouse; open: boolean; onClose: () => void }) {
   const { tokens } = useTokenList()
   const stake = findToken(tokens, house.token)
@@ -263,6 +273,7 @@ export function FundDialog({ house, open, onClose }: { house: OnChainHouse; open
   const amount = useAmountField({ decimals, available: heldWei })
 
   const onConfirm = useCallback(async () => {
+    if (!GOVERNANCE_WRITES_ENABLED) return
     const contract = APP_CONTRACTS.governance
     if (!contract || amount.wei === null || amount.wei === 0n) return
     const payload = fundPayload({ houseId: house.id, amount: amount.wei })
@@ -279,20 +290,26 @@ export function FundDialog({ house, open, onClose }: { house: OnChainHouse; open
       app: { contract, op: GOV_OP.fund, calldata: payload.calldata, noteIdSlots: [], openNoteCount: 0 },
     })
     if (!outcome.ok) return
-    toast({ kind: 'success', title: 'The treasury grew', detail: 'In public — and nobody knows it was you.' })
+    toast({ kind: 'success', title: 'The treasury grew', detail: 'The amount and transaction are public; the House records no donor address.' })
     onClose()
   }, [house, amount.wei, symbol, sending, onClose])
 
   return (
-    <ResponsiveDialog open={open} onOpenChange={(next) => (next ? undefined : onClose())} label="Fund" modal>
+    <ResponsiveDialog
+      open={open}
+      onOpenChange={(next) => (next ? undefined : onClose())}
+      label="Fund"
+      modal
+      dismissible={sending.stage === null}
+    >
       <div className="flex min-h-0 flex-col gap-s12 overflow-y-auto">
         <Text variant="subheading2" as="h2" className="text-neutral1">
           Fund {house.metadata || `House ${house.id}`}
         </Text>
         <AmountInput field={amount} symbol={symbol} balance={null} label="Amount to give" />
         <Text variant="body4" className="text-neutral3">
-          The amount is public; the giver is not — and gifts have no way back. Spending it takes a
-          passed vote, and the payout is public.
+          The amount and transaction submitter are public. The House records no donor address, and
+          gifts have no way back. Spending takes a passed vote, and the payout is public.
         </Text>
         <BlockedButton
           blocker={
@@ -301,9 +318,10 @@ export function FundDialog({ house, open, onClose }: { house: OnChainHouse; open
               : (!ready ? 'This browser has no account yet' : null) ??
                 (amount.wei === null || amount.wei === 0n ? 'Enter an amount' : null) ??
                 (amount.short ? `Not enough shielded ${symbol}` : null) ??
+                (!GOVERNANCE_WRITE_SAFETY.enabled ? GOVERNANCE_WRITE_SAFETY.because : null) ??
                 sending.problem
           }
-          action="Give it, anonymously"
+          action="Fund the treasury"
           onPress={() => void onConfirm()}
         />
       </div>
@@ -322,6 +340,7 @@ export function JoinDialog({ house, open, onClose }: { house: OnChainHouse; open
   const stake = findToken(tokens, house.token)
 
   const onConfirm = useCallback(async () => {
+    if (!GOVERNANCE_WRITES_ENABLED) return
     const contract = APP_CONTRACTS.governance
     if (!contract || secret.trim() === '') return
     const payload = joinPayload({ houseId: house.id, inviteSecret: secret.trim() })
@@ -348,13 +367,19 @@ export function JoinDialog({ house, open, onClose }: { house: OnChainHouse; open
     toast({
       kind: 'success',
       title: 'You are on the roll',
-      detail: 'As an anonymous handle. The public sees the member count move, never a list.',
+      detail: 'The House roll stores a derived handle, not your address. The submitting account remains visible on the transaction.',
     })
     onClose()
   }, [house, secret, stake, sending, onClose])
 
   return (
-    <ResponsiveDialog open={open} onOpenChange={(next) => (next ? undefined : onClose())} label="Join" modal>
+    <ResponsiveDialog
+      open={open}
+      onOpenChange={(next) => (next ? undefined : onClose())}
+      label="Join"
+      modal
+      dismissible={sending.stage === null}
+    >
       <div className="flex min-h-0 flex-col gap-s12 overflow-y-auto">
         <Text variant="subheading2" as="h2" className="text-neutral1">
           Join {house.metadata || `House ${house.id}`}
@@ -368,12 +393,12 @@ export function JoinDialog({ house, open, onClose }: { house: OnChainHouse; open
             onChange={(e) => setSecret(e.target.value)}
             placeholder="Paste what the founder handed you"
             aria-label="Invite secret"
-            className="focus-ring w-full rounded-control border border-solid border-surface3 bg-raised px-s12 py-s8 font-mono text-body3 text-neutral1 outline-none placeholder:text-neutral3"
+            className="focus-ring w-full rounded-control border border-solid border-surface3 bg-raised px-s12 py-s8 font-mono text-body3 text-neutral1 placeholder:text-neutral3"
           />
         </label>
         <Text variant="body4" className="text-neutral3">
-          Joining escrows nothing and costs only the pool fee. Your seat on the roll is a handle
-          the pool derives — anonymous even to the founder.
+          Joining escrows nothing and costs only the pool fee. The roll stores a handle the pool
+          derives rather than your address; the account submitting the transaction is still visible.
         </Text>
         <BlockedButton
           blocker={
@@ -381,6 +406,7 @@ export function JoinDialog({ house, open, onClose }: { house: OnChainHouse; open
               ? 'Working…'
               : (!ready ? 'This browser has no account yet' : null) ??
                 (secret.trim() === '' ? 'Paste the invite' : null) ??
+                (!GOVERNANCE_WRITE_SAFETY.enabled ? GOVERNANCE_WRITE_SAFETY.because : null) ??
                 sending.problem
           }
           action="Take my seat"

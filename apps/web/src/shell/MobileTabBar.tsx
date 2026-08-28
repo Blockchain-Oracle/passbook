@@ -1,5 +1,5 @@
 //
-// The phone's nav [STUDIO]: a fixed bottom bar with four of the six modes, a raised gold action
+// The phone's nav [STUDIO]: a fixed bottom bar with four of the seven modes, a raised lime action
 // button in the middle, and a More sheet carrying the rest.
 //
 // ── ONE ENUM, TWO PROJECTIONS ────────────────────────────────────────────────────────────
@@ -10,8 +10,8 @@
 // no resize listener to lag behind a rotation.
 //
 // WHICH FOUR, AND WHY. Wallet and Markets sit left, Chat (with its unread count) and More sit
-// right — the prototype's own split. Swap, Bridge and Launch live in the More sheet beside
-// Settings: three taps lost, but a six-tab bar at 320px is six 53px targets and a thumb misses.
+// right — the prototype's own split. Swap, Bridge, Launch and Houses live in the More sheet beside
+// Settings: the bar stays usable at 320px while every mode remains reachable.
 //
 // THE PLUS IS THE PALETTE. The prototype's centre button opened a "Move value" picker whose four
 // rows are exactly the palette's first four commands, so opening the palette IS that picker —
@@ -32,6 +32,7 @@ const MORE_ROWS = [
   { to: MODE_ROUTES.swap, icon: 'swap', label: MODE_LABELS.swap, sub: 'Trade inside the pool' },
   { to: MODE_ROUTES.bridge, icon: 'bridge', label: MODE_LABELS.bridge, sub: 'Send USDC out to another chain' },
   { to: MODE_ROUTES.launch, icon: 'launch', label: MODE_LABELS.launch, sub: 'Epoch-priced token launches' },
+  { to: MODE_ROUTES.houses, icon: 'houses', label: MODE_LABELS.houses, sub: 'Private membership and sealed ballots' },
   { to: '/settings', icon: 'sliders', label: 'Settings', sub: 'Theme, public name, account' },
 ] as const satisfies readonly { to: string; icon: IconName; label: string; sub: string }[]
 

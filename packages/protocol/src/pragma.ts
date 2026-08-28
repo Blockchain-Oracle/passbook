@@ -1,12 +1,10 @@
 //
-// Pragma's spot oracle — the one thing on the Markets surface that is live TODAY.
+// Pragma's spot oracle — the source the deployed Markets contract settles against.
 //
 // ── WHY THIS EXISTS BEFORE THE CONTRACTS DO ──────────────────────────────────────────────
 //
-// Markets and Launch are not deployed yet, so every market list, every position and every quote on
-// those surfaces is honestly empty. The PRICE is not: `get_data_median` is a free view call on a
-// contract that has been on mainnet for years, so the price strip and the charts are real from the
-// first paint, against the same oracle the Markets contract will resolve against.
+// `get_data_median` is a free view call on a long-lived mainnet contract, so the price strip and
+// charts are real from first paint and use the oracle the Markets deployment resolves against.
 //
 // That matters beyond looking alive. A chart drawn from an oracle the contract does NOT read would
 // be a decoration that disagrees with settlement the day the contracts land. The address is

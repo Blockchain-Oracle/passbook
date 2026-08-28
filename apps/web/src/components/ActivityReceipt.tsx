@@ -148,10 +148,11 @@ export function ActivityReceipt({ transaction, onClose }: ActivityReceiptProps) 
               ? transaction.chain.reason
               : RECEIPT_NOT_YET_ON_CHAIN}
           </p>
-          {transaction.chain.state === 'optimistic' && transaction.chain.transactionHash ? (
+          {(transaction.chain.state === 'optimistic' && transaction.chain.transactionHash) ||
+          (transaction.chain.state === 'failed' && transaction.chain.transactionHash) ? (
             <>
-              <HashBlock label="Transaction" value={transaction.chain.transactionHash} />
-              <ExplorerLink hash={transaction.chain.transactionHash} />
+              <HashBlock label="Transaction" value={transaction.chain.transactionHash!} />
+              <ExplorerLink hash={transaction.chain.transactionHash!} />
             </>
           ) : null}
         </>

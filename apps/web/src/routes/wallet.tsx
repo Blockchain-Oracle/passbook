@@ -1,16 +1,14 @@
 import { createFileRoute, Link } from '@tanstack/react-router'
-import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { Suspense, lazy, useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import type { BookState, ShieldedBalance, TokenBalance } from '@strk20/protocol/balances'
 import { BOOK_EMPTY, BOOK_NOT_REGISTERED, BOOK_UNKNOWN } from '@strk20/protocol/activity-copy'
 import {
   REGISTER_FUNDS_FLOOR_WEI,
   REGISTER_NEEDS_FUNDS,
-  fundRefused,
 } from '@strk20/protocol/onboarding-copy'
-import type { OnboardingStage } from '@strk20/protocol/pipeline-stage'
 import { toPlainText } from '@strk20/protocol/amount'
 import { STRK_TOKEN } from '@strk20/protocol/constants'
-import { KNOWN_TOKEN_DECIMALS } from '@strk20/protocol/token-scale'
+import { BRIDGE_USDC } from '@strk20/protocol/bridge'
 import {
   LOCKED_BODY,
   LOCKED_BODY_SEALED,
@@ -24,12 +22,12 @@ import {
 
 import { AccountLadder } from '../components/AccountLadder'
 import { Icon } from '../components/icons'
-import { ConversionPanel } from '../components/onboarding/ConversionPanel'
 import { BackupCeremony } from '../components/BackupCeremony'
 import { ActivityFeed } from '../components/ActivityFeed'
 import { IdentityDisc } from '../components/IdentityDisc'
 import { PasswordField } from '../components/PasswordField'
 import { TokenLogo } from '../components/TokenLogo'
+import { ShieldDialog } from '../components/ShieldDialog'
 import { Button } from '../components/ui/Button'
 import { Skeleton, SkeletonBox } from '../components/ui/Skeleton'
 import { Text } from '../components/ui/Text'
@@ -38,17 +36,13 @@ import { ResponsiveDialog } from '../shell/ResponsiveDialog'
 import { readAccountStatus, type AccountStatus } from '../shell/account-status'
 import { deployAccount } from '../shell/submit'
 import { registerAccount } from '../shell/register'
-import { requestDrip } from '../shell/faucet'
 import type { RegistrationStage } from '@strk20/protocol/pipeline-stage'
 import { useBalance } from '../shell/use-balance'
 import { usePublicBalances } from '../shell/use-public-balances'
 import { useActivity } from '../shell/use-activity'
 import { findToken, useTokenList } from '../shell/use-token-list'
 import type { TokenInfo } from '@strk20/protocol/token-list'
-import { labelAccount, unlockSession, useSession, shortenFelt, type SessionState } from '../shell/session'
-import { offerFirstRunOnArrival, useFirstRun } from '../shell/use-first-run'
-import { usePoolFee } from '../shell/use-pool-fee'
-import { claimAfterRegistration } from '../shell/claim-after-registration'
+import { unlockSession, useSession, shortenFelt, type SessionState } from '../shell/session'
 import { Surface } from '../shell/Surface'
 
 //
@@ -90,16 +84,6 @@ export const Route = createFileRoute('/wallet')({
 // THIS FUNCTION IS ONLY THE SESSION'S FOUR ARMS. The account's own surface is `WalletAccount`,
 // mounted under a `key`; the geometry is `WalletFrame`. Both splits are explained where they live.
 //
-/**
- * The app's own name, for the fee row.
- *
- * NOT imported from `register.ts`, which is where `DEFAULT_APP_NAME` lives: that module is loaded
- * lazily on purpose and a static import of it for one short string would pull the whole
- * registration graph into the eager chunk. The build gate caught exactly that and refused it.
- * `onboarding-copy.test.ts` pins the fee row's shape; the name inside it is a caller's to supply.
- */
-const APP_NAME = 'Passbook'
-
 function Wallet() {
   const session = useSession()
 
@@ -177,17 +161,6 @@ function WalletAccount({ session }: { session: Extract<SessionState, { status: '
   // that a read failed or was truncated from the rows alone.
   const activity = useActivity(read, session.accountKey, session.address)
   const [receiving, setReceiving] = useState(false)
-  const firstRun = useFirstRun()
-  const poolFee = usePoolFee()
-  //
-  // WHAT THE NAME SCREEN ASKED FOR, held until registration confirms.
-  //
-  // The claim cannot be made earlier: the relayer verifies it against the public key the POOL
-  // holds, and before registration the pool holds nothing. So the intent is captured on screen 1
-  // and spent at the end — a ref rather than state, because nothing renders from it and a re-render
-  // between the two moments would be noise.
-  //
-  const pendingClaim = useRef<{ name: string; claimPublicly: boolean }>({ name: '', claimPublicly: false })
 
   // Plain JSON-RPC, no SDK — so the ladder can say where the account stands before the crypto
   // graph has finished loading.
@@ -200,13 +173,6 @@ function WalletAccount({ session }: { session: Extract<SessionState, { status: '
   const [backedUp, setBackedUp] = useState(false)
   const [registering, setRegistering] = useState<RegistrationStage | null>(null)
   const [registerProblem, setRegisterProblem] = useState<string | null>(null)
-  // The creation ladder's three facts: which rung is live, which have completed, and where it
-  // stopped. Held here rather than inside the panel because the panel unmounts on dismiss and a
-  // ladder that forgot its own progress on a stray Escape would be worse than no ladder.
-  const [creationStage, setCreationStage] = useState<OnboardingStage | null>(null)
-  const [reached, setReached] = useState<readonly OnboardingStage[]>([])
-  const [creationFailedAt, setCreationFailedAt] = useState<OnboardingStage | null>(null)
-  const [dripReceipt, setDripReceipt] = useState<{ amount: string; txHash: string } | null>(null)
 
   useEffect(() => {
     let live = true
@@ -217,121 +183,6 @@ function WalletAccount({ session }: { session: Extract<SessionState, { status: '
       live = false
     }
   }, [session.address, statusNonce])
-
-  //
-  // THE COLD OPEN, ACTUALLY COLD — a first-ever visitor gets the flow on arrival (Abu's 28-Aug
-  // ruling, superseding the intent-only doctrine; `use-first-run.ts` carries the whole story).
-  // Gated on the STATUS READ so a registered account returning on a cleared localStorage is
-  // never greeted like a stranger: the chain outranks the flag in that direction.
-  //
-  useEffect(() => {
-    if (accountStatus === null || accountStatus.rung === 'unknown') return
-    offerFirstRunOnArrival({ registered: accountStatus.rung === 'ready' })
-  }, [accountStatus])
-
-  //
-  // WHILE THE FLOW IS OPEN, THE LADDER WATCHES THE CHAIN — the fund and register screens both
-  // promise "this screen notices when your STRK lands", and a status that only re-reads on a
-  // button press cannot keep that promise. Ten seconds is block cadence, and it stops with the
-  // panel.
-  //
-  useEffect(() => {
-    if (!firstRun.open) return
-    const timer = window.setInterval(() => setStatusNonce((n) => n + 1), 10_000)
-    return () => window.clearInterval(timer)
-  }, [firstRun.open])
-
-  //
-  // ACCOUNT CREATION, AS ONE ACTION AND FOUR REAL RUNGS.
-  //
-  // It used to be two buttons on two screens — a `fund` screen that asked for STRK and a
-  // `register` screen that spent it — with a Continue in the seam. The prototype runs one press
-  // and narrates `Drip lands → Deploy → Register → Confirm`, and this is that.
-  //
-  // EVERY RUNG ADVANCES ON A CALLBACK, NEVER A TIMER. The prototype animates its ladder on a fixed
-  // `[1500,1700,2300,1100]`, which is a mockup's privilege; here `drip` completes when the relayer
-  // answers, `deploy` when the account contract lands, `register` spans the registration's own
-  // build/prove/relay, and `confirm` is its `confirmed`. A ladder that moved on a clock would be
-  // reporting the passage of time as if it were the progress of a transaction.
-  //
-  // A REFUSED DRIP IS NOT AUTOMATICALLY FATAL, which is the one subtlety here. `createFeeNote`
-  // promises "if the faucet is dry, the fee is covered for you instead", so a refusal is only a
-  // stop when the account ALSO cannot pay its own way — and that is a question about its balance,
-  // not about the faucet. Refused-but-funded walks on; refused-and-short fails at the drip rung
-  // with the relayer's own sentence and the address underneath.
-  //
-  const onCreate = useCallback(async () => {
-    setRegisterProblem(null)
-    setCreationFailedAt(null)
-    setReached([])
-    setDripReceipt(null)
-    setCreationStage('drip')
-
-    const drip = await requestDrip(session.address)
-    if (drip.ok) {
-      setDripReceipt({
-        // STRK is 18 decimals, read from `KNOWN_TOKEN_DECIMALS` rather than typed as an 18 here —
-        // one literal beside a formatter is exactly where a displayed amount gets destroyed.
-        amount: toPlainText(BigInt(drip.amountWei), KNOWN_TOKEN_DECIMALS[STRK_TOKEN] ?? 18),
-        txHash: drip.txHash,
-      })
-    }
-    // Read AFTER the drip either way: a refusal can be "you already claimed", in which case the
-    // money is there and the refusal is bookkeeping. What matters is the balance, not the answer.
-    setStatusNonce((n) => n + 1)
-    const funded = await readAccountStatus(session.address)
-    if (funded.strkWei !== null && funded.strkWei < REGISTER_FUNDS_FLOOR_WEI) {
-      setCreationStage(null)
-      setCreationFailedAt('drip')
-      setRegisterProblem(drip.ok ? REGISTER_NEEDS_FUNDS : fundRefused(drip.because))
-      refresh()
-      return
-    }
-    setReached((r) => [...r, 'drip'])
-
-    setCreationStage('deploy')
-    if (funded.rung === 'undeployed') {
-      const deployed = await deployAccount(session.accountKey, session.address)
-      if (!deployed.ok) {
-        setCreationStage(null)
-        setCreationFailedAt('deploy')
-        setRegisterProblem(deployed.because)
-        return
-      }
-    }
-    setReached((r) => [...r, 'deploy'])
-
-    setCreationStage('register')
-    const result = await registerAccount({
-      accountKey: session.accountKey,
-      address: session.address,
-      backedUp: true,
-      // The registration's own four stages collapse into this one rung — `confirmed` is the only
-      // one that graduates it, because the other three are all "still registering".
-      onStage: (stage) => setRegistering(stage),
-    })
-    setRegistering(null)
-    if (!result.ok) {
-      setCreationStage(null)
-      setCreationFailedAt('register')
-      setRegisterProblem(result.because)
-      return
-    }
-    setReached((r) => [...r, 'register'])
-
-    setCreationStage('confirm')
-    setStatusNonce((n) => n + 1)
-    refresh()
-    setReached((r) => [...r, 'confirm'])
-    setCreationStage(null)
-
-    void claimAfterRegistration({
-      ...pendingClaim.current,
-      address: session.address,
-      viewingKey: session.viewingKey,
-    })
-    pendingClaim.current = { name: '', claimPublicly: false }
-  }, [session.accountKey, session.address, session.viewingKey, refresh])
 
   const onRegister = useCallback(async () => {
     setRegisterProblem(null)
@@ -377,23 +228,11 @@ function WalletAccount({ session }: { session: Extract<SessionState, { status: '
     setStatusNonce((n) => n + 1)
     refresh()
 
-    // THE NAME, NOW THAT THERE IS A KEY ON-CHAIN TO VERIFY IT AGAINST.
-    //
-    // Not awaited, and every failure inside it becomes a toast rather than an error state — see
-    // `claim-after-registration.ts`. The registration has already confirmed at this point, so
-    // nothing about a directory entry is allowed to make a working account look broken.
-    void claimAfterRegistration({
-      ...pendingClaim.current,
-      address: session.address,
-      viewingKey: session.viewingKey,
-    })
-    pendingClaim.current = { name: '', claimPublicly: false }
-  }, [session.accountKey, session.address, session.viewingKey, backedUp, refresh])
+  }, [session.accountKey, session.address, backedUp, refresh])
 
   //
-  // `onFund` LIVED HERE and is gone: the drip is no longer a step somebody asks for, it is rung
-  // one of `onCreate` above. `requestDrip` is called there, its receipt feeds the ladder's chip,
-  // and a refusal is weighed against the balance rather than reported as its own outcome.
+  // Account creation itself lives in the shell-level gate. This ladder remains as the recovery
+  // and diagnostic view for an account whose chain state changes later.
   //
 
   const onDeploy = useCallback(async () => {
@@ -429,68 +268,12 @@ function WalletAccount({ session }: { session: Extract<SessionState, { status: '
               only balance rendered anywhere. That is why a funded account looked empty: the faucet
               drips public STRK, a friend sends public USDC, and nothing on this screen read either.
             */}
-            <PublicHoldings address={session.address} />
+            <PublicHoldings address={session.address} onShielded={refresh} />
 
             <ActionRow
-              onReceive={() => {
-                // TRIGGER 2 of the brief's three: pressing Receive. It opens conversion only for an
-                // account that cannot yet be paid — a registered account pressing Receive wants the
-                // QR, not a walkthrough.
-                if (accountStatus !== null && accountStatus.rung !== 'ready') {
-                  firstRun.start('receive', { hasAccount: false })
-                  return
-                }
-                setReceiving(true)
-              }}
+              onReceive={() => setReceiving(true)}
               disabled={false}
             />
-
-            {/*
-              CONVERSION, INLINE AND ABOVE THE LADDER.
-
-              A row on the page rather than a scrimmed dialog, per §1: the page stays interactive and
-              anything the visitor already composed survives. It renders only while it is open, so
-              the ordinary wallet is unchanged for an account that has already registered.
-            */}
-            {firstRun.open ? (
-              <ConversionPanel
-                feeStrk={poolFee}
-                appName={APP_NAME}
-                onGenerateKey={async (label, claimPublicly) => {
-                  // Held for the registration step; see `pendingClaim`.
-                  pendingClaim.current = { name: label, claimPublicly }
-                  // The key already exists — the session mints one on first boot — so this names it
-                  // rather than generating it. See the note on `feeStrk` below for why that gap is
-                  // reported rather than papered over.
-                  if (label !== '') await labelAccount(session.address, label)
-                }}
-                onCreate={onCreate}
-                address={session.address}
-                fundsWei={accountStatus?.strkWei ?? null}
-                problem={registerProblem}
-                creation={{
-                  stage: creationStage,
-                  reached,
-                  failedAt: creationFailedAt,
-                  receipt: dripReceipt,
-                  // THE CHAIN IS THE AUTHORITY ON `done`, not this component's own bookkeeping. A
-                  // registered account returning to a cleared browser must land on the finished
-                  // screen rather than be walked through creating an account it already has.
-                  done: accountStatus?.rung === 'ready',
-                }}
-                renderBackup={(onDone) => (
-                  <BackupCeremony
-                    accountKey={session.accountKey}
-                    receiveAddress={session.address}
-                    onComplete={() => {
-                      setBackedUp(true)
-                      onDone()
-                    }}
-                  />
-                )}
-                onDismiss={accountStatus?.rung === 'ready' ? firstRun.complete : firstRun.dismiss}
-              />
-            ) : null}
 
             {/*
               WHAT THIS ACCOUNT CAN DO, AND WHAT IT NEEDS NEXT.
@@ -688,7 +471,6 @@ function WalletLocked({
             onChange={setPassword}
             onSubmit={unlock}
             autoComplete="current-password"
-            autoFocus
             disabled={busy}
           />
         </div>
@@ -815,56 +597,107 @@ function ActionRow({ onReceive, disabled }: { onReceive: () => void; disabled: b
  * says public, and the line under it says the consequence — anyone can look this up — rather than
  * a euphemism.
  *
- * ── AND IT PROMISES NO DOOR IT DOES NOT HAVE ─────────────────────────────────────────────
- *
- * There is no shield action in this build yet: `SendKind` has no `shield` member and public →
- * shielded is a `Deposit`-shaped pipeline nobody has written. Copy elsewhere used to say "shield it
- * from the wallet screen", which was a promise pointing at a button that has never existed. That
- * sentence is gone; this section states the fact and stops.
+ * STRK and USDC are structural rows rather than inferred holdings. Zero is a useful answer and a
+ * failed read is not zero, so neither may make an asset disappear.
  */
-function PublicHoldings({ address }: { address: string }) {
+const CORE_PUBLIC_TOKENS: readonly TokenInfo[] = [
+  {
+    address: STRK_TOKEN,
+    symbol: 'STRK',
+    name: 'Starknet Token',
+    decimals: 18,
+    logoUri: null,
+    volumeUsd: null,
+    verified: true,
+  },
+  {
+    address: BRIDGE_USDC,
+    symbol: 'USDC',
+    name: 'USD Coin',
+    decimals: 6,
+    logoUri: null,
+    volumeUsd: null,
+    verified: true,
+  },
+]
+
+function PublicHoldings({ address, onShielded }: { address: string; onShielded: () => void }) {
   const { tokens } = useTokenList()
-  const addresses = useMemo(() => tokens.map((t) => t.address), [tokens])
-  const { byToken, loading } = usePublicBalances(address, addresses)
-
-  // Only what is actually held. `undefined` (unread) and `null` (read failed) are both excluded
-  // from the list rather than shown as zero — see `public-balances.ts`. A token at exactly zero is
-  // excluded too: a wallet listing every asset in the world at 0 is a list, not a balance.
-  const held = tokens
-    .map((token) => ({ token, wei: byToken.get(token.address.toLowerCase()) }))
-    .filter((row): row is { token: TokenInfo; wei: bigint } => typeof row.wei === 'bigint' && row.wei > 0n)
-
-  if (!loading && held.length === 0) return null
+  const core = useMemo(
+    () => CORE_PUBLIC_TOKENS.map((fallback) => findToken(tokens, fallback.address) ?? fallback),
+    [tokens],
+  )
+  const addresses = useMemo(() => core.map((token) => token.address), [core])
+  const publicBalances = usePublicBalances(address, addresses)
+  const [shielding, setShielding] = useState<TokenInfo | null>(null)
+  const refreshBoth = useCallback(() => {
+    publicBalances.refresh()
+    onShielded()
+  }, [onShielded, publicBalances.refresh])
+  const publicStrkWei = publicBalances.byToken.get(STRK_TOKEN.toLowerCase())
 
   return (
     <section className="flex flex-col gap-s8 rounded-large border border-solid border-surface3 p-s16">
-      <span className="kicker">In your wallet · public</span>
-      {loading && held.length === 0 ? (
-        <Skeleton className="flex flex-col gap-s8">
-          <SkeletonBox className="h-s16 w-[45%]" />
-        </Skeleton>
-      ) : (
-        <>
-          <ul className="flex flex-col gap-s8">
-            {held.map(({ token, wei }) => (
-              <li key={token.address} className="flex items-baseline justify-between gap-s8">
-                <span className="flex items-center gap-s8 text-body3 text-neutral1">
-                  <TokenLogo url={token.logoUri} symbol={token.symbol} name={token.name} size={20} />
-                  {token.symbol}
-                </span>
-                <span className="numeric font-mono text-body3 text-neutral1">
-                  {toPlainText(wei, token.decimals)}
-                </span>
-              </li>
-            ))}
-          </ul>
-          <Text variant="body4" className="text-neutral2">
-            This is your ordinary on-chain balance at your own address — anyone can look it up. It
-            is what pays your fees and gas. It is not your shielded balance, and nothing here is
-            private yet.
-          </Text>
-        </>
-      )}
+      <div className="flex items-center justify-between gap-s8">
+        <span className="kicker">In your wallet · public</span>
+        <Text variant="body4" className="text-neutral3">
+          {publicBalances.loading ? 'Reading…' : 'On Starknet'}
+        </Text>
+      </div>
+      <ul className="flex flex-col gap-s8">
+        {core.map((token) => {
+          const wei = publicBalances.byToken.get(token.address.toLowerCase())
+          const value =
+            wei === undefined
+              ? publicBalances.loading
+                ? 'Reading…'
+                : 'Not read'
+              : wei === null
+                ? 'Read failed'
+                : toPlainText(wei, token.decimals)
+          return (
+            <li key={token.address} className="flex flex-wrap items-center gap-s8 rounded-card bg-inset p-s10">
+              <span className="flex min-w-0 flex-1 items-center gap-s8 text-body3 text-neutral1">
+                <TokenLogo url={token.logoUri} symbol={token.symbol} name={token.name} size={20} />
+                {token.symbol}
+              </span>
+              <span
+                className={cn(
+                  'numeric min-w-[90px] text-right font-mono text-body3',
+                  wei === null ? 'text-exposed' : 'text-neutral1',
+                )}
+              >
+                {value}
+              </span>
+              <Button
+                variant="tertiary"
+                size="sm"
+                disabled={typeof wei !== 'bigint' || wei === 0n || typeof publicStrkWei !== 'bigint'}
+                onClick={() => setShielding(token)}
+              >
+                Shield now
+              </Button>
+            </li>
+          )
+        })}
+      </ul>
+      <Text variant="body4" className="text-neutral2">
+        These are ordinary on-chain balances at your embedded Passbook address — anyone can look
+        them up. Shielding is a separate transaction from this same account.
+      </Text>
+
+      {shielding && typeof publicStrkWei === 'bigint' ? (
+        <ShieldDialog
+          token={shielding}
+          publicWei={publicBalances.byToken.get(shielding.address.toLowerCase()) ?? 0n}
+          publicStrkWei={publicStrkWei}
+          open
+          onOpenChange={(next) => {
+            if (!next) setShielding(null)
+          }}
+          onConfirmed={refreshBoth}
+        />
+      ) : null}
     </section>
   )
 }

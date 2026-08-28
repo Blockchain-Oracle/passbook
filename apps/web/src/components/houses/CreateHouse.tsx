@@ -17,7 +17,11 @@ import { parseAmountInput } from '@strk20/protocol/amount'
 import { HOUSE_COUNTING, HOUSE_MEMBERSHIP } from '@strk20/protocol/governance-reads'
 
 import { cn } from '../../lib/cn'
-import { APP_CONTRACTS } from '../../shell/app-contracts'
+import {
+  APP_CONTRACTS,
+  GOVERNANCE_WRITE_SAFETY,
+  GOVERNANCE_WRITES_ENABLED,
+} from '../../shell/app-contracts'
 import { invokeSponsoredOrDirect } from '../../shell/submit'
 import { toast } from '../../shell/toast-store'
 import { useSession } from '../../shell/session'
@@ -48,6 +52,7 @@ export function CreateHouse({ open, onClose }: { open: boolean; onClose: () => v
   const quorum = useMemo(() => parseAmountInput(quorumRaw, decimals), [quorumRaw, decimals])
 
   const blocker =
+    (!GOVERNANCE_WRITE_SAFETY.enabled ? GOVERNANCE_WRITE_SAFETY.because : null) ??
     (!ready ? 'This browser has no account yet' : null) ??
     (!strk ? 'The token list has not loaded' : null) ??
     (name.trim() === '' ? 'Name the House' : null) ??
@@ -60,7 +65,7 @@ export function CreateHouse({ open, onClose }: { open: boolean; onClose: () => v
     (busy ? 'Creating…' : null)
 
   const onConfirm = useCallback(async () => {
-    if (!ready || !strk) return
+    if (!GOVERNANCE_WRITES_ENABLED || !ready || !strk) return
     setBusy(true)
     setProblem(null)
     try {
@@ -90,6 +95,7 @@ export function CreateHouse({ open, onClose }: { open: boolean; onClose: () => v
       }
       addPosition({
         venue: 'governance',
+        kind: 'gov-founder',
         id: -1,
         secret: creator.secret,
         commitment: creator.commitment,
@@ -111,7 +117,7 @@ export function CreateHouse({ open, onClose }: { open: boolean; onClose: () => v
   }, [ready, strk, name, quorum.wei, thresholdPct, invite, memberVotes, onClose])
 
   return (
-    <ResponsiveDialog open={open} onOpenChange={(next) => (next ? undefined : onClose())} label="Create a House" modal>
+    <ResponsiveDialog open={open} onOpenChange={(next) => (next ? undefined : onClose())} label="Create a House" modal dismissible={!busy && inviteSecret === null}>
       <div className="flex min-h-0 flex-col gap-s12 overflow-y-auto">
         {inviteSecret ? (
           <>
@@ -119,8 +125,8 @@ export function CreateHouse({ open, onClose }: { open: boolean; onClose: () => v
               The door key — shown once
             </Text>
             <Text variant="body4" className="text-neutral2">
-              Anyone you give this to can join the roll, anonymously. It is not stored anywhere
-              else, and there is no way to read it back — the chain holds only its fingerprint.
+              Anyone you give this to can join the roll. Passbook does not store another copy, and
+              there is no way to read it back — the chain holds only its fingerprint.
             </Text>
             <button
               type="button"
@@ -140,8 +146,8 @@ export function CreateHouse({ open, onClose }: { open: boolean; onClose: () => v
               Create a House
             </Text>
             <Text variant="body4" className="text-neutral2">
-              A House is governance on a token: sealed ballots, a treasury anyone can fund
-              anonymously, and tallies the chain refuses to get wrong.
+              A House is governance on a token: sealed ballots, a treasury funded through the pool,
+              and tallies the chain refuses to get wrong.
             </Text>
 
             <label className="flex flex-col gap-s4">
@@ -153,7 +159,7 @@ export function CreateHouse({ open, onClose }: { open: boolean; onClose: () => v
                 onChange={(e) => setName(e.target.value)}
                 placeholder="The Night Owls"
                 aria-label="House name"
-                className="focus-ring w-full rounded-control border border-solid border-surface3 bg-raised px-s12 py-s8 text-body3 text-neutral1 outline-none placeholder:text-neutral3"
+                className="focus-ring w-full rounded-control border border-solid border-surface3 bg-raised px-s12 py-s8 text-body3 text-neutral1 placeholder:text-neutral3"
               />
             </label>
 
@@ -168,7 +174,7 @@ export function CreateHouse({ open, onClose }: { open: boolean; onClose: () => v
                     onChange={(e) => setQuorumRaw(e.target.value)}
                     inputMode="decimal"
                     aria-label="Quorum in tokens"
-                    className="focus-ring w-full rounded-control border border-solid border-surface3 bg-raised px-s12 py-s8 font-mono text-body3 text-neutral1 outline-none"
+                    className="focus-ring w-full rounded-control border border-solid border-surface3 bg-raised px-s12 py-s8 font-mono text-body3 text-neutral1"
                   />
                 </label>
               ) : null}
@@ -218,10 +224,9 @@ export function CreateHouse({ open, onClose }: { open: boolean; onClose: () => v
             </div>
 
             <Text variant="body4" className="text-neutral3">
-              The relayer signs this one — the chain records your FOUNDER claim as a commitment
-              that identifies nobody, and this browser keeps its bearer secret. Only if the
-              relayer is away does your own address sign instead, publicly, the way any deploy is.
-              The members, when they come, are anonymous handles even to you.
+              The chain records the founder claim as a commitment and this browser keeps its bearer
+              secret. The transaction&rsquo;s submitting account remains public. Members enter the
+              House roll as pool-derived handles rather than addresses.
             </Text>
 
             {problem ? (

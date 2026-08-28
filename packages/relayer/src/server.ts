@@ -85,6 +85,7 @@ import { InviteLedger, normalizeCode, type InviteConfig } from './invite.js'
 import { openDirectory, type Directory } from './directory.js'
 import { createChainKeeperDeps, runKeeperPass } from './keeper.js'
 import {
+  governanceWriteSafety,
   NO_APP_CONTRACTS,
   parseAppContracts,
   type AppContracts,
@@ -2456,6 +2457,8 @@ async function main(): Promise<void> {
 
   const messageBook = deployedMessageBook()
   const appContracts = deployedAppContracts()
+  const governanceSafety = governanceWriteSafety(appContracts)
+  const writableGovernance = governanceSafety.enabled ? appContracts.governance : undefined
 
   // The chat bus. Nothing to open and nothing to read back: it starts empty on every boot, by
   // design (`rooms.ts`). The sweep is on a timer rather than only on request, because a room's
@@ -2506,17 +2509,17 @@ async function main(): Promise<void> {
         }
       : undefined
 
-  // The Teller — constructed the moment a Governance contract exists. Its ledger is the fifth
-  // signer's whole custody story (`teller.ts`); the tick is the keeper's discipline verbatim.
-  const teller: Teller | undefined = appContracts.governance
+  // A vulnerable Governance deployment remains readable in the chain feed, but neither this
+  // funded signer nor the Teller may write it. Evidence must name the reviewed corrected class.
+  const teller: Teller | undefined = writableGovernance
     ? openTeller({
         file:
           process.env.RELAYER_TELLER_STORE ||
           fileURLToPath(new URL('../../../.relayer/teller.json', import.meta.url)),
       })
     : undefined
-  if (teller && appContracts.governance) {
-    const governance = appContracts.governance
+  if (teller && writableGovernance) {
+    const governance = writableGovernance
     const chainDeps = tellerChainDeps(
       governance,
       {
@@ -2603,7 +2606,7 @@ async function main(): Promise<void> {
       messageBook,
       markets: appContracts.markets,
       launch: appContracts.launch,
-      governance: appContracts.governance,
+      governance: writableGovernance,
     },
     resolveApproveCeiling: async () => approveCeiling((await readPoolConstants()).feeWei),
     allowedOrigins,
@@ -2692,6 +2695,9 @@ async function main(): Promise<void> {
         ? `allowlist: Markets ${appContracts.markets}${appContracts.launch ? ` · Launch ${appContracts.launch}` : ''}${appContracts.governance ? ` · Governance ${appContracts.governance}` : ''}`
         : 'allowlist: no Markets/Launch deployed yet',
     )
+    if (!governanceSafety.enabled && appContracts.governance) {
+      console.log(`governance: read-only — ${governanceSafety.because}`)
+    }
     console.log(
       keeperReady
         ? `keeper: sweeping every ${KEEPER_INTERVAL_MS / 1000}s via Pragma ${appContracts.pragma}`

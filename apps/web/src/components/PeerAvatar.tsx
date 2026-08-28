@@ -11,7 +11,7 @@
 // ── THE FALLBACK IS THE DEFAULT, NOT THE ERROR PATH ──────────────────────────────────────
 //
 // Almost nobody will have claimed a name, let alone uploaded an avatar, so the disc is what this
-// renders nearly always. An `<img>` that fails to load falls back to it too — a broken-image glyph
+// renders nearly always. A profile image that fails to load falls back to it too — a broken glyph
 // beside somebody's money is worse than the mark that was always going to be there.
 //
 import { useState } from 'react'
@@ -26,8 +26,8 @@ export interface PeerAvatarProps {
    *
    * A DATA URI AND NOTHING ELSE. `directory.ts`'s `AVATAR_PATTERN` bounds it to base64 PNG/JPEG/
    * WebP and `MAX_AVATAR_CHARS` bounds its size, so what arrives here cannot be a remote URL —
-   * which matters, because an `<img src>` pointing at a third-party host would leak to that host
-   * every time somebody opened a conversation.
+   * which matters, because loading a remote profile image would leak to that host every time
+   * somebody opened a conversation.
    */
   avatar?: string | null
   size?: number

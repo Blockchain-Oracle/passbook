@@ -355,6 +355,7 @@ function Thread() {
         onOpenChange={(next) => (next ? undefined : setMoney(null))}
         label={money === 'request' ? 'Request money' : 'Send money'}
         modal
+        dismissible={sending.stage === null}
       >
         <div className="flex w-full min-w-0 flex-col gap-s16">
           <Text variant="subheading1" as="h2">

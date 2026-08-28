@@ -144,7 +144,7 @@ export type SendKind =
   // (bearer secrets in, open notes out). What is new is HOW two of them reach the contract:
   //
   //   `gov-ballot` is funding-shaped but travels as ComputeAndInvoke — the pool injects the
-  //   anonymous voter handle, which an InvokeExternal cannot carry.
+  //   per-contract voter handle, which an InvokeExternal cannot carry.
   //
   //   `gov-join` is the THIRD shape this union gained: value-less. No withdraw, no open notes —
   //   the fee leg's own note spend is the transaction's replay protection — and the invoke is a

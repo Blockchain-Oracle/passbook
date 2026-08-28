@@ -340,12 +340,12 @@ const GOV_BALLOT_SEALED =
   'before a tally can publish. Your identity is neither on the ballot nor derivable from it.'
 
 const GOV_JOIN_COUNT_ONLY =
-  'The public sees the House’s member COUNT move, never a member list — the roll is anonymous ' +
-  'handles the pool derives, and no list of them exists to publish.'
+  'The public sees the House’s member COUNT move; the roll stores pool-derived handles instead ' +
+  'of addresses. The transaction submitter remains visible.'
 
 const GOV_DELEGATE_SOURCE =
-  'The pot grew by this amount, in public. Whose tokens grew it does not exist on-chain — not ' +
-  'even the delegate learns the source.'
+  'The pot grew by this amount in public. The House stores a derived delegator handle, and the ' +
+  'transaction submitter remains visible.'
 
 // ── The matrices ──────────────────────────────────────────────────────────────────────────
 
@@ -539,8 +539,8 @@ export const MATRICES = {
   // ── The Houses (docs/governance.md §4.2 — that table, dropped in as promised) ───────────
   //
   // The recurring sentence, stated once: YOUR BALLOT'S WEIGHT IS PUBLIC, YOUR CHOICE IS SEALED,
-  // AND YOU ARE NEITHER ON THE BALLOT NOR DERIVABLE FROM IT. The pool's identity_key is a
-  // per-contract anonymous handle; the relayer submits, so the on-chain sender is ours; the
+  // AND THE BALLOT DOES NOT STORE YOUR ADDRESS. The pool's identity_key is a per-contract handle;
+  // the relayer submits, so that relayer remains the visible on-chain sender; the
   // TELLER — a named party beside the relayer and the auditor — can read choices early in both
   // modes and can never miscount them (the contract checks the math before a tally can publish).
   //

@@ -3,6 +3,7 @@ import { createFileRoute } from '@tanstack/react-router'
 
 import { AUDITOR_ESCROW, RELAYER_SEES } from '@strk20/protocol/disclosure-copy'
 import { FORBIDDEN_CLAIMS } from '@strk20/protocol/forbidden-claims'
+import { ACTIVE_NETWORK, NET } from '@strk20/protocol/constants'
 
 import {
   PASSWORD_BODY,
@@ -19,13 +20,21 @@ import { Button } from '../components/ui/Button'
 import { Surface } from '../shell/Surface'
 // Aliased: `setPassword` is also this component's state setter, and two bindings of one name in
 // one file is how the wrong one gets called.
-import { clearPassword, setPassword as sealBrowser, usePasswordSet } from '../shell/session'
+import {
+  clearPassword,
+  setPassword as sealBrowser,
+  shortenFelt,
+  usePasswordSet,
+  useSession,
+} from '../shell/session'
 import { toast } from '../shell/toast-store'
 import { INTRO_SOUND, isMuted, play, setMuted, subscribeMuted } from '../shell/sound'
 import { pinTheme, storedChoice, themeChoice } from '../shell/theme'
 import type { ThemeChoice } from '../shell/theme'
 import { NameClaim } from '../components/NameClaim'
 import { Text } from '../components/ui/Text'
+import { useFundingWallet } from '../shell/funding-wallet'
+import { APP_CONTRACTS, GOVERNANCE_WRITE_SAFETY } from '../shell/app-contracts'
 
 export const Route = createFileRoute('/settings')({
   component: Settings,
@@ -81,6 +90,8 @@ function Settings() {
       <Text variant="display2" as="h1" className="text-neutral1">
         Settings
       </Text>
+
+      <AccountAndNetwork />
 
       <fieldset className="flex flex-col gap-s8 rounded-large border border-solid border-surface3 bg-raised p-s16">
         <legend className="float-left text-body3 font-medium">Theme</legend>
@@ -138,8 +149,9 @@ function Settings() {
             counterparty.
           </Text>
           <Text variant="body4" className="text-neutral2">
-            The amount is public on any leg that touches an open note — a swap, a launch buy, a
-            bet. What is hidden is who.
+            An open-note leg makes its amount public. Markets, Launch and Houses can record a
+            bearer commitment instead of your account, but the transaction submitter remains
+            visible on-chain.
           </Text>
           <Text variant="body4" className="text-neutral2">
             {RELAYER_SEES}
@@ -154,6 +166,140 @@ function Settings() {
       </section>
       </div>
     </Surface>
+  )
+}
+
+function AccountAndNetwork() {
+  const session = useSession()
+  const fundingWallet = useFundingWallet()
+  const [copied, setCopied] = useState(false)
+  const address = session.status === 'ready' || session.status === 'locked' ? session.address : null
+  const contracts = [
+    { label: 'Shielded pool', address: NET.pool, status: 'Pinned protocol deployment' },
+    { label: 'Markets', address: APP_CONTRACTS.markets, status: 'Verified deployment evidence' },
+    { label: 'Launch', address: APP_CONTRACTS.launch, status: 'Verified deployment evidence' },
+    {
+      label: 'Houses',
+      address: APP_CONTRACTS.governance,
+      status: GOVERNANCE_WRITE_SAFETY.enabled ? 'Verified for writes' : 'Read-only on this class',
+    },
+  ] as const
+
+  const copyAddress = () => {
+    if (!address || !navigator.clipboard) {
+      toast({
+        kind: 'error',
+        title: 'Could not copy',
+        detail: 'Select the address and copy it manually in this browser.',
+      })
+      return
+    }
+    void navigator.clipboard.writeText(address).then(
+      () => {
+        setCopied(true)
+        window.setTimeout(() => setCopied(false), 1600)
+      },
+      () =>
+        toast({
+          kind: 'error',
+          title: 'Could not copy',
+          detail: 'This browser refused clipboard access. Select the address and copy it manually.',
+        }),
+    )
+  }
+
+  return (
+    <section className="flex flex-col gap-s12 rounded-large border border-solid border-surface3 bg-raised p-s16">
+      <div className="flex flex-wrap items-start justify-between gap-s8">
+        <div className="flex flex-col gap-s4">
+          <Text variant="body2" as="h2" className="font-medium text-neutral1">
+            Account &amp; network
+          </Text>
+          <Text variant="body4" className="text-neutral2">
+            This embedded Passbook account owns your public funds, shielded notes and viewing keys.
+          </Text>
+        </div>
+        <span className="rounded-full bg-accent2 px-s8 py-s4 font-mono text-mono text-accent1">
+          {ACTIVE_NETWORK}
+        </span>
+      </div>
+
+      {address ? (
+        <button
+          type="button"
+          className="focus-ring flex w-full min-w-0 max-w-full items-center justify-between gap-s12 overflow-hidden rounded-card bg-inset p-s12 text-left"
+          onClick={copyAddress}
+          aria-label={`Copy embedded Passbook address ${address}`}
+        >
+          <span className="flex min-w-0 flex-1 flex-col gap-s4 overflow-hidden">
+            <span className="text-body4 text-neutral2">Embedded Passbook address</span>
+            <span className="numeric truncate font-mono text-mono text-neutral1">{address}</span>
+          </span>
+          <span className="shrink-0 text-body4 text-accent1">{copied ? 'Copied' : 'Copy'}</span>
+        </button>
+      ) : (
+        <Text variant="body4" className="text-neutral2">
+          The embedded account is unavailable while this browser session is loading.
+        </Text>
+      )}
+
+      <dl className="grid gap-s8 sm:grid-cols-2">
+        <Fact label="Chain ID" value={NET.chainId} />
+        <Fact
+          label="Connected funding wallet"
+          value={
+            fundingWallet
+              ? `${fundingWallet.name} · ${shortenFelt(fundingWallet.address, 6, 4)}`
+              : 'Not connected'
+          }
+        />
+      </dl>
+      <Text variant="body4" className="text-neutral2">
+        A connected wallet is only a public funding source. It never replaces the embedded account,
+        and shielding is always signed by the embedded account after funds arrive there.
+      </Text>
+
+      <div className="flex flex-col gap-s4 border-t border-solid border-surface3 pt-s12">
+        {contracts.map((contract) => (
+          <div key={contract.label} className="flex min-w-0 items-center justify-between gap-s12 py-s4">
+            <span className="flex min-w-0 flex-col">
+              <span className="text-body4 font-medium text-neutral1">{contract.label}</span>
+              <span className="text-mono font-mono text-neutral3">{contract.status}</span>
+            </span>
+            {contract.address ? (
+              <a
+                className="focus-ring shrink-0 rounded-control px-s4 font-mono text-mono text-accent1 hover:text-accent1Hovered"
+                href={`${NET.explorer}/contract/${contract.address}`}
+                target="_blank"
+                rel="noreferrer"
+                aria-label={`Open ${contract.label} contract on Voyager`}
+              >
+                {shortenFelt(contract.address, 6, 4)} ↗
+              </a>
+            ) : (
+              <span className="font-mono text-mono text-neutral3">Not recorded</span>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {!GOVERNANCE_WRITE_SAFETY.enabled ? (
+        <Text variant="body4" className="text-irreversible">
+          Houses writes are disabled: {GOVERNANCE_WRITE_SAFETY.because}
+        </Text>
+      ) : null}
+    </section>
+  )
+}
+
+function Fact({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="min-w-0 rounded-card bg-inset p-s12">
+      <dt className="text-body4 text-neutral2">{label}</dt>
+      <dd className="numeric mt-s4 truncate font-mono text-mono text-neutral1" title={value}>
+        {value}
+      </dd>
+    </div>
   )
 }
 

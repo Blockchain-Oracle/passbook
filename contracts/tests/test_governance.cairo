@@ -96,7 +96,7 @@ fn open_proposal(ctx: Ctx, house_id: u64) -> u64 {
             Governance::MODE_SECRET_UNTIL_CLOSE,
             2,
             NOW + DAY,
-            'teller-pubkey',
+            Governance::G_X,
             Governance::ACTION_TEXT,
             0,
             0.try_into().unwrap(),
@@ -209,6 +209,40 @@ fn a_tally_cannot_drop_a_lane() {
         .gov
         .publish_tally(
             proposal_id, array![3, 0].span(), array![20, 0].span(), array![].span(),
+        );
+}
+
+#[test]
+#[should_panic(expected: 'DUPLICATE_EXCLUSION')]
+fn one_ballot_cannot_be_excluded_twice() {
+    let ctx = setup();
+    let house_id = open_house(ctx);
+    let proposal_id = open_proposal(ctx, house_id);
+    cast_pinned_ballots(ctx, house_id, proposal_id);
+    start_cheat_block_timestamp_global(NOW + DAY + 1);
+    // Excluding A once would leave B: sums [3, 0], blinds [13, 17]. Repeating A must be refused
+    // before its weight or points are subtracted a second time.
+    ctx
+        .gov
+        .publish_tally(
+            proposal_id, array![3, 0].span(), array![13, 17].span(), array![IDA, IDA].span(),
+        );
+}
+
+#[test]
+#[should_panic(expected: 'TALLY_REJECTED')]
+fn an_exclusion_must_match_the_tally_that_remains() {
+    let ctx = setup();
+    let house_id = open_house(ctx);
+    let proposal_id = open_proposal(ctx, house_id);
+    cast_pinned_ballots(ctx, house_id, proposal_id);
+    start_cheat_block_timestamp_global(NOW + DAY + 1);
+    // The caller names A as excluded but submits the full A+B totals. The commitment equation
+    // sees only B after exclusion and refuses the mismatched sums.
+    ctx
+        .gov
+        .publish_tally(
+            proposal_id, array![3, 5].span(), array![20, 28].span(), array![IDA].span(),
         );
 }
 
@@ -620,8 +654,18 @@ fn the_key_publishes_once_after_close_in_secret_until_close_mode() {
     let house_id = open_house(ctx);
     let proposal_id = open_proposal(ctx, house_id);
     start_cheat_block_timestamp_global(NOW + DAY + 1);
-    ctx.gov.publish_key(proposal_id, 'the-tally-key');
-    assert(ctx.gov.get_proposal(proposal_id).published_key == 'the-tally-key', 'KEY_STORED');
+    ctx.gov.publish_key(proposal_id, 1);
+    assert(ctx.gov.get_proposal(proposal_id).published_key == 1, 'KEY_STORED');
+}
+
+#[test]
+#[should_panic(expected: 'TALLY_KEY_MISMATCH')]
+fn a_key_that_does_not_derive_the_configured_tally_key_is_refused() {
+    let ctx = setup();
+    let house_id = open_house(ctx);
+    let proposal_id = open_proposal(ctx, house_id);
+    start_cheat_block_timestamp_global(NOW + DAY + 1);
+    ctx.gov.publish_key(proposal_id, 2);
 }
 
 #[test]
@@ -636,12 +680,12 @@ fn permanently_private_never_publishes_a_key() {
             Governance::MODE_PERMANENT,
             2,
             NOW + DAY,
-            'teller-pubkey',
+            Governance::G_X,
             Governance::ACTION_TEXT,
             0,
             0.try_into().unwrap(),
             "ipfs://sensitive",
         );
     start_cheat_block_timestamp_global(NOW + DAY + 1);
-    ctx.gov.publish_key(proposal_id, 'the-tally-key');
+    ctx.gov.publish_key(proposal_id, 1);
 }

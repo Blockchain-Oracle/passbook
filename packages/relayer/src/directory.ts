@@ -127,7 +127,7 @@ export function openDirectory(opts: {
       if (typeof body?.name !== 'string') return { ok: false, status: 400, error: 'name must be a string' }
       const name = normalizeDirectoryName(body.name)
       if (!DIRECTORY_NAME_PATTERN.test(name)) {
-        return { ok: false, status: 400, error: 'a name is 3-20 characters of a-z, 0-9 and _' }
+        return { ok: false, status: 400, error: 'a name is 3-20 characters of a-z, 0-9, _ and -' }
       }
       if (!isAddress(body.address)) return { ok: false, status: 400, error: 'address must be a felt' }
       if (!isSignature(body.signature)) {

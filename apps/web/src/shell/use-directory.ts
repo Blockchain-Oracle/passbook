@@ -115,7 +115,9 @@ export function searchDirectory(
   entries: readonly DirectoryEntry[],
   query: string,
 ): readonly DirectoryEntry[] {
-  const needle = query.trim().toLowerCase()
+  // `@sam` and `sam` are the same local search. The `@` is syntax on send/pay routes, not part of
+  // the claimed directory key.
+  const needle = query.trim().toLowerCase().replace(/^@/, '')
   if (needle === '') return []
   const starts: DirectoryEntry[] = []
   const contains: DirectoryEntry[] = []

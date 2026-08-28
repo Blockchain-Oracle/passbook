@@ -76,7 +76,7 @@ export function TalkThread({ tag, emptyLine }: { tag: string; emptyLine: string 
           placeholder={composer.canPost ? 'Say something into the room…' : 'An account is needed to post'}
           disabled={!composer.canPost || busy}
           aria-label="Post into this thread"
-          className="focus-ring min-w-0 flex-1 rounded-control border border-solid border-surface3 bg-raised px-s12 py-s8 text-body3 text-neutral1 outline-none placeholder:text-neutral3"
+          className="focus-ring min-w-0 flex-1 rounded-control border border-solid border-surface3 bg-raised px-s12 py-s8 text-body3 text-neutral1 placeholder:text-neutral3"
         />
         <Button
           variant="secondary"

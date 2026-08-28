@@ -172,6 +172,7 @@ export function CreateLaunch({ open, onClose }: { open: boolean; onClose: () => 
       // The creator's sweep claim — held like every other bearer position.
       addPosition({
         venue: 'launch',
+        kind: 'launch-founder',
         id: -1,
         secret: minted.secret,
         commitment: minted.commitment,
@@ -191,7 +192,7 @@ export function CreateLaunch({ open, onClose }: { open: boolean; onClose: () => 
   }, [ready, strk, price.wei, step.wei, epochs, tokensPerEpoch, windowIdx, name, symbolClean, logo, onClose])
 
   return (
-    <ResponsiveDialog open={open} onOpenChange={(next) => (next ? undefined : onClose())} label="Create a launch" modal>
+    <ResponsiveDialog open={open} onOpenChange={(next) => (next ? undefined : onClose())} label="Create a launch" modal dismissible={!busy}>
       <div className="flex min-h-0 flex-col gap-s12 overflow-y-auto">
         <Text variant="subheading2" as="h2" className="text-neutral1">
           Launch a token
@@ -211,7 +212,7 @@ export function CreateLaunch({ open, onClose }: { open: boolean; onClose: () => 
               onChange={(e) => setName(e.target.value)}
               placeholder="Night Owl"
               aria-label="Token name"
-              className="focus-ring w-full rounded-control border border-solid border-surface3 bg-raised px-s12 py-s8 text-body3 text-neutral1 outline-none placeholder:text-neutral3"
+              className="focus-ring w-full rounded-control border border-solid border-surface3 bg-raised px-s12 py-s8 text-body3 text-neutral1 placeholder:text-neutral3"
             />
           </label>
           <label className="flex min-w-0 flex-1 flex-col gap-s4">
@@ -223,7 +224,7 @@ export function CreateLaunch({ open, onClose }: { open: boolean; onClose: () => 
               onChange={(e) => setSymbol(e.target.value)}
               placeholder="OWL"
               aria-label="Token symbol"
-              className="focus-ring w-full rounded-control border border-solid border-surface3 bg-raised px-s12 py-s8 font-mono text-body3 text-neutral1 uppercase outline-none placeholder:text-neutral3"
+              className="focus-ring w-full rounded-control border border-solid border-surface3 bg-raised px-s12 py-s8 font-mono text-body3 text-neutral1 uppercase placeholder:text-neutral3"
             />
           </label>
         </div>
@@ -306,7 +307,7 @@ export function CreateLaunch({ open, onClose }: { open: boolean; onClose: () => 
                 placeholder="0.05"
                 inputMode="decimal"
                 aria-label="Unit price in the first epoch"
-                className="focus-ring numeric min-w-0 flex-1 bg-transparent font-mono text-body3 text-neutral1 outline-none placeholder:text-neutral3"
+                className="focus-ring numeric min-w-0 flex-1 bg-transparent font-mono text-body3 text-neutral1 placeholder:text-neutral3"
               />
               <span className="text-body4 text-neutral3">STRK</span>
             </div>
@@ -322,7 +323,7 @@ export function CreateLaunch({ open, onClose }: { open: boolean; onClose: () => 
                 placeholder="0.01"
                 inputMode="decimal"
                 aria-label="Price step per epoch"
-                className="focus-ring numeric min-w-0 flex-1 bg-transparent font-mono text-body3 text-neutral1 outline-none placeholder:text-neutral3"
+                className="focus-ring numeric min-w-0 flex-1 bg-transparent font-mono text-body3 text-neutral1 placeholder:text-neutral3"
               />
               <span className="text-body4 text-neutral3">STRK</span>
             </div>
@@ -339,7 +340,7 @@ export function CreateLaunch({ open, onClose }: { open: boolean; onClose: () => 
               onChange={(e) => setEpochsRaw(e.target.value)}
               inputMode="numeric"
               aria-label="Number of epochs"
-              className="focus-ring w-full rounded-control border border-solid border-surface3 bg-raised px-s12 py-s8 font-mono text-body3 text-neutral1 outline-none"
+              className="focus-ring w-full rounded-control border border-solid border-surface3 bg-raised px-s12 py-s8 font-mono text-body3 text-neutral1"
             />
           </label>
           <label className="flex min-w-0 flex-1 flex-col gap-s4">
@@ -351,7 +352,7 @@ export function CreateLaunch({ open, onClose }: { open: boolean; onClose: () => 
               onChange={(e) => setTokensPerEpochRaw(e.target.value)}
               inputMode="numeric"
               aria-label="Tokens sold per epoch"
-              className="focus-ring w-full rounded-control border border-solid border-surface3 bg-raised px-s12 py-s8 font-mono text-body3 text-neutral1 outline-none"
+              className="focus-ring w-full rounded-control border border-solid border-surface3 bg-raised px-s12 py-s8 font-mono text-body3 text-neutral1"
             />
           </label>
           <label className="flex min-w-0 flex-1 flex-col gap-s4">

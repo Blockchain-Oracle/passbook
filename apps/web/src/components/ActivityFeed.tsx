@@ -26,7 +26,7 @@
 //
 // ── THE HEADER LINE IS THE AMENDED ONE, AND IT IS IMPORTED ───────────────────────────────
 //
-// `SURFACES_STANDING_LINE` says the six surfaces are unlinkable TO OTHER USERS, that this view is
+// `SURFACES_STANDING_LINE` says the seven surfaces are unlinkable TO OTHER USERS, that this view is
 // assembled in the browser, and that the auditor and the relayer see more. The original claim —
 // that nobody can join them up — is false on this protocol and falsifiable in one call. It is
 // imported rather than retyped because the same sentence appears on the balance tile and in the

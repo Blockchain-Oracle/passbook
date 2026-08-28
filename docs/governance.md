@@ -57,13 +57,14 @@ From `context/02` / `context/07`; they override the RFP's prose where they confl
    8 of 26 RFPs share the same unbuildable prose. The sponsor's *shipped* substitute is
    **`ComputeAndInvoke`**: the pool derives `identity_key = f(user_addr, user_key, helper_addr)`
    and injects it as argument 0 of the helper's `privacy_compute`. A per-user, per-helper handle
-   that is unlinkable to the address, unforgeable, and scoped to our contract. **That is a native
-   anonymous-but-unique voter-registration primitive** — for governance, better than an enclave.
+   that the House does not store beside an address, is unforgeable, and is scoped to our contract.
+   **That is a native address-disconnected voter-registration primitive** — for governance, better
+   than an enclave, but not a reason to call the whole transaction anonymous.
    329 mainnet calls across 7 helpers all-time; zero in this repo so far (§10.4, PROBE-1).
 2. **Open-note amounts are public by construction; identity is what the pool hides.** The sponsor's
    own line: *"Claim identity privacy; never claim amount privacy."* So ballot *weights* can be
-   public per-ballot while the *voter* stays hidden — and the shipped relayer makes the submitting
-   address ours, not the voter's.
+   public per-ballot while the House record omits the voter's address. The shipped relayer remains
+   the visible transaction submitter and sees the request's network metadata.
 3. **`identity_key` is scoped per contract.** The same user is a different handle at Launch,
    Markets, and the Governor — votes can't be linked to launch buys even by us, and weight cannot
    be *proven* across helpers. Weight must therefore arrive as real value (notes), not as a
@@ -88,7 +89,7 @@ Every private-voting system in production or research accepts at least one of fo
 **Ours: MACI's trust shape on STRK20's primitives, with the tally check moved on-chain.** A
 **Teller** (our service, a sibling of the shipped relayer) holds the per-proposal tally key. The
 Teller *can peek early*, and in permanently-private mode it *learns* individual sealed ballots
-(keyed to anonymous handles — never to addresses; it cannot learn *who*). It **cannot forge a
+(keyed to per-contract handles rather than addresses in House storage). It **cannot forge a
 tally** — the contract itself verifies the published sums against an elliptic-curve accumulator
 and rejects anything else (§6.3). It **cannot censor** — ballots enter through the permissionless
 pool, not through us. Disclosed in the product's who-sees-what panel like every other Passbook
@@ -107,8 +108,9 @@ independent reason not to import it.)
 
 **Your tokens are the ballot.** To vote, you move governance-token value through the pool into the
 proposal's ballot box (our Governor helper) with a sealed choice attached. The pool proves the
-value is real and injects your anonymous voter handle (`identity_key`); the funding leg makes your
-*weight* public while the pool + relayer keep *you* unlinkable; your *choice* travels sealed. Locked
+value is real and injects your per-contract voter handle (`identity_key`); the funding leg makes
+your *weight* public while the House record omits your account address; your *choice* travels
+sealed. The relayer still sees request metadata and is the public transaction submitter. Locked
 tokens cannot vote twice — sybil resistance by conservation: ten sybil handles splitting the same
 tokens still sum to the same weight. No snapshot blocks, no census Merkle trees, no balance proofs.
 At close, the box opens (or never opens, by mode), the tally publishes only if the contract's own
@@ -120,8 +122,8 @@ back to you as a fresh unlinkable note.
 One pool transaction (`privacy_invoke_with_computation` — the selector is already pinned in
 `packages/protocol/src/constants.ts`), carrying:
 
-- **`identity_key`** (arg 0, pool-injected) — the anonymous voter handle. Groups re-votes and
-  top-ups; never seen by anyone as an address.
+- **`identity_key`** (arg 0, pool-injected) — the per-contract voter handle. Groups re-votes and
+  top-ups; the House stores the handle rather than an account address.
 - **A phase-6 withdraw of `w` governance tokens to the Governor** — the ballot's weight, public,
   escrowed until close, booked through the shipped custody-ledger pattern
   (`take_custody`, `contracts/src/markets.cairo:789`).
@@ -155,8 +157,8 @@ shipped app always builds valid ballots; exclusion exists so one vandal cannot b
 
 | Observer | During voting | After close (secret-until-close) | After close (permanently-private) |
 |---|---|---|---|
-| Public / other voters | # ballots, each ballot's weight, total escrow (→ **live quorum**), countdown. Never choices, never identities | full anonymous ballot book: (handle, weight, choice) — recomputable by anyone from chain data | per-option sums, contract-verified. Nothing per-ballot, ever |
-| The Teller (us) | choices as they arrive (early peek — disclosed) | same as public | ballot book (anonymous handles, never addresses) |
+| Public / other voters | # ballots, each ballot's weight, total escrow (→ **live quorum**), countdown, and the transaction submitter. Never sealed choices or account addresses in House storage | full handle-keyed ballot book: (handle, weight, choice) — recomputable by anyone from chain data | per-option sums, contract-verified. Nothing per-ballot, ever |
+| The Teller (us) | choices as they arrive (early peek — disclosed), plus request metadata | same as public | ballot book keyed to per-contract handles |
 | StarkWare's auditor (escrowed viewing keys, `context/07 §3.1`) | each user's own note history under the escrowed key — as on every surface | same | same |
 | House committee (optional, per-proposal) | — | — | ballot book under an authorized audit key (the RFP's own sentence) |
 
@@ -202,8 +204,10 @@ At close the Teller publishes the proposal's tally key **on-chain** (one cheap d
 reveal is then permanent, public chain data, not a URL we host). From that moment the entire ballot
 book decrypts from on-chain events alone: anyone can recompute the tally; the Teller cannot lie,
 drop, or reorder. Residual trust: the Teller alone could have peeked early (Shutter's committee has
-the same power; we print ours in the disclosure panel instead of a footnote). What stays private
-*forever*, unlike Shutter: **who voted** — the book is keyed to anonymous handles, not addresses.
+the same power; we print ours in the disclosure panel instead of a footnote). What the House still
+does not record, unlike Shutter, is the voter's account address: the book is keyed to per-contract
+handles. That is narrower than transaction anonymity because the public submitter and the relayer's
+request metadata still exist.
 
 ### 6.2 Permanently-private
 
@@ -248,8 +252,9 @@ permissionless `graduate()`; our relayer keeper fires it, anyone can — the kee
 pattern at `packages/relayer/src/allowlist.ts:76` extends by one entry).
 
 **v1 action set (settled):**
-1. **Treasury spend.** Every House has a treasury pot inside the Governor, fundable by anyone as an
-   anonymous open-note deposit — "fund the House privately" is itself a demo beat. A passed spend
+1. **Treasury spend.** Every House has a treasury pot inside the Governor, fundable through an
+   open-note deposit represented by a bearer commitment. The deposit amount and transaction
+   submitter are public; the House pot does not store the funder's account address. A passed spend
    proposal pays the recipient through the shipped approve-and-open-note release. This also plants
    our flag on IDEA-28 (treasury OS) without building it.
 2. **Text / signal.** No calls; the tally is the outcome.
@@ -352,7 +357,7 @@ fee-free operator/creator actions. Estimated size: between MessageBook (95) and 
 | `publish_tally` | direct call | anyone carrying valid `(S, R, excluded)` — the contract, not the caller, is the authority (§6.3) | flips to Succeeded/Defeated |
 | `publish_key` | direct call | Teller key (or anyone with the preimage) | secret-until-close reveal, on-chain forever |
 | `execute` | direct call | **permissionless** after Succeeded | performs the Calls; keeper fires it |
-| `fund_treasury` | `privacy_invoke` | pool only | anonymous open-note deposit into the House pot |
+| `fund_treasury` | `privacy_invoke` | pool only | public-amount open-note deposit represented by a bearer commitment |
 
 ### 10.2 Return-shape rules (the ones that revert if wrong)
 Funding legs (`BALLOT`, `DELEGATE`, `FUND`) return an **empty span** — money in. Settling legs

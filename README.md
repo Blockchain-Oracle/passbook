@@ -18,7 +18,7 @@ to read.
 
 ## Where each surface actually stands
 
-Six surfaces, one pool. This table is the inventory, not the design.
+Seven modes, one pool. This table is the inventory, not the design.
 
 | Surface | State today |
 |---|---|
@@ -26,18 +26,15 @@ Six surfaces, one pool. This table is the inventory, not the design.
 | **Chat** | **Live end to end.** Multi-conversation, one multiplexed socket, sealed messages, money attached to a message, opt-in public name directory. |
 | **Swap** | **Live end to end.** Real route priced through an on-chain aggregator, executed in one transaction, proceeds land back in the pool. |
 | **Bridge** | **Live, outbound only.** Shielded USDC to another chain through StarkWare's deployed `OutboundAnonymizer`. See the limits below — they are real. |
-| **Markets** | **Contract written and tested; not deployed.** 52 snforge tests. The surface is built and the prices on it are live from Pragma — the same oracle a market will settle against. There are no markets to bet on until the declare lands. |
-| **Launch** | **Contract written and tested; not deployed.** 47 snforge tests. The surface explains the epoch mechanism; nothing can be created until the declare lands. |
+| **Markets** | **Deployed on Starknet mainnet.** Live Pragma prices, real market records, bets, cash-out while eligible and terminal claims/refunds. |
+| **Launch** | **Deployed on Starknet mainnet.** Real sale records, buys, graduation redemption and failed-raise refunds. |
+| **Houses** | **Readable on Starknet mainnet; affected writes blocked.** The deployed class predates the tally-key and duplicate-exclusion corrections, so the app fails closed until a separately authorized corrected deployment updates the evidence. |
 
-**Markets and Launch say exactly that on their own screens.** No fixture rows, no greyed-out
-mock with plausible odds in it — a screenshot of invented markets is indistinguishable from a
-working product, which is the one thing that would make everything else here untrustworthy.
-`packages/protocol/src/app-contracts.ts` reads `evidence/markets-launch-deployment.json`; that
-file does not exist yet, so the addresses are absent, and absent means the controls that would
-submit are **not rendered at all** rather than rendered and disabled. The deploy is staged at
-`scripts/ops/deploy-markets-launch.ts` and waits on funding the declares.
+`packages/protocol/src/app-contracts.ts` reads `evidence/markets-launch-deployment.json`; absent or
+malformed evidence still fails closed. No surface substitutes fixture rows or invented price
+movement when a chain read is empty or unavailable.
 
-### What is live on Markets today, with zero deployment
+### Market price provenance
 
 Pragma's `get_data_median` is a free view call on a contract that has been on mainnet for years,
 so the price strip and the chart are real reads from first paint. A live read taken while writing
@@ -326,7 +323,8 @@ version of it to hand to an accountant, and this repository will never offer one
 protocol does not have one.
 
 **Amounts are public on any leg that touches an open note.** A swap, a launch buy and a market bet
-all publish their size. What is hidden is who.
+all publish their size. Markets and Launch store bearer commitments instead of buyer addresses,
+but the public transaction still identifies its submitter and the relayer sees request metadata.
 
 **The audit does not cover the current code.** The OpenZeppelin audit of the underlying protocol is
 scoped to commit `c5e2fb5` (May 2026). Anything newer than that commit, including everything in

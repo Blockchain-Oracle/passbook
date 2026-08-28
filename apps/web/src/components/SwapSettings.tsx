@@ -148,7 +148,7 @@ export function SwapSettings({ slippageBps, onSlippageChange }: SwapSettingsProp
                 aria-invalid={customProblem !== null}
                 className={cn(
                   'numeric min-w-0 flex-1 bg-transparent text-buttonLabel4 text-neutral1',
-                  'outline-none placeholder:text-neutral3',
+                  'placeholder:text-neutral3',
                 )}
               />
               <span className="numeric shrink-0 text-buttonLabel4 text-neutral2">%</span>
@@ -171,4 +171,3 @@ export function SwapSettings({ slippageBps, onSlippageChange }: SwapSettingsProp
     </div>
   )
 }
-

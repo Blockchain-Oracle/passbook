@@ -24,11 +24,11 @@ const envFile = loadDotEnv()
 
 /**
  * The class hash of the contract that was actually reviewed and tested — computed from the
- * artifacts of the committed source (18 snforge tests green, the accumulator cross-pinned to
- * governance-commitment.test.ts) on 28 Aug 2026. A drift here means the Cairo changed after
+ * artifacts of the committed source (key binding and unique exclusions included, with the
+ * accumulator cross-pinned to governance-commitment.test.ts) on 28 Aug 2026. A drift here means the Cairo changed after
  * review; the script stops rather than paying for bytes nobody looked at.
  */
-const GOVERNANCE_CLASS_HASH = '0x7240c52656a0a5250649b4db768fbe6ad43e794b11d036ebb19904ff4bb8f20'
+const GOVERNANCE_CLASS_HASH = '0x61bd2b40dd4dbf1fb9620023854e834dbd4e87cc84bc60839fcb4dc76f78c40'
 
 const ARTIFACT = 'contracts/target/dev/strk20_app_Governance'
 const OUTPUT_FILE = 'evidence/markets-launch-deployment.json'

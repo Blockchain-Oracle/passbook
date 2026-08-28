@@ -11,10 +11,8 @@
 //
 // ── THE MARK IS DERIVED FROM THE ADDRESS, AND THAT IS ALL IT CLAIMS ───────────────────────
 //
-// No avatar service, no name service, no directory. The disc's colour is seeded from the address
-// itself, so the same address always draws the same mark and two different addresses almost never
-// do — which is enough to notice a paste that changed, and is not a claim to have identified
-// anybody. Anything more would be a lookup this product refuses to make on the user's behalf.
+// A directory name remains only a label somebody claimed. The disc is still derived from the
+// resolved address, so the address remains visible and checkable underneath the name.
 //
 // ── AND "NOT REGISTERED" IS NOT RED ───────────────────────────────────────────────────────
 //
@@ -39,7 +37,8 @@ export function RecipientField({ value, onValueChange, status }: RecipientFieldP
   const resolved = status.kind === 'registered'
   // The two states where the field itself is wrong. `unregistered` and `unreadable` are facts about
   // the world, not about what was typed, so they get the ordinary colour and their own sentence.
-  const wrong = status.kind === 'invalid' || status.kind === 'self'
+  const wrong =
+    status.kind === 'invalid' || status.kind === 'self' || status.kind === 'unresolved-name'
   const showWrong = wrong && value.trim() !== ''
 
   return (
@@ -60,16 +59,16 @@ export function RecipientField({ value, onValueChange, status }: RecipientFieldP
             url={null}
             // Three hex characters off the front, which is what a person actually compares when
             // they check a pasted address against the one they were given.
-            symbol={value.trim().replace(/^0x/i, '').slice(0, 3)}
-            name={value.trim()}
+            symbol={status.name ? status.name.slice(0, 3) : status.address.replace(/^0x/i, '').slice(0, 3)}
+            name={status.name ? `@${status.name}` : status.address}
             size={36}
           />
           <span className="flex min-w-0 flex-1 flex-col">
-            <Text variant="body2" className="numeric truncate text-neutral1">
-              {value.trim()}
+            <Text variant="body2" className="truncate text-neutral1">
+              {status.name ? `@${status.name}` : status.address}
             </Text>
-            <Text variant="body4" className="text-neutral2">
-              Registered with the pool
+            <Text variant="body4" className="numeric truncate text-neutral2">
+              {status.name ? status.address : 'Registered with the pool'}
             </Text>
           </span>
           <button
@@ -92,11 +91,11 @@ export function RecipientField({ value, onValueChange, status }: RecipientFieldP
           spellCheck={false}
           value={value}
           onChange={(event) => onValueChange(event.target.value)}
-          placeholder="0x…"
-          aria-label="Recipient address"
+          placeholder="0x… or @name"
+          aria-label="Recipient address or name"
           aria-invalid={showWrong || undefined}
           className={cn(
-            'numeric min-h-s36 w-full bg-transparent text-body2 outline-none',
+            'numeric min-h-s36 w-full bg-transparent text-body2',
             'placeholder:font-sans placeholder:text-neutral3',
             showWrong ? 'text-irreversible' : 'text-neutral1',
           )}
@@ -129,9 +128,9 @@ export function recipientNote(status: RecipientStatus, value: string): string {
   switch (status.kind) {
     case 'idle':
     case 'checking':
-      return 'Checking whether this address can receive…'
+      return 'Checking whether this recipient can receive…'
     case 'invalid':
-      return 'That is not a Starknet address.'
+      return status.because
     case 'self':
       return 'That is your own address — a send to yourself costs a fee and moves nothing.'
     case 'unregistered':
@@ -141,7 +140,9 @@ export function recipientNote(status: RecipientStatus, value: string): string {
       return status.door.message
     case 'unreadable':
       return `The chain could not be read, so nothing is known about this address yet: ${status.because}`
+    case 'unresolved-name':
+      return status.because
     case 'registered':
-      return 'Registered with the pool'
+      return status.name ? `@${status.name} resolves locally to a registered pool account.` : 'Registered with the pool'
   }
 }

@@ -142,7 +142,7 @@ export function CurrencyPanel({
             // `-1.5`). The owner of this panel runs that and hands back what it returned.
             onChange={(event) => onValueChange?.(event.target.value)}
             className={cn(
-              'numeric w-full bg-transparent font-medium outline-none',
+              'numeric w-full bg-transparent font-medium',
               'placeholder:text-neutral3',
               invalid ? 'text-irreversible' : 'text-neutral1',
             )}

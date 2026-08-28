@@ -155,8 +155,8 @@ describe('the rendered page makes none of the ten refused claims', () => {
     // Proves the sweep is pointed at the whole page rather than at the generated blocks: the phrase
     // is planted OUTSIDE every marker, where nothing else in this repository was looking.
     const planted = doc().replace(
-      'Your six surfaces are **unlinkable to other users**.',
-      'Your six surfaces are unlinkable across surfaces.',
+      'Your seven surfaces are **unlinkable to other users**.',
+      'Your seven surfaces are unlinkable across surfaces.',
     )
     expect(forbiddenClaimsIn(planted)).toContain('unlinkable across surfaces')
   })

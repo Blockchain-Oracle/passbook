@@ -25,10 +25,10 @@
 /** Minimum Wallet API version implementing the STRK20 methods (Ready ≥ this). */
 export const MIN_WALLET_API = '0.10.3'
 
-/** The public-deposit honesty line — shipped before any deposit (FR-017). */
-export const PUBLIC_DEPOSIT_NOTICE =
-  'Your deposit is public. This address and this amount are visible on Starknet. ' +
-  'Privacy starts after the deposit, not at it.'
+/** The public-funding honesty line — shown before the connected wallet signs (FR-017). */
+export const PUBLIC_FUNDING_NOTICE =
+  'This funding transfer is public. The sender, Passbook address and amount are visible on Starknet. ' +
+  'Privacy starts only when the embedded Passbook account shields those funds.'
 
 /** Semver-ish compare of dotted numeric versions: a >= b. Missing segments read as 0. */
 export function versionGte(a: string, b: string): boolean {

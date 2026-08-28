@@ -2,8 +2,8 @@
 // The Markets and Launch sentences, byte-exact (Wave 3).
 //
 // The two properties worth testing here are the ones a screenshot cannot show: that the empty
-// states say the contracts are NOT DEPLOYED rather than implying an empty market, and that no
-// sentence widens the privacy claim past "who" into "how much".
+// states distinguish a build with no recorded deployment from an empty live registry, and that no
+// sentence widens the contract-level bearer-commitment protection into transaction anonymity.
 //
 import { describe, it, expect } from 'vitest'
 
@@ -11,16 +11,15 @@ import * as copy from '../src/markets-copy.js'
 import { FORBIDDEN_CLAIMS } from '../src/forbidden-claims.js'
 
 describe('the empty states name what is missing and what would fill it', () => {
-  it('the markets empty state says the contract is not deployed, and what IS live', () => {
+  it('the markets empty state says deployment evidence is missing, and what IS live', () => {
     expect(copy.MARKETS_NOT_DEPLOYED).toBe(
-      'No markets yet. The contract is written and tested but not deployed, so there is nothing ' +
-        'to bet on until it lands — the prices above are live from the same oracle a market will ' +
-        'settle against.',
+      'The Markets deployment is missing from this build, so writes are unavailable. Prices remain ' +
+        'live from the same oracle a verified deployment settles against.',
     )
     // The distinction a reader needs: "this is a mockup" versus "this is waiting on a
     // transaction". The sentence has to carry the checkable half.
-    expect(copy.MARKETS_NOT_DEPLOYED).toMatch(/not deployed/)
-    expect(copy.MARKETS_NOT_DEPLOYED).toMatch(/prices above are live/)
+    expect(copy.MARKETS_NOT_DEPLOYED).toMatch(/deployment is missing/)
+    expect(copy.MARKETS_NOT_DEPLOYED).toMatch(/Prices remain live/)
   })
 
   it('not-deployed and none-open are different facts with different sentences', () => {
@@ -38,8 +37,7 @@ describe('the empty states name what is missing and what would fill it', () => {
 
   it('the launch empty state does the same', () => {
     expect(copy.LAUNCH_NOT_DEPLOYED).toBe(
-      'No launches yet. The contract is written and tested but not deployed, so nothing can be ' +
-        'created until it lands.',
+      'The Launch deployment is missing from this build, so creation and buying are unavailable.',
     )
     expect(copy.LAUNCH_NONE_OPEN).toBe(
       'No launches are open right now. Anyone can start one, and it graduates when it fills.',
@@ -47,15 +45,15 @@ describe('the empty states name what is missing and what would fill it', () => {
   })
 })
 
-describe('the privacy claim is about WHO, never about how much', () => {
-  it('both standing lines say the size is public and the account is not', () => {
+describe('the privacy claim is narrow and names the transaction submitter', () => {
+  it('both standing lines say what is public and what each contract records', () => {
     expect(copy.MARKETS_STANDING_LINE).toBe(
-      'Take a side on where a price ends up. The size you bet and the odds you move are public; ' +
-        'which account placed the bet is not.',
+      'Take a side on where a price ends up. The size, odds movement and transaction submitter are ' +
+        'public; the Markets record stores a bearer commitment instead of a bettor address.',
     )
     expect(copy.LAUNCH_STANDING_LINE).toBe(
-      'Buy into a token as it is being sold. The price and the progress are public; who is buying ' +
-        'is not.',
+      'Buy into a token as it is being sold. Price, progress and transaction submitter are public; ' +
+        'the Launch record stores a bearer commitment instead of a buyer address.',
     )
     // The sponsor's own rule: claim identity privacy, never amount privacy.
     expect(copy.MARKETS_STANDING_LINE).toMatch(/public/)
@@ -74,12 +72,12 @@ describe('the privacy claim is about WHO, never about how much', () => {
     expect(copy.DENOMINATION_ALONE).toMatch(/identifiable/)
   })
 
-  it('the launch hides the buyer without claiming the price is hidden', () => {
+  it('the launch names its narrow contract record without claiming transaction anonymity', () => {
     expect(copy.LAUNCH_BUYER_HIDDEN).toBe(
-      'Buys arrive as withdrawals from the pool, so the launch records no buyer address. The ' +
-        'price action is fully visible; the buyers are not.',
+      'The Launch contract records a bearer commitment instead of a buyer address. The price action ' +
+        'and transaction submitter remain visible.',
     )
-    expect(copy.LAUNCH_BUYER_HIDDEN).toMatch(/fully visible/)
+    expect(copy.LAUNCH_BUYER_HIDDEN).toMatch(/remain visible/)
     // The banned absolute, caught by the forbidden-claims sweep on the first draft of this very
     // sentence: the address DOES appear, on the deposit and on any public withdrawal. This
     // contract simply never records it.

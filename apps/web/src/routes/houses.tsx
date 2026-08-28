@@ -8,7 +8,11 @@ import { HouseCard } from '../components/houses/HouseCard'
 import { YourPositions } from '../components/launch/YourPositions'
 import { Button } from '../components/ui/Button'
 import { Text } from '../components/ui/Text'
-import { GOVERNANCE_DEPLOYED } from '../shell/app-contracts'
+import {
+  GOVERNANCE_DEPLOYED,
+  GOVERNANCE_WRITE_SAFETY,
+  GOVERNANCE_WRITES_ENABLED,
+} from '../shell/app-contracts'
 import { useGovernance } from '../shell/use-governance'
 import { Surface } from '../shell/Surface'
 
@@ -43,7 +47,7 @@ function Houses() {
             <Text variant="display2" as="h1" className="text-neutral1 lg:text-display1">
               Houses
             </Text>
-            {GOVERNANCE_DEPLOYED ? (
+            {GOVERNANCE_WRITES_ENABLED ? (
               <Button variant="primary" size="md" onClick={() => setCreating(true)}>
                 Create a House
               </Button>
@@ -58,6 +62,17 @@ function Houses() {
 
         {GOVERNANCE_DEPLOYED ? (
           <>
+            {!GOVERNANCE_WRITE_SAFETY.enabled ? (
+              <section className="rounded-large border border-solid border-exposed bg-exposedTint p-s16">
+                <Text variant="subheading2" as="h2" className="text-neutral1">
+                  Houses are read-only
+                </Text>
+                <Text variant="body3" className="mt-s4 max-w-[72ch] text-neutral2">
+                  {GOVERNANCE_WRITE_SAFETY.because} Existing Houses and their records remain
+                  visible, but creating, proposing, voting, joining and funding are unavailable.
+                </Text>
+              </section>
+            ) : null}
             {read.problem ? (
               <Text variant="body4" className="text-exposed" role="status">
                 {read.problem}
@@ -72,9 +87,11 @@ function Houses() {
                     : 'No House is standing yet. Any token can raise one — including one launched next door.'}
                 </Text>
                 {/* ONE VERB. "Activate" and "Raise" were two more words for the same action. */}
-                <Button variant="primary" size="md" className="self-start" onClick={() => setCreating(true)}>
-                  Create the first one
-                </Button>
+                {GOVERNANCE_WRITES_ENABLED ? (
+                  <Button variant="primary" size="md" className="self-start" onClick={() => setCreating(true)}>
+                    Create the first one
+                  </Button>
+                ) : null}
               </section>
             ) : (
               <div className="flex flex-col gap-s12">
@@ -97,17 +114,17 @@ function Houses() {
               Not standing yet
             </Text>
             <Text variant="body3" className="mt-s4 max-w-[70ch] text-neutral2">
-              The Governor is written and tested — 18 contract tests hold the accumulator that
-              makes a wrong tally unpublishable — and its deploy has not landed. When it does,
-              this surface lights up with no further release.
+              No Governance deployment is recorded for this build. Houses appear here only from
+              verified deployment evidence; no placeholder address or fixture is used.
             </Text>
           </section>
         )}
 
         <footer className="rounded-large border border-solid border-surface3 p-s16">
           <Text variant="body4" className="text-neutral3">
-            {GOV_BALLOT_VISIBLE} Until close, our Teller can read choices early; it cannot forge,
-            drop or miscount them — the contract checks the math before a tally can publish.
+            {GOV_BALLOT_VISIBLE} Until close, our Teller can read choices early. The corrected
+            contract binds a revealed key to the configured tally key and rejects duplicate or
+            mismatched exclusions before it accepts a tally.
           </Text>
         </footer>
 

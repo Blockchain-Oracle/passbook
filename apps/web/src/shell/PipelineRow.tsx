@@ -11,6 +11,7 @@ import { STAGE_TITLES } from '@strk20/protocol/pipeline-stage'
 import {
   canCancel,
   cancelPipeline,
+  clearPipeline,
   getPipeline,
   subscribe,
 } from './pipeline-store.js'
@@ -35,10 +36,13 @@ export function PipelineRow() {
   // a failed send left the shell reading "Finishing · 12:03", ticking upward forever. Naming what
   // happened and freezing the clock is the difference between a status row and a stuck one.
   //
-  const failed = pipeline.failedAt !== null
-  const done = !failed && !current
+  const failed = pipeline.terminal === 'failed' || pipeline.failedAt !== null
+  const unknown = pipeline.terminal === 'confirmation-unknown'
+  const done = pipeline.terminal === 'confirmed' || (!failed && !unknown && !current)
 
-  const detail = failed
+  const detail = unknown
+    ? 'Confirmation unknown'
+    : failed
     ? 'Stopped'
     : done
       ? `Done · ${elapsedLabel(elapsedMs)}`
@@ -54,7 +58,7 @@ export function PipelineRow() {
       {/* The indeterminate ring while anything is running — the honest spinner class the progress
           machine already ships. Terminal states drop it: a still chip is the "nothing is running"
           signal. */}
-      {!failed && !done ? <span aria-hidden="true" className="step-ring shrink-0" /> : null}
+      {!failed && !unknown && !done ? <span aria-hidden="true" className="step-ring shrink-0" /> : null}
       <span className="text-body3">{pipeline.label}</span>
       {/*
         `aria-hidden` on the ticking half, and it is not a detail. This row is a polite live region;
@@ -67,12 +71,25 @@ export function PipelineRow() {
       </span>
       {/* [STUDIO] The chip's one reassurance: navigation cannot lose this. Decorative beside the
           live status, so it is hidden from assistive technology rather than announced every tick. */}
-      {!failed && !done ? (
+      {!failed && !unknown && !done ? (
         <span aria-hidden="true" className="whitespace-nowrap text-body4 text-neutral3">
           survives navigation
         </span>
       ) : null}
-      <span className="sr-only">{failed ? 'Stopped' : done ? 'Done' : STAGE_TITLES[current!.stage]}</span>
+      <span className="sr-only">
+        {unknown ? 'Confirmation unknown' : failed ? 'Stopped' : done ? 'Done' : STAGE_TITLES[current!.stage]}
+      </span>
+
+      {pipeline.explorerUrl ? (
+        <a
+          href={pipeline.explorerUrl}
+          target="_blank"
+          rel="noreferrer"
+          className="focus-ring whitespace-nowrap text-buttonLabel4 text-accent1 hover:underline"
+        >
+          View transaction ↗
+        </a>
+      ) : null}
 
       {/*
         Present only while cancelling is real. A greyed-out or no-op Cancel would be exactly the
@@ -86,6 +103,11 @@ export function PipelineRow() {
           onClick={cancelPipeline}
         >
           Cancel
+        </button>
+      ) : null}
+      {failed || unknown || done ? (
+        <button type="button" className="focus-ring text-buttonLabel4" onClick={clearPipeline}>
+          Dismiss
         </button>
       ) : null}
     </div>

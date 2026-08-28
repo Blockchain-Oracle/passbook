@@ -623,6 +623,16 @@ pub mod Governance {
             let mut i: u32 = 0;
             while i != excluded.len() {
                 let identity = *excluded.at(i);
+                // An identity is one ballot, however many times a caller repeats it in calldata.
+                // Refuse duplicates before touching the accumulator or the public-weight total;
+                // otherwise the same ballot is subtracted twice and conservation checks the wrong
+                // electorate. A short span (normally empty) makes the explicit O(n²) uniqueness
+                // check cheaper and clearer than a storage-backed scratch set.
+                let mut prior: u32 = 0;
+                while prior != i {
+                    assert(*excluded.at(prior) != identity, 'DUPLICATE_EXCLUSION');
+                    prior += 1;
+                };
                 let ballot = self.ballots.read((proposal_id, identity));
                 assert(ballot.state == BALLOT_LIVE, 'EXCLUDED_NOT_LIVE');
                 excluded_weight += ballot.weight;
@@ -708,8 +718,15 @@ pub mod Governance {
             assert(get_block_timestamp() >= proposal.deadline, 'TOO_EARLY');
             assert(proposal.published_key == 0, 'KEY_ALREADY_PUBLISHED');
             assert(key != 0, 'ZERO_KEY');
-            // Permissionless ON PURPOSE: a wrong key fails to decrypt anything and forges
-            // nothing, so gatekeeping it would only add a party able to withhold it.
+            // Permissionless, but not unbound: the revealed scalar must derive the public x every
+            // ballot encrypted to. Without this check the first non-zero scalar permanently wins
+            // the slot and can make the public ballot book undecryptable.
+            let g: EcPoint = EcPointTrait::new(G_X, G_Y).expect('G_OFF_CURVE');
+            let mut key_state = EcStateTrait::init();
+            key_state.add_mul(key, g.try_into().expect('G_ZERO'));
+            let key_point = key_state.finalize_nz().expect('ZERO_KEY');
+            let (key_x, _) = key_point.coordinates();
+            assert(key_x == proposal.tally_key, 'TALLY_KEY_MISMATCH');
             proposal.published_key = key;
             self.proposals.write(proposal_id, proposal);
             self.emit(KeyPublished { proposal_id, key });

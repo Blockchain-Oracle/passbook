@@ -3,8 +3,8 @@
 //
 // ── THE TWO SIDES, AND WHY ONE OF THEM IS ALMOST ALWAYS NULL ──────────────────────────────
 //
-// The story asks for "one closed union covering all six surfaces". The chain does not agree that
-// six surfaces exist: a swap, a bridge exit, a market bet and a chat payment all land as some
+// The product asks for one closed union covering all seven surfaces. The chain does not expose
+// those seven intents: a swap, a bridge exit, a market bet and a chat payment all land as some
 // arrangement of `NoteUsed` and `EncNoteCreated`, and from the public record they are
 // indistinguishable. That is the product's central claim, not a gap in it.
 //
@@ -12,7 +12,7 @@
 // pool would see. `surface` is what only THIS browser knows, because this browser is what
 // submitted it — and it is `null` on every row reconstructed from the record, including our own
 // past ones. A Global row wearing a `Swap` tag would falsify the standing line printed three
-// inches above it (`activity-copy.ts:39`): six identities unlinkable to other users, assembled
+// inches above it (`activity-copy.ts:39`): seven identities unlinkable to other users, assembled
 // here rather than joined up on chain. Inferring intent from a nullifier is exactly the linkage
 // the sentence says does not exist.
 //
@@ -36,7 +36,7 @@ import type { OptionRow } from './option-row.js'
 import type { ActivityEntry, ActivityKind } from './activity-entry.js'
 import type { PipelineStage } from './pipeline-stage.js'
 
-// ── The six surfaces ──────────────────────────────────────────────────────────────────────
+// ── The seven surfaces ────────────────────────────────────────────────────────────────────
 
 /**
  * Every surface that can originate a transaction. In nav order.
@@ -88,7 +88,14 @@ export type TransactionChain =
    * carried rather than derived from `reason`: §5's rule is that classification precedes copy, and
    * a component pattern-matching a reason string is classification happening in the wrong place.
    */
-  | { state: 'failed'; retryable: boolean; reason: string }
+  | {
+      state: 'failed'
+      retryable: boolean
+      reason: string
+      /** Present when broadcast succeeded but confirmation did not. */
+      transactionHash?: string | null
+      submitted?: boolean
+    }
 
 export interface Transaction {
   /** `<txHash>-<ordinal>` for a settled row; whatever the submitter minted for an optimistic one. */

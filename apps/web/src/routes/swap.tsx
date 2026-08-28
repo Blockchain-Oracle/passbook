@@ -28,6 +28,7 @@ import { useSend } from '../shell/use-send'
 import { useSession } from '../shell/session'
 import { useTokenList } from '../shell/use-token-list'
 import { Surface } from '../shell/Surface'
+import { stageLabel } from '../shell/stage-labels'
 
 export const Route = createFileRoute('/swap')({
   component: Swap,
@@ -482,9 +483,10 @@ function Swap() {
                   : building
                     ? 'Getting the route…'
                     : sending.stage
-                      ? STAGE_LABEL[sending.stage] ?? 'Working…'
+                      ? stageLabel(sending.stage)
                       : (buildProblem ?? sending.problem)
           }
+          dismissible={sending.stage === null}
         />
       ) : null}
 
@@ -593,10 +595,3 @@ function Row({
  * `mature` is the wait nobody expects — a note exists on chain before the pool will let it be
  * spent — so it says what is being waited for rather than naming the state.
  */
-const STAGE_LABEL: Record<string, string> = {
-  build: 'Building the swap…',
-  prove: 'Proving…',
-  relay: 'Signing and broadcasting…',
-  mature: 'Waiting for the pool to accept it…',
-  confirmed: 'Confirming on chain…',
-}

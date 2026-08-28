@@ -53,6 +53,9 @@ docs/*
 # The governance spec (walk 3, RFP IDEA-27). It ships with the branch so the merge back to main
 # carries the architecture the managers argue with; same reasoning as topology above.
 !docs/governance.md
+# The maintained authenticated-app implementation ledger. Dated handoffs stay historical; this
+# file is the normal repository source for shipped, retained, deployment-blocked and scoped-out work.
+!docs/studio-rebuild-status.md
 
 # Upstream sources cloned for ground truth — not ours to ship
 reference/

@@ -89,6 +89,8 @@ export interface CreationState {
   failedAt: OnboardingStage | null
   /** Set once the drip lands — the amount and hash the chip reports. */
   receipt: { amount: string; txHash: string } | null
+  /** Set once registration confirms — the terminal receipt for the account creation. */
+  registrationReceipt?: { txHash: string; block: number | null } | null
   /** True once the whole ladder has confirmed. */
   done: boolean
 }
@@ -124,6 +126,8 @@ export interface ConversionPanelProps {
   /** Renders the ceremony. Calls `onDone` when the code is confirmed and the file is saved. */
   renderBackup: (onDone: () => void) => React.ReactNode
   onDismiss: () => void
+  /** First-time account creation is mandatory; later account-management uses may opt out. */
+  dismissible?: boolean
   /** The live creation state. */
   creation: CreationState
 }
@@ -140,6 +144,7 @@ export function ConversionPanel({
   renderBackup,
   onDismiss,
   creation,
+  dismissible = true,
 }: ConversionPanelProps) {
   const [index, setIndex] = useState(0)
   const [name, setName] = useState('')
@@ -162,11 +167,11 @@ export function ConversionPanel({
   // over a transaction that cannot be taken back.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && !running) onDismiss()
+      if (e.key === 'Escape' && !running && dismissible) onDismiss()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [onDismiss, running])
+  }, [dismissible, onDismiss, running])
 
   // Focus moves into the panel when it opens, or a screen reader never learns it appeared.
   useEffect(() => {
@@ -189,14 +194,36 @@ export function ConversionPanel({
     <section
       ref={rootRef}
       tabIndex={-1}
+      role="dialog"
+      aria-modal="true"
       aria-label="Create an account"
+      onKeyDown={(event) => {
+        if (event.key !== 'Tab' || !rootRef.current) return
+        const controls = [...rootRef.current.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+        )].filter((element) => !element.hasAttribute('aria-hidden'))
+        if (controls.length === 0) {
+          event.preventDefault()
+          rootRef.current.focus()
+          return
+        }
+        const first = controls[0]!
+        const last = controls[controls.length - 1]!
+        if (event.shiftKey && (document.activeElement === first || document.activeElement === rootRef.current)) {
+          event.preventDefault()
+          last.focus()
+        } else if (!event.shiftKey && document.activeElement === last) {
+          event.preventDefault()
+          first.focus()
+        }
+      }}
       /*
         `inset-s0`, NEVER `inset-0`: the spacing scale is named (`s<N>`), so the numeric utility
         generates NO RULE — a fixed overlay with no offsets sat mid-page.
       */
-      className="fixed inset-s0 z-modal flex flex-col overflow-y-auto bg-ground outline-none"
+      className="fixed inset-s0 z-modal flex flex-col overflow-y-auto bg-ground"
     >
-      {/* The gold radial wash. Atmosphere only, so it neither takes clicks nor reaches a reader. */}
+      {/* The lime radial wash. Atmosphere only, so it neither takes clicks nor reaches a reader. */}
       <div aria-hidden="true" className="onboarding-glow pointer-events-none absolute inset-s0" />
 
       <header className="relative flex items-center justify-between gap-s12 px-s24 py-s20">
@@ -206,7 +233,7 @@ export function ConversionPanel({
         </span>
         {/* Suppressed once the ladder starts: there is nothing to skip over a transaction that is
             already away, and nothing to skip after it lands. */}
-        {running || done ? null : (
+        {running || done || !dismissible ? null : (
           <button
             type="button"
             onClick={onDismiss}
@@ -403,6 +430,26 @@ function Ladder({ creation, inviter }: { creation: CreationState; inviter: strin
           </a>
         </div>
       ) : null}
+      {creation.registrationReceipt ? (
+        <div className="flex flex-col gap-s2 rounded-card bg-inset p-s12">
+          <Text variant="body3" className="text-settled">
+            Account registered
+          </Text>
+          <Text variant="body4" className="text-neutral3">
+            {creation.registrationReceipt.block === null
+              ? 'Confirmed on Starknet.'
+              : `Confirmed in block ${creation.registrationReceipt.block}.`}
+          </Text>
+          <a
+            href={`https://voyager.online/tx/${creation.registrationReceipt.txHash}`}
+            target="_blank"
+            rel="noreferrer"
+            className="focus-ring self-start font-mono text-mono text-neutral3 underline hover:text-neutral1"
+          >
+            {`tx ${creation.registrationReceipt.txHash.slice(0, 6)}…${creation.registrationReceipt.txHash.slice(-4)} ↗`}
+          </a>
+        </div>
+      ) : null}
     </div>
   )
 }
@@ -470,7 +517,7 @@ function NameScreen({
           placeholder={NAME_PLACEHOLDER}
           aria-label="Your name"
           autoComplete="off"
-          className="focus-ring w-full rounded-control bg-inset px-s12 py-s12 text-body1 text-neutral1 outline-none placeholder:text-neutral3"
+          className="focus-ring w-full rounded-control bg-inset px-s12 py-s12 text-body1 text-neutral1 placeholder:text-neutral3"
         />
         {/* THE PREVIEW ONLY EXISTS ONCE THERE IS A NAME — the prototype's `prevOn: nm!==''`.
             "You'll be @ — anyone can pay you by typing it" is a sentence about nothing. */}

@@ -70,10 +70,16 @@ describe('the directory', () => {
     expect(directory.list()[0]!.name).toBe('sam')
   })
 
+  it('accepts hyphens as well as underscores in a directory name', async () => {
+    const { directory } = fresh()
+    expect(await directory.claim(claimBody('sam-wise'))).toEqual({ ok: true })
+    expect(directory.list()[0]!.name).toBe('sam-wise')
+  })
+
   it('refuses a malformed name, address, signature, and avatar — each with its own sentence', async () => {
     const { directory } = fresh()
     expect(await directory.claim({ ...claimBody('sam'), name: 'x' })).toMatchObject({ status: 400 })
-    expect(await directory.claim({ ...claimBody('sam'), name: 'Da-sh' })).toMatchObject({ status: 400 })
+    expect(await directory.claim({ ...claimBody('sam'), name: 'Da sh' })).toMatchObject({ status: 400 })
     expect(await directory.claim({ ...claimBody('sam'), address: 'not-hex' })).toMatchObject({ status: 400 })
     expect(await directory.claim({ ...claimBody('sam'), signature: { r: 'zz', s: '0x1' } })).toMatchObject({ status: 400 })
     expect(await directory.claim(claimBody('sam', ADDRESS, VIEWING_KEY, 'data:text/html;base64,PGI+'))).toMatchObject({ status: 400 })
@@ -171,4 +177,3 @@ describe('the directory', () => {
     expect(DIRECTORY_CAP).toBe(5_000)
   })
 })
-
