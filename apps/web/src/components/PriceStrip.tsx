@@ -180,7 +180,8 @@ function SprungPrice({
         */}
         <span
           className={cn(
-            'numeric text-heading3 tabular-nums',
+            // The machine voice [STUDIO]: money is Space Mono, always.
+            'numeric font-mono text-heading3 tabular-nums',
             stale ? 'text-neutral3' : 'text-neutral1',
           )}
           // The accessible value is the REAL reading, never the in-flight spring value: a screen
