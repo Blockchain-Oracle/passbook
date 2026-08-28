@@ -22,6 +22,13 @@ import { extendTailwindMerge } from 'tailwind-merge'
 
 /** Every `--text-*` key in the token sheet. These are SIZES (each also carrying leading/weight). */
 export const TEXT_SIZES = [
+  'displayHero',
+  'display1',
+  'display2',
+  'display3',
+  'display4',
+  'kicker',
+  'navLabel',
   'heading1',
   'heading2',
   'heading3',

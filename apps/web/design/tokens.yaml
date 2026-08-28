@@ -1,94 +1,101 @@
-# Passbook design tokens — SPORE direction. [RATIFIED Abu 2026-08-27] Every colour below is a
-# published Uniswap interface value, lifted verbatim from
-# reference/uniswap-interface/packages/tailwind/css/theme.css (their live Spore generation) and
-# mapped onto this sheet's semantic names. No value is invented; where Uniswap reuses one value
-# across roles (accent3 = neutral1), this sheet reuses it identically. The earlier warm-paper
-# "LEDGER/D27" palette is superseded whole — Abu's ruling on plan review: "just use the Uniswap
-# color for both light mode and dark mode."
+# Passbook design tokens — STUDIO direction. [RATIFIED Abu 2026-08-28] Every colour below is
+# lifted verbatim from the ratified design prototype ("Passbook Studio", exported 2026-08-27 —
+# Anton display type, mint/black brutalist palette, top pill nav, inverted balance panel) and
+# mapped onto this sheet's existing semantic names. Dark is the PRIMARY theme — the prototype's
+# `:root` block; light is its `[data-pbt="light"]` block. The Uniswap SPORE palette is superseded
+# whole. One deliberate role change: accent3 (the CTA fill) is now the accent itself rather than
+# an ink alias — Studio's primary buttons are gold with near-black text, and `.cta`'s
+# `color: ground` produces exactly that in both modes.
 colors:
   light:
-    ground: "#ffffff"            # [UNI surface1-light] page background
-    raised: "#ffffff"            # [UNI surface1-light] cards are white-on-white behind a surface3 border
-    raisedHovered: "#fcfcfc"     # [UNI surface1-hovered-light]
-    inset: "#f9f9f9"             # [UNI surface2-light] wells, inputs at rest, code areas
-    insetHovered: "#f2f2f2"      # [UNI surface2-hovered-light]
-    surface3: "rgba(19,19,19,0.08)"        # [UNI surface3-light] borders + nested fills
-    surface3Hovered: "rgba(19,19,19,0.10)" # [UNI surface3-hovered-light]
-    surface3Solid: "#f2f2f2"     # [UNI surface3-solid-light]
-    surface4: "rgba(255,255,255,0.64)"     # [UNI surface4-light] translucent overlay layer
-    scrim: "rgba(0,0,0,0.60)"    # [UNI scrim]
-    neutral1: "#131313"          # [UNI neutral1-light] primary ink — never #000
-    neutral1Hovered: "rgba(19,19,19,0.83)" # [UNI neutral1-hovered-light]
-    neutral2: "rgba(19,19,19,0.63)"        # [UNI neutral2-light] secondary text
-    neutral2Hovered: "rgba(19,19,19,0.83)" # [UNI neutral2-hovered-light]
-    # neutral3 stays a SECONDARY cue (see notYetReal below): Uniswap's 0.35 alpha does not meet AA
-    # either — same ruling as before, structure carries "not yet real", never the grey alone.
-    neutral3: "rgba(19,19,19,0.35)"        # [UNI neutral3-light]
-    neutral3Hovered: "rgba(19,19,19,0.55)" # [UNI neutral3-hovered-light]
-    accent1: "#ff37c7"           # [UNI accent1] the pink — same value both modes, no per-mode flip
-    accent1Hovered: "#e500a5"    # [UNI accent1-hovered]
-    accent2: "rgba(255,55,199,0.08)"       # [UNI accent2-light]
-    accent2Hovered: "rgba(255,55,199,0.12)" # [UNI accent2-hovered-light]
-    accent2Solid: "#fff3fc"      # [UNI accent2-solid-light]
-    accent3: "#131313"           # [UNI accent3-light] ink alias — most CTAs are ink, not brand
-    settled: "#0c8911"           # [UNI success-light]
-    settledHovered: "#06742c"    # [UNI success-hovered-light]
-    settledTint: "rgba(15,194,68,0.06)"    # [UNI success-secondary-light]
-    exposed: "#996f01"           # [UNI warning-light]
-    exposedHovered: "#7a5801"    # [UNI warning-hovered-light]
-    exposedTint: "rgba(255,191,23,0.10)"   # [UNI warning-secondary-light]
-    irreversible: "#e10f0f"      # [UNI critical-light]
-    irreversibleHovered: "#bf0d0d"         # [UNI critical-hovered-light]
-    irreversibleTint: "rgba(255,0,0,0.05)" # [UNI critical-secondary-light]
+    ground: "#E7E6E1"            # [STUDIO bg0-light] page background — warm bone, never white
+    raised: "#F4F3EF"            # [STUDIO bg1-light] panels one step up from the page
+    raisedHovered: "#EFEEE9"     # between bg1 and bg2 — hover is a half-step, not a jump
+    inset: "#DBDAD4"             # [STUDIO bg2-light] wells, inputs at rest
+    insetHovered: "#CECDC6"      # [STUDIO bg3-light]
+    surface3: "rgba(10,10,10,0.12)"        # [STUDIO line-light] borders + hairlines
+    surface3Hovered: "rgba(10,10,10,0.24)" # [STUDIO line2-light]
+    surface3Solid: "#CECDC6"     # [STUDIO bg3-light]
+    surface4: "rgba(244,243,239,0.64)"     # translucent overlay layer over bg1
+    scrim: "rgba(20,20,18,0.5)"  # [STUDIO scrim-light]
+    neutral1: "#0A0A0A"          # [STUDIO ink-light]
+    neutral1Hovered: "rgba(10,10,10,0.83)"
+    neutral2: "#55544F"          # [STUDIO ink2-light] secondary text
+    neutral2Hovered: "rgba(10,10,10,0.83)"
+    # neutral3 stays a SECONDARY cue (see notYetReal below) — same ruling as before, structure
+    # carries "not yet real", never the grey alone.
+    neutral3: "#85847E"          # [STUDIO ink3-light]
+    neutral3Hovered: "#55544F"
+    accent1: "#3F6B12"           # [STUDIO gold-light] the lime, darkened to read on bone
+    accent1Hovered: "#2E500A"    # [STUDIO goldB-light]
+    accent2: "rgba(63,107,18,0.13)"        # [STUDIO goldD-light] filled-accent tint
+    accent2Hovered: "rgba(63,107,18,0.20)"
+    accent2Solid: "#DCE1D2"      # goldD composited over bg1
+    accent3: "#3F6B12"           # CTA fill — gold; `.cta` text is `ground`, Studio's onGold
+    settled: "#2F6B45"           # [STUDIO sage-light]
+    settledHovered: "#245536"
+    settledTint: "rgba(47,107,69,0.12)"    # [STUDIO sageD-light]
+    exposed: "#6E5A05"           # [STUDIO warn-light]
+    exposedHovered: "#574704"
+    exposedTint: "rgba(110,90,5,0.13)"     # [STUDIO warnD-light]
+    irreversible: "#A33A55"      # [STUDIO red-light] a rose, not a fire alarm
+    irreversibleHovered: "#832E44"
+    irreversibleTint: "rgba(163,58,85,0.10)" # [STUDIO redD-light]
   dark:
-    ground: "#131313"            # [UNI surface1-dark]
-    raised: "#1f1f1f"            # [UNI surface2-dark] panels one step up from the page
-    raisedHovered: "#242424"     # [UNI surface2-hovered-dark]
-    inset: "#1a1a1a"             # [UNI surface1-hovered-dark] wells read a half-step DOWN from raised
-    insetHovered: "#242424"      # [UNI surface2-hovered-dark] — deliberate value reuse, roles differ
-    surface3: "rgba(255,255,255,0.12)"     # [UNI surface3-dark]
-    surface3Hovered: "rgba(255,255,255,0.16)" # [UNI surface3-hovered-dark]
-    surface3Solid: "#393939"     # [UNI surface3-solid-dark]
-    surface4: "rgba(255,255,255,0.20)"     # [UNI surface4-dark]
-    scrim: "rgba(0,0,0,0.60)"    # [UNI scrim]
-    neutral1: "#ffffff"          # [UNI neutral1-dark]
-    neutral1Hovered: "rgba(255,255,255,0.85)" # [UNI neutral1-hovered-dark]
-    neutral2: "rgba(255,255,255,0.65)"     # [UNI neutral2-dark]
-    neutral2Hovered: "rgba(255,255,255,0.85)" # [UNI neutral2-hovered-dark]
-    neutral3: "rgba(255,255,255,0.38)"     # [UNI neutral3-dark]
-    neutral3Hovered: "rgba(255,255,255,0.58)" # [UNI neutral3-hovered-dark]
-    accent1: "#ff37c7"           # [UNI accent1] identical in both modes, exactly as Uniswap ships it
-    accent1Hovered: "#e500a5"    # [UNI accent1-hovered]
-    accent2: "rgba(255,55,199,0.08)"       # [UNI accent2-dark]
-    accent2Hovered: "rgba(255,55,199,0.12)" # [UNI accent2-hovered-dark]
-    accent2Solid: "#261621"      # [UNI accent2-solid-dark]
-    accent3: "#ffffff"           # [UNI accent3-dark] ink alias
-    settled: "#21c95e"           # [UNI success-dark]
-    settledHovered: "#15863c"    # [UNI success-hovered-dark] — Uniswap hovers DARKEN in dark mode; kept
-    settledTint: "rgba(33,201,94,0.12)"    # [UNI success-secondary-dark]
-    exposed: "#ffbf17"           # [UNI warning-dark]
-    exposedHovered: "#ffdd0d"    # [UNI warning-hovered-dark]
-    exposedTint: "rgba(255,191,23,0.08)"   # [UNI warning-secondary-dark]
-    irreversible: "#ff593c"      # [UNI critical-dark]
-    irreversibleHovered: "#ff401f"         # [UNI critical-hovered-dark]
-    irreversibleTint: "rgba(255,89,60,0.12)" # [UNI critical-secondary-dark]
+    ground: "#0A0A0A"            # [STUDIO bg0] near-black, never #000
+    raised: "#151515"            # [STUDIO bg1] panels one step up from the page
+    raisedHovered: "#1D1D1D"     # [STUDIO bg2]
+    inset: "#1D1D1D"             # [STUDIO bg2] wells read a half-step down from raised
+    insetHovered: "#2A2A2A"      # [STUDIO bg3]
+    surface3: "rgba(240,239,234,0.10)"     # [STUDIO line]
+    surface3Hovered: "rgba(240,239,234,0.20)" # [STUDIO line2]
+    surface3Solid: "#2A2A2A"     # [STUDIO bg3]
+    surface4: "rgba(240,239,234,0.20)"
+    scrim: "rgba(0,0,0,0.72)"    # [STUDIO scrim]
+    neutral1: "#F1F0EB"          # [STUDIO ink] bone white, never #fff
+    neutral1Hovered: "rgba(241,240,235,0.85)"
+    neutral2: "#A3A29C"          # [STUDIO ink2]
+    neutral2Hovered: "rgba(241,240,235,0.85)"
+    neutral3: "#6D6C67"          # [STUDIO ink3]
+    neutral3Hovered: "#8B8A84"
+    accent1: "#C8F57F"           # [STUDIO gold] the lime — the one branded colour
+    accent1Hovered: "#DAFA9F"    # [STUDIO goldB]
+    accent2: "rgba(200,245,127,0.12)"      # [STUDIO goldD] filled-accent tint
+    accent2Hovered: "rgba(200,245,127,0.20)"
+    accent2Solid: "#2A3022"      # goldD composited over bg1
+    accent3: "#C8F57F"           # CTA fill — gold; `.cta` text is `ground`, Studio's onGold
+    settled: "#8FD9A6"           # [STUDIO sage]
+    settledHovered: "#A8E4B8"
+    settledTint: "rgba(143,217,166,0.12)"  # [STUDIO sageD]
+    exposed: "#F2DC4E"           # [STUDIO warn]
+    exposedHovered: "#F7E87A"
+    exposedTint: "rgba(242,220,78,0.12)"   # [STUDIO warnD]
+    irreversible: "#F2A0B4"      # [STUDIO red] a rose, not a fire alarm
+    irreversibleHovered: "#F7B8C7"
+    irreversibleTint: "rgba(242,160,180,0.12)" # [STUDIO redD]
 typography:
-  # [RATIFIED Abu 2026-08-25] IBM Plex Sans, delivered as @fontsource-variable/ibm-plex-sans@5.3.0.
-  # Measured in Chromium at 24px against the shipped woff2: 485 and 535 are both live axis positions
-  # (specimen advances 197.578px / 199.125px), and the digit advance is INVARIANT across them —
-  # a money column cannot shift when a value changes weight.
-  family: "IBM Plex Sans"
-  familyFallback: "Inter"        # one-line swap; Inter's "490/540" is measurably identical to 485/535
-  mono: "ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Monaco, 'Cascadia Mono', 'Segoe UI Mono', 'Roboto Mono', 'Courier New', monospace"  # [UNI] kept — Plex Mono priced but not adopted
-  weights: [485, 535]            # variable-axis positions [UNI]. Plex's axis CLAMPS above 700:
-                                 # a wght token >700 is silently ignored, so the lint forbids one.
-  # Plex ships NO tnum feature and needs none: its digits are 600/1000em at EVERY weight,
-  # unconditionally. `font-variant-numeric: tabular-nums` measures a 0.000px no-op here and stays on
-  # the numeric primitive only as insurance for the Inter fallback. The consequence, accepted with
-  # the ruling: prose can never opt OUT to proportional numerals. Every number sets tabular, always.
+  # [RATIFIED Abu 2026-08-28] The STUDIO triad, delivered as fontsource packages:
+  #   Archivo (@fontsource-variable/archivo@5.3.0, wght axis 100–900) — every sentence
+  #   Anton (@fontsource/anton@5.3.0, single 400 cut) — display headings, ALL-CAPS, never body
+  #   Space Mono (@fontsource/space-mono@5.3.0, 400+700) — money, hashes, kickers, machine facts
+  # Space Mono is monospaced so a money column cannot shift; `tabular-nums` stays on the numeric
+  # primitive as insurance for the system fallback only.
+  family: "Archivo"
+  familyFallback: "Inter"        # one-line swap; loads only for readers with it installed
+  display: "Anton"               # emitted as --font-display; Archivo Variable is its fallback
+  mono: "'Space Mono', ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Monaco, 'Cascadia Mono', 'Segoe UI Mono', 'Roboto Mono', 'Courier New', monospace"
+  weights: [400, 600, 700]       # Studio's axis positions: book text, semibold buttons, bold nav
   numerals: tabular
   scale:
-    heading1: "52/56 -0.02em"    # exists in scale; in-app max is heading2 (08 §7.2)
+    # The display ladder is NEW with Studio: Anton at 400, uppercase at the call site, leading
+    # ~0.9 of size snapped to the 4px grid. Responsive pairs at call sites (display2 → xl:display1)
+    # stand in for the prototype's clamp(), which the step grammar cannot carry.
+    displayHero: "76/64 0.004em" # the wallet balance figure at desktop
+    display1: "62/56 0.004em"    # page titles at desktop
+    display2: "44/40 0.004em"    # page titles at phone width
+    display3: "29/28 0.004em"    # panel titles (Chat list, The record)
+    display4: "19/20 0.02em"     # card headings in display voice
+    heading1: "52/56 -0.02em"    # exists in scale; Archivo headings cap at heading2 in-app
     heading2: "36/40 -0.01em"
     heading3: "24/28 -0.005em"
     subheading1: "18/24"
@@ -98,10 +105,12 @@ typography:
     body3: "14/20"
     body4: "12/16"
     mono: "12/16"
-    buttonLabel1: "18/24 @535"
-    buttonLabel2: "16/24 @535"
-    buttonLabel3: "14/20 @535"
-    buttonLabel4: "12/16 @535"
+    kicker: "11/16 0.16em"       # the mono section kickers — "01 — account", uppercase
+    navLabel: "11/16 0.12em @700" # pill-nav labels, uppercase bold
+    buttonLabel1: "18/24 @600"
+    buttonLabel2: "16/24 @600"
+    buttonLabel3: "14/20 @600"
+    buttonLabel4: "12/16 @600"
 rounded:
   none: 0
   badge: 6
@@ -226,15 +235,16 @@ motion:
   stagger: 40
   properties: "transform + opacity only; never color, never layout height"
 
-# Lifted verbatim from §5 prose (lines 294–301), which was the only place they existed. The
-# generator needs them in the frontmatter, and dark is NOT a tint of light here — dark shadows do
-# 4–12x more work because #1C1813 on #14110D is too weak to read as elevation on its own.
+# [STUDIO] The prototype ships one glow — `0 24px 80px` under every sheet and modal — and that is
+# `large` verbatim in both modes. `short`/`medium` are the same family scaled down. Dark is NOT a
+# tint of light: near-black panels on a near-black page need deep large-radius shadows to read as
+# elevation at all.
 shadows:
   light:
-    short:  "0 1px 6px 2px rgba(19,19,19,0.03), 0 1px 2px 0 rgba(19,19,19,0.02)"
-    medium: "0 6px 12px -3px rgba(19,19,19,0.04), 0 2px 5px -2px rgba(19,19,19,0.03)"
-    large:  "0 10px 20px -5px rgba(19,19,19,0.05), 0 4px 12px -3px rgba(19,19,19,0.04)"
+    short:  "0 1px 4px 0 rgba(40,40,36,0.08)"
+    medium: "0 10px 28px -6px rgba(40,40,36,0.16)"
+    large:  "0 24px 80px rgba(40,40,36,0.24)"
   dark:
-    short:  "0 1px 3px 0 rgba(0,0,0,0.12), 0 1px 2px 0 rgba(0,0,0,0.24)"
-    medium: "0 10px 15px -3px rgba(0,0,0,0.54), 0 4px 6px -2px rgba(0,0,0,0.40)"
-    large:  "0 16px 24px -6px rgba(0,0,0,0.60), 0 8px 12px -4px rgba(0,0,0,0.48)"
+    short:  "0 1px 4px 0 rgba(0,0,0,0.35)"
+    medium: "0 12px 32px -6px rgba(0,0,0,0.5)"
+    large:  "0 24px 80px rgba(0,0,0,0.6)"

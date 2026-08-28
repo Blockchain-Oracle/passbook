@@ -33,6 +33,8 @@ import { useTotalUnread } from '../shell/chat-bus'
 import { DegradedStrip } from '../components/DegradedStrip'
 import { ThemeToggle } from '../components/ThemeToggle'
 import { ToastViewport } from '../shell/ToastViewport'
+import { Icon } from '../components/icons'
+import { MobileTabBar } from '../shell/MobileTabBar'
 
 //
 // THE PALETTE IS CODE-SPLIT, AND NOT FOR THE BYTE GATE.
@@ -189,23 +191,26 @@ function RootLayout() {
         <Link
           to="/"
           activeOptions={{ exact: true }}
-          className="focus-ring text-buttonLabel1 text-neutral1 no-underline"
+          className="focus-ring flex items-center gap-s8 justify-self-start text-neutral1 no-underline"
         >
-          Passbook
+          <span aria-hidden="true" className="brand-mark" />
+          <span className="display text-heading3">Passbook</span>
         </Link>
 
         {/*
-          The six modes, from the enum, in enum order. Driven from `MODE_ROUTES` rather than written
-          out so the coupling is real in both directions: delete `markets.tsx` and this `<Link>` is
-          one of the four places tsc names.
+          The six modes as STUDIO's centre pill, from the enum, in enum order. Driven from
+          `MODE_ROUTES` rather than written out so the coupling is real in both directions: delete
+          `markets.tsx` and this `<Link>` is one of the four places tsc names.
 
           `data-status="active"` and `aria-current="page"` are set by the router on the active link
           with no configuration — the active style keys off the first in authored CSS, and the second
-          is what a screen reader announces.
+          is what a screen reader announces. Below 768px this nav is display:none and the same six
+          links render in the tab bar at the bottom of the viewport — one enum, two projections.
         */}
-        <nav aria-label="Modes" className="flex flex-wrap items-center gap-s4">
+        <nav aria-label="Modes" className="nav-pill">
           {MODES.map((mode) => (
             <Link key={mode} to={MODE_ROUTES[mode]} className="nav-item focus-ring">
+              <Icon name={mode} />
               {MODE_LABELS[mode]}
               {/*
                 THE UNREAD COUNT, and it is honest about being a local count. Messages that arrive
@@ -239,12 +244,14 @@ function RootLayout() {
             onClick={openPalette}
             aria-haspopup="dialog"
             aria-keyshortcuts="/"
-            className="nav-item focus-ring cursor-pointer"
+            aria-label="Search"
+            className="icon-pill focus-ring"
           >
-            Search
+            <Icon name="search" size={14} />
+            <span className="numeric hidden font-mono text-body4 md:inline">⌘K</span>
           </button>
-          <Link to="/settings" className="nav-item focus-ring">
-            Settings
+          <Link to="/settings" aria-label="Settings" className="icon-pill focus-ring">
+            <Icon name="sliders" />
           </Link>
           <ThemeToggle />
           {/*
@@ -252,7 +259,7 @@ function RootLayout() {
             values reach the mounted DOM — one assertion covering the whole chain, from the protocol
             package through the router to a committed render — so this line is load-bearing.
           */}
-          <span data-testid="network" className="numeric text-body4 text-neutral2">
+          <span data-testid="network" className="numeric hidden font-mono text-body4 text-neutral3 lg:inline">
             {ACTIVE_NETWORK} · {NET.chainId}
           </span>
           {/*
@@ -285,6 +292,13 @@ function RootLayout() {
       <div>
         <Outlet />
       </div>
+
+      {/*
+        The phone's bottom bar — a stylesheet swap with the header's pill nav, not a JS one. It
+        sits AFTER the outlet in document order and carries `z-fixed` from the adopted stacking
+        scale, so it paints over surface content without relying on paint order.
+      */}
+      <MobileTabBar onPlus={openPalette} />
 
       {/*
         `fallback={null}` because there is nothing honest to show. The chunk is warmed 2 s after the

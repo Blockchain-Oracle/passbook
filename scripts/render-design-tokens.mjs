@@ -76,13 +76,12 @@ export const TOKENS_CSS = fileURLToPath(new URL('../apps/web/design/tokens.css',
 //
 // The shipped face's true weight axis, and why it is a constant rather than a read.
 //
-// Plex's `wght` axis CLAMPS above 700 in silence — 800 and 900 render exactly the 700 width with no
-// error — so a weight token above it is a token that does not exist. This range is the one
-// `@fontsource-variable/ibm-plex-sans@5.3.0` declares in its own `wght.css` `@font-face`; keeping it
-// here keeps `render()` pure, and `render-design-tokens.test.mjs` reads that stylesheet and fails if
-// the two ever disagree, so the number cannot drift away from the binary that ships.
+// A variable `wght` axis CLAMPS outside its range in silence — an off-axis weight renders the
+// nearest endpoint with no error — so a weight token outside it is a token that does not exist.
+// This range is the one `@fontsource-variable/archivo@5.3.0` declares in its own `wght.css`
+// `@font-face` (`font-weight: 100 900`); keeping it here keeps `render()` pure.
 //
-export const FACE_WGHT_RANGE = [100, 700]
+export const FACE_WGHT_RANGE = [100, 900]
 
 //
 // fontsource publishes the variable cut under the family name plus " Variable", and that suffixed
@@ -105,7 +104,7 @@ const BREAKPOINT_NAMES = {
 }
 
 /** `typography.weights` carries values only, and a utility cannot be named after a number here. */
-const WEIGHT_NAMES = { 485: 'book', 535: 'medium' }
+const WEIGHT_NAMES = { 400: 'book', 600: 'medium', 700: 'bold' }
 
 //
 // The 21 default theme namespaces, wiped so an off-sheet utility generates NO RULE AT ALL rather
@@ -368,6 +367,12 @@ function themeBlock(d, steps, motionEntries, colorKeys, spacingScale) {
   const family = `${d.typography.family}${VARIABLE_FAMILY_SUFFIX}`
   const fallback = d.typography.familyFallback
   lines.push(decl('--font-sans', `'${family}', '${fallback}', system-ui, sans-serif`))
+  // The display face is a STATIC cut (Anton ships one 400 weight), so no Variable suffix — the
+  // fontsource `@font-face` declares the bare family name. The sans stack is its fallback so a
+  // blocked display font degrades to the same family the body is set in, not to a serif.
+  if (d.typography.display) {
+    lines.push(decl('--font-display', `'${d.typography.display}', '${family}', system-ui, sans-serif`))
+  }
   lines.push(decl('--font-mono', d.typography.mono))
   for (const w of d.typography.weights) lines.push(decl(`--font-weight-${WEIGHT_NAMES[w]}`, String(w)))
 
@@ -557,7 +562,7 @@ export function tokenNames(yamlSource) {
   return {
     colors,
     text: Object.keys(steps),
-    fonts: ['sans', 'mono'],
+    fonts: d.typography.display ? ['sans', 'mono', 'display'] : ['sans', 'mono'],
     weights: d.typography.weights.map((w) => WEIGHT_NAMES[w]),
     radii: Object.keys(d.rounded),
     spacing: spacingScale.map((v) => `s${v}`),
