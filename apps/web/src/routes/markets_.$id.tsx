@@ -8,7 +8,6 @@ import {
   potShare,
   strikeDisplay,
   timeLeft,
-  type OnChainMarket,
 } from '@strk20/protocol/app-reads'
 import { SIDE_DOWN, SIDE_UP } from '@strk20/protocol/market-calldata'
 import { formatPrice } from '@strk20/protocol/pragma-pairs'

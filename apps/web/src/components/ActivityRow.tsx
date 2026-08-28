@@ -52,6 +52,7 @@ import { MINUS, toPlainText } from '@strk20/protocol/amount'
 
 import { cn } from '../lib/cn'
 import { findToken, useTokenList } from '../shell/use-token-list'
+import { nameFor, useDirectory } from '../shell/use-directory'
 import { shortenFelt } from '../shell/session'
 import { CategoryDisc } from './CategoryDisc'
 
@@ -140,7 +141,7 @@ export function ActivityRow({ transaction, now, settling, onSettleShown, onRetry
         ) : counterparty ? (
           <span className="truncate font-mono text-mono text-neutral3">
             {category === 'received' ? 'from ' : category === 'sent' ? 'to ' : ''}
-            {shortenFelt(counterparty, 8, 6)}
+            <CounterpartyName address={counterparty} />
           </span>
         ) : null}
       </div>
@@ -153,6 +154,20 @@ export function ActivityRow({ transaction, now, settling, onSettleShown, onRetry
       </div>
     </li>
   )
+}
+
+/**
+ * A counterparty as a person when the directory knows one, hex when it does not.
+ *
+ * Names over hex wherever a name exists — but only for PUBLIC addresses, which is the only thing
+ * `rowCounterparty` ever returns for the address-bearing kinds. Commitments never come through
+ * here, and naming one would be a lie about linkability. The directory is already fetched whole
+ * per session, so the lookup is local and the relayer never learns who is rendered.
+ */
+function CounterpartyName({ address }: { address: string }) {
+  const { entries } = useDirectory()
+  const name = nameFor(entries, address)
+  return name ? <>@{name}</> : <>{shortenFelt(address, 8, 6)}</>
 }
 
 /**
