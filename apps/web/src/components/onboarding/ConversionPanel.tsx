@@ -1,12 +1,15 @@
 //
-// The five-screen conversion panel (context/11-product-experience.md §1).
+// The five-screen conversion flow (context/11-product-experience.md §1, presentation re-ratified
+// to the STUDIO direction 2026-08-28).
 //
-// ── IT IS A ROW ON THE PAGE, NOT A DIALOG OVER IT ─────────────────────────────────────────
+// ── IT IS A FULL-SCREEN TAKEOVER NOW, AND THE OLD RULING IS SUPERSEDED ────────────────────
 //
-// The brief: "an inline bordered row above the button — never a scrimmed modal, the page stays
-// interactive, the composed form stays filled". So this renders in flow. A visitor who reached here
-// by pressing Send on a half-filled swap form gets their form back when the panel closes, because
-// it was never unmounted.
+// §1 originally ruled "an inline bordered row above the button — never a scrimmed modal". The
+// ratified Studio prototype makes first-run a viewport takeover: brand top-left, Skip top-right,
+// five hairline progress segments, one centred column per step under an Anton title. What SURVIVES
+// from the old ruling is the half that was about state, not geometry: this component renders while
+// open and unmounts on dismiss, and any form composed underneath it is never unmounted — a fixed
+// overlay leaves the page's tree exactly where it was.
 //
 // ── THE LAST STEP IS THE ACTION ───────────────────────────────────────────────────────────
 //
@@ -128,33 +131,38 @@ export function ConversionPanel({
       ref={rootRef}
       tabIndex={-1}
       aria-label="Create an account"
-      className="focus-ring flex w-full flex-col gap-s16 rounded-card border border-solid border-surface3 bg-raised p-s16"
+      className="focus-ring fixed inset-0 z-modal flex flex-col overflow-y-auto bg-ground"
     >
-      <header className="flex items-start justify-between gap-s12">
-        <div className="flex min-w-0 flex-col gap-s2">
-          <Text variant="body4" className="text-neutral2">
-            {`Step ${index + 1} of ${SCREENS.length}`}
-          </Text>
-          <Text variant="body1" as="h2" className="text-neutral1">
-            {screen === 'deadlock' && inviter ? deadlockInvitedTitle(inviter) : TITLES[screen]}
-          </Text>
-        </div>
+      {/* The gold radial wash. Atmosphere only, so it neither takes clicks nor reaches a reader. */}
+      <div aria-hidden="true" className="onboarding-glow pointer-events-none absolute inset-0" />
+
+      <header className="relative flex items-center justify-between gap-s12 px-s24 py-s20">
+        <span className="flex items-center gap-s8 text-neutral1">
+          <span aria-hidden="true" className="brand-mark" />
+          <span className="display text-display4">Passbook</span>
+        </span>
         {/* Skip is present on every screen EXCEPT while registering, for the same reason Escape is
             suppressed there: there is nothing to skip once the transaction is away. */}
         {registering ? null : (
           <button
             type="button"
             onClick={onDismiss}
-            className="focus-ring shrink-0 rounded-control px-s8 py-s4 text-body4 text-neutral2 hover:bg-inset hover:text-neutral1"
+            className="focus-ring shrink-0 rounded-control px-s8 py-s4 text-body4 text-neutral3 hover:text-neutral1"
           >
-            Skip
+            Skip for now
           </button>
         )}
       </header>
 
-      <Dots count={SCREENS.length} at={index} />
+      <Segments count={SCREENS.length} at={index} />
 
-      <div className="flex flex-col gap-s12">
+      <div className="relative flex flex-1">
+      <div className="m-auto flex w-full max-w-[560px] flex-col gap-s12 px-s20 py-s36">
+        <span className="kicker">{`Step ${index + 1} of ${SCREENS.length}`}</span>
+        <Text variant="display2" as="h2" className="display text-neutral1 md:text-display1">
+          {screen === 'deadlock' && inviter ? deadlockInvitedTitle(inviter) : TITLES[screen]}
+        </Text>
+        <div className="flex flex-col gap-s12">
         {screen === 'name' ? (
           <NameScreen
             name={name}
@@ -266,6 +274,8 @@ export function ConversionPanel({
             </Button>
           </>
         ) : null}
+        </div>
+      </div>
       </div>
     </section>
   )
@@ -342,16 +352,20 @@ function NameScreen({
   )
 }
 
-/** Growing progress dots — the tutorial pattern's own affordance. */
-function Dots({ count, at }: { count: number; at: number }) {
+/**
+ * The Studio progress segments: five hairline bars across the top of the takeover, gold up to and
+ * including the current step. Decoration beside the spoken "Step N of 5", so it is hidden from
+ * assistive technology rather than announced twice.
+ */
+function Segments({ count, at }: { count: number; at: number }) {
   return (
-    <div className="flex items-center gap-s6" aria-hidden="true">
+    <div className="relative mx-auto flex w-full max-w-[600px] gap-s6 px-s24" aria-hidden="true">
       {Array.from({ length: count }, (_, i) => (
         <span
           key={i}
           className={cn(
-            'h-[6px] rounded-pill transition-all duration-[var(--transition-duration-simple)]',
-            i === at ? 'w-[20px] bg-accent1' : i < at ? 'w-[6px] bg-neutral3' : 'w-[6px] bg-surface3',
+            'h-s2 flex-1 rounded-pill transition-colors duration-[var(--transition-duration-quickLong)]',
+            i <= at ? 'bg-accent1' : 'bg-surface3',
           )}
         />
       ))}

@@ -505,6 +505,18 @@
   }
 
   /*
+   * ── The onboarding takeover [STUDIO] ─────────────────────────────────────────────────────
+   *
+   * The first-run flow owns the whole viewport, and the glow is its one piece of atmosphere: a
+   * faint gold radial bleeding in from above the fold. `accent2` because the glow IS the
+   * filled-accent tint doing what a tint is for — a wash, never ink — and it re-themes with the
+   * accent instead of hardcoding a lime nobody can restyle.
+   */
+  .onboarding-glow {
+    background-image: radial-gradient(1100px 700px at 50% -12%, var(--color-accent2), transparent 62%);
+  }
+
+  /*
    * ---- the popup layer -------------------------------------------------------------------------
    *
    * STACKING IS DELIBERATE HERE, NOT LUCKY. There is still no `z-index` namespace, so the note
