@@ -1957,13 +1957,24 @@ export function resolveSponsorshipCaps(env: NodeJS.ProcessEnv = process.env): Sp
     sendStorePath:
       env.RELAYER_SEND_STORE ||
       fileURLToPath(new URL('../../../.relayer/send-budget.json', import.meta.url)),
+    //
     // ONE PER VISITOR PER DAY, and the per-address claim behind it is once EVER — so this number
-    // is the anti-rotation limit rather than the honest-user limit. `daily` defaults to 50, which
-    // at `DRIP_WEI` of 1 STRK is 50 STRK a day: the number to change if that is the wrong amount
-    // of money to be prepared to lose in twenty-four hours, because it is exactly that.
+    // is the anti-rotation limit rather than the honest-user limit.
+    //
+    // `daily` IS AN AMOUNT OF MONEY, NOT A RATE LIMIT. At `DRIP_WEI` of 1 STRK, 15 is 15 STRK a
+    // day the relayer must be funded to lose, and that is the whole reason to think about it.
+    // Abu's call 2026-08-28, down from a first pass at 50.
+    //
+    // WHAT 1 STRK BUYS, since the obvious worry is that it is too little: the pool's flat fee is
+    // 6 STRK per private operation (read live from `get_fee_amount` on mainnet, 2026-08-28), and
+    // that fee is paid by whoever SUBMITS — the relayer, on every sponsored registration and every
+    // send inside the send budget. The user's own STRK is for gas on what they sign themselves:
+    // the account deploy, a swap, a bet, a launch buy. Starknet gas is fractions of a cent, so
+    // 1 STRK is hundreds of those. It is a generous starter, not a tight one.
+    //
     faucetCaps: {
       perVisitor: positiveInt(env, 'RELAYER_FAUCET_PER_VISITOR', 1),
-      daily: positiveInt(env, 'RELAYER_FAUCET_DAILY', 50),
+      daily: positiveInt(env, 'RELAYER_FAUCET_DAILY', 15),
     },
     // A THIRD FILE, on `sendStorePath`'s argument and with more force: this ledger's claim set is
     // the once-per-address record, and folding it into another file would mean an operator
