@@ -21,10 +21,17 @@ import type { TokenInfo } from '@strk20/protocol/token-list'
 import { findToken, useTokenList } from '../../shell/use-token-list'
 import { Text } from '../ui/Text'
 
-export type TapeScope = { launchId: number } | { marketId: number } | null
+export type TapeScope =
+  | { launchId: number }
+  | { marketId: number }
+  | { family: 'markets' | 'launch' }
+  | null
 
 function inScope(item: TapeItem, scope: TapeScope): boolean {
   if (scope === null) return true
+  if ('family' in scope) {
+    return scope.family === 'markets' ? 'marketId' in item : 'launchId' in item
+  }
   if ('launchId' in scope) return 'launchId' in item && item.launchId === scope.launchId
   return 'marketId' in item && item.marketId === scope.marketId
 }

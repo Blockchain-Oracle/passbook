@@ -141,20 +141,22 @@ describe('the price strip never implies more than it has', () => {
   })
 
   it('names the dashed line as an observation, never as a strike somebody set', () => {
-    expect(copy.CHART_REFERENCE_IS_SESSION_OPEN).toBe(
-      'The dashed line is the first price this page saw — green above it, red below. A market puts ' +
-        'its own level there instead.',
+    expect(copy.CHART_REFERENCE_IS_WINDOW_OPEN).toBe(
+      'The dashed line is the first price of the drawn window — green above it, red below. A market ' +
+        'puts its own level there instead.',
     )
-    // A dashed line on a price chart reads as a target. Before any market exists there is no
-    // target, so the sentence has to say what it actually is.
-    expect(copy.CHART_REFERENCE_IS_SESSION_OPEN).toMatch(/first price this page saw/)
+    // A dashed line on a price chart reads as a target. Absent a market there is no target, so
+    // the sentence has to say what it actually is.
+    expect(copy.CHART_REFERENCE_IS_WINDOW_OPEN).toMatch(/first price of the drawn window/)
   })
 
-  it('refuses to call a session-long observation a market history', () => {
-    expect(copy.PRICE_SERIES_IS_SESSION).toBe(
-      'This line is what this page has watched since you opened it, not a market history.',
-    )
-    expect(copy.PRICE_SERIES_IS_SESSION).toMatch(/not a market history/)
+  it('refuses to call the witnessed line a market history, and names its narrow arm', () => {
+    // The relay feed gave the line a real past (M1) — the sentence grew to carry it, and the two
+    // claims that must survive any rewording are pinned: it is STILL not a market history, and a
+    // dead feed makes the line shorter rather than silently thinner.
+    expect(copy.PRICE_SERIES_PROVENANCE).toMatch(/not a market history/)
+    expect(copy.PRICE_SERIES_PROVENANCE).toMatch(/what the relay has witnessed/)
+    expect(copy.PRICE_SERIES_PROVENANCE).toMatch(/getting shorter/)
   })
 })
 

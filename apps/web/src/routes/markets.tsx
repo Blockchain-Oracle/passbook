@@ -1,75 +1,103 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
 import {
   MARKETS_NOT_DEPLOYED,
   MARKETS_STANDING_LINE,
   MARKETS_TITLE,
-  CHART_REFERENCE_IS_SESSION_OPEN,
-  PRICE_SERIES_IS_SESSION,
+  MARKETS_NONE_OPEN,
+  CHART_REFERENCE_IS_WINDOW_OPEN,
+  PRICE_SERIES_PROVENANCE,
 } from '@strk20/protocol/markets-copy'
 import { PRAGMA_PAIR_LIST, type PragmaPair } from '@strk20/protocol/pragma-pairs'
+import { MARKET_STATE, marketQuestion, type OnChainMarket } from '@strk20/protocol/app-reads'
+import { SIDE_UP } from '@strk20/protocol/market-calldata'
 
-import { MarketsPanel } from '../components/MarketsPanel'
+import { ActivityTape } from '../components/launch/ActivityTape'
+import { BetTicket } from '../components/markets/BetTicket'
+import { CreateMarket } from '../components/markets/CreateMarket'
+import { MarketCard } from '../components/markets/MarketCard'
+import { MarketRoom } from '../components/markets/MarketRoom'
 import { MarketsTour } from '../components/MarketsTour'
 import { PriceChart } from '../components/PriceChart'
 import { PriceStrip } from '../components/PriceStrip'
+import { Button } from '../components/ui/Button'
 import { Text } from '../components/ui/Text'
-import { cn } from '../lib/cn'
 import { MARKETS_DEPLOYED } from '../shell/app-contracts'
+import { useChainFeed } from '../shell/chain-feed'
+import { useMarkets } from '../shell/use-app-reads'
+import { usePositions } from '../shell/use-positions'
 import { usePragma } from '../shell/use-pragma'
+import { shortenFelt } from '../shell/session'
 import { Surface } from '../shell/Surface'
 
 export const Route = createFileRoute('/markets')({
   component: Markets,
 })
 
+/** A market someone can still bet into: active, and its clock still running. */
+function isOpen(market: OnChainMarket, nowMs: number): boolean {
+  return market.state === MARKET_STATE.active && market.deadline * 1000 > nowMs
+}
+
 //
-// MARKETS — the surface, built around what is true today.
+// MARKETS — the board, full width, every market wearing its face.
 //
-// ── WHAT IS REAL RIGHT NOW, AND WHAT IS HONESTLY EMPTY ───────────────────────────────────
+// ── THE LIST IS THE SURFACE NOW, NOT A RAIL ──────────────────────────────────────────────
 //
-// The contracts are written, tested (109 snforge tests) and committed. They are NOT deployed. So
-// this surface has two halves and they are treated completely differently:
+// The 360px sidebar the list used to live in was the prototype's shape: a chart with a ticket
+// slot. A market product's centre of gravity is the MARKETS — so the cards take the grid, each
+// one carrying its pair mark, its clock, the live spot, and the verdict chart drawn against its
+// OWN strike (the one thing this canvas does that a chart library will not). The hero chart
+// stays above them as the price context every question is asked against; creating a market is a
+// header action — present, never the headline.
 //
-//   THE PRICES ARE LIVE. Pragma's `get_data_median` is a free view call on a contract that has
-//   been on mainnet for years, and it is the same oracle a market will resolve against. The strip,
-//   the chart and the freshness state are all real reads, from the first paint, with no deployment.
+// ── AND THE BOARD SAYS WHAT JUST HAPPENED ────────────────────────────────────────────────
 //
-//   THE MARKETS ARE ABSENT, and the surface says so in those words. No fixture, no greyed-out row
-//   with plausible odds in it. A screenshot of invented markets is indistinguishable from a
-//   working product, which is exactly the fixture-as-truth the anti-demo gate exists to stop —
-//   and it is the one thing that would make everything else here untrustworthy.
-//
-// ── THE 480px COLUMN IS GONE ON THIS ROUTE ───────────────────────────────────────────────
-//
-// Same argument the wallet made: a table and a chart need width, and the people judging this open
-// it on a desktop. From 1024 up the surface is a wide grid; below that it stacks.
+// The Recently strip is the contracts' own events off the live feed — opened, bet into, settled,
+// claimed — each row with its transaction. A market page where nothing visibly happens reads as
+// abandoned even when it is not; the tape is the difference, and it is all real.
 //
 function Markets() {
   const state = usePragma(PRAGMA_PAIR_LIST)
+  const feed = useChainFeed()
+  const read = useMarkets()
   const [pair, setPair] = useState<PragmaPair>('BTC/USD')
+  const [ticket, setTicket] = useState<{ market: OnChainMarket; side: number } | null>(null)
+  const [room, setRoom] = useState<OnChainMarket | null>(null)
+  const [creating, setCreating] = useState(false)
+  const [now, setNow] = useState(() => Date.now())
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 30_000)
+    return () => window.clearInterval(timer)
+  }, [])
+
   const series = state.series[pair]?.points ?? []
   const observed = state.series[pair]?.observed ?? 0
+  const open = read.markets.filter((m) => isOpen(m, now))
+  const settled = read.markets.filter((m) => !isOpen(m, now))
 
   return (
     <Surface routeId={Route.fullPath}>
       <div className="mx-auto flex w-full max-w-[1180px] flex-col gap-s16">
         <header className="flex flex-col gap-s8 border-b border-solid border-surface3 pb-s12">
           <Text variant="kicker">05 — positions</Text>
-          <Text variant="display2" as="h1" className="text-neutral1 lg:text-display1">
-            {MARKETS_TITLE}
-          </Text>
+          <div className="flex flex-wrap items-end justify-between gap-s12">
+            <Text variant="display2" as="h1" className="text-neutral1 lg:text-display1">
+              {MARKETS_TITLE}
+            </Text>
+            {MARKETS_DEPLOYED ? (
+              <Button variant="secondary" size="md" onClick={() => setCreating(true)}>
+                Create a market
+              </Button>
+            ) : null}
+          </div>
           <Text variant="body3" className="max-w-[70ch] text-neutral2">
             {MARKETS_STANDING_LINE}
           </Text>
         </header>
 
-        {/*
-          THE STRIP IS A CONTROL, not a ticker: pressing a pair moves the chart below it. That is
-          why it is the one part of this surface with something to do while the contracts are
-          absent — a reader can watch a real price and see the shape a market will be drawn on.
-        */}
         <PriceStrip state={state} pairs={PRAGMA_PAIR_LIST} selected={pair} onSelect={setPair} />
 
         {state.problem ? (
@@ -78,89 +106,165 @@ function Markets() {
           </Text>
         ) : null}
 
-        <div className="grid gap-s16 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start lg:gap-s24">
-          <section className="flex min-w-0 flex-col gap-s8 rounded-large border border-solid border-surface3 p-s16">
-            <div className="flex items-baseline justify-between gap-s8">
-              <Text variant="subheading1" as="h2">
-                {pair}
-              </Text>
-              <Text variant="body4" className="numeric text-neutral3">
-                {observed === 0
-                  ? 'waiting for the first reading'
-                  : observed === 1
-                    ? '1 reading this session'
-                    : `${observed} readings this session`}
+        <section className="flex min-w-0 flex-col gap-s8 rounded-large border border-solid border-surface3 p-s16">
+          <div className="flex items-baseline justify-between gap-s8">
+            <Text variant="subheading1" as="h2">
+              {pair}
+            </Text>
+            <Text variant="body4" className="numeric text-neutral3">
+              {observed === 0
+                ? 'waiting for the first reading'
+                : observed === 1
+                  ? '1 reading on the line'
+                  : `${observed} readings on the line`}
+            </Text>
+          </div>
+
+          {series.length === 0 ? (
+            <div className="flex items-center justify-center rounded-card bg-inset" style={{ height: 220 }}>
+              <Text variant="body4" className="text-neutral3">
+                Reading the oracle…
               </Text>
             </div>
+          ) : (
+            <PriceChart
+              series={series.length === 1 ? [series[0]!, series[0]!] : series}
+              target={series[0] ?? null}
+              height={220}
+              label={`${pair} over the drawn window`}
+            />
+          )}
 
-            {series.length === 0 ? (
-              // Nothing has been read at all yet. Reserved at the chart's own height so the panel
-              // does not jump when the first reading lands a beat after paint.
-              <div
-                className="flex items-center justify-center rounded-card bg-inset"
-                style={{ height: 220 }}
-              >
-                <Text variant="body4" className="text-neutral3">
-                  Reading the oracle…
+          <Text variant="body4" className="text-neutral3">
+            {PRICE_SERIES_PROVENANCE} {CHART_REFERENCE_IS_WINDOW_OPEN}
+          </Text>
+        </section>
+
+        {MARKETS_DEPLOYED ? (
+          <>
+            {read.problem ? (
+              <Text variant="body4" className="text-exposed" role="status">
+                {read.problem}
+              </Text>
+            ) : null}
+
+            {open.length === 0 ? (
+              <section className="flex flex-col gap-s8 rounded-large border border-solid border-surface3 p-s16">
+                <Text variant="body3" className="text-neutral2">
+                  {read.loading ? 'Reading the markets contract…' : MARKETS_NONE_OPEN}
                 </Text>
-              </div>
+                <Button variant="primary" size="md" className="self-start" onClick={() => setCreating(true)}>
+                  Open the first one
+                </Button>
+              </section>
             ) : (
-              //
-              // THE REFERENCE LINE IS WHAT MAKES VERDICT MODE REAL TODAY.
-              //
-              // The chart's two-clipped-pass drawing — green above a level, red below — is the one
-              // thing it does that a charting library will not, and it is the shape a market's
-              // strike will take. With no market there is no strike, and inventing one would be
-              // the fake data this surface exists to refuse. The first price this page OBSERVED is
-              // a true reference: the reader watched it arrive, and it exercises exactly the path
-              // a real strike will use. `CHART_REFERENCE_IS_SESSION_OPEN` says which it is.
-              //
-              //
-              // ONE READING ALREADY DRAWS THE DIAGRAM. A single point is duplicated into a flat
-              // line — the drawer's flat-series fallback gives it headroom — so the first paint is
-              // a chart with its grid and reference, not a grey box promising one. The prototype's
-              // page opened onto a picture, and "watching for a second reading" opened onto an
-              // apology; the reading on screen is real either way.
-              //
-              <PriceChart
-                series={series.length === 1 ? [series[0]!, series[0]!] : series}
-                target={series[0] ?? null}
-                height={220}
-                label={`${pair} since this page opened`}
-              />
+              <div className="grid gap-s12 md:grid-cols-2 xl:grid-cols-3">
+                {open.map((market) => (
+                  <MarketCard
+                    key={market.id}
+                    market={market}
+                    now={now}
+                    spot={
+                      feed.prices[market.pair] ? feed.prices[market.pair]!.price : null
+                    }
+                    history={feed.history[market.pair] ?? []}
+                    onBet={(side) => setTicket({ market, side })}
+                    onRoom={() => setRoom(market)}
+                  />
+                ))}
+              </div>
             )}
 
-            <Text variant="body4" className="text-neutral3">
-              {PRICE_SERIES_IS_SESSION} {CHART_REFERENCE_IS_SESSION_OPEN}
+            <section className="flex flex-col gap-s8 rounded-large border border-solid border-surface3 p-s16">
+              <Text variant="kicker">Recently — opened · bet into · settled</Text>
+              <ActivityTape
+                items={feed.tape}
+                markets={read.markets}
+                launches={feed.launches}
+                scope={{ family: 'markets' }}
+                limit={12}
+                emptyLine={
+                  feed.stream === 'live'
+                    ? 'Quiet right now — the next bet or settlement lands here as it happens.'
+                    : 'The live feed is reconnecting. Activity resumes with it; nothing is lost.'
+                }
+              />
+            </section>
+
+            {settled.length > 0 ? (
+              <section className="flex flex-col gap-s4 rounded-large border border-solid border-surface3 p-s16">
+                <Text variant="kicker">Settled</Text>
+                {settled.map((market) => (
+                  <div key={market.id} className="flex items-baseline justify-between gap-s8">
+                    <Text variant="body4" className="min-w-0 truncate text-neutral2">
+                      {marketQuestion(market)}
+                    </Text>
+                    <Text variant="mono" className="shrink-0 text-neutral3">
+                      {market.state === MARKET_STATE.voided
+                        ? 'voided'
+                        : market.state === MARKET_STATE.resolved
+                          ? market.winner === SIDE_UP
+                            ? 'YES won'
+                            : 'NO won'
+                          : 'closing'}
+                    </Text>
+                  </div>
+                ))}
+              </section>
+            ) : null}
+
+            <MarketPositions />
+          </>
+        ) : (
+          <section className="rounded-large border border-solid border-surface3 p-s16">
+            <Text variant="subheading2" as="h2">
+              Not open yet
+            </Text>
+            <Text variant="body3" className="mt-s4 max-w-[70ch] text-neutral2">
+              {MARKETS_NOT_DEPLOYED}
             </Text>
           </section>
+        )}
 
-          {/*
-            THE TICKET SLOT — live now. `MarketsPanel` reads the deployed contract, lists what is
-            genuinely open, and its Yes/No doors open a ticket whose quote and confirm are real.
-            The absent arm survives for a build with no deployment, exactly as before: never a
-            disabled form, because a form that cannot submit is a promise.
-          */}
-          <aside
-            className={cn(
-              'flex min-w-0 flex-col gap-s12 rounded-large border border-solid border-surface3 p-s16',
-              'lg:sticky lg:top-[88px]',
-            )}
-          >
-            <Text variant="subheading2" as="h2">
-              {MARKETS_DEPLOYED ? 'Open a position' : 'Not open yet'}
-            </Text>
-            {MARKETS_DEPLOYED ? (
-              <MarketsPanel />
-            ) : (
-              <Text variant="body3" className="text-neutral2">
-                {MARKETS_NOT_DEPLOYED}
-              </Text>
-            )}
-            <MarketsTour />
-          </aside>
-        </div>
+        <MarketsTour />
+
+        {ticket ? (
+          <BetTicket
+            market={ticket.market}
+            now={now}
+            open={ticket !== null}
+            initialSide={ticket.side}
+            onClose={() => setTicket(null)}
+          />
+        ) : null}
+        {room ? <MarketRoom market={room} open={room !== null} onClose={() => setRoom(null)} /> : null}
+        <CreateMarket open={creating} onClose={() => setCreating(false)} />
       </div>
     </Surface>
+  )
+}
+
+/** The market-venue positions this browser holds, in the launch section's grammar. */
+function MarketPositions() {
+  const positions = usePositions()
+  const held = positions.filter((p) => p.venue === 'market')
+  if (held.length === 0) return null
+  return (
+    <section className="flex flex-col gap-s6 rounded-large border border-solid border-surface3 p-s16">
+      <Text variant="kicker">Your positions</Text>
+      {held.map((p) => (
+        <div key={p.commitment} className="flex flex-col">
+          <Text variant="body4" className="text-neutral1">
+            {p.label ?? `Market ${p.id}`}
+          </Text>
+          <Text variant="mono" className="truncate text-neutral3">
+            {shortenFelt(p.commitment, 10, 8)}
+          </Text>
+        </div>
+      ))}
+      <Text variant="body4" className="text-neutral3">
+        The bet size is public. The bettor is not.
+      </Text>
+    </section>
   )
 }
