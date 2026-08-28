@@ -42,6 +42,7 @@ export type RelayerJobName =
   | 'quote proxy'
   | 'chat transport'
   | 'chain feed'
+  | 'groundskeeper'
   | 'stats'
 
 /**
@@ -624,6 +625,52 @@ export const RELAYER_JOBS: readonly RelayerJob[] = [
       'thing to keep alive during judging. The JSONL price store lives on the volume because its ' +
       'whole value is the past this process witnessed; losing it costs a chart its history, ' +
       'never anyone a cap.',
+  },
+  {
+    job: 'groundskeeper',
+    summary:
+      'Standing markets, so the board is never empty and nobody arriving to bet is told to found ' +
+      'a market first. On a timer, this process checks each price pair for an open market and ' +
+      'seeds one where none stands — through the pool, as a registered participant spending its ' +
+      'own shielded STRK, because `op_create` lives inside `privacy_invoke` and a market opens ' +
+      'with liquidity or not at all. Off by default (`RELAYER_GROUNDSKEEPER=on`): every sweep ' +
+      'can spend a real seed, and first boot also pays its own registration and shielding.',
+    routes: [],
+    degradeStates: [
+      {
+        id: 'groundskeeper/idle',
+        trigger:
+          'The job cannot act — the wallet cannot cover provisioning, the pool is paused, an ' +
+          'upstream read failed, or a sweep\'s submission reverted. It idles with a sentence.',
+        answers: 'normal-service',
+        status: 200,
+        reason: null,
+        noticeSource: null,
+        affectsRoutes: [],
+        stillServedInThisJob:
+          'Nothing this job serves is a route: an idle Groundskeeper costs the board its standing ' +
+          'markets and nothing else. Users can still create markets themselves; every existing ' +
+          'market keeps trading and settling.',
+        otherJobsUnaffected: [
+          'submission',
+          'sponsored registration',
+          'quote proxy',
+          'chat transport',
+          'chain feed',
+        ],
+        note:
+          'Provisioning failures are deliberately NOT retried until restart — provisioning spends ' +
+          'real STRK, and retrying a failing spend every sweep is how a wallet drains on gas. The ' +
+          'seed secrets ledger (`RELAYER_GROUNDSKEEPER_STORE`, on the volume) is written before ' +
+          'any submission is signed, so a crash mid-sweep can strand a seed but never lose one.',
+      },
+    ],
+    builtToday: true,
+    note:
+      'The same signing account as `submission`, in the same process — a fifth machine would be ' +
+      'a fifth thing to keep alive, and the budget control is pacing (one creation per sweep) ' +
+      'plus the seed-size env, not infrastructure. Its markets are the house\'s, publicly: the ' +
+      'seeder commitment is stored on the volume and reclaims like any player\'s position.',
   },
   {
     job: 'stats',

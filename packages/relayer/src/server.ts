@@ -104,6 +104,7 @@ import {
 } from './quote-proxy.js'
 import { isWireEnvelope, RoomHub, ROOM_HISTORY, ROOM_IDLE_MS } from './rooms.js'
 import { ChainFeed, APP_POLL_MS, PRICE_POLL_MS, HISTORY_BOUND } from './chain-feed.js'
+import { openGroundskeeper } from './groundskeeper.js'
 import {
   DRIP_ALREADY_CLAIMED,
   DRIP_BAD_ADDRESS,
@@ -2592,6 +2593,26 @@ async function main(): Promise<void> {
     tellerTick.unref?.()
   }
 
+  // The Groundskeeper — standing markets, so the board is never empty. Env-gated because every
+  // sweep can spend real STRK (a seed per market, plus one-time registration and shielding on
+  // first boot). `groundskeeper.ts`'s header carries the whole story.
+  const groundskeeper =
+    process.env.RELAYER_GROUNDSKEEPER === 'on' && appContracts.markets && appContracts.pragma
+      ? openGroundskeeper({
+          markets: appContracts.markets,
+          pragma: appContracts.pragma,
+          address: String(account.address),
+          accountKey: privateKey,
+          seedWei: BigInt(process.env.RELAYER_GROUNDSKEEPER_SEED_WEI || '2000000000000000000'),
+          storePath:
+            process.env.RELAYER_GROUNDSKEEPER_STORE ||
+            fileURLToPath(new URL('../../../.relayer/groundskeeper.json', import.meta.url)),
+          log: (line) => console.log(line),
+          warn: (line) => console.warn(line),
+        })
+      : undefined
+  groundskeeper?.start()
+
   const server = createRelayerServer({
     // `details` is undefined for a plain submission, which is what `execute` already
     // defaults to — so a `{calls}`-only body goes out byte-identical to before, and a
@@ -2741,6 +2762,12 @@ async function main(): Promise<void> {
         ? `teller: holding ${teller.keyCount()} tally key(s) · sweeping every ${TELLER_INTERVAL_MS / 1000}s · ` +
             `ledger ${process.env.RELAYER_TELLER_STORE ?? '.relayer/teller.json'}`
         : 'teller: off — no Governance contract deployed',
+    )
+    console.log(
+      groundskeeper
+        ? `groundskeeper: standing markets on, seed ${process.env.RELAYER_GROUNDSKEEPER_SEED_WEI || '2000000000000000000'} wei · ` +
+            `store ${process.env.RELAYER_GROUNDSKEEPER_STORE ?? '.relayer/groundskeeper.json'} — REAL STRK per market`
+        : 'groundskeeper: off — set RELAYER_GROUNDSKEEPER=on to keep the board planted (spends real STRK)',
     )
     console.log(
       sponsorConfig.invites
