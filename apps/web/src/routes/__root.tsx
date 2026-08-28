@@ -249,7 +249,7 @@ function RootLayout() {
             <Icon name="search" size={14} />
             <span className="numeric hidden font-mono text-body4 md:inline">⌘K</span>
           </button>
-          <Link to="/settings" aria-label="Settings" className="icon-pill focus-ring">
+          <Link to="/settings" aria-label="Settings" className="icon-pill focus-ring px-s8">
             <Icon name="sliders" />
           </Link>
           {/*
@@ -258,11 +258,12 @@ function RootLayout() {
             pushed the right rail into the pill nav at 1280.
           */}
           {/*
-            The network the artifact actually resolved to. The mainnet guard asserts both of these
-            values reach the mounted DOM — one assertion covering the whole chain, from the protocol
-            package through the router to a committed render — so this line is load-bearing.
+            The network the artifact actually resolved to — still mounted, still truthful, now
+            spoken rather than shown: the prototype's right rail is search · settings · account and
+            nothing else, and a raw chain-id hex wrapping beside the chip was the one element on
+            the header nobody designed. A screen reader still gets both values.
           */}
-          <span data-testid="network" className="numeric hidden font-mono text-body4 text-neutral3 xl:inline">
+          <span data-testid="network" className="sr-only">
             {ACTIVE_NETWORK} · {NET.chainId}
           </span>
           {/*
