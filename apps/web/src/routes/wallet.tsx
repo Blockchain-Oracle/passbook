@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { Suspense, lazy, useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import type { BookState, ShieldedBalance, TokenBalance } from '@strk20/protocol/balances'
+import { BOOK_EMPTY, BOOK_NOT_REGISTERED, BOOK_UNKNOWN } from '@strk20/protocol/activity-copy'
 import { toPlainText } from '@strk20/protocol/amount'
 import { STRK_TOKEN } from '@strk20/protocol/constants'
 import { KNOWN_TOKEN_DECIMALS } from '@strk20/protocol/token-scale'
@@ -167,7 +168,7 @@ function WalletAccount({ session }: { session: Extract<SessionState, { status: '
   // The record, off the same walk. It publishes into the store `ActivityFeed` subscribes to, so
   // nothing is threaded through — but its two honest sentences are, because the feed cannot know
   // that a read failed or was truncated from the rows alone.
-  const activity = useActivity(read, session.accountKey)
+  const activity = useActivity(read, session.accountKey, session.address)
   const [receiving, setReceiving] = useState(false)
   const firstRun = useFirstRun()
   const poolFee = usePoolFee()
@@ -217,8 +218,12 @@ function WalletAccount({ session }: { session: Extract<SessionState, { status: '
       setRegisterProblem(result.because)
       return
     }
-    // Re-read rather than assume the rung moved — the ladder reports what it reads.
+    // Re-read rather than assume the rung moved — the ladder reports what it reads. AND the
+    // balance walk re-runs too: it probes the same registration fact through its own reader, and
+    // leaving it stale had the hero saying "not registered with the pool" beside a ladder saying
+    // "Registered" for the rest of the session.
     setStatusNonce((n) => n + 1)
+    refresh()
 
     // THE NAME, NOW THAT THERE IS A KEY ON-CHAIN TO VERIFY IT AGAINST.
     //
@@ -231,7 +236,7 @@ function WalletAccount({ session }: { session: Extract<SessionState, { status: '
       viewingKey: session.viewingKey,
     })
     pendingClaim.current = { name: '', claimPublicly: false }
-  }, [session.accountKey, session.address, session.viewingKey, backedUp])
+  }, [session.accountKey, session.address, session.viewingKey, backedUp, refresh])
 
   //
   // The starter STRK, asked for once the account is registered.
@@ -251,6 +256,7 @@ function WalletAccount({ session }: { session: Extract<SessionState, { status: '
     const result = await requestDrip(session.address)
     if (!result.ok) return { ok: false as const, because: result.because }
     setStatusNonce((n) => n + 1)
+    refresh()
     // STRK is 18 decimals, read from `KNOWN_TOKEN_DECIMALS` rather than typed as an 18 here —
     // `token-scale.ts`'s whole point is that a wrong decimals is what destroys a displayed amount,
     // and one literal beside a formatter is exactly where that happens.
@@ -258,7 +264,7 @@ function WalletAccount({ session }: { session: Extract<SessionState, { status: '
       ok: true as const,
       amount: toPlainText(BigInt(result.amountWei), KNOWN_TOKEN_DECIMALS[STRK_TOKEN] ?? 18),
     }
-  }, [session.address])
+  }, [session.address, refresh])
 
   const onDeploy = useCallback(async () => {
     setDeploying(true)
@@ -272,7 +278,8 @@ function WalletAccount({ session }: { session: Extract<SessionState, { status: '
     // Re-read rather than assuming the rung moved. `deployAccount` already confirmed the class is
     // on chain, but the ladder's job is to report what it reads.
     setStatusNonce((n) => n + 1)
-  }, [session.accountKey, session.address])
+    refresh()
+  }, [session.accountKey, session.address, refresh])
 
   return (
     <>
@@ -841,15 +848,14 @@ function HoldingRow({ holding }: { holding: TokenBalance }) {
 }
 
 /**
- * One sentence per book state, written out rather than derived.
- *
- * `unknown` is the one that must never read like an empty account: "we could not look" and "there
- * is nothing here" are different facts and only one of them is about the user's money.
+ * One sentence per book state — the three law-governed ones IMPORTED from `activity-copy`, so a
+ * claim about the user's money has exactly one authored form. A hand-retyped copy of
+ * `BOOK_NOT_REGISTERED` used to live here and had already drifted ("with the pool" vs "on the
+ * pool"). `holdings` renders only beside a non-empty token list, so its sentence stays local.
  */
 const BOOK_SENTENCE: Record<BookState, string> = {
-  'not-registered':
-    'This account isn’t registered with the pool yet, so nothing could have been sent to it.',
-  'no-activity': 'Registered, and holding nothing yet.',
+  'not-registered': BOOK_NOT_REGISTERED,
+  'no-activity': BOOK_EMPTY,
   holdings: 'Holding notes.',
-  unknown: 'The pool couldn’t be read, so this isn’t a balance — it’s a gap.',
+  unknown: BOOK_UNKNOWN,
 }

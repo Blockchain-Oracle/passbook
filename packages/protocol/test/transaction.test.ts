@@ -160,17 +160,19 @@ describe('feedFor', () => {
     expect(view.rows).toEqual([mine])
   })
 
-  it('Personal with nothing of ours falls back to Global', () => {
+  it('Personal with nothing of ours renders NOTHING — never the pool tape', () => {
+    // The old fallback put the deployer's deposits inside a fresh wallet's Personal tab. An empty
+    // personal history must look empty; `personal-empty` keeps its own explaining sentence.
     const view = feedFor('personal', [settled(deposit())], true)
     expect(view.tab).toBe('personal')
-    expect(view.showing).toBe('global')
+    expect(view.showing).toBe('personal')
     expect(view.state).toBe('personal-empty')
-    expect(view.rows).toHaveLength(1)
+    expect(view.rows).toEqual([])
   })
 
-  it('Personal empty AND Global empty is the ordinary empty feed, not a fallback', () => {
-    // The distinction is copy: `personal-empty` renders "showing everything the pool did instead",
-    // which over an empty list is a sentence about a list that shows nothing.
+  it('Personal empty AND Global empty is the ordinary empty feed, not personal-empty', () => {
+    // `personal-empty` says "none of these are yours", which over a window that held nothing at
+    // all would be a sentence about rows that do not exist.
     expect(feedFor('personal', [], true).state).toBe('empty')
   })
 

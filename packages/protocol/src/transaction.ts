@@ -191,14 +191,14 @@ export function isMine(tx: Transaction): boolean {
  * about the chain, and before a read has run we have not looked. Collapsing them tells a user
  * their history is empty during an outage — the same fail-closed rule `BOOK_UNKNOWN` exists for.
  *
- * `showing` is what rendered, which can differ from `tab`: a Personal tab with nothing in it falls
- * back to Global so the app is never blank. Returned as data rather than decided in the component,
- * so the fallback is testable and one behaviour rather than one per caller.
+ * `showing` now always equals `tab`: the Personal-to-Global fallback was removed after it put the
+ * pool's rows — other people's transactions — inside a personal wallet's history. The field stays
+ * so the view remains data (testable, one behaviour) and so a future divergence must be explicit.
  */
 export interface FeedView {
   /** The tab the user selected. */
   tab: FeedTab
-  /** The tab whose rows are in `rows`. Differs from `tab` only on the Personal-empty fallback. */
+  /** The tab whose rows are in `rows`. Always `tab` since the Personal fallback was removed. */
   showing: FeedTab
   rows: Transaction[]
   state: 'unread' | 'empty' | 'filtered-empty' | 'personal-empty' | 'rows'
@@ -231,13 +231,17 @@ export function feedFor(
 
   const personal = global.filter(isMine)
   if (personal.length) return { tab, showing: 'personal', rows: personal, state: 'rows' }
-  // Nothing of ours. Fall back to Global — and when Global is empty too, this is not a fallback at
-  // all, it is the ordinary empty feed, so it must not carry the "showing everything instead"
-  // sentence over a list that shows nothing.
+  //
+  // NOTHING OF OURS RENDERS NOTHING. The old fallback showed the whole pool tape here, which put
+  // the deployer's deposits — signed, with `+` amounts — inside a fresh wallet's Personal tab.
+  // A personal history that is empty must LOOK empty; the Global tab is one press away and is
+  // labeled as the pool's record, not ours. `personal-empty` keeps its own sentence so the blank
+  // is explained, and degrades to the ordinary empty states when the window itself held nothing.
+  //
   return {
     tab,
-    showing: 'global',
-    rows: global,
+    showing: 'personal',
+    rows: [],
     state: global.length ? 'personal-empty' : nothing(),
   }
 }
@@ -520,13 +524,19 @@ export function activityCategory(tx: Transaction): ActivityCategory {
   }
 
   const { entry } = tx.chain
+  //
+  // EVERY OWNED KIND IS GATED ON `mine`, not just the note kinds. A stranger's deposit is a fact
+  // about the pool, not money arriving in this book — rendering it as `deposit` gave it an `in`
+  // sign in whoever's feed it appeared. `markOwnAddress` is what establishes `mine` for the
+  // public-address kinds; without it they honestly degrade to `note`, which claims nothing.
+  //
   switch (entry.kind) {
     case 'registration':
-      return 'registration'
+      return entry.mine ? 'registration' : 'note'
     case 'deposit':
-      return 'deposit'
+      return entry.mine ? 'deposit' : 'note'
     case 'withdrawal':
-      return 'withdrawal'
+      return entry.mine ? 'withdrawal' : 'note'
     case 'note-spent':
       return entry.mine ? 'sent' : 'note'
     case 'note-created':

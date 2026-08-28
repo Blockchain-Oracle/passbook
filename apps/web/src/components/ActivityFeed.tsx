@@ -132,7 +132,9 @@ export function ActivityFeed({
   headBlock = null,
 }: ActivityFeedProps) {
   const { transactions, initialized } = useSyncExternalStore(subscribe, getActivity)
-  const [tab, setTab] = useState<FeedTab>('global')
+  // PERSONAL FIRST. This is a wallet: the first thing its record shows must be the reader's own
+  // book, not the pool's. Global is one press away and labeled as the pool's public record.
+  const [tab, setTab] = useState<FeedTab>('personal')
   const [showSystemNotes, setShowSystemNotes] = useState(true)
   //
   // WHICH PAGE, ZERO-BASED, AND SHARED BY BOTH TABS ON PURPOSE — because it is RESET rather than

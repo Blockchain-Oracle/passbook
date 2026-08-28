@@ -81,12 +81,20 @@ describe('the category is derived from what the chain published, never from inte
     expect(activityCategory(theirs)).toBe('note')
   })
 
-  it('the public boundary kinds keep their own names', () => {
-    expect(activityCategory(settled({ ...base(), kind: 'deposit' }))).toBe('deposit')
-    expect(activityCategory(settled({ ...base(), kind: 'withdrawal' }))).toBe('withdrawal')
+  it('the public boundary kinds keep their own names ONLY when they are ours', () => {
+    // `markOwnAddress` is what establishes `mine` for these kinds. A stranger's deposit is a fact
+    // about the pool, not money in this book — unowned, each degrades to `note`, which claims
+    // nothing. The old behaviour rendered the deployer's deposits with `+` signs in every feed.
+    expect(activityCategory(settled({ ...base({ mine: true }), kind: 'deposit' }))).toBe('deposit')
+    expect(activityCategory(settled({ ...base({ mine: true }), kind: 'withdrawal' }))).toBe('withdrawal')
+    expect(
+      activityCategory(settled({ ...base({ mine: true }), kind: 'registration', publicKey: '0x9' })),
+    ).toBe('registration')
+    expect(activityCategory(settled({ ...base(), kind: 'deposit' }))).toBe('note')
+    expect(activityCategory(settled({ ...base(), kind: 'withdrawal' }))).toBe('note')
     expect(
       activityCategory(settled({ ...base(), kind: 'registration', publicKey: '0x9' })),
-    ).toBe('registration')
+    ).toBe('note')
   })
 
   it('a 1-wei companion is a system note whoever it belongs to', () => {
@@ -119,11 +127,14 @@ describe('the category is derived from what the chain published, never from inte
 })
 
 describe('direction is only claimed where a sign means something', () => {
-  it('value in and value out', () => {
+  it('value in and value out — signs belong to OUR rows', () => {
     expect(amountDirection(settled({ ...base({ mine: true, amount: 5n }), kind: 'note-created', open: false }))).toBe('in')
-    expect(amountDirection(settled({ ...base(), kind: 'deposit' }))).toBe('in')
+    expect(amountDirection(settled({ ...base({ mine: true }), kind: 'deposit' }))).toBe('in')
     expect(amountDirection(settled({ ...base({ mine: true }), kind: 'note-spent', nullifier: '0x1' }))).toBe('out')
-    expect(amountDirection(settled({ ...base(), kind: 'withdrawal' }))).toBe('out')
+    expect(amountDirection(settled({ ...base({ mine: true }), kind: 'withdrawal' }))).toBe('out')
+    // A stranger's boundary crossing carries no sign: it is not money moving relative to us.
+    expect(amountDirection(settled({ ...base(), kind: 'deposit' }))).toBe('none')
+    expect(amountDirection(settled({ ...base(), kind: 'withdrawal' }))).toBe('none')
   })
 
   it("a stranger's note, a registration and a system note carry no sign at all", () => {
