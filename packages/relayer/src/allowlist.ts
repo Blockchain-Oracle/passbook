@@ -77,7 +77,14 @@ export interface SubmissionPolicy {
  */
 const KEEPER_ENTRYPOINTS = {
   markets: ['resolve', 'void'],
-  launch: ['graduate'],
+  //
+  // `create_launch` joins `graduate` under the sponsorable-creator rule the governance family
+  // states below — the creator is a commitment, so this key signing a creation identifies
+  // nobody. It was the named precedent for that rule while not actually being allowlisted
+  // itself, which left pool-native creators (no public STRK at their address) with no working
+  // path to create at all.
+  //
+  launch: ['graduate', 'create_launch'],
   //
   // The Governor's five, in two families that both pass the inclusion rule:
   //

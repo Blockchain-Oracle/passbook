@@ -14,7 +14,7 @@ import { PROPOSAL_ACTION, PROPOSAL_MODE, type OnChainHouse } from '@strk20/proto
 
 import { cn } from '../../lib/cn'
 import { APP_CONTRACTS } from '../../shell/app-contracts'
-import { invokeDirect } from '../../shell/submit'
+import { invokeSponsoredOrDirect } from '../../shell/submit'
 import { toast } from '../../shell/toast-store'
 import { useSession } from '../../shell/session'
 import { useTokenList } from '../../shell/use-token-list'
@@ -118,7 +118,9 @@ export function ProposeDialog({
         spend ? recipient.trim() : '0x0',
         ...encodeByteArray(question.trim()),
       ]
-      const outcome = await invokeDirect(ready.accountKey, ready.address, {
+      // Relayer-signed like `create_house` — the allowlist permits `propose`, and a pool-native
+      // proposer holds no public gas. Falls back to self-signing only when that can work.
+      const outcome = await invokeSponsoredOrDirect(ready.accountKey, ready.address, {
         contractAddress: APP_CONTRACTS.governance!,
         entrypoint: 'propose',
         calldata,

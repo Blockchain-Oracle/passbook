@@ -158,6 +158,7 @@ export function BetTicket({
       commitment: minted.commitment,
       createdAt: Date.now(),
       label: `${side === SIDE_UP ? 'YES' : 'NO'} · ${marketQuestion(market)} · ${toPlainText(parsed.wei, decimals)} ${symbol}`,
+      txHash: outcome.transactionHash,
     })
     toast({
       kind: 'success',

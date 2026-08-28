@@ -124,6 +124,7 @@ export function BuyForm({ launch, onDone }: { launch: OnChainLaunch; onDone?: ()
       commitment: minted.commitment,
       createdAt: Date.now(),
       label: `${units} unit${units === 1 ? '' : 's'} of ${launch.symbol || launch.name} · ${toPlainText(quoted, decimals)} ${symbol}`,
+      txHash: outcome.transactionHash,
     })
     toast({
       kind: 'success',

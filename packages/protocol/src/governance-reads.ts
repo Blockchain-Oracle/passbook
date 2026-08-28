@@ -15,6 +15,7 @@ export const GOV_SELECTOR = {
   get_proposal: '0x18f60c3bdb1df95563770826ad07ecaf06d10e719f6506a4bcf38d415114fda',
   proposal_metadata: '0x39a71754ab406e1729807ba4097f24e1d1a153cb2629cfe11c375678b9b62ee',
   get_ballot: '0x3576fff913f6a4bbeffb81315974aed151b620265662f7810c46523f630eeb6',
+  get_accumulator: '0x67a88b6f5f72e48c3834c17b60419d473277e43a3cb1bacf05b1a40042944a',
   pot_of: '0x2396a1d812f00126bad2e94508dd8a1252ffa1cba0eabf00f68ae9d663fd978',
   is_member: '0x3520f40cde5a37d7f97fdb31d9893d05baa70a1fca6e3dd0a24cf784def11d6',
   get_escrow: '0x275a3ba0c3a920dc9a4c088eca3f23addb8c049d79b76c10226c5343856d49e',
@@ -181,6 +182,28 @@ export async function readProposals(
     }
   }
   return { proposals, total, problem }
+}
+
+/**
+ * The live EC accumulators for one proposal, one `(x, y)` pair per option.
+ *
+ * These are the record page's verification anchors: the contract refused to publish any tally
+ * whose sums did not hit these exact points (`S_i·G + R_i·H == ACC_i`, governance.cairo §6.3),
+ * so rendering them beside the accepted sums is showing the reader the lock, not asking them to
+ * trust the report of it. `(0, 0)` is the identity — an option no weight ever entered.
+ */
+export async function readAccumulators(
+  contract: string,
+  proposalId: number,
+  options: number,
+  transport: Transport = defaultTransport,
+): Promise<Array<{ x: string; y: string }>> {
+  const out: Array<{ x: string; y: string }> = []
+  for (let option = 0; option < options; option += 1) {
+    const felts = await call(contract, GOV_SELECTOR.get_accumulator, [hex(proposalId), hex(option)], transport)
+    out.push({ x: felts[0] ?? '0x0', y: felts[1] ?? '0x0' })
+  }
+  return out
 }
 
 /** The identity's committed weight on a proposal — `get_ballot`'s public half. */

@@ -151,6 +151,7 @@ export function BallotTicket({
         commitment: escrow.commitment,
         createdAt: Date.now(),
         label: `Ballot on “${proposal.metadata.slice(0, 40) || `Proposal ${proposal.id}`}” · ${toPlainText(weight, decimals)} ${symbol} escrowed`,
+        txHash: outcome.transactionHash,
       })
     }
     toast({

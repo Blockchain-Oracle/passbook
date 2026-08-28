@@ -45,7 +45,7 @@ function Houses() {
             </Text>
             {GOVERNANCE_DEPLOYED ? (
               <Button variant="primary" size="md" onClick={() => setCreating(true)}>
-                Activate a House
+                Create a House
               </Button>
             ) : null}
           </div>
@@ -71,8 +71,9 @@ function Houses() {
                     ? 'Reading the Governor…'
                     : 'No House is standing yet. Any token can raise one — including one launched next door.'}
                 </Text>
+                {/* ONE VERB. "Activate" and "Raise" were two more words for the same action. */}
                 <Button variant="primary" size="md" className="self-start" onClick={() => setCreating(true)}>
-                  Raise the first one
+                  Create the first one
                 </Button>
               </section>
             ) : (

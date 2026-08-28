@@ -111,6 +111,12 @@ export const ANCILLARY_PATHS = [
   '/launch/$id',
   '/token/$address',
   //
+  // A HOUSE'S RECORD PAGE — `/launch/$id`'s reasoning on the governance surface: one House whole
+  // (rules, proposals with receipts, treasury history, verification), reached from the Houses
+  // cards, never from the nav. Same standalone-underscore file discipline.
+  //
+  '/houses/$id',
+  //
   // A PERSON'S PAGE — the directory entry its holder signed, and nothing else. Reached from
   // search and from anywhere a name renders; not a mode because people are who you act ON from
   // the surfaces, not a surface of their own.

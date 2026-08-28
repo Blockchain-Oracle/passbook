@@ -12,6 +12,9 @@ import {
 } from '@strk20/protocol/markets-copy'
 import type { OnChainLaunch } from '@strk20/protocol/app-reads'
 
+import { toPlainText } from '@strk20/protocol/amount'
+import { HOUSE_MEMBERSHIP, PROPOSAL_STATE } from '@strk20/protocol/governance-reads'
+
 import { ActivityTape } from '../components/launch/ActivityTape'
 import { BuyTicket } from '../components/launch/BuyPanel'
 import { CreateLaunch } from '../components/launch/CreateLaunch'
@@ -23,22 +26,29 @@ import { Text } from '../components/ui/Text'
 import { cn } from '../lib/cn'
 import { LAUNCH_DEPLOYED } from '../shell/app-contracts'
 import { useChainFeed } from '../shell/chain-feed'
+import { useGovernance } from '../shell/use-governance'
 import { useLaunches } from '../shell/use-app-reads'
+import { findToken, useTokenList } from '../shell/use-token-list'
+import { shortenFelt } from '../shell/session'
 import { Surface } from '../shell/Surface'
 
-type LaunchTab = 'launches' | 'tokens' | 'activity'
+type LaunchTab = 'launches' | 'tokens' | 'activity' | 'houses'
 
 const TABS: ReadonlyArray<{ id: LaunchTab; label: string }> = [
   { id: 'launches', label: 'Launches' },
   { id: 'tokens', label: 'Tokens' },
   { id: 'activity', label: 'Activity' },
+  { id: 'houses', label: 'Houses' },
 ]
 
 export const Route = createFileRoute('/launch')({
   // The tab travels in the URL so a view is linkable — Uniswap's tabs-are-routes intent, carried
-  // by a search param because three views of one surface are not three surfaces.
+  // by a search param because four views of one surface are not four surfaces.
   validateSearch: (search: Record<string, unknown>): { tab?: LaunchTab } => ({
-    tab: search.tab === 'tokens' || search.tab === 'activity' ? search.tab : undefined,
+    tab:
+      search.tab === 'tokens' || search.tab === 'activity' || search.tab === 'houses'
+        ? search.tab
+        : undefined,
   }),
   component: Launch,
 })
@@ -166,6 +176,8 @@ function Launch() {
                 }
               />
             ) : null}
+
+            {tab === 'houses' ? <HousesTab /> : null}
           </>
         ) : (
           <section className="rounded-large border border-solid border-surface3 p-s16">
@@ -195,5 +207,76 @@ function Launch() {
         <CreateLaunch open={creating} onClose={() => setCreating(false)} />
       </div>
     </Surface>
+  )
+}
+
+/**
+ * The Houses view of the explore surface — every card a door into `/houses/$id`. Summary only:
+ * the full room (proposals, doors, verification) lives on the record page, and the governance
+ * surface itself stays at `/houses`.
+ */
+function HousesTab() {
+  const read = useGovernance()
+  const { tokens } = useTokenList()
+
+  if (read.houses.length === 0) {
+    return (
+      <section className="flex flex-col gap-s8 rounded-large border border-solid border-surface3 p-s16">
+        <Text variant="body3" className="text-neutral2">
+          {read.loading
+            ? 'Reading the Governor…'
+            : 'No House is standing yet. Any token can raise one — the Houses surface has the door.'}
+        </Text>
+        <Link to="/houses" className="focus-ring self-start text-body3 text-accent1 underline">
+          Open Houses →
+        </Link>
+      </section>
+    )
+  }
+
+  return (
+    <div className="grid gap-s12 md:grid-cols-2">
+      {read.houses.map((house) => {
+        const stake = findToken(tokens, house.token)
+        const symbol = stake?.symbol ?? shortenFelt(house.token, 4, 3)
+        const decimals = stake?.decimals ?? 18
+        const open = read.proposals.filter(
+          (p) => p.houseId === house.id && p.state === PROPOSAL_STATE.active,
+        ).length
+        return (
+          <Link
+            key={house.id}
+            to="/houses/$id"
+            params={{ id: String(house.id) }}
+            preload="intent"
+            className="focus-ring group flex flex-col gap-s8 rounded-large border border-solid border-surface3 bg-raised p-s16 no-underline transition-colors hover:border-accent1"
+          >
+            <div className="flex items-center gap-s8">
+              <Text variant="subheading1" as="h2" className="min-w-0 flex-1 truncate text-neutral1">
+                {house.metadata || `House ${house.id}`}
+              </Text>
+              <span className="rounded-pill border border-solid border-surface3 px-s8 py-s2 font-mono text-mono text-neutral2">
+                {house.membership === HOUSE_MEMBERSHIP.invite ? 'invite' : 'open'}
+              </span>
+            </div>
+            <div className="flex items-baseline gap-s12 font-mono text-mono text-neutral3">
+              <span>
+                treasury{' '}
+                <span className="text-neutral1">
+                  {toPlainText(house.treasury, decimals)} {symbol}
+                </span>
+              </span>
+              <span>{house.memberCount} members</span>
+              <span>
+                {open === 0 ? 'no open vote' : `${open} open vote${open === 1 ? '' : 's'}`}
+              </span>
+            </div>
+            <span className="text-right font-mono text-mono text-neutral3 opacity-0 transition-opacity group-hover:opacity-100">
+              the record →
+            </span>
+          </Link>
+        )
+      })}
+    </div>
   )
 }
