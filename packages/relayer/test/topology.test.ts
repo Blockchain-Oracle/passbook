@@ -31,6 +31,7 @@ import { createFundingMonitor } from '../src/funding-monitor.js'
 import { createQuoteCounter, createRelayerServer, type RelayerServerOptions } from '../src/server.js'
 import { MAX_PUBLISH_PER_MINUTE, MAX_SUBSCRIBERS_PER_ROOM, RoomHub } from '../src/rooms.js'
 import { ChainFeed, MAX_FEED_SUBSCRIBERS } from '../src/chain-feed.js'
+import { Groundskeeper } from '../src/groundskeeper.js'
 import {
   COLD_START_CAVEAT,
   DEMO_CRITICAL,
@@ -339,22 +340,24 @@ describe('the signer set is four, each with a host and a discipline (AD-17)', ()
   })
 })
 
-describe('the relayer has six jobs, each with its own degrade states (AD-17 + B3)', () => {
+describe('the relayer has seven jobs, each with its own degrade states (AD-17 + B3)', () => {
   //
-  // SIX, NOT AD-17's FOUR. `chat transport` is the room bus, which B3 put on this process
+  // SEVEN, NOT AD-17's FOUR. `chat transport` is the room bus, which B3 put on this process
   // instead of on the Cloudflare Durable Object AD-17 named — see `RelayerJobName`. `chain feed`
-  // is the M1 fan-out poller, on this process for the same one-machine reasons. The list is
-  // still pinned exactly, because the point of pinning it is that a job cannot appear or vanish
-  // without somebody deciding to change this line.
+  // is the M1 fan-out poller, and `groundskeeper` the standing-market seeder, on this process
+  // for the same one-machine reasons. The list is still pinned exactly, because the point of
+  // pinning it is that a job cannot appear or vanish without somebody deciding to change this
+  // line.
   //
-  it('is exactly {submission, sponsored registration, quote proxy, chat transport, chain feed, stats}', () => {
-    expect(RELAYER_JOBS).toHaveLength(6)
+  it('is exactly {submission, sponsored registration, quote proxy, chat transport, chain feed, groundskeeper, stats}', () => {
+    expect(RELAYER_JOBS).toHaveLength(7)
     expect(JOB_NAMES).toEqual([
       'submission',
       'sponsored registration',
       'quote proxy',
       'chat transport',
       'chain feed',
+      'groundskeeper',
       'stats',
     ])
   })
@@ -419,8 +422,12 @@ describe('the relayer has six jobs, each with its own degrade states (AD-17 + B3
     }
   })
 
-  it('gives every BUILT job real routes', () => {
-    for (const j of RELAYER_JOBS.filter((j) => j.builtToday)) {
+  it('gives every BUILT job real routes — background timers excepted, by name', () => {
+    // The Groundskeeper is the one built job that serves no route: it is a timer that spends,
+    // like the settlement keeper before it. Named here rather than keyed off `routes: []` so a
+    // route-serving job that forgot its routes still fails.
+    const BACKGROUND_JOBS = new Set(['groundskeeper'])
+    for (const j of RELAYER_JOBS.filter((j) => j.builtToday && !BACKGROUND_JOBS.has(j.job))) {
       expect(j.routes.length, `${j.job} routes`).toBeGreaterThan(0)
       for (const r of j.routes) expect(r).toMatch(/^(GET|POST) \//)
     }
@@ -927,6 +934,32 @@ const SCENARIOS: Record<string, Scenario> = {
     )
     const rejoined = after.subscribe(room, { deliver() {}, end() {} })
     expect(rejoined.ok && rejoined.history).toHaveLength(1)   // only what arrived after the restart
+  },
+
+  // ── The Groundskeeper. A background spender whose failure closes exactly nothing. ────────
+
+  'groundskeeper/idle': async () => {
+    const state = row('groundskeeper/idle')
+    // A keeper that cannot act: provisioning refuses (the unfunded-wallet case).
+    const keeper = new Groundskeeper({
+      seedWei: 2_000_000_000_000_000_000n,
+      readMarkets: async () => [],
+      readStrike: async () => 1n,
+      ensureReady: async () => 'the wallet cannot cover provisioning',
+      createMarket: async () => {
+        throw new Error('must not be reached while unprovisioned')
+      },
+      recordSeed: () => {},
+      updateSeedTx: () => {},
+    })
+    await keeper.sweep()
+    expect(keeper.problem).toContain('cannot cover provisioning')
+    expect(keeper.last).toBeNull()
+
+    // The row's claim: an idle Groundskeeper costs the board its standing markets and nothing
+    // else — a submission still signs in the same process, at the row's own status.
+    const { port } = await fullRelayer()
+    expect((await submit(port)).status).toBe(state.status)
   },
 
   // ── The chain feed. Public state only, and both rows are about staying honest. ───────────
