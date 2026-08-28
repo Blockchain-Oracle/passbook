@@ -38,7 +38,7 @@ import { useBalance } from '../shell/use-balance'
 import { useActivity } from '../shell/use-activity'
 import { findToken, useTokenList } from '../shell/use-token-list'
 import { labelAccount, unlockSession, useSession, shortenFelt, type SessionState } from '../shell/session'
-import { useFirstRun } from '../shell/use-first-run'
+import { offerFirstRunOnArrival, useFirstRun } from '../shell/use-first-run'
 import { usePoolFee } from '../shell/use-pool-fee'
 import { claimAfterRegistration } from '../shell/claim-after-registration'
 import { Surface } from '../shell/Surface'
@@ -203,6 +203,17 @@ function WalletAccount({ session }: { session: Extract<SessionState, { status: '
     }
   }, [session.address, statusNonce])
 
+  //
+  // THE COLD OPEN, ACTUALLY COLD — a first-ever visitor gets the flow on arrival (Abu's 28-Aug
+  // ruling, superseding the intent-only doctrine; `use-first-run.ts` carries the whole story).
+  // Gated on the STATUS READ so a registered account returning on a cleared localStorage is
+  // never greeted like a stranger: the chain outranks the flag in that direction.
+  //
+  useEffect(() => {
+    if (accountStatus === null || accountStatus.rung === 'unknown') return
+    offerFirstRunOnArrival({ registered: accountStatus.rung === 'ready' })
+  }, [accountStatus])
+
   const onRegister = useCallback(async () => {
     setRegisterProblem(null)
     setRegistering('build')
@@ -357,7 +368,7 @@ function WalletAccount({ session }: { session: Extract<SessionState, { status: '
                     }}
                   />
                 )}
-                onDismiss={firstRun.dismiss}
+                onDismiss={accountStatus?.rung === 'ready' ? firstRun.complete : firstRun.dismiss}
               />
             ) : null}
 
