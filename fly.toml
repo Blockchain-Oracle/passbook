@@ -37,6 +37,13 @@ primary_region = "iad"
   # The chain feed's price history. Not a ledger — losing it costs a chart its past, not anyone
   # a cap — but the volume is exactly where "the past this process witnessed" belongs.
   RELAYER_CHAIN_FEED_STORE = "/data/chain-feed.jsonl"
+  # The Teller's tally-key ledger (signer five's custody, packages/relayer/src/teller.ts).
+  # Losing it before a permanently-private close makes that vote untalliable — void_proposal is
+  # the backstop, but the volume is where these keys belong. Idle until Governance deploys.
+  RELAYER_TELLER_STORE = "/data/teller.json"
+  # After `deploy-governance.ts --execute`, set this to the blockNumber it prints — the Teller's
+  # event-scan floor:
+  #   fly secrets set RELAYER_GOVERNANCE_FROM_BLOCK=<block>
   # `RELAYER_INVITE_STORE` is deliberately absent — see the Dockerfile. A store path without
   # `RELAYER_INVITE_ALLOWANCE` is a refusal to start, not a default, and invites are off here.
 
