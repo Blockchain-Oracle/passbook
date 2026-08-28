@@ -97,13 +97,13 @@ function ChatLayout() {
       >
         <aside
           className={cn(
-            'flex min-w-0 flex-col gap-s8',
+            'flex min-w-0 flex-col gap-s8 rounded-large border border-solid border-surface3 bg-raised p-s12',
             // On mobile the list is hidden while a thread is open; on desktop it is always there.
             activePeer !== null ? 'hidden lg:flex' : 'flex',
           )}
         >
           <div className="flex items-center justify-between gap-s8">
-            <Text variant="heading3" as="h1">
+            <Text variant="display3" as="h1" className="text-neutral1">
               Chat
             </Text>
             <Button variant="secondary" size="sm" onClick={() => setComposing(true)} disabled={!ready}>

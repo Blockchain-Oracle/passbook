@@ -18,6 +18,7 @@ import { PrivacyRow } from '../components/PrivacyRow'
 import { PeerAvatar } from '../components/PeerAvatar'
 import { TokenSelector } from '../components/TokenSelector'
 import { Button } from '../components/ui/Button'
+import { Icon } from '../components/icons'
 import { Text } from '../components/ui/Text'
 import { cn } from '../lib/cn'
 import { ResponsiveDialog } from '../shell/ResponsiveDialog'
@@ -189,6 +190,17 @@ function Thread() {
           </Text>
         </div>
 
+        {/*
+          [STUDIO] The sealed badge — a shield and the word, never the glyph alone. Rendered only
+          while the room is genuinely open, because a sealed badge on a thread that cannot send is
+          a claim about a room that does not exist yet.
+        */}
+        {open ? (
+          <span className="flex shrink-0 items-center gap-s6 text-body4 text-neutral3">
+            <Icon name="shield" size={13} strokeWidth={1.6} />
+            sealed
+          </span>
+        ) : null}
         <ConnectionChip status={status} connection={bus.connection} />
       </header>
 
@@ -221,7 +233,7 @@ function Thread() {
             }}
             disabled={!open}
             rows={1}
-            placeholder={open ? 'Message' : 'This thread is not open'}
+            placeholder={open ? 'Write — it seals before it leaves' : 'This thread is not open'}
             aria-label="Message"
             className="focus-ring max-h-[120px] min-h-[44px] flex-1 resize-y rounded-card bg-inset px-s12 py-s12 text-body3 text-neutral1 placeholder:text-neutral3 disabled:opacity-60"
           />

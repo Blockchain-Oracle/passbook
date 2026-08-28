@@ -548,6 +548,9 @@
   .pb-viewport {
     position: fixed;
     inset: var(--spacing-s0);
+    /* On the adopted stacking scale, above the fixed chrome: a bottom sheet must cover the tab
+       bar (`z-fixed`), which otherwise wins on z-index whatever the document order says. */
+    z-index: var(--z-index-modal);
     display: flex;
     justify-content: center;
     pointer-events: none;
@@ -568,6 +571,8 @@
   .pb-scrim {
     position: fixed;
     inset: var(--spacing-s0);
+    /* Below the popup viewport, above the fixed chrome — same reasoning as `.pb-viewport`. */
+    z-index: var(--z-index-modal-backdrop);
     background-color: var(--color-scrim);
     transition-property: opacity;
     transition-duration: var(--transition-duration-quickLong);
@@ -1911,19 +1916,39 @@
   }
 
   /*
-   * ── The detached pipeline row ──────────────────────────────────────────────────────────
+   * ── The detached pipeline chip [STUDIO] ────────────────────────────────────────────────
    *
    * Mounted above the router outlet, so navigating swaps the outlet's subtree and leaves this
    * alone. There is no save-and-restore because there is no unmount — see `PipelineRow.tsx`.
+   *
+   * It FLOATS now — the prototype's bottom-centre chip with its "survives navigation" hint —
+   * rather than sitting as a hairline row under the header. `z-fixed` from the adopted stacking
+   * scale, and the min-height reserve survives the move because the build gate resolves it.
    */
   .pipeline-row {
+    position: fixed;
+    left: 50%;
+    transform: translateX(-50%);
+    bottom: var(--spacing-s20);
+    z-index: var(--z-index-fixed);
     display: flex;
     align-items: center;
     gap: var(--spacing-s12);
     min-height: var(--spacing-s40);
-    padding: var(--spacing-s0) var(--spacing-s12);
-    border-block-end: var(--spacing-s1) solid var(--color-surface3);
+    max-width: calc(100vw - var(--spacing-s32));
+    padding: var(--spacing-s0) var(--spacing-s16);
+    background-color: var(--color-raised);
+    border: var(--spacing-s1) solid var(--color-surface3Hovered);
+    border-radius: var(--radius-control);
+    box-shadow: var(--shadow-large);
     color: var(--color-neutral2);
+  }
+
+  @media (width < 768px) {
+    /* Clear the tab bar: the chip rides above it rather than underneath it. */
+    .pipeline-row {
+      bottom: calc(var(--spacing-s60) + var(--spacing-s28) + env(safe-area-inset-bottom));
+    }
   }
 
   /*
