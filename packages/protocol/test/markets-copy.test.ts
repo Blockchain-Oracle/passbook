@@ -24,8 +24,11 @@ describe('the empty states name what is missing and what would fill it', () => {
   })
 
   it('not-deployed and none-open are different facts with different sentences', () => {
+    // "Be the first to create one" was the review's exact complaint: people come to bet, not to
+    // found markets. The empty board now names the automation and keeps creation as a besides.
     expect(copy.MARKETS_NONE_OPEN).toBe(
-      'No markets are open right now. Anyone can create one, and the first bet in it sets the odds.',
+      'Between windows — the Groundskeeper opens the next standing markets shortly. Anyone can ' +
+        'open their own besides, and the first bet in it sets the odds.',
     )
     expect(copy.MARKETS_NONE_OPEN).not.toBe(copy.MARKETS_NOT_DEPLOYED)
     expect(copy.LAUNCH_NOT_DEPLOYED).not.toBe(copy.LAUNCH_NONE_OPEN)

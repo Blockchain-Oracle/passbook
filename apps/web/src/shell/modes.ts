@@ -111,6 +111,12 @@ export const ANCILLARY_PATHS = [
   '/launch/$id',
   '/token/$address',
   //
+  // A MARKET'S RECORD PAGE — same reasoning: one market whole (the line against its own strike,
+  // the numbers, every bet with its transaction, the thread), reached from the board's cards and
+  // the settled list, never from the nav.
+  //
+  '/markets/$id',
+  //
   // A HOUSE'S RECORD PAGE — `/launch/$id`'s reasoning on the governance surface: one House whole
   // (rules, proposals with receipts, treasury history, verification), reached from the Houses
   // cards, never from the nav. Same standalone-underscore file discipline.

@@ -1,4 +1,4 @@
-import { createFileRoute } from '@tanstack/react-router'
+import { Link, createFileRoute } from '@tanstack/react-router'
 import { useEffect, useState } from 'react'
 
 import {
@@ -12,6 +12,7 @@ import {
 import { PRAGMA_PAIR_LIST, type PragmaPair } from '@strk20/protocol/pragma-pairs'
 import { MARKET_STATE, marketQuestion, type OnChainMarket } from '@strk20/protocol/app-reads'
 import { SIDE_UP } from '@strk20/protocol/market-calldata'
+import { voyagerTxUrl } from '@strk20/protocol/transaction'
 
 import { ActivityTape } from '../components/launch/ActivityTape'
 import { BetTicket } from '../components/markets/BetTicket'
@@ -153,8 +154,9 @@ function Markets() {
                 <Text variant="body3" className="text-neutral2">
                   {read.loading ? 'Reading the markets contract…' : MARKETS_NONE_OPEN}
                 </Text>
-                <Button variant="primary" size="md" className="self-start" onClick={() => setCreating(true)}>
-                  Open the first one
+                {/* Secondary on purpose: visitors come to bet. The board fills itself. */}
+                <Button variant="secondary" size="md" className="self-start" onClick={() => setCreating(true)}>
+                  Open your own
                 </Button>
               </section>
             ) : (
@@ -194,22 +196,51 @@ function Markets() {
             {settled.length > 0 ? (
               <section className="flex flex-col gap-s4 rounded-large border border-solid border-surface3 p-s16">
                 <Text variant="kicker">Settled</Text>
-                {settled.map((market) => (
-                  <div key={market.id} className="flex items-baseline justify-between gap-s8">
-                    <Text variant="body4" className="min-w-0 truncate text-neutral2">
-                      {marketQuestion(market)}
-                    </Text>
-                    <Text variant="mono" className="shrink-0 text-neutral3">
-                      {market.state === MARKET_STATE.voided
-                        ? 'voided'
-                        : market.state === MARKET_STATE.resolved
-                          ? market.winner === SIDE_UP
-                            ? 'YES won'
-                            : 'NO won'
-                          : 'closing'}
-                    </Text>
-                  </div>
-                ))}
+                {settled.map((market) => {
+                  // The settlement's own receipt, off the tape — "YES won" with no transaction
+                  // hash was the review's exact complaint about this list.
+                  const settle = feed.tape.find(
+                    (item) =>
+                      (item.kind === 'market-resolved' || item.kind === 'market-voided') &&
+                      item.marketId === market.id,
+                  )
+                  const href = settle ? voyagerTxUrl(settle.txHash) : null
+                  return (
+                    <div key={market.id} className="flex items-baseline justify-between gap-s8">
+                      <Link
+                        to="/markets/$id"
+                        params={{ id: String(market.id) }}
+                        preload="intent"
+                        className="focus-ring min-w-0 no-underline"
+                      >
+                        <Text variant="body4" className="truncate text-neutral2 hover:text-neutral1 hover:underline">
+                          {marketQuestion(market)}
+                        </Text>
+                      </Link>
+                      <span className="flex shrink-0 items-baseline gap-s8">
+                        <Text variant="mono" className="text-neutral3">
+                          {market.state === MARKET_STATE.voided
+                            ? 'voided'
+                            : market.state === MARKET_STATE.resolved
+                              ? market.winner === SIDE_UP
+                                ? 'YES won'
+                                : 'NO won'
+                              : 'closing'}
+                        </Text>
+                        {href ? (
+                          <a
+                            href={href}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="focus-ring font-mono text-mono text-neutral3 underline hover:text-neutral1"
+                          >
+                            tx ↗
+                          </a>
+                        ) : null}
+                      </span>
+                    </div>
+                  )
+                })}
               </section>
             ) : null}
 
@@ -252,16 +283,31 @@ function MarketPositions() {
   return (
     <section className="flex flex-col gap-s6 rounded-large border border-solid border-surface3 p-s16">
       <Text variant="kicker">Your positions</Text>
-      {held.map((p) => (
-        <div key={p.commitment} className="flex flex-col">
-          <Text variant="body4" className="text-neutral1">
-            {p.label ?? `Market ${p.id}`}
-          </Text>
-          <Text variant="mono" className="truncate text-neutral3">
-            {shortenFelt(p.commitment, 10, 8)}
-          </Text>
-        </div>
-      ))}
+      {held.map((p) => {
+        const href = p.txHash ? voyagerTxUrl(p.txHash) : null
+        return (
+          <div key={p.commitment} className="flex flex-col">
+            <Text variant="body4" className="text-neutral1">
+              {p.label ?? `Market ${p.id}`}
+            </Text>
+            <span className="flex items-baseline gap-s8">
+              <Text variant="mono" className="truncate text-neutral3">
+                {shortenFelt(p.commitment, 10, 8)}
+              </Text>
+              {href ? (
+                <a
+                  href={href}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="focus-ring shrink-0 font-mono text-mono text-accent1"
+                >
+                  tx ↗
+                </a>
+              ) : null}
+            </span>
+          </div>
+        )
+      })}
       <Text variant="body4" className="text-neutral3">
         The bet size is public. The bettor is not.
       </Text>

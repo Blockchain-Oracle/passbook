@@ -46,7 +46,8 @@ export const MARKETS_NOT_DEPLOYED =
 
 /** Deployed, and genuinely nothing open. Different fact, different sentence. */
 export const MARKETS_NONE_OPEN =
-  'No markets are open right now. Anyone can create one, and the first bet in it sets the odds.'
+  'Between windows — the Groundskeeper opens the next standing markets shortly. Anyone can open ' +
+  'their own besides, and the first bet in it sets the odds.'
 
 export const MARKETS_LOADING = 'Reading the markets registry…'
 
