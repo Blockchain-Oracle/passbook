@@ -34,5 +34,113 @@
     "contractAddress": "0xdbe265829e0f1c859f3a8c1bd8fcfb0a774836b9e07191c6a624a59e37f9bf",
     "blockNumber": 13989253,
     "deployedAt": "2026-08-28T09:46:17.288Z"
+  },
+  "MarketsV2": {
+    "classHash": "0x608d688d7b1d037718fb351ed28ed84dc6471ee4b772245d4d7735267737650",
+    "compiledClassHash": "0x3f93e8705faddf563bf6b6837d0e8bc9fdcb333eeb8aed61184b6867941b36f",
+    "declareTx": "0x532dda069d787339d6eecc8776fa26cabb9ae94b457aff07fda12875bb06d26",
+    "deployTx": "0x1496deac5edd622cc635177fe565b2dcf67e44df80afd4c54fa230b0705a20a",
+    "contractAddress": "0x30b487e6b15d65fae30482fd07dcbfaa47b5b07e5133c0cdb10d8e49a3c702",
+    "deployedAt": "2026-08-29T07:55:43.986Z",
+    "constructor": {
+      "pool": "0x040337b1af3c663e86e333bab5a4b28da8d4652a15a69beee2b677776ffe812a",
+      "pragma": "0x2a85bd616f912537c50a49a4076db02c00b29b2cdc8a197ce92ed1837fa875b",
+      "steward": "0x10fe91ce9947fdfb2b8dbfcb146560176ab3bf5ec15f3fc501170a5880f4b97",
+      "stake_token": "0x04718f5a0fc34cc1af16a1cdee98ffb20c31f5cd61d6ab07201858f4287c938d"
+    },
+    "setupTx": "0x3ad48c64624d4a1f6deae7603f6e38330c9d06a3694daaf5899f6b812e0904d",
+    "series": [
+      {
+        "id": 0,
+        "pair": "BTC/USD",
+        "window": 900,
+        "experimental": true,
+        "seed": "2000000000000000000",
+        "minSources": 3,
+        "vigBps": 200
+      },
+      {
+        "id": 1,
+        "pair": "BTC/USD",
+        "window": 3600,
+        "experimental": false,
+        "seed": "2000000000000000000",
+        "minSources": 3,
+        "vigBps": 200
+      },
+      {
+        "id": 2,
+        "pair": "BTC/USD",
+        "window": 86400,
+        "experimental": false,
+        "seed": "2000000000000000000",
+        "minSources": 3,
+        "vigBps": 200
+      },
+      {
+        "id": 3,
+        "pair": "ETH/USD",
+        "window": 900,
+        "experimental": true,
+        "seed": "2000000000000000000",
+        "minSources": 3,
+        "vigBps": 200
+      },
+      {
+        "id": 4,
+        "pair": "ETH/USD",
+        "window": 3600,
+        "experimental": false,
+        "seed": "2000000000000000000",
+        "minSources": 3,
+        "vigBps": 200
+      },
+      {
+        "id": 5,
+        "pair": "ETH/USD",
+        "window": 86400,
+        "experimental": false,
+        "seed": "2000000000000000000",
+        "minSources": 3,
+        "vigBps": 200
+      },
+      {
+        "id": 6,
+        "pair": "STRK/USD",
+        "window": 900,
+        "experimental": true,
+        "seed": "2000000000000000000",
+        "minSources": 3,
+        "vigBps": 200
+      },
+      {
+        "id": 7,
+        "pair": "STRK/USD",
+        "window": 3600,
+        "experimental": false,
+        "seed": "2000000000000000000",
+        "minSources": 3,
+        "vigBps": 200
+      },
+      {
+        "id": 8,
+        "pair": "STRK/USD",
+        "window": 86400,
+        "experimental": false,
+        "seed": "2000000000000000000",
+        "minSources": 3,
+        "vigBps": 200
+      },
+      {
+        "id": 9,
+        "pair": "BTC/EUR",
+        "window": 3600,
+        "experimental": false,
+        "seed": "2000000000000000000",
+        "minSources": 3,
+        "vigBps": 200
+      }
+    ],
+    "floatWei": "40000000000000000000"
   }
 }
