@@ -1,27 +1,28 @@
 import { useState } from 'react'
-import { Plus, Sprout } from 'lucide-react'
-import type { OnChainMarket } from '@strk20/protocol/app-reads'
-import { MARKETS_LOADING, MARKETS_NONE_OPEN, MARKETS_NOT_DEPLOYED, MARKETS_STANDING_LINE } from '@strk20/protocol/markets-copy'
-import type { PragmaPair } from '@strk20/protocol/pragma-pairs'
+import { useQuery } from '@tanstack/react-query'
+import { Plus } from 'lucide-react'
+import { MARKET_STATE, type OnChainMarket } from '@strk20/protocol/app-reads'
+import { STRK_TOKEN } from '@strk20/protocol/constants'
+import { MARKETS_LOADING, MARKETS_NONE_OPEN, MARKETS_NOT_DEPLOYED, MARKETS_STANDING_LINE, RAIL_LINE } from '@strk20/protocol/markets-copy'
 
+import { Amount } from '@/components/money/amount'
 import { BoundaryBadge } from '@/components/money/boundary-badge'
 import { Page } from '@/components/layout/page'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
-import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
-import { Skeleton } from '@/components/ui/skeleton'
+import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty'
 import { useNow } from '@/hooks/use-now'
+import { houseFloatQuery } from '@/queries/app'
 import { BetTicket } from './bet-ticket'
 import { CreateMarketDialog } from './create-market-dialog'
 import { MarketCard } from './market-card'
 import { PositionsPanel } from './positions-panel'
-import { LazyPriceChart } from './price-chart-lazy'
-import { PriceStrip } from './price-strip'
 import { Tape } from './tape'
 import { useMarketFeed } from './use-market-feed'
 import { useStrkStake } from './use-stake'
+import { WindowRail } from './window-rail'
 
-/** A clock the cards share, so "3h 12m" moves without every card owning a timer. */
+/** The clock the slower surfaces share; the rail runs its own one-second clock for countdowns. */
 export const TICK_MS = 30_000
 
 interface Ticket {
@@ -29,12 +30,27 @@ interface Ticket {
   side: number
 }
 
-export function MarketsBoard({ pair, onPair }: { pair: PragmaPair; onPair: (pair: PragmaPair) => void }) {
+function Stat({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex flex-col gap-0.5 rounded-lg border px-3 py-2">
+      <span className="text-kicker uppercase text-muted-foreground">{label}</span>
+      <span className="font-mono text-body3 tabular-nums">{children}</span>
+    </div>
+  )
+}
+
+export function MarketsBoard() {
   const feed = useMarketFeed()
   const stake = useStrkStake()
+  const houseFloat = useQuery(houseFloatQuery(STRK_TOKEN))
   const now = useNow(TICK_MS)
   const [ticket, setTicket] = useState<Ticket | null>(null)
   const [creating, setCreating] = useState(false)
+
+  const windows = feed.open.filter((m) => m.house)
+  const custom = feed.open.filter((m) => !m.house)
+  const active = feed.series.filter((s) => s.active)
+  const vigBps = active[0]?.vigBps ?? null
 
   return (
     <Page
@@ -57,38 +73,51 @@ export function MarketsBoard({ pair, onPair }: { pair: PragmaPair; onPair: (pair
         </Alert>
       ) : null}
 
-      <section className="flex flex-col gap-4">
-        <PriceStrip prices={feed.prices} selected={pair} onSelect={onPair} now={now} />
-        <LazyPriceChart pair={pair} series={feed.history[pair] ?? []} reference={null} height={220} />
-      </section>
-
-      <section className="flex flex-col gap-3">
-        <h2 className="text-kicker uppercase text-muted-foreground">Open markets</h2>
-        {!feed.deployed ? (
-          <Alert>
-            <AlertDescription>{MARKETS_NOT_DEPLOYED}</AlertDescription>
-          </Alert>
-        ) : feed.loading ? (
-          <div className="grid gap-4 md:grid-cols-2">
-            <Skeleton className="h-52" />
-            <Skeleton className="h-52" />
+      {!feed.deployed ? (
+        <Alert>
+          <AlertDescription>{MARKETS_NOT_DEPLOYED}</AlertDescription>
+        </Alert>
+      ) : (
+        <section className="flex flex-col gap-3">
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <h2 className="text-kicker uppercase text-muted-foreground">Standing windows</h2>
+              <p className="text-body4 text-muted-foreground">{RAIL_LINE}</p>
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              <Stat label="Series">{feed.loading ? '—' : active.length}</Stat>
+              <Stat label="House float">
+                <Amount wei={houseFloat.data ?? (houseFloat.isError ? null : undefined)} decimals={stake.decimals} symbol={stake.symbol} size="sm" />
+              </Stat>
+              <Stat label="Vig">{vigBps === null ? '—' : `${(vigBps / 100).toFixed(vigBps % 100 === 0 ? 0 : 2)}%`}</Stat>
+            </div>
           </div>
-        ) : feed.open.length === 0 ? (
-          <Empty>
-            <EmptyHeader>
-              <EmptyMedia variant="icon">
-                <Sprout />
-              </EmptyMedia>
-              <EmptyTitle>Between windows</EmptyTitle>
-              <EmptyDescription>{MARKETS_NONE_OPEN}</EmptyDescription>
-            </EmptyHeader>
-            <Button variant="outline" onClick={() => setCreating(true)}>
-              Open your own
-            </Button>
-          </Empty>
-        ) : (
+          {!feed.loading && windows.length === 0 ? (
+            <Empty>
+              <EmptyHeader>
+                <EmptyTitle>No standing windows</EmptyTitle>
+                <EmptyDescription>{MARKETS_NONE_OPEN}</EmptyDescription>
+              </EmptyHeader>
+            </Empty>
+          ) : (
+            <WindowRail
+              windows={windows}
+              loading={feed.loading}
+              prices={feed.prices}
+              history={feed.history}
+              symbol={stake.symbol}
+              decimals={stake.decimals}
+              onBet={(market, side) => setTicket({ market, side })}
+            />
+          )}
+        </section>
+      )}
+
+      {custom.length > 0 ? (
+        <section className="flex flex-col gap-3">
+          <h2 className="text-kicker uppercase text-muted-foreground">Open markets</h2>
           <div className="grid gap-4 md:grid-cols-2">
-            {feed.open.map((market) => (
+            {custom.map((market) => (
               <MarketCard
                 key={market.id}
                 market={market}
@@ -100,8 +129,8 @@ export function MarketsBoard({ pair, onPair }: { pair: PragmaPair; onPair: (pair
               />
             ))}
           </div>
-        )}
-      </section>
+        </section>
+      ) : null}
 
       <div className="grid gap-6 md:grid-cols-2">
         <section className="flex flex-col gap-3">
@@ -109,7 +138,7 @@ export function MarketsBoard({ pair, onPair }: { pair: PragmaPair; onPair: (pair
           <PositionsPanel markets={feed.markets} stake={stake} now={now} />
         </section>
         <section className="flex flex-col gap-3">
-          <h2 className="text-kicker uppercase text-muted-foreground">Tape</h2>
+          <h2 className="text-kicker uppercase text-muted-foreground">Live</h2>
           <Tape
             items={feed.tape}
             markets={feed.markets}
@@ -124,9 +153,11 @@ export function MarketsBoard({ pair, onPair }: { pair: PragmaPair; onPair: (pair
         <section className="flex flex-col gap-3">
           <h2 className="text-kicker uppercase text-muted-foreground">Settled</h2>
           <div className="grid gap-4 md:grid-cols-2">
-            {feed.settled.map((market) => (
-              <MarketCard key={market.id} market={market} now={now} spot={null} symbol={stake.symbol} decimals={stake.decimals} />
-            ))}
+            {feed.settled
+              .filter((m) => m.state !== MARKET_STATE.none)
+              .map((market) => (
+                <MarketCard key={market.id} market={market} now={now} spot={null} symbol={stake.symbol} decimals={stake.decimals} />
+              ))}
           </div>
         </section>
       ) : null}

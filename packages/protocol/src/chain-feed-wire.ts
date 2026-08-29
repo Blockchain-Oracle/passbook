@@ -33,6 +33,7 @@ export interface WireMarket {
   token: string
   up: string
   down: string
+  k: string
   seed: string
   collateral: string
   state: number
@@ -172,6 +173,7 @@ export function wireMarket(m: OnChainMarket): WireMarket {
     token: m.token,
     up: hex(m.up),
     down: hex(m.down),
+    k: hex(m.k),
     seed: hex(m.seed),
     collateral: hex(m.collateral),
     state: m.state,
@@ -195,6 +197,7 @@ export function marketFromWire(w: WireMarket): OnChainMarket {
     token: w.token,
     up: big(w.up),
     down: big(w.down),
+    k: big(w.k),
     seed: big(w.seed),
     collateral: big(w.collateral),
     state: w.state,

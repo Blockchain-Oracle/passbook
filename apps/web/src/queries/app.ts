@@ -36,6 +36,22 @@ export function marketsQuery() {
   })
 }
 
+/** The house float idle in Markets for `token`. Absent contract → skipped; unreadable → `—`. */
+export function houseFloatQuery(token: string) {
+  const contract = appContracts().markets
+  return queryOptions({
+    queryKey: ['markets', 'float', contract ?? null, token],
+    queryFn: contract
+      ? async () => {
+          const { readFloat } = await import('@strk20/protocol/app-reads')
+          return readFloat(contract, token)
+        }
+      : skipToken,
+    staleTime: APP_MS,
+    refetchInterval: APP_MS,
+  })
+}
+
 export function launchesQuery() {
   const contract = appContracts().launch
   return queryOptions({

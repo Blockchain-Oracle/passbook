@@ -24,6 +24,7 @@ export const SELECTOR = {
   create_launch: '0x385b6268c717439a1106322e5a47c12378406dc2126d7cfa29bb0d3bc88d7e0',
   series_count: '0x3e09157332ece5630a1cf543f50c10d55eb0d67c4f3f32998017c6420a5eaed',
   get_series: '0x11f1fc1fd125ad1539e312a8dd280f9a8de388238a16661fc14e7db57e62600',
+  float: '0x27dc942c9fc126b5c8d7c7a7ffe83cd878f74be80b115356091dd5c1bec605e',
 } as const
 
 /** `markets.cairo`'s `SERIES_ID_BASE`: a series window's id is `(series + 1) · 2^32 + epoch`. */
@@ -52,6 +53,8 @@ export interface OnChainMarket {
   token: string
   up: bigint
   down: bigint
+  /** The constant product, fixed at seed time. What a card quotes odds against. */
+  k: bigint
   seed: bigint
   collateral: bigint
   state: number
@@ -186,7 +189,7 @@ export function decodeMarket(id: number, felts: readonly string[]): OnChainMarke
     token: felts[3]!,
     up: toBig(felts[4]!),
     down: toBig(felts[5]!),
-    // k rides felts 6–7 (u256 low, high) and nothing on a surface needs it.
+    k: toBig(felts[6]!) + (toBig(felts[7]!) << 128n),
     seed: toBig(felts[8]!),
     collateral: toBig(felts[9]!),
     state: toNum(felts[10]!),
@@ -230,6 +233,7 @@ export function unopenedWindow(series: OnChainSeries, epoch: number): OnChainMar
     token: series.token,
     up: series.seed,
     down: series.seed,
+    k: series.seed * series.seed,
     seed: series.seed,
     collateral: series.seed,
     state: MARKET_STATE.none,
