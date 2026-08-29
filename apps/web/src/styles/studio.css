@@ -215,3 +215,13 @@
   --sh-medium: 0 12px 32px -6px rgba(0,0,0,0.5);
   --sh-large: 0 24px 80px rgba(0,0,0,0.6);
 }
+
+/* Chrome paints autofilled fields its own yellow; the inset shadow keeps them on our surface. */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus {
+  -webkit-box-shadow: 0 0 0 1000px var(--color-raised) inset;
+  -webkit-text-fill-color: var(--color-neutral1);
+  caret-color: var(--color-neutral1);
+  transition: background-color 9999s ease-out;
+}

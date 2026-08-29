@@ -166,6 +166,39 @@ export function doneSub(claimedPublicly: boolean): string {
 
 export const ENTER_CTA = 'Enter strk20.run'
 
+/** What the onboarding stage says beside each screen: three lines, the middle one in the accent. */
+export type StageKey =
+  | 'booting'
+  | 'no-storage'
+  | 'locked'
+  | 'checking'
+  | 'fork'
+  | 'import'
+  | 'teach'
+  | 'name'
+  | 'custody'
+  | 'backup'
+  | 'fund'
+  | 'register'
+
+export const STAGE_LINES: Record<StageKey, readonly [string, string, string]> = {
+  booting: ['', 'strk20.run', ''],
+  'no-storage': ['This browser', 'cannot', 'hold a key.'],
+  locked: ['Locked.', 'Your key', 'is still here.'],
+  checking: ['Reading', 'the chain.', ''],
+  fork: ['Private', 'account.', 'No wallet.'],
+  import: ['Your key,', 'back.', 'Same address.'],
+  teach: ['Two balances.', 'Never', 'summed.'],
+  name: ['A name is', 'optional.', 'Public if claimed.'],
+  custody: ['The key is', 'made here.', 'Sent nowhere.'],
+  backup: ['One file.', 'No reset.', 'Keep it.'],
+  fund: ['Money lands', 'public', 'first.'],
+  register: ['Now the pool', 'knows', 'your key.'],
+}
+
+/** The stage's footer tick — the one move this whole flow exists for. */
+export const STAGE_TICK = ['public', 'shielded'] as const
+
 export const REGISTER_TITLE = 'Register your key'
 export const REGISTER_CTA = 'Create your account'
 

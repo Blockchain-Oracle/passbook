@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
-import { toast } from 'sonner'
 import { Eye, FileKey, KeyRound, ShieldCheck, Wallet } from 'lucide-react'
 import { IMPORT_ENTRY_CTA, PASSWORD_BODY, PASSWORD_MISMATCH, PASSWORD_NO_RESET } from '@strk20/protocol/account-copy'
 import {
@@ -15,17 +14,18 @@ import {
   NAME_TITLE,
   namePreview,
 } from '@strk20/protocol/onboarding-copy'
-import { MIN_PASSWORD_LENGTH, passwordStrength } from '@strk20/protocol/session-vault'
+import { MIN_PASSWORD_LENGTH } from '@strk20/protocol/session-vault'
 
 import { BOUNDARY } from '@/app/boundary'
 import { getSessionSnapshot, sessionActions } from '@/app/session'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Field, FieldDescription, FieldLabel } from '@/components/ui/field'
+import { Field, FieldDescription, FieldError, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import { Spinner } from '@/components/ui/spinner'
 import { Switch } from '@/components/ui/switch'
+import { PasswordField } from './password-field'
 
 function Heading({ title, body }: { title: string; body?: string }) {
   return (
@@ -41,9 +41,9 @@ export function ForkScreen({ onCreate, onImport }: { onCreate: () => void; onImp
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <p className="text-kicker uppercase text-muted-foreground">strk20.run</p>
-        <h1 className="font-display text-display2 uppercase md:text-display1">Private money that behaves like money</h1>
-        <p className="mt-2 max-w-prose text-body2 text-muted-foreground">
+        <p className="font-mono text-kicker uppercase tracking-[0.16em] text-muted-foreground">Start here</p>
+        <h1 className="mt-2 font-display text-display2 uppercase md:text-display1">Private money that behaves like money</h1>
+        <p className="mt-3 max-w-prose text-body2 text-muted-foreground">
           The key that reads your balance and signs your spending is made in this browser. Nothing here signs you in.
         </p>
       </div>
@@ -104,14 +104,25 @@ export interface NameChoice {
 export function NameScreen({ initial, onNext }: { initial: NameChoice; onNext: (choice: NameChoice) => void }) {
   const [name, setName] = useState(initial.name)
   const [claim, setClaim] = useState(initial.claimPublicly)
+  const [attempted, setAttempted] = useState(false)
   const trimmed = name.trim().toLowerCase().replace(/^@/, '')
+  const missing = attempted && trimmed === ''
   return (
     <div className="flex flex-col gap-6">
       <Heading title={NAME_TITLE} />
-      <Field>
+      <Field data-invalid={missing || undefined}>
         <FieldLabel htmlFor="onboarding-name">Name</FieldLabel>
-        <Input id="onboarding-name" autoFocus placeholder={NAME_PLACEHOLDER} value={name} onChange={(e) => setName(e.target.value)} />
-        <FieldDescription>{trimmed === '' ? NAME_CAPTION : namePreview(trimmed, claim)}</FieldDescription>
+        <Input
+          id="onboarding-name"
+          autoFocus
+          placeholder={NAME_PLACEHOLDER}
+          value={name}
+          aria-invalid={missing || undefined}
+          className="h-11 text-body2"
+          onChange={(e) => setName(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && (trimmed ? onNext({ name: trimmed, claimPublicly: claim }) : setAttempted(true))}
+        />
+        {missing ? <FieldError>{`${NAME_TITLE} first.`}</FieldError> : <FieldDescription>{trimmed === '' ? NAME_CAPTION : namePreview(trimmed, claim)}</FieldDescription>}
       </Field>
       <Field orientation="horizontal">
         <Switch id="onboarding-claim" checked={claim} onCheckedChange={setClaim} />
@@ -120,12 +131,12 @@ export function NameScreen({ initial, onNext }: { initial: NameChoice; onNext: (
           <FieldDescription>{NAME_CLAIM_NOTE}</FieldDescription>
         </div>
       </Field>
-      {/* Never `disabled`: blocked, it stays pressable and says why. */}
+      {/* Never `disabled`: blocked, it stays pressable and says why — inline, under the field. */}
       <Button
         size="lg"
-        className="self-start"
+        className="h-12 self-start text-buttonLabel2"
         aria-disabled={trimmed === '' || undefined}
-        onClick={() => (trimmed ? onNext({ name: trimmed, claimPublicly: claim }) : toast(`${NAME_TITLE} first`))}
+        onClick={() => (trimmed ? onNext({ name: trimmed, claimPublicly: claim }) : setAttempted(true))}
       >
         {NAME_CTA}
       </Button>
@@ -155,7 +166,6 @@ export function CustodyScreen({ label, onNext }: { label: string | null; onNext:
   const [confirm, setConfirm] = useState('')
   const mutation = useMutation({ mutationKey: ['generate-key'], mutationFn: generateKey, onSuccess: onNext })
 
-  const strength = passwordStrength(password)
   const mismatch = wantPassword && confirm !== '' && confirm !== password
   const blocker = !wantPassword
     ? null
@@ -176,17 +186,25 @@ export function CustodyScreen({ label, onNext }: { label: string | null; onNext:
         </div>
       </Field>
       {wantPassword ? (
-        <div className="flex flex-col gap-3">
-          <Field>
-            <FieldLabel htmlFor="custody-pw">New password</FieldLabel>
-            <Input id="custody-pw" type="password" autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} />
-            <FieldDescription>{password ? `Strength: ${strength}` : PASSWORD_NO_RESET}</FieldDescription>
-          </Field>
-          <Field>
-            <FieldLabel htmlFor="custody-pw2">Confirm</FieldLabel>
-            <Input id="custody-pw2" type="password" autoComplete="new-password" value={confirm} onChange={(e) => setConfirm(e.target.value)} />
-            {mismatch ? <FieldDescription className="text-destructive">{PASSWORD_MISMATCH}</FieldDescription> : null}
-          </Field>
+        <div className="flex flex-col gap-4 border-l-2 border-primary pl-4">
+          <PasswordField
+            id="custody-pw"
+            label="New password"
+            autoComplete="new-password"
+            autoFocus
+            meter
+            value={password}
+            onChange={setPassword}
+            hint={PASSWORD_NO_RESET}
+          />
+          <PasswordField
+            id="custody-pw2"
+            label="Confirm password"
+            autoComplete="new-password"
+            value={confirm}
+            onChange={setConfirm}
+            error={mismatch ? PASSWORD_MISMATCH : null}
+          />
         </div>
       ) : null}
       {mutation.error ? (
@@ -196,13 +214,14 @@ export function CustodyScreen({ label, onNext }: { label: string | null; onNext:
       ) : null}
       <Button
         size="lg"
-        className="self-start"
+        className="h-12 self-start text-buttonLabel2"
         aria-disabled={mutation.isPending || blocker !== null}
         onClick={() => !mutation.isPending && blocker === null && mutation.mutate({ label, password: wantPassword ? password : null })}
       >
         {mutation.isPending ? <Spinner data-icon="inline-start" /> : <KeyRound data-icon="inline-start" />}
-        {mutation.isPending ? 'Working…' : (blocker ?? CUSTODY_CTA)}
+        {mutation.isPending ? 'Making your key…' : CUSTODY_CTA}
       </Button>
+      {blocker && !mismatch ? <p className="-mt-3 text-body4 text-muted-foreground">{blocker}</p> : null}
     </div>
   )
 }

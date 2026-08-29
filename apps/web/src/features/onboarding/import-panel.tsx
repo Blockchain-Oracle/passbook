@@ -1,8 +1,7 @@
-import { useState } from 'react'
+import { useState, type DragEvent } from 'react'
 import { useMutation } from '@tanstack/react-query'
-import { FileUp, KeyRound } from 'lucide-react'
+import { FileCheck2, FileKey, FileUp, KeyRound } from 'lucide-react'
 import {
-  IMPORT_ALREADY_HERE,
   IMPORT_BODY,
   IMPORT_CODE_WRONG,
   IMPORT_DIFFERENT_IDENTITY,
@@ -12,16 +11,15 @@ import {
   IMPORT_UNSUPPORTED_VERSION,
 } from '@strk20/protocol/account-copy'
 import { accountAddressFor } from '@strk20/protocol/account-address'
-import { toast } from 'sonner'
 
 import { backupActions, getSessionSnapshot, sessionActions } from '@/app/session'
-import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
-import { Field, FieldDescription, FieldLabel } from '@/components/ui/field'
+import { Field, FieldDescription, FieldError, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import { Spinner } from '@/components/ui/spinner'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { shortAddress } from '@/lib/format'
+import { cn } from '@/lib/utils'
+import { PasswordField } from './password-field'
 
 type ImportAsk = { kind: 'file'; file: string; code: string } | { kind: 'key'; key: string }
 type ImportOutcome = { address: string; already: boolean }
@@ -70,47 +68,80 @@ interface ImportPanelProps {
   onDone?: (outcome: ImportOutcome) => void
 }
 
-/** Recovery file + code, or a raw Stark key. Both refusals are the protocol's sentences. */
+type Picked = { name: string; text: string }
+
+/** A file lands here by drop or by click; either way the same hidden input owns it. */
+function DropZone({ file, onFile }: { file: Picked | null; onFile: (f: Picked) => void }) {
+  const [over, setOver] = useState(false)
+  const take = async (chosen: File | undefined) => {
+    if (chosen) onFile({ name: chosen.name, text: await chosen.text() })
+  }
+  const onDrop = (e: DragEvent<HTMLLabelElement>) => {
+    e.preventDefault()
+    setOver(false)
+    void take(e.dataTransfer.files?.[0])
+  }
+  return (
+    <label
+      htmlFor="import-file"
+      onDragOver={(e) => {
+        e.preventDefault()
+        setOver(true)
+      }}
+      onDragLeave={() => setOver(false)}
+      onDrop={onDrop}
+      className={cn(
+        'flex cursor-pointer flex-col items-center gap-2 rounded-xl border-2 border-dashed px-6 py-8 text-center transition-colors duration-quick',
+        file ? 'border-primary bg-accent' : over ? 'border-ring bg-accent' : 'border-input bg-background hover:border-ring',
+      )}
+    >
+      <input id="import-file" type="file" accept="application/json,.json" className="sr-only" onChange={(e) => void take(e.currentTarget.files?.[0])} />
+      {file ? <FileCheck2 className="size-7 text-primary" aria-hidden /> : <FileKey className="size-7 text-muted-foreground" aria-hidden />}
+      {file ? (
+        <>
+          <span className="font-mono text-body3">{file.name}</span>
+          <span className="text-body4 text-muted-foreground">Choose a different file</span>
+        </>
+      ) : (
+        <>
+          <span className="text-body2 font-medium">Drop your recovery file here</span>
+          <span className="text-body4 text-muted-foreground">or click to browse — a strk20-recovery-block-….json</span>
+        </>
+      )}
+    </label>
+  )
+}
+
+/** Recovery file + code, or a raw Stark key. Every refusal is the protocol's sentence, under the field it concerns. */
 export function ImportPanel({ onDone }: ImportPanelProps) {
-  const [file, setFile] = useState<{ name: string; text: string } | null>(null)
+  const [file, setFile] = useState<Picked | null>(null)
   const [code, setCode] = useState('')
   const [rawKey, setRawKey] = useState('')
   const mutation = useImportAccount()
+  const failed = (kind: ImportAsk['kind']) => (mutation.isError && mutation.variables?.kind === kind ? mutation.error.message : null)
 
-  const run = (ask: ImportAsk) =>
-    mutation.mutate(ask, {
-      onSuccess: (outcome) => {
-        toast.success(outcome.already ? 'Switched to that account' : 'Account imported', {
-          description: outcome.already ? IMPORT_ALREADY_HERE : shortAddress(outcome.address, 8, 6),
-        })
-        onDone?.(outcome)
-      },
-    })
-
-  const readFile = async (input: HTMLInputElement) => {
-    const chosen = input.files?.[0]
-    if (!chosen) return
-    setFile({ name: chosen.name, text: await chosen.text() })
-  }
+  const run = (ask: ImportAsk) => mutation.mutate(ask, { onSuccess: (outcome) => onDone?.(outcome) })
+  const submitFile = () => file && code.trim() && !mutation.isPending && run({ kind: 'file', file: file.text, code })
+  const submitKey = () => rawKey.trim() && !mutation.isPending && run({ kind: 'key', key: rawKey })
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-5">
       <div>
         <h2 className="font-display text-display3 uppercase">{IMPORT_TITLE}</h2>
         <p className="mt-1 text-body3 text-muted-foreground">{IMPORT_BODY}</p>
       </div>
-      <Tabs defaultValue="file">
-        <TabsList>
-          <TabsTrigger value="file">Recovery file</TabsTrigger>
-          <TabsTrigger value="key">Raw key</TabsTrigger>
+      <Tabs defaultValue="file" onValueChange={() => mutation.reset()}>
+        <TabsList className="w-full">
+          <TabsTrigger value="file" className="flex-1">
+            Recovery file
+          </TabsTrigger>
+          <TabsTrigger value="key" className="flex-1">
+            Raw key
+          </TabsTrigger>
         </TabsList>
-        <TabsContent value="file" className="flex flex-col gap-4 pt-3">
-          <Field>
-            <FieldLabel htmlFor="import-file">Recovery file</FieldLabel>
-            <Input id="import-file" type="file" accept="application/json,.json" onChange={(e) => void readFile(e.currentTarget)} />
-            {file ? <FieldDescription className="font-mono">{file.name}</FieldDescription> : null}
-          </Field>
-          <Field>
+        <TabsContent value="file" className="flex flex-col gap-4 pt-4">
+          <DropZone file={file} onFile={(f) => { setFile(f); mutation.reset() }} />
+          <Field data-invalid={failed('file') ? true : undefined}>
             <FieldLabel htmlFor="import-code">Recovery code</FieldLabel>
             <Input
               id="import-code"
@@ -118,45 +149,41 @@ export function ImportPanel({ onDone }: ImportPanelProps) {
               spellCheck={false}
               placeholder="XXXXXX-XXXXXX-XXXXXX-XXXXXX"
               value={code}
-              onChange={(e) => setCode(e.target.value)}
-              className="font-mono"
+              aria-invalid={failed('file') ? true : undefined}
+              className="h-11 font-mono text-body2 tracking-wider"
+              onChange={(e) => {
+                setCode(e.target.value)
+                if (mutation.isError) mutation.reset()
+              }}
+              onKeyDown={(e) => e.key === 'Enter' && submitFile()}
             />
+            {failed('file') ? <FieldError>{failed('file')}</FieldError> : <FieldDescription>The code printed with the file when it was saved.</FieldDescription>}
           </Field>
-          <Button
-            size="lg"
-            aria-disabled={mutation.isPending || !file || code.trim() === ''}
-            onClick={() => file && code.trim() && run({ kind: 'file', file: file.text, code })}
-          >
+          <Button size="lg" className="h-12 self-start text-buttonLabel2" aria-disabled={mutation.isPending || !file || code.trim() === ''} onClick={submitFile}>
             {mutation.isPending ? <Spinner data-icon="inline-start" /> : <FileUp data-icon="inline-start" />}
             {mutation.isPending ? 'Opening the file…' : 'Import this account'}
           </Button>
         </TabsContent>
-        <TabsContent value="key" className="flex flex-col gap-4 pt-3">
-          <Field>
-            <FieldLabel htmlFor="import-key">Stark private key</FieldLabel>
-            <Input
-              id="import-key"
-              type="password"
-              autoComplete="off"
-              spellCheck={false}
-              placeholder="0x…"
-              value={rawKey}
-              onChange={(e) => setRawKey(e.target.value)}
-              className="font-mono"
-            />
-            <FieldDescription>A key pasted here has no recovery file yet. Save one before registering.</FieldDescription>
-          </Field>
-          <Button size="lg" aria-disabled={mutation.isPending || rawKey.trim() === ''} onClick={() => rawKey.trim() && run({ kind: 'key', key: rawKey })}>
+        <TabsContent value="key" className="flex flex-col gap-4 pt-4">
+          <PasswordField
+            id="import-key"
+            label="Stark private key"
+            autoComplete="off"
+            mono
+            value={rawKey}
+            onChange={(v) => {
+              setRawKey(v)
+              if (mutation.isError) mutation.reset()
+            }}
+            error={failed('key')}
+            hint="A key pasted here has no recovery file yet. Save one before registering."
+          />
+          <Button size="lg" className="h-12 self-start text-buttonLabel2" aria-disabled={mutation.isPending || rawKey.trim() === ''} onClick={submitKey}>
             {mutation.isPending ? <Spinner data-icon="inline-start" /> : <KeyRound data-icon="inline-start" />}
             Import this key
           </Button>
         </TabsContent>
       </Tabs>
-      {mutation.error ? (
-        <Alert variant="destructive">
-          <AlertDescription>{mutation.error.message}</AlertDescription>
-        </Alert>
-      ) : null}
     </div>
   )
 }
