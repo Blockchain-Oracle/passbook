@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { WheelGesturesPlugin } from 'embla-carousel-wheel-gestures'
 import type { OnChainMarket } from '@strk20/protocol/app-reads'
 import type { PricePoint, WirePrice } from '@strk20/protocol/chain-feed-wire'
 
@@ -14,6 +15,10 @@ const WINDOWS = [
   { key: '3600', label: '1 hour' },
   { key: '86400', label: '24 hours' },
 ] as const
+
+// Trackpads and mouse wheels scroll the rail; a drag still works. `forceWheelAxis: 'x'` so a
+// vertical wheel over the rail moves it too, instead of fighting the page.
+const PLUGINS = [WheelGesturesPlugin({ forceWheelAxis: 'x' })]
 
 export interface WindowRailProps {
   /** Series windows only — every row here has `window > 0`. */
@@ -34,17 +39,15 @@ export function WindowRail({ windows, loading, prices, history, symbol, decimals
 
   return (
     <Tabs value={tab} onValueChange={(next) => setTab(String(next))} className="gap-3">
-      <div className="flex items-center justify-between gap-3">
-        <TabsList>
-          {WINDOWS.map((w) => (
-            <TabsTrigger key={w.key} value={w.key}>
-              {w.label}
-            </TabsTrigger>
-          ))}
-        </TabsList>
-      </div>
-      <Carousel opts={{ align: 'start', dragFree: true }} className="w-full">
-        <CarouselContent className="-ml-3">
+      <TabsList>
+        {WINDOWS.map((w) => (
+          <TabsTrigger key={w.key} value={w.key}>
+            {w.label}
+          </TabsTrigger>
+        ))}
+      </TabsList>
+      <Carousel opts={{ align: 'start', dragFree: true }} plugins={PLUGINS} className="w-full">
+        <CarouselContent className="-ml-3 py-2">
           {loading
             ? [0, 1, 2].map((i) => (
                 <CarouselItem key={i} className="basis-[300px] pl-3">

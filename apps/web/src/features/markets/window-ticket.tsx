@@ -1,5 +1,5 @@
-import { Link } from '@tanstack/react-router'
-import { Clock, Sunrise } from 'lucide-react'
+import { Link, useNavigate } from '@tanstack/react-router'
+import { ArrowUpRight, Clock, Sunrise } from 'lucide-react'
 import { MARKET_STATE, potShare, windowLabel, type OnChainMarket } from '@strk20/protocol/app-reads'
 import type { PricePoint } from '@strk20/protocol/chain-feed-wire'
 import { payoutMultiple } from '@strk20/protocol/market-math'
@@ -51,15 +51,37 @@ export function WindowTicket({ market, now, spot, history, symbol, decimals, onB
   const paysUp = payoutMultiple(market.up, market.down, market.k, SIDE_UP, unit, market.vigBps)
   const paysDown = payoutMultiple(market.up, market.down, market.k, SIDE_DOWN, unit, market.vigBps)
   const settled = market.state === MARKET_STATE.resolved || market.state === MARKET_STATE.voided
+  const navigate = useNavigate()
+  const openMarket = () => void navigate({ to: '/markets/$id', params: { id: String(market.id) } })
 
   return (
-    <Card className={cn('h-full gap-3 py-4', className)}>
+    // The whole ticket is the door to the market page; the doors at the bottom stop the click.
+    <Card
+      role="link"
+      tabIndex={0}
+      onClick={openMarket}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault()
+          openMarket()
+        }
+      }}
+      className={cn(
+        'group/ticket h-full cursor-pointer gap-3 py-4 transition-all duration-quick ease-snap',
+        'hover:-translate-y-0.5 hover:border-primary/60 hover:shadow-[0_0_0_1px_var(--color-primary),0_12px_40px_-12px_var(--color-primary)]',
+        'focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
+        className,
+      )}
+    >
       <CardHeader className="gap-2 px-4">
         <div className="flex items-center justify-between gap-2">
-          <Link to="/markets/$id" params={{ id: String(market.id) }} className="flex min-w-0 items-center gap-2 hover:underline">
+          <Link to="/markets/$id" params={{ id: String(market.id) }} className="flex min-w-0 items-center gap-2" onClick={(e) => e.stopPropagation()}>
             <PairMark pair={market.pair} />
             <span className="flex min-w-0 flex-col">
-              <span className="truncate font-display text-display4 uppercase">{market.pair}</span>
+              <span className="inline-flex items-center gap-1 truncate font-display text-display4 uppercase">
+                {market.pair}
+                <ArrowUpRight className="size-4 text-muted-foreground transition-all group-hover/ticket:translate-x-0.5 group-hover/ticket:text-primary" aria-hidden />
+              </span>
               <span className="text-body4 text-muted-foreground">
                 {windowLabel(market.window)}
                 {market.experimental ? ' · experimental' : ''}
@@ -95,7 +117,7 @@ export function WindowTicket({ market, now, spot, history, symbol, decimals, onB
             </span>
           ) : null}
         </div>
-        <Sparkline points={history} fromMs={windowStartMs} reference={reference} />
+        <Sparkline points={history} fromMs={windowStartMs} reference={reference} spot={spot} />
         <div className="flex items-center justify-between text-body4">
           <span className="text-muted-foreground">{reference !== null ? `Line $${formatPrice(reference / 1e8)}` : 'Line set by the first bet'}</span>
           <span className="text-muted-foreground">
@@ -110,7 +132,7 @@ export function WindowTicket({ market, now, spot, history, symbol, decimals, onB
       </CardContent>
 
       {onBet && open ? (
-        <CardFooter className="grid grid-cols-2 gap-2 px-4">
+        <CardFooter className="grid grid-cols-2 gap-2 px-4" onClick={(e) => e.stopPropagation()}>
           <Button variant="outline" className="h-auto flex-col gap-0 border-settled py-1.5 text-settled" onClick={() => onBet(SIDE_UP)}>
             <span>
               {BET_SIDE_UP} {share.upPct}%
