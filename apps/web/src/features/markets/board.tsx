@@ -22,8 +22,8 @@ import { useMarketFeed } from './use-market-feed'
 import { useStrkStake } from './use-stake'
 import { WindowRail } from './window-rail'
 
-/** The clock the slower surfaces share; the rail runs its own one-second clock for countdowns. */
-export const TICK_MS = 30_000
+/** The board's slow clock; the rail runs its own one-second clock for countdowns. */
+const TICK_MS = 30_000
 
 interface Ticket {
   market: OnChainMarket
