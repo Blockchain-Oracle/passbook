@@ -52,7 +52,7 @@ export function MoneyField({
   const invalid = Boolean(problem)
   return (
     <Field className={className} data-invalid={invalid || undefined}>
-      <div className="flex items-baseline justify-between">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-3">
         <FieldLabel htmlFor={id}>{label}</FieldLabel>
         <span className="text-body4 text-muted-foreground">
           Spends {BOUNDARY_WORD[boundary]} · <Amount wei={available} decimals={decimals} symbol={symbol} size="sm" />
@@ -81,7 +81,7 @@ export function MoneyField({
       </InputGroup>
       {problem ? <FieldError>{problem}</FieldError> : null}
       {shieldDoor ? (
-        <div className="flex items-center justify-between gap-3 rounded-lg border border-dashed border-public bg-publicTint px-3 py-2">
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-dashed border-public bg-publicTint px-3 py-2">
           <FieldDescription className="text-foreground">
             Short by <Amount wei={shieldDoor.shortfallWei} decimals={decimals} symbol={symbol} size="sm" /> shielded. Your
             public {symbol} can cover it.

@@ -134,7 +134,7 @@ export function BetTicket({ market, spot = null, open, onOpenChange, initialSide
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <BoundaryBadge kind="bearer" className="w-fit" />
-            <DialogTitle className="font-display text-display3 uppercase">{question}</DialogTitle>
+            <DialogTitle className="wrap-break-word font-display text-display4 uppercase sm:text-display3">{question}</DialogTitle>
             <DialogDescription>{BET_PRICE_LOCKS}</DialogDescription>
           </DialogHeader>
           <div className="flex flex-col gap-4">

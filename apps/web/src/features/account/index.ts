@@ -1,1 +1,1 @@
-export { AccountChip } from './account-chip'
+export { AccountRow, SidebarAccount } from './account-chip'

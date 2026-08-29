@@ -54,7 +54,7 @@ export function TokenPicker({ tokens, value, onChange, placeholder = 'Select a t
         )}
         <ChevronsUpDown className="size-4 opacity-50" />
       </PopoverTrigger>
-      <PopoverContent className="w-80 p-0" align="start">
+      <PopoverContent className="w-[calc(100vw-2rem)] p-0 sm:w-80" align="start">
         <Command>
           <CommandInput placeholder="Search by symbol or name" />
           <CommandList>
@@ -71,11 +71,11 @@ export function TokenPicker({ tokens, value, onChange, placeholder = 'Select a t
                   }}
                 >
                   <TokenLogo logoUri={token.logoUri} symbol={token.symbol} name={token.name} size={24} />
-                  <span className="flex flex-col leading-tight">
+                  <span className="flex min-w-0 flex-col leading-tight">
                     <span className="font-medium">{token.symbol}</span>
-                    <span className="text-body4 text-muted-foreground">{token.name}</span>
+                    <span className="truncate text-body4 text-muted-foreground">{token.name}</span>
                   </span>
-                  {token.trailing ? <span className="ml-auto font-mono text-mono text-muted-foreground">{token.trailing}</span> : null}
+                  {token.trailing ? <span className="ml-auto shrink-0 font-mono text-mono text-muted-foreground">{token.trailing}</span> : null}
                 </CommandItem>
               ))}
             </CommandGroup>

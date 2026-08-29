@@ -151,7 +151,7 @@ export function BallotTicket({ house, proposal, open, onOpenChange, initialChoic
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <BoundaryBadge kind="bearer" className="w-fit" />
-            <DialogTitle className="font-display text-display3 uppercase">{proposalTitle(proposal)}</DialogTitle>
+            <DialogTitle className="wrap-break-word font-display text-display4 uppercase sm:text-display3">{proposalTitle(proposal)}</DialogTitle>
             <DialogDescription>Sealed ballot · quorum {quorumPct(proposal)}%</DialogDescription>
           </DialogHeader>
           <div className="flex flex-col gap-4">

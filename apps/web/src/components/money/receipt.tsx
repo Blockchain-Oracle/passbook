@@ -55,8 +55,8 @@ export function Receipt({ title = 'Receipt', transactionHash, rows, boundary, ex
           <TableBody>
             {rows.map((row) => (
               <TableRow key={row.label}>
-                <TableCell className="whitespace-normal text-muted-foreground">{row.label}</TableCell>
-                <TableCell className="whitespace-normal text-right font-mono tabular-nums break-words">{row.value}</TableCell>
+                <TableCell className="text-muted-foreground">{row.label}</TableCell>
+                <TableCell className="wrap-anywhere text-right font-mono tabular-nums">{row.value}</TableCell>
               </TableRow>
             ))}
             <TableRow>

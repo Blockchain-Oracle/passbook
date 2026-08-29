@@ -29,9 +29,9 @@ const StaircaseChart = lazy(() => import('./staircase-chart'))
 
 function Stat({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="flex flex-col">
+    <div className="flex min-w-0 flex-col">
       <dt className="text-kicker uppercase text-muted-foreground">{label}</dt>
-      <dd className="font-mono text-body2 tabular-nums">{children}</dd>
+      <dd className="wrap-break-word font-mono text-body3 tabular-nums md:text-body2">{children}</dd>
     </div>
   )
 }
@@ -89,7 +89,7 @@ export function LaunchDetail({ id }: { id: number }) {
       }
     >
       <div className="grid gap-6 lg:grid-cols-[minmax(0,3fr)_minmax(280px,2fr)]">
-        <div className="flex flex-col gap-6">
+        <div className="flex min-w-0 flex-col gap-6">
           <Card>
             <CardHeader>
               <CardTitle className="text-kicker uppercase text-muted-foreground">The staircase</CardTitle>
@@ -143,7 +143,7 @@ export function LaunchDetail({ id }: { id: number }) {
           </Tabs>
         </div>
 
-        <aside className="flex flex-col gap-6">
+        <aside className="flex min-w-0 flex-col gap-6">
           {phase === 'selling' ? (
             <Card>
               <CardHeader>

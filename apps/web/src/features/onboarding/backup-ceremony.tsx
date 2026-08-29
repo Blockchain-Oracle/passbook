@@ -64,7 +64,7 @@ export function BackupCeremony({ onComplete, title = BACKUP_TITLE, body = BACKUP
         <>
           <Field>
             <FieldLabel>Your Recovery Code</FieldLabel>
-            <p className="select-all rounded-md border bg-muted px-3 py-2 text-center font-mono text-body2 tracking-wider">
+            <p className="select-all rounded-md border bg-muted px-3 py-2 text-center font-mono text-body3 tracking-wide sm:text-body2 sm:tracking-wider">
               {state.backup.recoveryCode}
             </p>
             <FieldDescription>Write it down somewhere the file is not. Then type it back to prove you have it.</FieldDescription>

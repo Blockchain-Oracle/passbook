@@ -123,7 +123,7 @@ export function WindowTicket({ market, now, spot, history, symbol, decimals, onB
       </CardHeader>
 
       <CardContent className="flex flex-col gap-2 px-4">
-        <div className="flex items-baseline justify-between gap-2">
+        <div className="flex flex-wrap items-baseline justify-between gap-x-2">
           <span className="font-mono text-display3 tabular-nums">{spot !== null ? `$${formatPrice(spot)}` : '—'}</span>
           {delta !== null ? (
             <span className={cn('font-mono text-body4 tabular-nums', delta >= 0 ? 'text-settled' : 'text-irreversible')}>
@@ -138,7 +138,7 @@ export function WindowTicket({ market, now, spot, history, symbol, decimals, onB
           ) : null}
         </div>
         <Sparkline points={history} fromMs={windowStartMs} reference={line} spot={spot} />
-        <div className="flex items-center justify-between text-body4">
+        <div className="flex flex-wrap items-center justify-between gap-x-3 text-body4">
           <span className="text-muted-foreground">{line !== null ? `Line $${formatPrice(line)}` : 'Line: the price when the first bet lands'}</span>
           <span className="text-muted-foreground">
             {unopened ? 'House seed ' : 'Pot '}

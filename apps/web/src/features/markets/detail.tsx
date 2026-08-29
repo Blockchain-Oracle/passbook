@@ -93,8 +93,9 @@ export function MarketDetail({ id }: { id: number }) {
         </>
       }
     >
-      <div className="grid gap-6 md:grid-cols-[1fr_320px]">
-        <div className="flex flex-col gap-6">
+      {/* `minmax(0, …)` and `min-w-0`: the chart measures its column, so the column must not grow to the chart. */}
+      <div className="grid gap-6 md:grid-cols-[minmax(0,1fr)_320px]">
+        <div className="flex min-w-0 flex-col gap-6">
           <LazyPriceChart pair={pair} series={feed.history[pair] ?? []} reference={market.strike === 0n ? null : Number(market.strike)} height={260} caption="strike" />
           <Card>
             <CardContent>
@@ -139,7 +140,7 @@ export function MarketDetail({ id }: { id: number }) {
             />
           </section>
         </div>
-        <aside className="flex flex-col gap-6">
+        <aside className="flex min-w-0 flex-col gap-6">
           <section className="flex flex-col gap-3">
             <h2 className="text-kicker uppercase text-muted-foreground">Take a side</h2>
             {open ? (

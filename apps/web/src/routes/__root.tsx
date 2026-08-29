@@ -7,7 +7,6 @@ import { TabBanner } from '@/components/layout/tab-banner'
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar'
 import { Toaster } from '@/components/ui/sonner'
 import { TooltipProvider } from '@/components/ui/tooltip'
-import { AccountChip } from '@/features/account'
 import { OnboardingGate } from '@/features/onboarding'
 
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
@@ -19,11 +18,8 @@ function Shell() {
     <TooltipProvider>
       <SidebarProvider>
         <AppSidebar />
-        <SidebarInset className="pb-20 md:pb-0">
-          {/* The account chip sits above every surface until the sidebar footer takes it. */}
-          <div className="flex justify-end px-4 pt-3 md:px-8">
-            <AccountChip />
-          </div>
+        {/* `min-w-0` + clip: a wide row inside a surface scrolls or wraps inside it; it never widens the page. */}
+        <SidebarInset className="min-w-0 overflow-x-clip pb-20 md:pb-0">
           <OnboardingGate />
           <TabBanner />
           <Outlet />

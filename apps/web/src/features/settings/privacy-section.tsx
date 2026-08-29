@@ -63,7 +63,7 @@ export function PrivacySection({ context, onContextChange }: PrivacySectionProps
       <Item variant="outline" className="items-start">
         <ItemContent className="gap-3">
           <ItemTitle>{WHO_CAN_READ}</ItemTitle>
-          <Field orientation="horizontal" className="items-center">
+          <Field orientation="horizontal" className="flex-wrap items-center">
             <FieldLabel htmlFor="matrix-context">{MATRIX_PICKER_LABEL}</FieldLabel>
             <Select
               value={context}
@@ -72,7 +72,7 @@ export function PrivacySection({ context, onContextChange }: PrivacySectionProps
                 if (isContext(v)) onContextChange(v)
               }}
             >
-              <SelectTrigger id="matrix-context" className="min-w-56">
+              <SelectTrigger id="matrix-context" className="w-full sm:w-auto sm:min-w-56">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
