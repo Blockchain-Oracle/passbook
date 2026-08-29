@@ -1,0 +1,115 @@
+{
+  "version": 1,
+  "project": {
+    "name": "@strk20/web",
+    "productType": null,
+    "stack": [
+      "react",
+      "shadcn",
+      "tailwind-v4",
+      "vite"
+    ]
+  },
+  "sources": {
+    "tokens": [
+      "src/index.css"
+    ],
+    "components": [
+      "src/components/ui"
+    ],
+    "assets": [],
+    "instructions": []
+  },
+  "design": {
+    "colorMode": "dark",
+    "colors": {},
+    "typography": {},
+    "spacing": {},
+    "radius": {},
+    "shadows": {},
+    "motion": {},
+    "density": "unknown"
+  },
+  "components": {
+    "installed": [
+      "alert",
+      "avatar",
+      "badge",
+      "breadcrumb",
+      "button",
+      "card",
+      "chart",
+      "collapsible",
+      "command",
+      "dialog",
+      "dropdown-menu",
+      "empty",
+      "field",
+      "input",
+      "input-group",
+      "item",
+      "label",
+      "popover",
+      "progress",
+      "select",
+      "separator",
+      "sheet",
+      "sidebar",
+      "skeleton",
+      "slider",
+      "sonner",
+      "spinner",
+      "switch",
+      "table",
+      "tabs",
+      "textarea",
+      "toggle",
+      "toggle-group",
+      "tooltip"
+    ],
+    "preferredPrimitives": [],
+    "patterns": []
+  },
+  "constraints": {
+    "must": [],
+    "avoid": []
+  },
+  "decisions": [
+    {
+      "date": "2026-08-29",
+      "area": "markets",
+      "decision": "Standing windows rail: Tabs (15 min / 1 hour / 24 hours) over an Embla carousel of WindowTicket cards — pair mark with quote badge, live price vs line, inline-SVG sparkline, one-second countdown + elapsed bar, Over/Under doors with a 1-unit payout multiple. Custom markets keep MarketCard below. Reference cues: 21st #2537 prediction-market-card, #20113 market-snapshot; marks from 21st logo (svgl btc/eth)."
+    }
+  ],
+  "evidence": [
+    {
+      "fact": "components.installed",
+      "source": "src/components/ui"
+    },
+    {
+      "fact": "design.colorMode:dark",
+      "source": "src/index.css"
+    },
+    {
+      "fact": "design.tokens",
+      "source": "src/index.css"
+    },
+    {
+      "fact": "project.stack:react",
+      "source": "package.json"
+    },
+    {
+      "fact": "project.stack:shadcn",
+      "source": "components.json"
+    },
+    {
+      "fact": "project.stack:tailwind-v4",
+      "source": "package.json"
+    },
+    {
+      "fact": "project.stack:vite",
+      "source": "package.json"
+    }
+  ],
+  "generatedAt": "2026-08-29T08:17:49.254Z"
+}

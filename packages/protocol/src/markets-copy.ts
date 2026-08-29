@@ -28,6 +28,10 @@ export const MARKETS_LOADING = 'Reading the markets registry…'
 
 // ── Standing windows ──────────────────────────────────────────────────────────────────────
 
+/** Under the rail's title: what a window is, in one line. */
+export const RAIL_LINE =
+  'Every window closes on the mark and the next one is already there. The first bet sets the line; the house seeds the other side.'
+
 /** A window before its first bet: no line yet, and why. */
 export const WINDOW_OPENS_ON_FIRST_BET =
   'No line yet. The first bet opens this window on Pragma’s price at that moment, and the house ' +
@@ -43,14 +47,7 @@ export function openingStakeLine(amount: string): string {
   return `Opening this window takes at least ${amount}.`
 }
 
-// ── The price strip ───────────────────────────────────────────────────────────────────────
-
-/** "The same oracle" is the load-bearing part: a chart from another feed would disagree with settlement. */
-export const PRICE_STRIP_SOURCE =
-  'Live from Pragma — the same oracle these markets resolve against.'
-
-/** The feed has been observed holding one value for eleven minutes; a bright price would overclaim. */
-export const PRICE_STALE = 'Not updated recently'
+// ── The price chart ───────────────────────────────────────────────────────────────────────
 
 /** The series is what the relay witnessed, and the copy refuses to imply a market history. */
 export const PRICE_SERIES_PROVENANCE =

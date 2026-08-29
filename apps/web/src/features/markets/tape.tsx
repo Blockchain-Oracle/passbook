@@ -1,8 +1,9 @@
-import { ExternalLink } from 'lucide-react'
+import { ArrowDownRight, ArrowUpRight, Coins, ExternalLink, Flag, LogOut, Plus, Sunrise, Undo2, type LucideIcon } from 'lucide-react'
 import { marketQuestion, strikeDisplay, type OnChainMarket } from '@strk20/protocol/app-reads'
 import type { TapeItem } from '@strk20/protocol/chain-feed-wire'
+import { SIDE_UP } from '@strk20/protocol/market-calldata'
 
-import { Item, ItemActions, ItemContent, ItemGroup, ItemTitle } from '@/components/ui/item'
+import { Item, ItemActions, ItemContent, ItemGroup, ItemMedia, ItemTitle } from '@/components/ui/item'
 import { explorerTx, formatWei } from '@/lib/format'
 import { sideLabel } from './market-card'
 
@@ -46,6 +47,26 @@ export function tapeSentence(item: MarketTapeItem, markets: readonly OnChainMark
   }
 }
 
+/** One glyph per event kind, so the tape reads at a glance before the sentence does. */
+function tapeIcon(item: MarketTapeItem): { Icon: LucideIcon; tone: string } {
+  switch (item.kind) {
+    case 'market-created':
+      return { Icon: Plus, tone: 'text-muted-foreground' }
+    case 'market-opened':
+      return { Icon: Sunrise, tone: 'text-primary' }
+    case 'bet':
+      return item.side === SIDE_UP ? { Icon: ArrowUpRight, tone: 'text-settled' } : { Icon: ArrowDownRight, tone: 'text-irreversible' }
+    case 'market-resolved':
+      return { Icon: Flag, tone: 'text-settled' }
+    case 'market-voided':
+      return { Icon: Undo2, tone: 'text-exposed' }
+    case 'market-claim':
+      return { Icon: Coins, tone: 'text-settled' }
+    case 'market-cashout':
+      return { Icon: LogOut, tone: 'text-muted-foreground' }
+  }
+}
+
 export function Tape({ items, markets, marketId, symbol, decimals, emptyLine, limit = 12 }: TapeProps) {
   const rows = items
     .filter(isMarketItem)
@@ -57,8 +78,13 @@ export function Tape({ items, markets, marketId, symbol, decimals, emptyLine, li
 
   return (
     <ItemGroup className="gap-0 divide-y">
-      {rows.map((item) => (
+      {rows.map((item) => {
+        const { Icon, tone } = tapeIcon(item)
+        return (
         <Item key={`${item.txHash}:${item.kind}:${item.block}`} size="sm" className="rounded-none px-0">
+          <ItemMedia variant="icon">
+            <Icon className={tone} aria-hidden />
+          </ItemMedia>
           <ItemContent>
             <ItemTitle className="text-body3 font-normal">{tapeSentence(item, markets, symbol, decimals)}</ItemTitle>
           </ItemContent>
@@ -69,7 +95,8 @@ export function Tape({ items, markets, marketId, symbol, decimals, emptyLine, li
             </a>
           </ItemActions>
         </Item>
-      ))}
+        )
+      })}
     </ItemGroup>
   )
 }

@@ -145,6 +145,11 @@ export async function readMarkets(
   return { markets: [...windows, ...custom], series, total, problem }
 }
 
+/** The house float idle in the contract for `token` — what is left to seed the next windows. */
+export async function readFloat(contract: string, token: string, transport: Transport = rpc): Promise<bigint> {
+  return toBig((await call(contract, SELECTOR.float, [token], transport))[0] ?? '0x0')
+}
+
 /** Every launch, newest first, names included — same shape and same caveats as `readMarkets`. */
 export async function readLaunches(
   contract: string,
