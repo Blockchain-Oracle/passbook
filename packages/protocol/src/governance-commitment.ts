@@ -1,5 +1,5 @@
 //
-// The ballot arithmetic — Pedersen vector commitments on the Stark curve (docs/governance.md §6.3).
+// The ballot arithmetic — Pedersen vector commitments on the Stark curve (docs/architecture.md — Houses).
 //
 // A ballot with weight w choosing option j commits, per option i:
 //     C_i = w·G + r_i·H   if i == j,   else   C_i = 0·G + r_i·H

@@ -149,7 +149,7 @@ export const LAUNCH_CROWD =
   'Your buy looks identical to the other buys at the same size in this launch. If yours is the ' +
   'only one at that size, you are alone.'
 
-// ── The Houses (docs/governance.md §15 — the sentences we ship, verbatim from the spec) ────
+// ── The Houses (docs/architecture.md — Houses; the sentences we ship, verbatim) ────
 
 export const GOV_BALLOT_VISIBLE =
   'Your ballot’s weight is public. Your ballot’s choice is sealed. Your identity is neither on ' +

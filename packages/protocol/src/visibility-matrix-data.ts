@@ -87,7 +87,7 @@ const LAUNCH_SELL_UNAUTHORED =
   'Nobody has written the disclosure for selling before graduation. Until then the product says ' +
   'the true thing instead: selling before graduation is not yet available.'
 
-// docs/governance.md §15's sentences, cell-sized.
+// The Houses' shipped sentences (docs/architecture.md — Houses), cell-sized.
 const GOV_BALLOT_SEALED =
   'Your ballot’s weight is public. Your choice is sealed — until close, our Teller can read ' +
   'choices early; it cannot forge, drop or miscount them, because the contract checks the math ' +
@@ -231,7 +231,7 @@ export const MATRICES = {
     },
   },
   'launch-sell': { authored: false, context: 'launch-sell', because: LAUNCH_SELL_UNAUTHORED },
-  // The Houses (docs/governance.md §4.2): weight public, choice sealed, no address on the ballot.
+  // The Houses (docs/architecture.md — Houses): weight public, choice sealed, no address on the ballot.
   'gov-ballot': {
     authored: true,
     context: 'gov-ballot',

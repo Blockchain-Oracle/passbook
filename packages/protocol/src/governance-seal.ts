@@ -1,6 +1,6 @@
 //
 // Sealing a ballot's choice to the proposal's tally key — and opening it, which is the Teller's
-// whole job (docs/governance.md §6).
+// whole job (docs/architecture.md — Houses).
 //
 // ── ECIES ON THE STARK CURVE, `room.ts`'s PRIMITIVES REARRANGED ──────────────────────────
 //

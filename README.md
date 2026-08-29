@@ -1,9 +1,35 @@
-# Passbook — a private account on Starknet's STRK20 pool
+<p align="center">
+  <img src="assets/brand/passbook-mark.svg" width="96" alt="The Passbook mark — an open passbook cut as a note" />
+</p>
 
-Open [passbook-zeta.vercel.app](https://passbook-zeta.vercel.app) and you have an account. No
-wallet to connect, nothing to install, nothing to paste. The key is generated in your browser on
-first load, and everything below runs from it: hold and send shielded value, chat with anyone who
-has registered, swap, bridge out.
+<h1 align="center">Passbook</h1>
+
+<p align="center"><strong>A private account on Starknet's STRK20 pool.</strong></p>
+
+<p align="center">
+  Open the app and you have an account — no wallet to connect, nothing to install, nothing to paste.<br/>
+  Hold and send shielded value, chat with money attached, swap, bet, launch, bridge out.
+</p>
+
+<p align="center">
+  <a href="https://passbook-zeta.vercel.app"><b>▶&nbsp; Open the app</b></a>
+  &nbsp;·&nbsp;
+  <a href="docs/architecture.md"><b>Architecture</b></a>
+  &nbsp;·&nbsp;
+  <a href="#mainnet-record"><b>Mainnet record</b></a>
+  &nbsp;·&nbsp;
+  <a href="#what-we-do-not-claim-and-what-you-should-assume-instead"><b>What we refuse to claim</b></a>
+  <!-- when they exist, add here:
+  &nbsp;·&nbsp; <a href="DOCS_SITE_URL"><b>Documentation</b></a>
+  &nbsp;·&nbsp; <a href="DEMO_VIDEO_URL"><b>Demo video</b></a>
+  -->
+</p>
+
+<p align="center">
+  <img src="assets/brand/passbook-banner.svg" width="960" alt="Passbook — a private account on Starknet. Hold, send, chat, swap, bridge, bet, launch." />
+</p>
+
+The key is generated in your browser on first load, and everything below runs from it.
 
 What distinguishes this from every other privacy product is not the privacy claim. It is that
 each screen names which parties can see what, **before** you act — including the parties you did
@@ -110,39 +136,26 @@ list rather than from anyone who already read it, and the copy says that too.
 
 ## Architecture
 
-**The account is an embedded key.** Derived in the browser on first load — no wallet, no email, no
-seed phrase before anything works. That is also what makes the hosted demo work without login: a
-consequence, not a waiver. The key sits in `localStorage` in plaintext, which is an accepted and
-argued risk written down at `packages/protocol/src/session-key.ts` rather than a detail nobody
-mentioned. "Lock" therefore means a screen lock, and the app says so in those words instead of
-implying encryption it does not perform.
+![How Passbook fits together](assets/architecture.svg)
 
-**The relayer, reached through a same-origin proxy.** The browser never holds the relayer's auth
-token; it posts to `/api/*` and the app host injects the token. That is why every relayer route
-matches an exact path and why the streaming endpoint is a POST — an `EventSource` can set neither
-a `content-type` nor an auth header.
+The shape in five sentences — **[docs/architecture.md](docs/architecture.md)** carries the full
+page, including the relayer's security model and the discipline rules that were each learned
+against real mainnet fees:
 
-**The invoke sandwich.** Swap and bridge are the same shape: withdraw the input to the venue's
-privacy executor, invoke the executor, and the proceeds land back in the pool as a note. Value
-never touches a public address of yours in between.
+- **The account is an embedded key**, derived in the browser on first load; the accepted risk is
+  argued at `packages/protocol/src/session-key.ts`, not hidden.
+- **The relayer is reached only through a same-origin proxy** — the browser never holds its auth
+  token, and the relayer refuses anything outside a small `(contract, entrypoint)` allowlist.
+- **Swap and bridge are the same invoke sandwich**: withdraw to the venue's privacy executor,
+  invoke it, proceeds land back in the pool as a note — value never touches a public address of
+  yours in between.
+- **Every action list is rehearsed against a free view** (`compile_actions`) before a funded
+  transaction, because a malformed list burns the fee even when it reverts.
+- **The build gate reads the emitted artifact**, because `vite build` exiting 0 is not evidence
+  the app works.
 
-**Every action list is rehearsed against a free view before a funded transaction.** The pool's
-`compile_actions` is a view, so a malformed list can be caught for nothing — and it must be,
-because a malformed list burns the fee even when it reverts. What that view does *not* catch is
-recorded in `evidence/day0-markets-launch-checks.json`: an unmatched open note reverts **after**
-the fee, so the client asserts the open-note count equals the expected deposits.
-
-**The build gate reads the artifact.** `vite build` exiting 0 is not evidence the app works — with
-the privacy SDK's `/testing` alias missing it exits 0, writes a bundle, and the page dies at load
-with `ReferenceError: Buffer is not defined`. So the wrapper scans the emitted chunks for Node-only
-module names, holds the generated route tree against the route files on disk, reads the emitted
-stylesheet to prove the design system shipped and re-themes, caps first-paint bytes, and refuses
-any bundler warning that is not on an explicit allowlist. That last check earns its place
-constantly: it caught five ineffective dynamic imports during this sprint, each one a module that
-looked lazily loaded and was not.
-
-**`evidence/` is the audit trail**, and only a probe that actually measured something may write
-into it. Proof wall-time has never been measured by anyone on this protocol, so no duration appears
+`evidence/` is the audit trail, and only a probe that actually measured something may write into
+it. Proof wall-time has never been measured by anyone on this protocol, so no duration appears
 anywhere in this repository — including in this file.
 
 ---
@@ -165,6 +178,9 @@ The app is a stock `create-vite` + `shadcn init` project — see `apps/web/READM
 folder structure. The mainnet guard and the warning contract are ordinary options in
 `apps/web/vite.config.ts`; there is no wrapper script and nothing to run around it.
 
+The privacy SDK installs from `vendor/` (`file:` in the lockfile) — it is not on npm, so that
+tarball is part of the tree on purpose.
+
 ### The contracts
 
 ```bash
@@ -176,56 +192,18 @@ cd contracts && scarb build && snforge test    # 109 tests
 signatures — including one worth reading before a fresh machine: the snforge plugin build fix lives
 in scarb's global **cache**, not in this repository, so a cache wipe hits it again.
 
-### Checking our own submission
-
-`strk20.json` lists every transaction hash; each one resolves on Voyager
-(`https://voyager.online/tx/<hash>`). The rule that decides which of them count is below.
-
-### Running the relayer, and the one setting you must not skip
-
-The relayer holds a funded key and pays for what it signs, so whatever can reach its port can
-spend. It binds `127.0.0.1` by default and refuses anything outside a small allowlist of
-`(contract, entrypoint)` pairs, with the STRK approve capped from the live fee.
+### The relayer
 
 ```bash
 cp .env.example .env      # fill in the two relayer values; see that file
 npx tsx packages/relayer/src/server.ts
 ```
 
-**If this server is reachable through a proxy, `RELAYER_AUTH_TOKEN` is mandatory.** The browser
-posts to the same-origin relative path `/api/submit`, and the server accepts that path so a proxy
-can forward it. The moment that rewrite exists, loopback has stopped being a boundary — and nothing
-warns you, because the off-host warning keys off `RELAYER_HOST`, which you never changed. Behind a
-proxy every internet client arrives with no `Origin` header, which is exactly the shape the other
-checks treat as a trusted same-process caller.
-
-Requiring `content-type: application/json` is a CSRF control. It is not authentication.
-
-| Variable | Default | What it does |
-|---|---|---|
-| `RELAYER_AUTH_TOKEN` | unset | Shared secret required as `x-relayer-auth`. **Required behind a proxy.** |
-| `RELAYER_ALLOWED_ORIGINS` | unset | Comma-separated browser origins. Can only refuse — see below. |
-| `RELAYER_HOST` | `127.0.0.1` | Interface to bind. Empty is treated as unset. |
-| `PORT` | `8787` | Port to listen on. |
-
-`RELAYER_ALLOWED_ORIGINS` **cannot grant access, only withhold it.** A browser request carrying
-both an `Origin` and `application/json` is by definition cross-origin, so it is preflighted, and
-this server answers no CORS headers — the request never arrives. Setting an origin does not let a
-web app in. It is not a substitute for `RELAYER_AUTH_TOKEN`.
-
-In development, `apps/web/vite.config.ts` forwards `/api/*` to `127.0.0.1:8787` and strips the
-`Origin` header, so the app's same-origin paths reach a relayer started the ordinary way. Point it
-somewhere else with `RELAYER_ORIGIN`.
-
-**Rooms live in memory, so the deployment must run exactly one machine.** Two would each hold half
-of every conversation and neither would know. `fly.toml` pins that with `auto_stop_machines =
-false` and `min_machines_running = 1`; it also mounts a volume at `/data` for the two spend ledgers
-and the name directory, which unlike the chat backlog must survive a deploy.
-
-Writing this sentence is what found a bug: `RELAYER_DIRECTORY_STORE` was missing from `fly.toml`,
-so the name directory — a **public** ledger people point other people at — was writing inside the
-container and being dropped on every deploy, while the two private ledgers beside it survived. The
-path is in `fly.toml` now and takes effect on the next relayer deploy.
+The relayer holds a funded key and pays for what it signs, so whatever can reach its port can
+spend. **If this server is reachable through a proxy, `RELAYER_AUTH_TOKEN` is mandatory** — the
+full security model, the environment table, and the reason loopback stops being a boundary the
+moment a proxy rewrite exists are in
+[docs/architecture.md](docs/architecture.md#running-it-and-the-one-setting-you-must-not-skip).
 
 ### No protocol number is hardcoded, in the code or in this file
 
@@ -240,34 +218,39 @@ later, re-run the probe rather than trusting that line.
 
 Network is `SN_MAIN`. Every filled row is independently checkable with one RPC call, and every one
 was read back off the chain rather than copied from a deployment log — "the transaction succeeded"
-is a weaker claim than "the class is there now".
+is a weaker claim than "the class is there now". `strk20.json` is the submission manifest; each
+hash below resolves on Voyager (`https://voyager.online/tx/<hash>`).
 
 | What | Address |
 |---|---|
 | STRK20 pool | `0x040337b1af3c663e86e333bab5a4b28da8d4652a15a69beee2b677776ffe812a` |
 | Pool class hash this code was tested against | `0x67dddd89d80fedadc06b6f160798f94800a4a70164e5a24301cd0d6076b554d` |
+| `Markets` (ours) | `0x7905ba4e7535a3e7c1f9f4045762cc7ce83cfb120fe916f97a0dc512d72a783` |
+| `Launch` (ours) | `0x3fc07897f657b184ff9b0dab28939bb5a175d7cff9290406a1bd4b3d032eb54` |
 | `MessageBook` (ours) | `0x3105b6a327ba11f5464335f480046348a4052be2c12df726f37633d50ae35bc` |
-| `MessageBook` class hash | `0x52c432b3751ef6e61aa742e6b04a75bd929f2c85e1f2e632df812d424e4460f` |
+| `Governance` — the Houses (ours) | `0xdbe265829e0f1c859f3a8c1bd8fcfb0a774836b9e07191c6a624a59e37f9bf` |
 | Pragma oracle (read live by Markets) | `0x2a85bd616f912537c50a49a4076db02c00b29b2cdc8a197ce92ed1837fa875b` |
 
-**Transactions this project has landed on mainnet:**
+**The eight declared transactions**, each with the evidence file that recorded it:
 
-| What | Transaction |
-|---|---|
-| Sponsored registration, through our own relayer | `0x4fbbf9aa7992a95d313554bc17b2fff311b35a5974271defc6672f57abfe27d` |
-| `MessageBook` deploy | `0x1df2698443f4bf7d49f802aae3180674394d3e339c31666780c1e640562569` |
+| What happened | Evidence | Transaction |
+|---|---|---|
+| The ladder — 3 bets on market 0, one transaction, one fee | `seq-bet.json` | `0x16933dd6edd5ade29c3b3cb3954da2c3b5bb806f85040fe42810f73acd72523` |
+| The batch claim — 3 of 4 positions settled in one transaction | `seq-claim.json` | `0x15eb0939a124cbe8fc6a0e5825004f665f031e0d6abb80088bab0a8466561c0` |
+| The hidden buy — 4 units on launch 0, buyer never named | `seq-buy.json` | `0x84a59651f14c6c995eac59ce0598e9cb58a7b1d02334870db9494acf3871d4` |
+| House 0 activated — "Passbook Founders" | `seq-gov-house.json` | `0x11981995373bac3baf023588bb60e0e09652de7bda335decf54dee2bb3be3c5` |
+| A proposal, sealed until close | `seq-gov-propose.json` | `0x237a47cbb3e88194b8e684351f0709cdfff44898f9c5e06cca3b650ecca2726` |
+| A sealed FOR ballot, weight escrowed through the pool | `seq-gov-ballot.json` | `0x448ed7fc67b968b829d0e5cf8f7946fbb0fc47ef48903b33b8cd7be4dd6e7df` |
+| The tally the curve accepts | `seq-gov-tally.json` | `0x16bd3806cab40f1628e25c62ab8453d7af487b2c7006f0820f0d63405cbff0b` |
+| The tally key, on-chain forever | `seq-gov-tally.json` | `0x475b97c46df69c24fbf92429a9ce03a0df3779a4a23415b2d51960b36c25227` |
 
-The first is the one that touches the pool. **The submission gate asks for three, so this project
-currently meets one third of that requirement** — said plainly here because a reader who checks
-will find out in thirty seconds either way.
-
-**The mine rule, and why it changes which transactions count.** The judges' indexer applies a rule
-that has already zeroed real projects: *if `strk20.json` declares any `contracts`, every declared
-transaction must also run through one of them.* While `contracts` is empty the check is skipped
-entirely. Ours is empty today and the registration passes. The moment Markets and Launch are
-declared and listed, that registration stops counting — it touches the pool, not our contracts —
-so the three evidence transactions are planned to be contract-touching from the start: a batched
-bet, a batch claim, and a launch buy.
+**The mine rule, and why the registration is not on that list.** The judges' indexer applies a
+rule that has already zeroed real projects: *if `strk20.json` declares any `contracts`, every
+declared transaction must also run through one of them.* Our contracts are declared, so every
+declared transaction above touches our contracts. The sponsored registration this project landed
+through its own relayer (`0x4fbbf9aa7992a95d313554bc17b2fff311b35a5974271defc6672f57abfe27d`,
+`evidence/sponsored-registration.json`) touches the pool rather than our contracts — it is real,
+it is on chain, and declaring it would zero the submission, so it is history rather than manifest.
 
 **The pool class hash is pinned on purpose.** The pool is upgradeable with zero delay and can be
 paused, including during judging week — StarkWare can swap the implementation instantly and owes

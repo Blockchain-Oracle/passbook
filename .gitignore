@@ -6,6 +6,8 @@ dist/
 *.log
 .playwright-mcp/
 uni-*.png
+# AI-assisted-coding material — session rules and agent state. Not part of the product.
+CLAUDE.md
 .claude/
 .agents/
 _bmad/
@@ -28,20 +30,9 @@ rfps.md
 # `docs/*` rather than `docs/`, so a single file can be un-excluded below. Git does not
 # descend into an excluded DIRECTORY, so a negation under a plain `docs/` would never fire.
 docs/*
-# The operator-facing deployment topology (story 1.6 / AD-17). It SHIPS: it is the doc that
-# gives every process a named host, every relayer job its degrade state, and the cold-start
-# caveat somewhere an operator or a reviewer will actually meet it — which is the whole point
-# of writing it. It is neither research nor competitive analysis, so the rule above does not
-# describe it. Everything else under docs/ (the retired Superpowers plans) stays excluded.
-!docs/topology.md
-# The user-facing privacy page (story 6.7 / FR-058). It ships for the same reason.
-!docs/privacy.md
-# The governance spec (walk 3, RFP IDEA-27). It ships with the branch so the merge back to main
-# carries the architecture the managers argue with; same reasoning as topology above.
-!docs/governance.md
-# The maintained authenticated-app implementation ledger. Dated handoffs stay historical; this
-# file is the normal repository source for shipped, retained, deployment-blocked and scoped-out work.
-!docs/studio-rebuild-status.md
+# The one docs file that ships: the reviewer-facing architecture page the README links to.
+# Everything else under docs/ is working material for the build process and stays out.
+!docs/architecture.md
 
 # Upstream sources cloned for ground truth — not ours to ship
 reference/

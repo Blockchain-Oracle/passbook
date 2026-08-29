@@ -1,5 +1,5 @@
 //
-// The Teller — the governance spec's named trust party (docs/governance.md §3, §11.2), as a
+// The Teller — the Houses' named trust party (docs/architecture.md — Houses), as a
 // relayer subsystem: signer five, named before it existed, now existing.
 //
 // ── WHAT IT CAN AND CANNOT DO, said the way the rooms file says it ───────────────────────

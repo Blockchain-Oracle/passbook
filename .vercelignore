@@ -17,9 +17,8 @@
 #
 #   vendor/        the privacy SDK installs from here (`file:vendor/…` in the lockfile), so an
 #                  install without it fails outright. 180 KB.
-#   docs/          `build:web` reads `docs/privacy.md` and fails the build when it drifts from the
-#                  module it is generated from. Excluding it would break the deploy in a way whose
-#                  error message points somewhere else entirely.
+#   docs/          one small reviewer-facing page (architecture.md). Nothing in the build reads
+#                  it, and it costs nothing to keep the upload identical to the repo.
 #   evidence/      small, and it is the project's record of what it has actually done on mainnet.
 #   apps/web/dist/ THE ARTIFACT ITSELF. It is uploaded rather than built remotely — see the note
 #                  in vercel.json. Excluding it would deploy an empty site.

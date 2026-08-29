@@ -2,5 +2,5 @@
      mask on Android cannot clip it. Same glyph, more padding — that is the whole difference. -->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Passbook">
   <rect width="512" height="512" fill="#0A0A0A"/>
-  <rect x="176" y="176" width="160" height="160" fill="#C8F57F" transform="rotate(45 256 256)"/>
+  <g transform="translate(144 144) scale(0.8) translate(-116 -116)"><path d="M 256 172 L 256 396 L 116 256 Z" fill="#C8F57F"/><path d="M 256 172 L 256 396 L 396 256 Z" fill="#96C94E"/></g>
 </svg>
