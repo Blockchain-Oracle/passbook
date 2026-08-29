@@ -12,6 +12,7 @@ import {
 import {
   wireLaunch,
   wireMarket,
+  wireSeries,
   type FeedFrame,
   type TapeItem,
   type WirePrice,
@@ -19,6 +20,7 @@ import {
 import type { PragmaReading } from '../../protocol/src/pragma-pairs.js'
 import { PriceHistoryStore, countPoints, pushPoint, type PriceHistory } from './chain-feed-store.js'
 import { decodeTapeEvent, type RawEvent, type TapeSource } from './chain-feed-tape.js'
+import type { OnChainSeries } from '../../protocol/src/app-codecs.js'
 
 export { HISTORY_BOUND } from './chain-feed-store.js'
 export { EVENT_KEY, decodeTapeEvent } from './chain-feed-tape.js'
@@ -72,6 +74,7 @@ export interface ChainFeedStats {
 export class ChainFeed {
   private readonly subscribers = new Set<FeedSubscriber>()
   private markets: OnChainMarket[] = []
+  private series: OnChainSeries[] = []
   private marketsTotal = 0
   private launches: OnChainLaunch[] = []
   private launchesTotal = 0
@@ -113,6 +116,7 @@ export class ChainFeed {
       t: 'hello',
       at: (this.deps.now ?? Date.now)(),
       markets: this.markets.map(wireMarket),
+      series: this.series.map(wireSeries),
       marketsTotal: this.marketsTotal,
       launches: this.launches.map(wireLaunch),
       launchesTotal: this.launchesTotal,
@@ -174,12 +178,15 @@ export class ChainFeed {
       try {
         const out = await readMarkets(this.deps.markets, { transport })
         if (out.problem) problems.push(out.problem)
-        const wire = JSON.stringify(out.markets.map(wireMarket))
+        const markets = out.markets.map(wireMarket)
+        const series = out.series.map(wireSeries)
+        const wire = JSON.stringify({ markets, series })
         if (wire !== this.lastMarketsWire || out.total !== this.marketsTotal) {
           this.markets = out.markets
+          this.series = out.series
           this.marketsTotal = out.total
           this.lastMarketsWire = wire
-          this.broadcast({ t: 'markets', markets: out.markets.map(wireMarket), total: out.total })
+          this.broadcast({ t: 'markets', markets, series, total: out.total })
         }
       } catch (e) {
         problems.push(`The markets could not be read: ${String(e)}`)

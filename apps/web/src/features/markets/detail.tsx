@@ -17,7 +17,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { useNow } from '@/hooks/use-now'
 import { BetTicket } from './bet-ticket'
 import { TICK_MS } from './board'
-import { sideLabel } from './market-card'
+import { sideLabel, takesBets } from './market-card'
 import { PositionsPanel } from './positions-panel'
 import { LazyPriceChart } from './price-chart-lazy'
 import { Tape } from './tape'
@@ -74,7 +74,7 @@ export function MarketDetail({ id }: { id: number }) {
   }
 
   const share = potShare(market)
-  const open = market.state === MARKET_STATE.active && market.deadline * 1000 > now
+  const open = takesBets(market, now)
   const closes = timeLeft(market.deadline, now)
   const pair = market.pair as PragmaPair
 
@@ -91,7 +91,7 @@ export function MarketDetail({ id }: { id: number }) {
     >
       <div className="grid gap-6 md:grid-cols-[1fr_320px]">
         <div className="flex flex-col gap-6">
-          <LazyPriceChart pair={pair} series={feed.history[pair] ?? []} reference={Number(market.strike)} height={260} caption="strike" />
+          <LazyPriceChart pair={pair} series={feed.history[pair] ?? []} reference={market.strike === 0n ? null : Number(market.strike)} height={260} caption="strike" />
           <Card>
             <CardContent>
               <dl className="grid grid-cols-2 gap-4 sm:grid-cols-3">
@@ -107,8 +107,8 @@ export function MarketDetail({ id }: { id: number }) {
                 <Stat label="Seed">
                   <Amount wei={market.seed} decimals={stake.decimals} symbol={stake.symbol} size="sm" />
                 </Stat>
-                <Stat label="Strike">${strikeDisplay(market.strike)}</Stat>
-                <Stat label={market.state === MARKET_STATE.active ? 'Closes' : 'Outcome'}>
+                <Stat label="Strike">{market.strike === 0n ? 'Set at first bet' : `$${strikeDisplay(market.strike)}`}</Stat>
+                <Stat label={market.state === MARKET_STATE.active || market.state === MARKET_STATE.none ? 'Closes' : 'Outcome'}>
                   {market.state === MARKET_STATE.resolved
                     ? `${sideLabel(market.winner)} won`
                     : market.state === MARKET_STATE.voided

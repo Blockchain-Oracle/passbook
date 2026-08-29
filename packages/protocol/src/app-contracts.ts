@@ -128,7 +128,8 @@ export function parseAppContracts(raw: string | null | undefined): AppContracts 
   const record = parsed as Record<string, unknown>
   const contracts: AppContracts = {}
 
-  const markets = nested(record, 'Markets', 'contractAddress')
+  // v2 (standing series) when it has been deployed; the v1 record stays for its history.
+  const markets = nested(record, 'MarketsV2', 'contractAddress') ?? nested(record, 'Markets', 'contractAddress')
   if (markets) contracts.markets = markets
 
   const launch = nested(record, 'Launch', 'contractAddress')

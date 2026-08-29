@@ -22,7 +22,6 @@ import type { RelayerContext } from './context.js'
 import { openDirectory } from './directory.js'
 import { faucetDripWei, resolveEnv } from './env.js'
 import { createFundingMonitor } from './funding-monitor.js'
-import { openGroundskeeper } from './groundskeeper.js'
 import { createChainKeeperDeps, runKeeperPass } from './keeper.js'
 import { openFaucetLedger, openSendBudgetLedger, openSponsorshipLedger } from './ledger.js'
 import type { LogoService } from './logo.js'
@@ -137,21 +136,6 @@ async function main(): Promise<void> {
     every(TELLER_INTERVAL_MS, () => void teller.tick(deps).catch((e) => console.warn(`teller: sweep failed — ${String(e)}`)))
   }
 
-  const groundskeeper =
-    env.groundskeeperOn && app.markets && app.pragma
-      ? openGroundskeeper({
-          markets: app.markets,
-          pragma: app.pragma,
-          address: String(account.address),
-          accountKey: env.privateKey,
-          seedWei: env.groundskeeperSeedWei,
-          storePath: env.groundskeeperStore,
-          log: (line) => console.log(line),
-          warn: (line) => console.warn(line),
-        })
-      : undefined
-  groundskeeper?.start()
-
   const ctx: RelayerContext = {
     submit: async (calls, details) => (await account.execute(calls, details)).transaction_hash,
     policy: { messageBook, markets: app.markets, launch: app.launch, governance: writableGovernance },
@@ -205,8 +189,6 @@ async function main(): Promise<void> {
       allowedOrigins: env.allowedOrigins, sponsor: env.sponsor,
       feedWanted: env.chainFeedWanted, chainFeed, chainFeedStore: env.chainFeedStore,
       logos, teller, tellerStore: env.tellerStore,
-      groundskeeperOn: groundskeeper !== undefined, groundskeeperSeedWei: env.groundskeeperSeedWei,
-      groundskeeperStore: env.groundskeeperStore,
       faucetOn: faucet !== undefined, faucetDripWei: faucetDripWei(), monitor,
     }),
   )

@@ -28,9 +28,6 @@ export interface BannerInput {
   logos: LogoService | undefined
   teller: Teller | undefined
   tellerStore: string
-  groundskeeperOn: boolean
-  groundskeeperSeedWei: bigint
-  groundskeeperStore: string
   faucetOn: boolean
   faucetDripWei: bigint
   monitor: FundingMonitor
@@ -94,12 +91,6 @@ export function printBanner(b: BannerInput): void {
       ? `teller: holding ${b.teller.keyCount()} tally key(s) · sweeping every ${TELLER_INTERVAL_MS / 1000}s · ` +
           `ledger ${b.tellerStore}`
       : 'teller: off — no Governance contract deployed',
-  )
-  console.log(
-    b.groundskeeperOn
-      ? `groundskeeper: standing markets on, seed ${b.groundskeeperSeedWei} wei · ` +
-          `store ${b.groundskeeperStore} — REAL STRK per market`
-      : 'groundskeeper: off — set RELAYER_GROUNDSKEEPER=on to keep the board planted (spends real STRK)',
   )
   console.log(
     b.faucetOn

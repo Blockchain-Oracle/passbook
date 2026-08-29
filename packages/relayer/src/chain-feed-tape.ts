@@ -6,6 +6,7 @@ export type TapeSource = 'markets' | 'launch' | 'governance'
 // Pinned like `SELECTOR` in app-reads.ts; each equals `hash.getSelectorFromName(name)`.
 export const EVENT_KEY = {
   MarketCreated: '0x15d762f1fc581b3e684cf095d93d3a2c10754f60124b09bec8bf3d76473baaf',
+  MarketOpened: '0x2e072842f8f83a92799cd84b0eb595d776651e5351915cc6c69fa54f79dc7c7',
   BetPlaced: '0x3714964c81efee0fe58ac4504b7913e0e777e5d0f90ab45fc44568dd4ca88c1',
   MarketResolved: '0x3a69063a7ce6bf68928eda97af8f80e63b16ada5f75dacc66f432ab2683963',
   MarketVoided: '0x22e796813637e01cc55546e5af27911e667117f1ddf02dad9709e6194aeb423',
@@ -58,6 +59,10 @@ const at = (list: Row, i: number): string => list[i] as string
 function marketRow({ id: marketId, d, txHash, block, k }: Ctx): TapeItem | null {
   if (k('MarketCreated') && d.length >= 7) {
     return { kind: 'market-created', marketId, pair: decodePairShortString(at(d, 0)), strike: at(d, 1), deadline: toNum(at(d, 2)), txHash, block }
+  }
+  // MarketOpened keys nothing: `[market_id, series_id, epoch, strike, deadline, seed, oracle_ts]` all ride in data.
+  if (k('MarketOpened') && d.length >= 7) {
+    return { kind: 'market-opened', marketId: toNum(at(d, 0)), series: toNum(at(d, 1)), strike: at(d, 3), deadline: toNum(at(d, 4)), txHash, block }
   }
   if (k('BetPlaced') && d.length >= 6) {
     return { kind: 'bet', marketId, side: toNum(at(d, 0)), amount: at(d, 1), upAfter: at(d, 3), downAfter: at(d, 4), txHash, block }

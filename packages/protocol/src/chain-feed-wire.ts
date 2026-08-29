@@ -21,7 +21,7 @@
 // Pure: type-only imports, no `starknet`, no `fetch`, no DOM — loadable from the eager browser
 // chunk and from the relayer's node process alike.
 //
-import type { OnChainLaunch, OnChainMarket } from './app-reads.js'
+import type { OnChainLaunch, OnChainMarket, OnChainSeries } from './app-reads.js'
 
 // ── Wire forms: the decoded chain shapes with every bigint as a hex string ────────────────
 
@@ -38,6 +38,24 @@ export interface WireMarket {
   state: number
   winner: number
   experimental: boolean
+  house: boolean
+  series: number
+  openCash: string
+  vig: string
+  window: number
+  vigBps: number
+}
+
+export interface WireSeries {
+  id: number
+  pair: string
+  window: number
+  token: string
+  seed: string
+  minSources: number
+  vigBps: number
+  experimental: boolean
+  active: boolean
 }
 
 export interface WireLaunch {
@@ -75,6 +93,7 @@ export interface PricePoint {
  */
 export type TapeItem =
   | { kind: 'market-created'; marketId: number; pair: string; strike: string; deadline: number; txHash: string; block: number }
+  | { kind: 'market-opened'; marketId: number; series: number; strike: string; deadline: number; txHash: string; block: number }
   | { kind: 'bet'; marketId: number; side: number; amount: string; upAfter: string; downAfter: string; txHash: string; block: number }
   | { kind: 'market-resolved'; marketId: number; winner: number; settlePrice: string; txHash: string; block: number }
   | { kind: 'market-voided'; marketId: number; txHash: string; block: number }
@@ -123,6 +142,7 @@ export type FeedFrame =
       t: 'hello'
       at: number
       markets: WireMarket[]
+      series: WireSeries[]
       marketsTotal: number
       launches: WireLaunch[]
       launchesTotal: number
@@ -131,7 +151,7 @@ export type FeedFrame =
       tape: TapeItem[]
       problem: string | null
     }
-  | { t: 'markets'; markets: WireMarket[]; total: number }
+  | { t: 'markets'; markets: WireMarket[]; series: WireSeries[]; total: number }
   | { t: 'launches'; launches: WireLaunch[]; total: number }
   | { t: 'price'; price: WirePrice }
   | { t: 'tape'; items: TapeItem[] }
@@ -157,6 +177,12 @@ export function wireMarket(m: OnChainMarket): WireMarket {
     state: m.state,
     winner: m.winner,
     experimental: m.experimental,
+    house: m.house,
+    series: m.series,
+    openCash: hex(m.openCash),
+    vig: hex(m.vig),
+    window: m.window,
+    vigBps: m.vigBps,
   }
 }
 
@@ -174,7 +200,21 @@ export function marketFromWire(w: WireMarket): OnChainMarket {
     state: w.state,
     winner: w.winner,
     experimental: w.experimental,
+    house: w.house,
+    series: w.series,
+    openCash: big(w.openCash),
+    vig: big(w.vig),
+    window: w.window,
+    vigBps: w.vigBps,
   }
+}
+
+export function wireSeries(s: OnChainSeries): WireSeries {
+  return { ...s, seed: hex(s.seed) }
+}
+
+export function seriesFromWire(w: WireSeries): OnChainSeries {
+  return { ...w, seed: big(w.seed) }
 }
 
 export function wireLaunch(l: OnChainLaunch): WireLaunch {

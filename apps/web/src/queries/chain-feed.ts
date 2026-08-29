@@ -51,10 +51,15 @@ function appendPrice(price: WirePrice): void {
 }
 
 async function onFrame(frame: FeedFrame): Promise<void> {
-  const { marketFromWire, launchFromWire } = await import('@strk20/protocol/chain-feed-wire')
+  const { marketFromWire, launchFromWire, seriesFromWire } = await import('@strk20/protocol/chain-feed-wire')
   switch (frame.t) {
     case 'hello':
-      queryClient.setQueryData(marketsQuery().queryKey, { markets: frame.markets.map(marketFromWire), total: frame.marketsTotal, problem: null })
+      queryClient.setQueryData(marketsQuery().queryKey, {
+        markets: frame.markets.map(marketFromWire),
+        series: frame.series.map(seriesFromWire),
+        total: frame.marketsTotal,
+        problem: null,
+      })
       queryClient.setQueryData(launchesQuery().queryKey, { launches: frame.launches.map(launchFromWire), total: frame.launchesTotal, problem: null })
       patch({
         prices: Object.fromEntries(frame.prices.map((p) => [p.pair, p])),
@@ -64,7 +69,12 @@ async function onFrame(frame: FeedFrame): Promise<void> {
       })
       return
     case 'markets':
-      queryClient.setQueryData(marketsQuery().queryKey, { markets: frame.markets.map(marketFromWire), total: frame.total, problem: null })
+      queryClient.setQueryData(marketsQuery().queryKey, {
+        markets: frame.markets.map(marketFromWire),
+        series: frame.series.map(seriesFromWire),
+        total: frame.total,
+        problem: null,
+      })
       return
     case 'launches':
       queryClient.setQueryData(launchesQuery().queryKey, { launches: frame.launches.map(launchFromWire), total: frame.total, problem: null })

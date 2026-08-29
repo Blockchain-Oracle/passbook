@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { MARKET_STATE, type OnChainMarket } from '@strk20/protocol/app-reads'
+import { MARKET_STATE, type OnChainMarket, type OnChainSeries } from '@strk20/protocol/app-reads'
 import type { PricePoint, TapeItem, WirePrice } from '@strk20/protocol/chain-feed-wire'
 import type { PragmaReading } from '@strk20/protocol/pragma-pairs'
 
@@ -11,6 +11,8 @@ export interface MarketFeed {
   state: ChainFeedState
   loading: boolean
   markets: readonly OnChainMarket[]
+  series: readonly OnChainSeries[]
+  /** Taking bets: opened windows and custom markets, plus windows waiting for their first bet. */
   open: readonly OnChainMarket[]
   settled: readonly OnChainMarket[]
   prices: Readonly<Record<string, WirePrice>>
@@ -36,17 +38,24 @@ export function useMarketFeed(): MarketFeed {
   const deployed = Boolean(appContracts().markets)
 
   const markets = registry.data?.markets ?? []
+  const series = registry.data?.series ?? []
   const loading = registry.isPending && deployed
   const problem = feed.problem ?? registry.data?.problem ?? (registry.error ? String(registry.error) : null)
   const prices = live || !polled.data ? feed.prices : polledPrices(polled.data, polled.dataUpdatedAt, feed.prices)
+
+  // A window nobody has opened is still a market on the board — soonest deadline first.
+  const open = markets
+    .filter((m) => m.state === MARKET_STATE.active || (m.state === MARKET_STATE.none && m.house))
+    .sort((a, b) => a.deadline - b.deadline)
 
   return {
     deployed,
     state: feed.state,
     loading,
     markets,
-    open: markets.filter((m) => m.state === MARKET_STATE.active),
-    settled: markets.filter((m) => m.state !== MARKET_STATE.active),
+    series,
+    open,
+    settled: markets.filter((m) => m.state === MARKET_STATE.resolved || m.state === MARKET_STATE.voided),
     prices,
     history: feed.history,
     tape: feed.tape,

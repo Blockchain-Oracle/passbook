@@ -31,6 +31,8 @@ export function tapeSentence(item: MarketTapeItem, markets: readonly OnChainMark
   switch (item.kind) {
     case 'market-created':
       return `New market — ${item.pair} above $${strikeDisplay(BigInt(item.strike))}`
+    case 'market-opened':
+      return `Window opened — ${market ? market.pair : `series ${item.series}`} line set at $${strikeDisplay(BigInt(item.strike))}`
     case 'bet':
       return `${money(item.amount)} on ${sideLabel(item.side)} — ${name}`
     case 'market-resolved':

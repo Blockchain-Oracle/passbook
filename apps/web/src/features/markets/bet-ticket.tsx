@@ -2,10 +2,18 @@ import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { insufficient, parseAmountInput, toPlainText } from '@strk20/protocol/amount'
-import { marketQuestion, type OnChainMarket } from '@strk20/protocol/app-reads'
+import { MARKET_STATE, marketQuestion, type OnChainMarket } from '@strk20/protocol/app-reads'
 import { disclosureFor } from '@strk20/protocol/disclosure'
 import { MARKET_OP, SIDE_DOWN, SIDE_UP, betPayload } from '@strk20/protocol/market-calldata'
-import { BET_PRICE_LOCKS, BET_SIDE_DOWN, BET_SIDE_UP, DENOMINATION_CROWD } from '@strk20/protocol/markets-copy'
+import {
+  BET_PRICE_LOCKS,
+  BET_SIDE_DOWN,
+  BET_SIDE_UP,
+  DENOMINATION_CROWD,
+  WINDOW_OPENS_ON_FIRST_BET,
+  houseVigLine,
+  openingStakeLine,
+} from '@strk20/protocol/markets-copy'
 
 import { Amount } from '@/components/money/amount'
 import { AssetIdentity } from '@/components/money/asset-identity'
@@ -18,6 +26,7 @@ import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { sendProblem, useSend } from '@/mutations'
 import { appContracts } from '@/queries'
 import { cn } from '@/lib/utils'
+import { formatWei } from '@/lib/format'
 import { addStoredPosition, relabelStoredPosition, removeStoredPosition } from '@/queries/positions'
 import { betQuoteQuery } from './queries'
 import { useStake } from './use-stake'
@@ -46,6 +55,12 @@ export function BetTicket({ market, open, onOpenChange, initialSide }: BetTicket
   const tickets = quote.data ?? null
   const impliedPct = tickets && parsed.wei && tickets > 0n ? Number((parsed.wei * 10_000n) / tickets) / 100 : null
 
+  // A first bet opens the window, and the contract refuses to open one for dust (seed / 100).
+  const opening = market.state === MARKET_STATE.none && market.house
+  const floorWei = opening ? market.seed / 100n : 0n
+  const floorText = `${formatWei(floorWei, stake.decimals)} ${stake.symbol}`
+  const vigPct = market.vigBps > 0 ? (market.vigBps / 100).toFixed(market.vigBps % 100 === 0 ? 0 : 2) : null
+
   const blocker = !contract
     ? 'The Markets deployment is missing from this build'
     : !stake.sessionReady
@@ -56,11 +71,15 @@ export function BetTicket({ market, open, onOpenChange, initialSide }: BetTicket
           ? 'Enter a stake'
           : short
             ? `Not enough shielded ${stake.symbol}`
-            : quote.isPending
-              ? 'Getting the quote'
-              : quote.isError || tickets === null
-                ? 'The quote could not be read'
-                : null
+            : parsed.wei < floorWei
+              ? `At least ${floorText} to open`
+              : quote.isPending
+                ? 'Getting the quote'
+                : quote.isError || tickets === null
+                  ? 'The quote could not be read'
+                  : tickets === 0n
+                    ? 'This window is not taking bets'
+                    : null
 
   const sideWord = side === SIDE_UP ? BET_SIDE_UP : BET_SIDE_DOWN
   const stakeText = parsed.wei !== null && stake.decimals !== null ? toPlainText(parsed.wei, stake.decimals) : raw
@@ -156,6 +175,12 @@ export function BetTicket({ market, open, onOpenChange, initialSide }: BetTicket
               <dt className="text-muted-foreground">Implied odds</dt>
               <dd className="text-right font-mono tabular-nums">{impliedPct !== null ? `${impliedPct.toFixed(1)}%` : '—'}</dd>
             </dl>
+            {opening ? (
+              <p className="text-body4 text-muted-foreground">
+                {WINDOW_OPENS_ON_FIRST_BET} {openingStakeLine(floorText)}
+              </p>
+            ) : null}
+            {vigPct !== null ? <p className="text-body4 text-muted-foreground">{houseVigLine(vigPct)}</p> : null}
             <p className="text-body4 text-muted-foreground">{DENOMINATION_CROWD}</p>
           </div>
           <DialogFooter>
