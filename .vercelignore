@@ -28,3 +28,9 @@ node_modules/
 _bmad/
 _bmad-output/
 .relayer/
+
+# The site builds on Vercel from source; nothing generated locally under it should ride along.
+apps/site/.next
+apps/site/.source
+apps/site/.env.local
+apps/site/tsconfig.tsbuildinfo
