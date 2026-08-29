@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft } from 'lucide-react'
 
 import { useBackupCeremony, useSession } from '@/app/session'
+import { BrandLockup } from '@/components/brand/brand-mark'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { Progress } from '@/components/ui/progress'
@@ -32,10 +33,7 @@ function Frame({ step, onBack, onSkip, children }: { step: Step | null; onBack?:
         <DialogTitle className="sr-only">Set up your wallet</DialogTitle>
         <div className="mx-auto flex min-h-full w-full max-w-2xl flex-col gap-8 px-4 py-8 md:px-8 md:py-12">
         <header className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <span className="flex size-8 items-center justify-center rounded-md bg-primary font-display text-body2 text-primary-foreground">P</span>
-            <span className="font-display text-display4 uppercase">Passbook</span>
-          </div>
+          <BrandLockup />
           <div className="flex items-center gap-2">
             {onBack ? (
               <Button variant="ghost" size="sm" onClick={onBack}>

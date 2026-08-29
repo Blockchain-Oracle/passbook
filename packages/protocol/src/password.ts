@@ -23,12 +23,12 @@ export type VaultError =
 /** The sentence each failure gets. Exported so the copy cannot drift from the enum. */
 export const VAULT_ERROR_TEXT: Record<VaultError, string> = {
   'crypto-unavailable':
-    'This browser will not do the encryption Passbook needs. That usually means the page is not on a secure origin.',
+    'This browser will not do the encryption strk20.run needs. That usually means the page is not on a secure origin.',
   damaged:
     'The locked wallet in this browser could not be read. Your Recovery File still opens this account.',
   'password-too-short': `Use at least ${MIN_PASSWORD_LENGTH} characters.`,
   'unsupported-version':
-    'This wallet was locked by a newer version of Passbook. Update the page, or open it with your Recovery File.',
+    'This wallet was locked by a newer version of strk20.run. Update the page, or open it with your Recovery File.',
   'wrong-password': 'That password does not open this wallet.',
 }
 

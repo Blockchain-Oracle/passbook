@@ -8,11 +8,11 @@ let contracts: AppContracts | null = null
 /** The deployed venue contracts, from the build's env. Absent means the surface says "not open yet". */
 export function appContracts(): AppContracts {
   contracts ??= appContractsFromEnv({
-    PASSBOOK_MARKETS_ADDRESS: import.meta.env.VITE_PASSBOOK_MARKETS_ADDRESS,
-    PASSBOOK_LAUNCH_ADDRESS: import.meta.env.VITE_PASSBOOK_LAUNCH_ADDRESS,
-    PASSBOOK_PRAGMA_ADDRESS: import.meta.env.VITE_PASSBOOK_PRAGMA_ADDRESS,
-    PASSBOOK_GOVERNANCE_ADDRESS: import.meta.env.VITE_PASSBOOK_GOVERNANCE_ADDRESS,
-    PASSBOOK_GOVERNANCE_CLASS_HASH: import.meta.env.VITE_PASSBOOK_GOVERNANCE_CLASS_HASH,
+    APP_MARKETS_ADDRESS: import.meta.env.VITE_APP_MARKETS_ADDRESS,
+    APP_LAUNCH_ADDRESS: import.meta.env.VITE_APP_LAUNCH_ADDRESS,
+    APP_PRAGMA_ADDRESS: import.meta.env.VITE_APP_PRAGMA_ADDRESS,
+    APP_GOVERNANCE_ADDRESS: import.meta.env.VITE_APP_GOVERNANCE_ADDRESS,
+    APP_GOVERNANCE_CLASS_HASH: import.meta.env.VITE_APP_GOVERNANCE_CLASS_HASH,
   })
   return contracts
 }

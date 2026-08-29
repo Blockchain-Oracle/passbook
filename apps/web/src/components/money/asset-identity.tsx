@@ -107,7 +107,7 @@ export interface AssetIdentityProps {
 }
 
 /**
- * Canonical logo + boundary overlay + chip. Solid lime ring = shielded, dashed amber = public, so
+ * Canonical logo + boundary overlay + chip. Solid orange ring = shielded, dashed amber = public, so
  * the difference survives greyscale; the shield overlay sits on the logo's corner.
  */
 export function AssetIdentity({ symbol, name, logoUri, boundary, size = 'md', chip = true, className }: AssetIdentityProps) {

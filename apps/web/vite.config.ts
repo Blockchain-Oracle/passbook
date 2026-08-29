@@ -41,11 +41,11 @@ function contractDefines(): Record<string, string> {
       defines[`import.meta.env.${env}`] = JSON.stringify(value)
     }
   }
-  wire('VITE_PASSBOOK_MARKETS_ADDRESS', field('MarketsV2', 'contractAddress') ?? field('Markets', 'contractAddress'))
-  wire('VITE_PASSBOOK_LAUNCH_ADDRESS', field('Launch', 'contractAddress'))
-  wire('VITE_PASSBOOK_PRAGMA_ADDRESS', evidence.pragma)
-  wire('VITE_PASSBOOK_GOVERNANCE_ADDRESS', field('Governance', 'contractAddress'))
-  wire('VITE_PASSBOOK_GOVERNANCE_CLASS_HASH', field('Governance', 'classHash'))
+  wire('VITE_APP_MARKETS_ADDRESS', field('MarketsV2', 'contractAddress') ?? field('Markets', 'contractAddress'))
+  wire('VITE_APP_LAUNCH_ADDRESS', field('Launch', 'contractAddress'))
+  wire('VITE_APP_PRAGMA_ADDRESS', evidence.pragma)
+  wire('VITE_APP_GOVERNANCE_ADDRESS', field('Governance', 'contractAddress'))
+  wire('VITE_APP_GOVERNANCE_CLASS_HASH', field('Governance', 'classHash'))
   return defines
 }
 

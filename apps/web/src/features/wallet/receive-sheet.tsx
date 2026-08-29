@@ -94,7 +94,7 @@ export function ReceiveSheet({ address, children }: { address: string | undefine
         <SheetHeader>
           <BoundaryBadge kind="publicEntry" className="w-fit" />
           <SheetTitle className="font-display text-display3 uppercase">Receive</SheetTitle>
-          <SheetDescription>Your embedded Passbook address. It is exact before the account is deployed.</SheetDescription>
+          <SheetDescription>Your embedded strk20.run address. It is exact before the account is deployed.</SheetDescription>
         </SheetHeader>
         <div className="px-4 pb-4">
           {address ? (

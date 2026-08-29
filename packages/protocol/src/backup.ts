@@ -156,7 +156,7 @@ function assertWritableHeader(header: BackupHeader): void {
 /** Not unique by design — the OS `(1)` suffix beats a timestamp nobody can read. */
 export function backupFilename(header: BackupHeader): string {
   const reissued = header.registrationBlock !== null ? '-reissued' : ''
-  return `passbook-recovery-block-${header.backupBlock}${reissued}.json`
+  return `strk20-recovery-block-${header.backupBlock}${reissued}.json`
 }
 
 /** Two-secret split: file useless without code, code useless without file. We hold neither. */

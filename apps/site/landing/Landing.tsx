@@ -58,7 +58,7 @@ function Hero() {
 
         <div className="mt-s32 flex flex-wrap items-end justify-between gap-s24">
           <p className="m-0 max-w-[46ch] text-body1 text-neutral2">
-            Open Passbook and you have an account on Starknet&rsquo;s STRK20 pool. The key is
+            Open strk20.run and you have an account on Starknet&rsquo;s STRK20 pool. The key is
             generated in your browser on first load. Hold and send shielded value, chat, swap,
             bridge out, bet, launch.
           </p>
@@ -66,7 +66,7 @@ function Hero() {
             <a
               href={APP_URL}
               {...EXTERNAL}
-              className="focus-ring rounded-pill bg-accent1 px-s24 py-s16 text-body2 font-medium text-ground no-underline hover:bg-accent1Hovered"
+              className="focus-ring rounded-pill bg-accent1 px-s24 py-s16 text-body2 font-medium text-onAccent no-underline hover:bg-accent1Hovered"
             >
               Open the app →
             </a>

@@ -8,8 +8,8 @@ export const MIN_WALLET_API = '0.10.3'
 
 /** The public-funding honesty line — shown before the connected wallet signs. */
 export const PUBLIC_FUNDING_NOTICE =
-  'This funding transfer is public. The sender, Passbook address and amount are visible on Starknet. ' +
-  'Privacy starts only when the embedded Passbook account shields those funds.'
+  'This funding transfer is public. The sender, strk20.run address and amount are visible on Starknet. ' +
+  'Privacy starts only when the embedded strk20.run account shields those funds.'
 
 /** Semver-ish compare of dotted numeric versions: a >= b. Missing segments read as 0. */
 export function versionGte(a: string, b: string): boolean {

@@ -9,6 +9,7 @@
 import type { ReactNode } from 'react'
 import Link from 'next/link'
 
+import { BrandLockup } from '@/components/brand'
 import { APP_URL, REPO_URL } from '@/lib/shared'
 
 /**
@@ -37,16 +38,14 @@ export function SiteHeader({ current }: { current: PageId }) {
     <header className="sticky top-0 z-10 flex items-center justify-between gap-s16 border-b border-surface3 bg-ground/85 px-s20 py-s16 backdrop-blur-md lg:px-s40">
       {current === 'landing' ? (
         <span className="flex items-center gap-s8">
-          <span aria-hidden="true" className="brand-mark" />
-          <span className="display text-heading3">Passbook</span>
+          <BrandLockup />
         </span>
       ) : (
         <Link
           href={PAGES.landing}
           className="focus-ring flex items-center gap-s8 text-neutral1 no-underline"
         >
-          <span aria-hidden="true" className="brand-mark" />
-          <span className="display text-heading3">Passbook</span>
+          <BrandLockup />
           <span className="kicker rounded-pill border border-surface3 px-s8 py-s4">Docs</span>
         </Link>
       )}
@@ -67,7 +66,7 @@ export function SiteHeader({ current }: { current: PageId }) {
         <a
           href={APP_URL}
           {...EXTERNAL}
-          className="focus-ring rounded-pill bg-accent1 px-s20 py-s8 text-body3 font-medium text-ground no-underline hover:bg-accent1Hovered"
+          className="focus-ring rounded-pill bg-accent1 px-s20 py-s8 text-body3 font-medium text-onAccent no-underline hover:bg-accent1Hovered"
         >
           Open the app
         </a>
@@ -94,14 +93,16 @@ export function SiteFooter() {
           <a
             href={APP_URL}
             {...EXTERNAL}
-            className="focus-ring rounded-pill bg-accent1 px-s24 py-s16 text-body2 font-medium text-ground no-underline hover:bg-accent1Hovered"
+            className="focus-ring rounded-pill bg-accent1 px-s24 py-s16 text-body2 font-medium text-onAccent no-underline hover:bg-accent1Hovered"
           >
             Open the app →
           </a>
         </div>
 
         <div className="flex flex-wrap items-end justify-between gap-s20 border-t border-surface3 pt-s24">
-          <span className="display text-display1 xl:text-poster1">Passbook</span>
+          <span className="display text-display1 xl:text-poster1">
+            strk20<span className="text-accent1">.run</span>
+          </span>
           <div className="flex flex-col items-start gap-s8 sm:items-end sm:text-right">
             <div className="flex gap-s20">
               <Link href={PAGES.docs} className="focus-ring kicker no-underline hover:text-neutral1">

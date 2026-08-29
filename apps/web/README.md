@@ -1,4 +1,4 @@
-# Passbook web
+# strk20.run web
 
 Vite + React 19 + TypeScript, scaffolded by `create-vite` and `shadcn init` — nothing hand-rolled
 where a documented path exists.

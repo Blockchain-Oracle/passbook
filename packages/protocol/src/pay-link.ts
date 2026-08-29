@@ -53,7 +53,7 @@ export function parsePayLinkSearch(search: Record<string, unknown>): PayLinkSear
     }
     const candidate = search.asset.toUpperCase()
     if (candidate !== 'STRK' && candidate !== 'USDC') {
-      return { ok: false, because: `Passbook payment links support STRK or USDC, not ${search.asset}.` }
+      return { ok: false, because: `strk20.run payment links support STRK or USDC, not ${search.asset}.` }
     }
     asset = candidate
   }

@@ -91,7 +91,7 @@ export function CreateHouse({ open, onOpenChange }: CreateHouseProps) {
               <BoundaryBadge kind="bearer" className="w-fit" />
               <DialogTitle className="font-display text-display3 uppercase">The door key — shown once</DialogTitle>
               <DialogDescription>
-                Anyone you give this to can join the roll. Passbook does not store another copy, and there is no way to read
+                Anyone you give this to can join the roll. strk20.run does not store another copy, and there is no way to read
                 it back — the chain holds only its fingerprint.
               </DialogDescription>
             </DialogHeader>

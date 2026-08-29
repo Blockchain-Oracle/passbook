@@ -1,4 +1,4 @@
-//! Passbook Markets — binary UP/DOWN prediction markets on a constant-product AMM (FPMM),
+//! strk20.run Markets — binary UP/DOWN prediction markets on a constant-product AMM (FPMM),
 //! settled from Pragma, funded and paid through the StarkWare privacy pool.
 //!
 //! ── WHY FPMM AND NOT A POT ───────────────────────────────────────────────────────────────

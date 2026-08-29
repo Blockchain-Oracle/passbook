@@ -180,7 +180,7 @@ export const IMPORT_CODE_WRONG =
 
 /** The file is not one of ours, or it is damaged. */
 export const IMPORT_FILE_UNREADABLE =
-  'That is not a Passbook recovery file, or it has been damaged. Keep it — try the original ' +
+  'That is not a strk20.run recovery file, or it has been damaged. Keep it — try the original ' +
   'download rather than a copy that has been through anything that rewrites text.'
 
 /**
@@ -189,7 +189,7 @@ export const IMPORT_FILE_UNREADABLE =
  * them to delete the only copy of a key that cannot be reissued.
  */
 export const IMPORT_UNSUPPORTED_VERSION =
-  'This recovery file was written by a newer version of Passbook. Do not delete it — it still ' +
+  'This recovery file was written by a newer version of strk20.run. Do not delete it — it still ' +
   'opens there. Update this app and try again.'
 
 /** The file opened, and the key inside it is not the account the file's own header names. */

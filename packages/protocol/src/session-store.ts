@@ -34,6 +34,8 @@ export type SessionKey = (typeof SESSION_KEYS)[keyof typeof SESSION_KEYS]
  * human reading their own localStorage can both tell what belongs to this app. Adding one is a
  * reviewable decision with an argument attached.
  */
+// The `passbook.` prefix is the namespace every existing account was written under. It outlived
+// the name on purpose: renaming it would make every browser's accounts vanish on the next load.
 export const SESSION_KEYS = {
   /** The root Account Key (D33). The one secret this tier holds. */
   accountKey: 'passbook.account-key',

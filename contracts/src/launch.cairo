@@ -1,4 +1,4 @@
-//! Passbook Launch — confidential token launches on a stepwise-linear epoch curve.
+//! strk20.run Launch — confidential token launches on a stepwise-linear epoch curve.
 //!
 //! ── WHY EPOCHS AND NOT A BONDING CURVE ───────────────────────────────────────────────────
 //!

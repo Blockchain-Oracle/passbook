@@ -146,7 +146,7 @@ export function disconnectWallet(): void {
 }
 
 /** A public ERC-20 `transfer` from the connected wallet to the embedded address. u256 = low, high. */
-export async function fundPublicAccount(token: string, amountWei: bigint, passbookAddress: string): Promise<FundOutcome> {
+export async function fundPublicAccount(token: string, amountWei: bigint, embeddedAddress: string): Promise<FundOutcome> {
   if (!live) return { ok: false, because: 'No wallet is connected.' }
   try {
     const { sdk } = await loadWalletTier()
@@ -155,7 +155,7 @@ export async function fundPublicAccount(token: string, amountWei: bigint, passbo
         contractAddress: token,
         entrypoint: 'transfer',
         calldata: [
-          sdk.num.toHex(sdk.num.toBigInt(passbookAddress)),
+          sdk.num.toHex(sdk.num.toBigInt(embeddedAddress)),
           sdk.num.toHex(amountWei & 0xffffffffffffffffffffffffffffffffn),
           sdk.num.toHex(amountWei >> 128n),
         ],

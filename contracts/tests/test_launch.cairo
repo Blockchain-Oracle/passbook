@@ -77,7 +77,7 @@ fn create_with(
     ctx
         .launch
         .create_launch(
-            "Passbook Token",
+            "strk20.run Token",
             "PBK",
             "ipfs://logo",
             ctx.stake.contract_address,
@@ -137,7 +137,7 @@ fn a_created_launch_records_its_curve_and_its_creator() {
 
     assert(ctx.launch.total_units(id) == TOTAL_UNITS, 'sixteen units per epoch');
     assert(ctx.launch.launch_count() == 1, 'one launch');
-    assert(ctx.launch.launch_name(id) == "Passbook Token", 'name kept');
+    assert(ctx.launch.launch_name(id) == "strk20.run Token", 'name kept');
     assert(ctx.launch.launch_symbol(id) == "PBK", 'symbol kept');
     assert(ctx.launch.launch_logo(id) == "ipfs://logo", 'logo kept');
 }
@@ -404,7 +404,7 @@ fn an_exactly_filled_launch_graduates_and_deploys_its_token() {
     assert(launch.token.is_non_zero(), 'a token exists');
 
     let token = token_of(ctx, id);
-    assert(token.name() == "Passbook Token", 'the name it was created with');
+    assert(token.name() == "strk20.run Token", 'the name it was created with');
     assert(token.symbol() == "PBK", 'and the symbol');
     assert(token.decimals() == 18, 'eighteen decimals');
     assert(token.total_supply() == TOTAL_SUPPLY.into(), 'thirty-two units of a hundred');

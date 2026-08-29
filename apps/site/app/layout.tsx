@@ -11,9 +11,9 @@ import type { Metadata } from 'next'
 import './global.css'
 
 export const metadata: Metadata = {
-  title: { default: 'Passbook — a private account on Starknet', template: '%s — Passbook' },
+  title: { default: 'strk20.run — a private account on Starknet', template: '%s — strk20.run' },
   description:
-    'Open Passbook and you have an account on Starknet’s STRK20 pool. No wallet, no login, no seed phrase — and a straight answer about what that does and does not hide.',
+    'Open strk20.run and you have an account on Starknet’s STRK20 pool. No wallet, no login, no seed phrase — and a straight answer about what that does and does not hide.',
   themeColor: '#0A0A0A',
 }
 

@@ -75,7 +75,7 @@ export interface FeeRow {
 }
 
 export const POOL_SEES_DISCLOSURE = 'The pool sees this transaction, not your notes.'
-export const DEFAULT_APP_NAME = 'Passbook'
+export const DEFAULT_APP_NAME = 'strk20.run'
 
 /** Wei as STRK without trailing zeros. Refuses negatives: `bigint` division would render `0.-00…1`. */
 export function formatStrk(wei: bigint): string {

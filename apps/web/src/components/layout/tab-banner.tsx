@@ -18,7 +18,7 @@ export function TabBanner() {
     <div className="px-4 pt-3 md:px-8">
       <Alert>
         <AppWindow />
-        <AlertTitle>Passbook is open in another tab</AlertTitle>
+        <AlertTitle>strk20.run is open in another tab</AlertTitle>
         <AlertDescription className="flex flex-wrap items-center justify-between gap-2">
           <span>That tab signs transactions; this one only reads until you switch.</span>
           <Button size="sm" aria-disabled={takeOver.isPending || undefined} onClick={() => !takeOver.isPending && takeOver.mutate()}>

@@ -1,4 +1,4 @@
-//! Passbook Houses — private DAO governance on the StarkWare privacy pool.
+//! strk20.run Houses — private DAO governance on the StarkWare privacy pool.
 //! `docs/governance.md` is the spec this file executes; section numbers below cite it.
 //!
 //! ── YOUR TOKENS ARE THE BALLOT (§4) ──────────────────────────────────────────────────────

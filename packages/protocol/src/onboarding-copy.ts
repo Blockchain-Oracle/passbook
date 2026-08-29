@@ -164,7 +164,7 @@ export function doneSub(claimedPublicly: boolean): string {
     : `The name stays local to this browser. ${history}`
 }
 
-export const ENTER_CTA = 'Enter Passbook'
+export const ENTER_CTA = 'Enter strk20.run'
 
 export const REGISTER_TITLE = 'Register your key'
 export const REGISTER_CTA = 'Create your account'

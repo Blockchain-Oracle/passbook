@@ -51,7 +51,7 @@ export function FundStep({ address, onNext }: FundStepProps) {
       </div>
 
       <div className="rounded-lg border bg-muted/40 px-4 py-3 text-body4">
-        <p className="font-medium">{deadlockFeeRow('Passbook', feeStrk)}</p>
+        <p className="font-medium">{deadlockFeeRow('strk20.run', feeStrk)}</p>
         <p className="text-muted-foreground">{POOL_SEES}</p>
       </div>
 
@@ -91,7 +91,7 @@ export function FundStep({ address, onNext }: FundStepProps) {
 
       <AddressQr address={address} hint={FUND_ADDRESS_HINT} />
 
-      <ConnectFundingWallet passbookAddress={address} />
+      <ConnectFundingWallet embeddedAddress={address} />
 
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border px-4 py-3">
         <span className="text-body4 text-muted-foreground">Public STRK at this address</span>

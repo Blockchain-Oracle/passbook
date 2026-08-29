@@ -7,17 +7,13 @@
 //
 import type { BaseLayoutProps } from 'fumadocs-ui/layouts/shared'
 
+import { BrandLockup } from '@/components/brand'
 import { APP_URL, REPO_URL } from './shared'
 
 export function baseOptions(): BaseLayoutProps {
   return {
     nav: {
-      title: (
-        <>
-          <span aria-hidden="true" className="brand-mark" />
-          <span className="display text-heading3">Passbook</span>
-        </>
-      ),
+      title: <BrandLockup />,
       // Back to the landing page rather than to `/docs`. A brand in a docs sidebar that links to
       // the docs root is a link to where you already are.
       url: '/',

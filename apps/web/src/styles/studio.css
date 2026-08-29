@@ -27,12 +27,13 @@
   --color-neutral2Hovered: rgba(10,10,10,0.83);
   --color-neutral3: #85847E;
   --color-neutral3Hovered: #55544F;
-  --color-accent1: #3F6B12;
-  --color-accent1Hovered: #2E500A;
-  --color-accent2: rgba(63,107,18,0.13);
-  --color-accent2Hovered: rgba(63,107,18,0.20);
-  --color-accent2Solid: #DCE1D2;
-  --color-accent3: #3F6B12;
+  --color-accent1: #B93404;
+  --color-accent1Hovered: #952A03;
+  --color-accent2: rgba(185,52,4,0.12);
+  --color-accent2Hovered: rgba(185,52,4,0.20);
+  --color-accent2Solid: #EAD6CC;
+  --color-accent3: #B93404;
+  --color-onAccent: #FBF4EC;
   --color-settled: #2F6B45;
   --color-settledHovered: #245536;
   --color-settledTint: rgba(47,107,69,0.12);
@@ -44,9 +45,9 @@
   --color-irreversibleTint: rgba(163,58,85,0.10);
 
   /* boundary — WHERE the money lives, orthogonal to severity */
-  --color-shielded: #3F6B12;
-  --color-shieldedTint: rgba(63,107,18,0.13);
-  --color-shieldedEdge: rgba(63,107,18,0.42);
+  --color-shielded: #B93404;
+  --color-shieldedTint: rgba(185,52,4,0.12);
+  --color-shieldedEdge: rgba(185,52,4,0.42);
   --color-public: #6E5A05;
   --color-publicTint: rgba(110,90,5,0.13);
   --color-publicEdge: rgba(110,90,5,0.42);
@@ -131,7 +132,8 @@
   --color-popover: var(--color-raised);
   --color-popover-foreground: var(--color-neutral1);
   --color-primary: var(--color-accent1);
-  --color-primary-foreground: var(--color-ground);
+  /* cream on orange in both themes — the ground would be black-on-orange in dark mode */
+  --color-primary-foreground: var(--color-onAccent);
   --color-secondary: var(--color-inset);
   --color-secondary-foreground: var(--color-neutral1);
   --color-muted: var(--color-inset);
@@ -149,7 +151,7 @@
   --color-sidebar: var(--color-raised);
   --color-sidebar-foreground: var(--color-neutral1);
   --color-sidebar-primary: var(--color-accent1);
-  --color-sidebar-primary-foreground: var(--color-ground);
+  --color-sidebar-primary-foreground: var(--color-onAccent);
   --color-sidebar-accent: var(--color-accent2);
   --color-sidebar-accent-foreground: var(--color-accent1);
   --color-sidebar-border: var(--color-surface3);
@@ -187,12 +189,13 @@
   --color-neutral2Hovered: rgba(241,240,235,0.85);
   --color-neutral3: #6D6C67;
   --color-neutral3Hovered: #8B8A84;
-  --color-accent1: #C8F57F;
-  --color-accent1Hovered: #DAFA9F;
-  --color-accent2: rgba(200,245,127,0.12);
-  --color-accent2Hovered: rgba(200,245,127,0.20);
-  --color-accent2Solid: #2A3022;
-  --color-accent3: #C8F57F;
+  --color-accent1: #E04708;
+  --color-accent1Hovered: #F05A22;
+  --color-accent2: rgba(224,71,8,0.14);
+  --color-accent2Hovered: rgba(224,71,8,0.22);
+  --color-accent2Solid: #2E1A12;
+  --color-accent3: #E04708;
+  --color-onAccent: #FBF4EC;
   --color-settled: #8FD9A6;
   --color-settledHovered: #A8E4B8;
   --color-settledTint: rgba(143,217,166,0.12);
@@ -202,9 +205,9 @@
   --color-irreversible: #F2A0B4;
   --color-irreversibleHovered: #F7B8C7;
   --color-irreversibleTint: rgba(242,160,180,0.12);
-  --color-shielded: #C8F57F;
-  --color-shieldedTint: rgba(200,245,127,0.12);
-  --color-shieldedEdge: rgba(200,245,127,0.42);
+  --color-shielded: #E04708;
+  --color-shieldedTint: rgba(224,71,8,0.14);
+  --color-shieldedEdge: rgba(224,71,8,0.42);
   --color-public: #F2DC4E;
   --color-publicTint: rgba(242,220,78,0.12);
   --color-publicEdge: rgba(242,220,78,0.42);

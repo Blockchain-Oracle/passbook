@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="assets/brand/passbook-mark.svg" width="96" alt="The Passbook mark — an open passbook cut as a note" />
+  <img src="https://raw.githubusercontent.com/Blockchain-Oracle/strk20-run/main/assets/brand/strk20-mark.svg" width="96" alt="The strk20.run mark — an asterisk that runs" />
 </p>
 
-<h1 align="center">Passbook</h1>
+<h1 align="center">strk20.run</h1>
 
 <p align="center"><strong>A private account on Starknet's STRK20 pool.</strong></p>
 
@@ -12,7 +12,7 @@
 </p>
 
 <p align="center">
-  <a href="https://passbook-zeta.vercel.app"><b>▶&nbsp; Open the app</b></a>
+  <a href="https://app.strk20.run"><b>▶&nbsp; Open the app</b></a>
   &nbsp;·&nbsp;
   <a href="docs/architecture.md"><b>Architecture</b></a>
   &nbsp;·&nbsp;
@@ -20,14 +20,14 @@
   &nbsp;·&nbsp;
   <a href="#what-we-do-not-claim-and-what-you-should-assume-instead"><b>What we refuse to claim</b></a>
   &nbsp;·&nbsp;
-  <a href="https://passbook-site.vercel.app/docs"><b>Documentation</b></a>
+  <a href="https://strk20.run/docs"><b>Documentation</b></a>
   <!-- when it exists, add here:
   &nbsp;·&nbsp; <a href="DEMO_VIDEO_URL"><b>Demo video</b></a>
   -->
 </p>
 
 <p align="center">
-  <img src="assets/brand/passbook-banner.svg" width="960" alt="Passbook — a private account on Starknet. Hold, send, chat, swap, bridge, bet, launch." />
+  <img src="https://raw.githubusercontent.com/Blockchain-Oracle/strk20-run/main/assets/brand/strk20-banner.svg" width="960" alt="strk20.run — a private account on Starknet. Hold, send, chat, swap, bridge, bet, launch." />
 </p>
 
 The key is generated in your browser on first load, and everything below runs from it.
@@ -137,7 +137,7 @@ list rather than from anyone who already read it, and the copy says that too.
 
 ## Architecture
 
-![How Passbook fits together](assets/architecture.svg)
+![How strk20.run fits together](https://raw.githubusercontent.com/Blockchain-Oracle/strk20-run/main/assets/architecture.svg)
 
 The shape in five sentences — **[docs/architecture.md](docs/architecture.md)** carries the full
 page, including the relayer's security model and the discipline rules that were each learned

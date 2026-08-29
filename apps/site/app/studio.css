@@ -51,8 +51,9 @@
   --color-neutral1: #f1f0eb; /* ink — bone white, never #fff */
   --color-neutral2: #a3a29c; /* ink2 */
   --color-neutral3: #6d6c67; /* ink3 */
-  --color-accent1: #c8f57f; /* gold — the one branded colour */
-  --color-accent1Hovered: #dafa9f; /* goldB */
+  --color-accent1: #e04708; /* the strk20.run orange — the one branded colour */
+  --color-accent1Hovered: #f05a22;
+  --color-onAccent: #fbf4ec; /* ink on an orange fill */
   --color-exposed: #f2dc4e; /* warn */
   --color-irreversible: #f2a0b4; /* red — a rose, not a fire alarm */
 
@@ -152,11 +153,10 @@
   --color-fd-muted-foreground: var(--color-neutral2);
   --color-fd-border: var(--color-surface3);
   --color-fd-primary: var(--color-accent1);
-  /* Lime is a LIGHT colour: text on it is the near-black ground, never white. */
-  --color-fd-primary-foreground: var(--color-ground);
+  --color-fd-primary-foreground: var(--color-onAccent);
   --color-fd-secondary: var(--color-inset);
   --color-fd-secondary-foreground: var(--color-neutral1);
-  --color-fd-accent: rgba(200, 245, 127, 0.12); /* [tokens.yaml accent2] the filled-accent tint */
+  --color-fd-accent: rgba(224, 71, 8, 0.14); /* accent2 — the filled-accent tint */
   --color-fd-accent-foreground: var(--color-accent1Hovered);
   --color-fd-ring: var(--color-accent1);
 }
@@ -202,15 +202,6 @@
     color: var(--color-neutral3);
   }
 
-  /* The brand's rotated square — the same mark the app header carries. */
-  .brand-mark {
-    flex: none;
-    width: var(--spacing-s12);
-    height: var(--spacing-s12);
-    background-color: var(--color-accent1);
-    transform: rotate(45deg);
-  }
-
   /* `:focus-visible`, not `:focus`, so a mouse click does not paint a ring nobody asked for. */
   .focus-ring:focus-visible {
     outline: 2px solid var(--color-accent1);
@@ -225,7 +216,7 @@
    * seam is a property of the duplication, not of the content's length — it survives the list
    * changing length.
    */
-  @keyframes pb-marquee {
+  @keyframes site-marquee {
     to {
       transform: translateX(-50%);
     }
@@ -234,7 +225,7 @@
   .site-ticker-track {
     display: flex;
     width: max-content;
-    animation-name: pb-marquee;
+    animation-name: site-marquee;
     animation-duration: var(--duration-marquee);
     animation-timing-function: var(--ease-linear);
     animation-iteration-count: infinite;

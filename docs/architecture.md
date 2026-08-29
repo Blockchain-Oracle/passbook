@@ -1,9 +1,9 @@
-# Passbook — architecture
+# strk20.run — architecture
 
 The [README](../README.md) says what exists and what we refuse to claim. This page says how the
 thing is built, for a reader who wants to check the claims against the code.
 
-![How Passbook fits together](../assets/architecture.svg)
+![How strk20.run fits together](../assets/architecture.svg)
 
 ## The account is an embedded key
 

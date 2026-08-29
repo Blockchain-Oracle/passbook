@@ -70,7 +70,7 @@ export function makeSelfSubmitRegistration(accountKey: string, address: string) 
 }
 
 /** A stable id for a pipeline row. */
-export function operationId(prefix = 'passbook'): string {
+export function operationId(prefix = 'strk20'): string {
   const suffix = globalThis.crypto?.randomUUID?.() ?? Math.random().toString(36).slice(2)
   return `${prefix}-${Date.now()}-${suffix}`
 }

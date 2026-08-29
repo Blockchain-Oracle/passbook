@@ -81,7 +81,7 @@ export function SwapReview({
         { label: 'Slippage', value: slippageLabel(slippageBps) },
         { label: 'Route', value: routeLabel(quote) ?? '—' },
         { label: 'Pool fee', value: <Amount wei={feeWei} decimals={18} symbol="STRK" /> },
-        { label: 'Submitted by', value: 'Embedded Passbook account' },
+        { label: 'Submitted by', value: 'Embedded strk20.run account' },
       ]}
       disclosure={SWAP_DISCLOSURE}
       confirmLabel="Confirm swap"

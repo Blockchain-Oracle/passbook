@@ -43,11 +43,11 @@ export interface ShieldDialogProps {
   problem?: string | null
 }
 
-const SHIELD_BODY = 'Your Passbook account deposits its own public funds into the pool as one encrypted note back to itself.'
+const SHIELD_BODY = 'Your strk20.run account deposits its own public funds into the pool as one encrypted note back to itself.'
 const SHIELD_WARNING =
-  'This deposit is public: the Passbook address, token and amount are visible on Starknet. Privacy begins with the encrypted note created inside the pool.'
+  'This deposit is public: the strk20.run address, token and amount are visible on Starknet. Privacy begins with the encrypted note created inside the pool.'
 const COST_NOTE =
-  'The pool fee is charged by the privacy pool contract on every transaction — read from the contract now, not set by Passbook. Gas is Starknet’s network fee, priced from the latest block; the held amount is a ceiling and only what is used is charged.'
+  'The pool fee is charged by the privacy pool contract on every transaction — read from the contract now, not set by strk20.run. Gas is Starknet’s network fee, priced from the latest block; the held amount is a ceiling and only what is used is charged.'
 
 /**
  * The shield review's disclosure. The protocol has no `shield` VisibilityContext yet, so this is
@@ -207,7 +207,7 @@ export function ShieldDialog({ open, onOpenChange, token, symbol, decimals, logo
           { label: 'To', value: 'One shielded note to yourself' },
           { label: 'Pool fee', value: <Amount wei={feeWei} decimals={18} symbol="STRK" /> },
           { label: 'Gas held', value: gasLabel },
-          { label: 'Submitted by', value: 'Embedded Passbook account' },
+          { label: 'Submitted by', value: 'Embedded strk20.run account' },
         ]}
         disclosure={SHIELD_DISCLOSURE}
         confirmLabel={`Shield ${symbol}`}

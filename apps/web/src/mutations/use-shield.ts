@@ -33,7 +33,7 @@ const refused = (reason: string): ShieldResult => ({ ok: false, stages: [], fail
 async function shield(ask: ShieldAsk): Promise<ShieldResult> {
   const session = getSessionSnapshot()
   if (session.status !== 'ready' || !session.address || !session.accountKey) {
-    return refused('This browser has no unlocked Passbook account.')
+    return refused('This browser has no unlocked strk20.run account.')
   }
   const { address, accountKey } = session
 

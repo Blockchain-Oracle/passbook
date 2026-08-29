@@ -158,15 +158,15 @@ export function parseAppContracts(raw: string | null | undefined): AppContracts 
  */
 export function appContractsFromEnv(env: Record<string, string | undefined>): AppContracts {
   const contracts: AppContracts = {}
-  const markets = address(env.PASSBOOK_MARKETS_ADDRESS)
+  const markets = address(env.APP_MARKETS_ADDRESS)
   if (markets) contracts.markets = markets
-  const launch = address(env.PASSBOOK_LAUNCH_ADDRESS)
+  const launch = address(env.APP_LAUNCH_ADDRESS)
   if (launch) contracts.launch = launch
-  const pragma = address(env.PASSBOOK_PRAGMA_ADDRESS)
+  const pragma = address(env.APP_PRAGMA_ADDRESS)
   if (pragma) contracts.pragma = pragma
-  const governance = address(env.PASSBOOK_GOVERNANCE_ADDRESS)
+  const governance = address(env.APP_GOVERNANCE_ADDRESS)
   if (governance) contracts.governance = governance
-  const governanceClassHash = address(env.PASSBOOK_GOVERNANCE_CLASS_HASH)
+  const governanceClassHash = address(env.APP_GOVERNANCE_CLASS_HASH)
   if (governanceClassHash) contracts.governanceClassHash = governanceClassHash
   return contracts
 }

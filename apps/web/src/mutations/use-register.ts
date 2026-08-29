@@ -83,7 +83,7 @@ async function register(ask: RegisterAsk): Promise<RegisterOutcome> {
     const selfPays = status.strkWei !== null && status.strkWei >= floor
 
     const result = await registerSponsored(
-      { accountKey, account: account as never, appName: 'Passbook' },
+      { accountKey, account: account as never, appName: 'strk20.run' },
       {
         canRegister: () => ask.backedUp,
         acquireSubmitLock,

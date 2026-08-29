@@ -16,7 +16,7 @@ export function describeSendFailure(failure: SendFailure): string {
     case 'blocked-rpc-unknown':
       return `The chain could not be read, so nothing was sent: ${failure.reason}`
     case 'lock-unavailable':
-      return 'Another Passbook tab holds the right to sign. Press "Use this tab" in the banner above, or close the other tab, then try again.'
+      return 'Another strk20.run tab holds the right to sign. Press "Use this tab" in the banner above, or close the other tab, then try again.'
     case 'pool-paused':
       return 'The pool is paused, so nothing can move right now. Nothing was spent.'
     case 'pool-upgraded':
@@ -40,9 +40,9 @@ export function describeShieldFailure(failure: ShieldFailure): string {
     case 'pool-upgraded':
       return 'The pool class changed. This build will not prove against an unverified contract.'
     case 'insufficient-public-token':
-      return `Not enough public ${failure.symbol} at the embedded Passbook address.`
+      return `Not enough public ${failure.symbol} at the embedded strk20.run address.`
     case 'insufficient-public-strk':
-      return 'Not enough public STRK at the embedded Passbook address for the pool fee.'
+      return 'Not enough public STRK at the embedded strk20.run address for the pool fee.'
     case 'proof-expired':
       return 'The proof expired before submission. Refresh the balances and try again.'
     case 'reverted':

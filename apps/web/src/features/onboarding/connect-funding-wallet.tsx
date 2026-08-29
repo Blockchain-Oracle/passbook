@@ -26,7 +26,7 @@ const ASSETS = {
 type Asset = keyof typeof ASSETS
 
 const NO_WALLET =
-  'No Starknet wallet found in this browser. Passbook works without one — this is only for moving money in from an existing wallet.'
+  'No Starknet wallet found in this browser. strk20.run works without one — this is only for moving money in from an existing wallet.'
 
 function WalletPicker() {
   const wallets = useQuery(walletsQuery())
@@ -55,21 +55,21 @@ function WalletPicker() {
   )
 }
 
-function FundingRail({ passbookAddress }: { passbookAddress: string }) {
+function FundingRail({ embeddedAddress }: { embeddedAddress: string }) {
   const wallet = useFundingWallet()
   const [asset, setAsset] = useState<Asset>('STRK')
   const [text, setText] = useState('')
   const parsed = parseAmountInput(text, ASSETS[asset].decimals)
   const send = useMutation({
     mutationKey: ['fund-public-account'],
-    mutationFn: (wei: bigint) => fundPublicAccount(ASSETS[asset].token, wei, passbookAddress),
+    mutationFn: (wei: bigint) => fundPublicAccount(ASSETS[asset].token, wei, embeddedAddress),
     onSuccess: (outcome) => {
       if (!outcome.ok) {
         toast.error('Public funding was not sent', { description: outcome.because })
         return
       }
       toast.success(`${text} ${asset} on its way`, {
-        description: `Signed in ${wallet?.name ?? 'your wallet'}. It lands at your embedded address as public ${asset}; shielding is a separate Passbook transaction.`,
+        description: `Signed in ${wallet?.name ?? 'your wallet'}. It lands at your embedded address as public ${asset}; shielding is a separate strk20.run transaction.`,
       })
       setText('')
       void invalidateAccount()
@@ -109,7 +109,7 @@ function FundingRail({ passbookAddress }: { passbookAddress: string }) {
       </Button>
       {wallet.support === 'unsupported' ? (
         <p className="text-body4 text-muted-foreground">
-          {wallet.name} does not support private actions itself. That does not matter here — Passbook does the private part with its own key.
+          {wallet.name} does not support private actions itself. That does not matter here — strk20.run does the private part with its own key.
         </p>
       ) : null}
     </div>
@@ -117,7 +117,7 @@ function FundingRail({ passbookAddress }: { passbookAddress: string }) {
 }
 
 /** The door: an external wallet as a public funding source. Never an identity, never the chip. */
-export function ConnectFundingWallet({ passbookAddress }: { passbookAddress: string }) {
+export function ConnectFundingWallet({ embeddedAddress }: { embeddedAddress: string }) {
   const wallet = useFundingWallet()
   return (
     <div className="flex flex-col gap-3 rounded-lg border p-4">
@@ -126,13 +126,13 @@ export function ConnectFundingWallet({ passbookAddress }: { passbookAddress: str
           <p className="font-display text-display4 uppercase">{wallet ? 'Funding wallet' : 'Add money from a wallet'}</p>
           <p className="text-body4 text-muted-foreground">
             {wallet
-              ? 'Connected as a place to move money from. Your Passbook account is unchanged.'
+              ? 'Connected as a place to move money from. Your strk20.run account is unchanged.'
               : 'Connect Ready — or any Starknet wallet — to send funds into this account. It does not sign you in and it does not replace your account.'}
           </p>
         </div>
         <BoundaryBadge kind="bothPublic" />
       </div>
-      {wallet ? <FundingRail passbookAddress={passbookAddress} /> : <WalletPicker />}
+      {wallet ? <FundingRail embeddedAddress={embeddedAddress} /> : <WalletPicker />}
       <Alert>
         <AlertDescription>{PUBLIC_FUNDING_NOTICE}</AlertDescription>
       </Alert>

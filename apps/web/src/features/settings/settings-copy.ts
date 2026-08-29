@@ -6,7 +6,7 @@ export const SETTINGS_DESCRIPTION = 'How this browser holds the key, what it sho
 // ── Appearance ──────────────────────────────────────────────────────────────────────────────
 export const THEME_LABELS = { dark: 'Dark', light: 'Light', system: 'Follow system' } as const
 export const THEME_FOLLOWING_SYSTEM = 'Following your system setting. Changing it there changes this app.'
-export const THEME_PINNED = 'Stored on this device. Passbook opens in this theme until you change it here.'
+export const THEME_PINNED = 'Stored on this device. strk20.run opens in this theme until you change it here.'
 
 // ── Security ────────────────────────────────────────────────────────────────────────────────
 export const PASSWORD_CHANGE_ACTION = 'Change password'
@@ -17,7 +17,7 @@ export const STRENGTH_LABEL = { 'too-short': 'Too short', weak: 'Weak', fair: 'F
 export const NEED_UNLOCK = 'Unlock this wallet to change how it is protected.'
 export const AUTO_LOCK_TITLE = 'No timer'
 export const AUTO_LOCK_BODY =
-  'Passbook does not lock on its own. Lock it here or close the tab; with a password set, a reload asks for it again.'
+  'strk20.run does not lock on its own. Lock it here or close the tab; with a password set, a reload asks for it again.'
 export const LOCK_NOW = 'Lock now'
 export const PASSWORD_SET_TOAST = 'This browser’s accounts are now encrypted.'
 export const PASSWORD_REMOVED_TOAST = 'The key is back in this browser’s storage.'
@@ -42,7 +42,7 @@ export const nextCheckLine = (dueAt: number | null, due: boolean) => {
 // ── Privacy ─────────────────────────────────────────────────────────────────────────────────
 export const NEVER_CLAIM_TITLE = 'What we never claim'
 export const NEVER_CLAIM_BODY =
-  'Each of these is false about the pool as deployed. If you read one of them anywhere in Passbook, it is a bug.'
+  'Each of these is false about the pool as deployed. If you read one of them anywhere in strk20.run, it is a bug.'
 export const RECIPIENT_SEES = 'The recipient of a private transfer sees who sent it. Private is not anonymous to your counterparty.'
 export const OPEN_NOTE_PUBLIC =
   'An open-note leg makes its amount public. Markets, Launch and Houses can record a bearer commitment instead of your account, but the transaction submitter remains visible on-chain.'
@@ -59,7 +59,7 @@ export const PINNED_POOL = 'Pinned protocol deployment'
 // ── Sounds ──────────────────────────────────────────────────────────────────────────────────
 export const SOUNDS_TITLE = 'Sounds'
 export const SOUNDS_ON = 'Short cues when a submission settles or fails. Nothing else makes noise.'
-export const SOUNDS_OFF = 'Passbook is silent. It plays no sound anywhere.'
+export const SOUNDS_OFF = 'strk20.run is silent. It plays no sound anywhere.'
 
 // ── Danger ──────────────────────────────────────────────────────────────────────────────────
 export const FORGET_TITLE = 'Forget this browser’s wallet'

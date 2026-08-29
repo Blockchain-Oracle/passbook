@@ -1,6 +1,7 @@
 import { Link, useLocation } from '@tanstack/react-router'
 
 import { GROUP_LABEL, NAV, isActivePath, type NavGroup } from '@/app/navigation'
+import { BrandLockup } from '@/components/brand/brand-mark'
 import {
   Sidebar,
   SidebarContent,
@@ -27,10 +28,7 @@ export function AppSidebar() {
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton size="lg" render={<Link to="/wallet" />}>
-              <span className="flex size-8 items-center justify-center rounded-md bg-primary font-display text-body2 text-primary-foreground">
-                P
-              </span>
-              <span className="font-display text-display4 uppercase">Passbook</span>
+              <BrandLockup />
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
