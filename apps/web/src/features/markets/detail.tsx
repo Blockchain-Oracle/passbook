@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link } from '@tanstack/react-router'
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, Flag } from 'lucide-react'
 import { MARKET_STATE, marketQuestion, potShare, strikeDisplay, timeLeft } from '@strk20/protocol/app-reads'
 import { BET_SIDE_DOWN, BET_SIDE_UP, MARKETS_LOADING, MARKETS_NOT_DEPLOYED } from '@strk20/protocol/markets-copy'
 import { SIDE_DOWN, SIDE_UP } from '@strk20/protocol/market-calldata'
@@ -15,9 +15,9 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useNow } from '@/hooks/use-now'
+import { cn } from '@/lib/utils'
 import { BetTicket } from './bet-ticket'
-import { TICK_MS } from './board'
-import { sideLabel, takesBets } from './market-card'
+import { isClosing, sideAgainst, sideLabel, takesBets } from './market-card'
 import { PositionsPanel } from './positions-panel'
 import { LazyPriceChart } from './price-chart-lazy'
 import { Tape } from './tape'
@@ -36,7 +36,8 @@ function Stat({ label, children }: { label: string; children: React.ReactNode })
 export function MarketDetail({ id }: { id: number }) {
   const feed = useMarketFeed()
   const stake = useStrkStake()
-  const now = useNow(TICK_MS)
+  // One second: the close is a moment, and the doors must shut on it, not thirty seconds after.
+  const now = useNow(1000)
   const [side, setSide] = useState<number | null>(null)
   const market = findMarket(feed.markets, id)
 
@@ -75,8 +76,11 @@ export function MarketDetail({ id }: { id: number }) {
 
   const share = potShare(market)
   const open = takesBets(market, now)
+  const closing = isClosing(market, now)
   const closes = timeLeft(market.deadline, now)
   const pair = market.pair as PragmaPair
+  const spot = feed.prices[market.pair]?.price ?? null
+  const against = sideAgainst(market, spot)
 
   return (
     <Page
@@ -109,13 +113,15 @@ export function MarketDetail({ id }: { id: number }) {
                 </Stat>
                 <Stat label="Strike">{market.strike === 0n ? 'Set at first bet' : `$${strikeDisplay(market.strike)}`}</Stat>
                 <Stat label={market.state === MARKET_STATE.active || market.state === MARKET_STATE.none ? 'Closes' : 'Outcome'}>
-                  {market.state === MARKET_STATE.resolved
-                    ? `${sideLabel(market.winner)} won`
-                    : market.state === MARKET_STATE.voided
-                      ? 'Voided'
-                      : closes === 'closed'
-                        ? 'Awaiting settlement'
-                        : closes}
+                  {market.state === MARKET_STATE.resolved ? (
+                    `${sideLabel(market.winner)} won`
+                  ) : market.state === MARKET_STATE.voided ? (
+                    'Voided'
+                  ) : closing ? (
+                    <span className="text-irreversible">Closed · settling</span>
+                  ) : (
+                    closes
+                  )}
                 </Stat>
               </dl>
             </CardContent>
@@ -139,14 +145,40 @@ export function MarketDetail({ id }: { id: number }) {
             {open ? (
               <div className="grid grid-cols-2 gap-2">
                 <Button variant="outline" size="lg" className="border-settled text-settled" onClick={() => setSide(SIDE_UP)}>
-                  {BET_SIDE_UP}
+                  {BET_SIDE_UP} {against}
                 </Button>
                 <Button variant="outline" size="lg" className="border-irreversible text-irreversible" onClick={() => setSide(SIDE_DOWN)}>
-                  {BET_SIDE_DOWN}
+                  {BET_SIDE_DOWN} {against}
                 </Button>
               </div>
             ) : (
-              <p className="text-body4 text-muted-foreground">This market is closed to new bets.</p>
+              // The doors stay visible, struck and dimmed, under a red rule: closed is a state to
+              // see, not a sentence to read.
+              <div className="flex flex-col gap-2">
+                <div className="grid grid-cols-2 gap-2 opacity-40" aria-hidden>
+                  <Button variant="outline" size="lg" className="border-settled text-settled line-through" tabIndex={-1}>
+                    {BET_SIDE_UP} {against}
+                  </Button>
+                  <Button variant="outline" size="lg" className="border-irreversible text-irreversible line-through" tabIndex={-1}>
+                    {BET_SIDE_DOWN} {against}
+                  </Button>
+                </div>
+                <p
+                  className={cn(
+                    'flex items-center gap-2 rounded-lg px-3 py-2 text-body4',
+                    closing ? 'bg-irreversibleTint text-irreversible' : 'bg-muted/50 text-muted-foreground',
+                  )}
+                >
+                  <Flag className="size-4 shrink-0" aria-hidden />
+                  {market.state === MARKET_STATE.resolved
+                    ? `Settled — ${sideLabel(market.winner)} won.`
+                    : market.state === MARKET_STATE.voided
+                      ? 'Voided — every position refunds at cost.'
+                      : closing
+                        ? `Closed at ${new Date(market.deadline * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} · settling on the oracle’s next read`
+                        : 'Too late to open this window.'}
+                </p>
+              </div>
             )}
           </section>
           <section className="flex flex-col gap-3">
@@ -155,7 +187,7 @@ export function MarketDetail({ id }: { id: number }) {
           </section>
         </aside>
       </div>
-      {side !== null ? <BetTicket key={side} market={market} initialSide={side} open onOpenChange={(next) => !next && setSide(null)} /> : null}
+      {side !== null ? <BetTicket key={side} market={market} spot={spot} initialSide={side} open onOpenChange={(next) => !next && setSide(null)} /> : null}
     </Page>
   )
 }

@@ -20,12 +20,15 @@ import { sendProblem, useSend } from '@/mutations'
 import { appContracts } from '@/queries'
 import { cn } from '@/lib/utils'
 import { formatWei } from '@/lib/format'
+import { formatPrice } from '@strk20/protocol/pragma-pairs'
 import { addStoredPosition, relabelStoredPosition, removeStoredPosition } from '@/queries/positions'
 import { betQuoteQuery } from './queries'
 import { useStake } from './use-stake'
 
 export interface BetTicketProps {
   market: OnChainMarket
+  /** The live price, decimal — what a first bet's line will be. Absent = not read. */
+  spot?: number | null
   open: boolean
   onOpenChange: (open: boolean) => void
   initialSide: number
@@ -34,7 +37,7 @@ export interface BetTicketProps {
 const POSITION_OPEN_DETAIL = 'The size and transaction submitter are public. The bearer claim secret stays in this browser.'
 
 /** Side, stake, quote, review, then one `market-bet` send. The secret is stored before submitting. */
-export function BetTicket({ market, open, onOpenChange, initialSide }: BetTicketProps) {
+export function BetTicket({ market, spot = null, open, onOpenChange, initialSide }: BetTicketProps) {
   const [side, setSide] = useState(initialSide)
   const [raw, setRaw] = useState('')
   const [reviewing, setReviewing] = useState(false)
@@ -78,6 +81,9 @@ export function BetTicket({ market, open, onOpenChange, initialSide }: BetTicket
 
   const sideWord = side === SIDE_UP ? BET_SIDE_UP : BET_SIDE_DOWN
   const stakeText = parsed.wei !== null && stake.decimals !== null ? toPlainText(parsed.wei, stake.decimals) : raw
+  // The question, with the number in it: the line, or the live price a first bet will lock.
+  const question =
+    market.strike !== 0n ? marketQuestion(market) : spot !== null ? `${market.pair} above ~$${formatPrice(spot)} — the line locks when you bet` : marketQuestion(market)
 
   const confirm = async () => {
     if (!contract || parsed.wei === null) return
@@ -128,7 +134,7 @@ export function BetTicket({ market, open, onOpenChange, initialSide }: BetTicket
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <BoundaryBadge kind="bearer" className="w-fit" />
-            <DialogTitle className="font-display text-display3 uppercase">{marketQuestion(market)}</DialogTitle>
+            <DialogTitle className="font-display text-display3 uppercase">{question}</DialogTitle>
             <DialogDescription>{BET_PRICE_LOCKS}</DialogDescription>
           </DialogHeader>
           <div className="flex flex-col gap-4">
@@ -198,7 +204,7 @@ export function BetTicket({ market, open, onOpenChange, initialSide }: BetTicket
           if (!next) setReviewing(false)
         }}
         title={`Back ${sideWord}`}
-        description={marketQuestion(market)}
+        description={question}
         boundary="bearer"
         rows={[
           { label: 'Side', value: sideWord },

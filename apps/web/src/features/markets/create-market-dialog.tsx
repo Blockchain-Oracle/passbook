@@ -171,7 +171,7 @@ export function CreateMarketDialog({ open, onOpenChange, prices }: CreateMarketD
             <Field>
               <div className="flex items-baseline justify-between">
                 <FieldLabel htmlFor="market-strike">Strike (USD)</FieldLabel>
-                <span className="text-body4 text-muted-foreground">Now {spot ? `$${formatPrice(spot.price / 1e8)}` : '—'}</span>
+                <span className="text-body4 text-muted-foreground">Now {spot ? `$${formatPrice(spot.price)}` : '—'}</span>
               </div>
               <Input id="market-strike" inputMode="decimal" value={strike} onChange={(e) => setStrike(e.target.value)} placeholder="0.00" className="font-mono" />
             </Field>

@@ -25,7 +25,8 @@ function timeLabel(t: number): string {
 /** Green above the reference, red below — a market answers "who is winning" with no legend. */
 export default function PriceChart({ series, reference, height = 220 }: PriceChartProps) {
   const gradientId = useId().replace(/:/g, '')
-  const data = series.map((point) => ({ t: point.t, p: point.p / SCALE }))
+  // Points are decimals already; only the strike arrives in the oracle's 8-dp fixed point.
+  const data = series.map((point) => ({ t: point.t, p: point.p }))
   const level = reference !== null ? reference / SCALE : (data[0]?.p ?? null)
 
   const values = data.map((d) => d.p).concat(level !== null ? [level] : [])

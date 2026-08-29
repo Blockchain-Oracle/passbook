@@ -121,6 +121,13 @@ export function isStale(price: PragmaPrice, nowMs: number): boolean {
  * decimals renders BTC with four digits nobody reads. Thresholds rather than per-pair rules, so a
  * pair added tomorrow is formatted correctly without a table entry.
  */
+/** "$77.5k" · "$2,435" · "$0.0244" — a price that fits on a button. */
+export function compactPrice(price: number): string {
+  if (price >= 10_000) return `$${(price / 1000).toFixed(1)}k`
+  if (price >= 1000) return `$${Math.round(price).toLocaleString('en-US')}`
+  return `$${formatPrice(price)}`
+}
+
 export function formatPrice(price: number): string {
   const decimals = price >= 1000 ? 2 : price >= 1 ? 3 : 5
   return price.toLocaleString('en-US', {

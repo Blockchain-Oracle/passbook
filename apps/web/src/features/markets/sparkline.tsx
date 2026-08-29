@@ -3,13 +3,13 @@ import type { PricePoint } from '@strk20/protocol/chain-feed-wire'
 import { cn } from '@/lib/utils'
 
 export interface SparklineProps {
-  /** Oldest first, 8-dp fixed point. */
+  /** Oldest first; `p` is a decimal price. */
   points: readonly PricePoint[]
   /** The window's start, epoch ms. Readings from here on are drawn; older ones pad a young window. */
   fromMs: number
-  /** The level to colour against, 8-dp. Absent: the first drawn point. */
+  /** The level to colour against, as a decimal. Absent: the first drawn point. */
   reference: number | null
-  /** The live price, 8-dp — drawn as the last point when the relay's history is behind it. */
+  /** The live price, decimal — drawn as the last point when the relay's history is behind it. */
   spot: number | null
   className?: string
 }
