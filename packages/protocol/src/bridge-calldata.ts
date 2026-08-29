@@ -9,8 +9,8 @@
 //
 // A struct passed by value serialises flat and a `u256` is two felts, so the calldata is exactly
 // eight felts in that order. It returns an EMPTY span — nothing comes back into the pool, which is
-// why a crossing mints no open note where a swap does. `bridge.test.ts` pins the layout against
-// mainnet tx `0x68690c68…db5`.
+// why a crossing mints no open note where a swap does. The layout matches mainnet tx
+// `0x68690c68…db5`.
 //
 // Browser-safe: `BigInt` only, no `starknet` import — a surface imports this eagerly.
 //

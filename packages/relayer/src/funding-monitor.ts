@@ -1,4 +1,4 @@
-// Relayer funding monitor (FR-053 / AD-7, story 1.5). The relayer pays every fee it signs out
+// Relayer funding monitor. The relayer pays every fee it signs out
 // of its own STRK balance; when that balance runs low, `apply_actions` starts reverting on the
 // fee transfer — a revert that would look like OUR bug. Ops must be paged BEFORE that, and the
 // user must see the ordinary relayer-down state, never a distinct funding string.
@@ -90,7 +90,7 @@ export function fundingThresholds(
 /**
  * What the USER is shown for a given funding health. `low`/`healthy` are invisible to users
  * (an ops concern); `exhausted` degrades to the ordinary relayer-down state — never a distinct
- * "out of funds" string, which would leak our balance and read as our bug (FR-053).
+ * "out of funds" string, which would leak our balance and read as our bug.
  */
 export function userFacingState(h: FundingHealth): 'ok' | 'relayer-down' {
   return h === 'exhausted' ? 'relayer-down' : 'ok'

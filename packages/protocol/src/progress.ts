@@ -1,20 +1,8 @@
 //
-// The one progress machine, as data (story 6.5, DESIGN §7.7 / EXPERIENCE §4.2).
-//
-// ── WHY STEPS ARE DATA AND NOT JSX ────────────────────────────────────────────────────────
-//
-// A registration has four steps and a send has five. If the step list were markup, every surface
-// would fork the component to add or drop a row, and the fourth fork would spell `Relay` its own
-// way. As an array, registration simply passes a shorter list — same renderer, same table of
-// titles, and a surface that wants a sixth step has to add it to the union first, which is a
-// compile error until somebody decides it deliberately.
-//
-// ── WHAT THIS MODULE DELIBERATELY DOES NOT DO ─────────────────────────────────────────────
-//
-// It never reads a clock and never reads a chain. Every function here is pure over its arguments,
-// because the states that matter — a proof expiring, a ten-minute prove, a pipeline that failed at
-// relay — are exactly the ones nobody can reproduce on demand. A pure module is the only version
-// of this that can be tested at all.
+// The one progress machine, as data. Steps are an array, not JSX: a registration passes a shorter
+// list to the same renderer, and a sixth step has to be added to the union first. Never reads a
+// clock or a chain — the states that matter (a proof expiring, a ten-minute prove) cannot be
+// reproduced on demand, so every function is pure over its arguments.
 //
 import {
   ownsComputation,
@@ -23,8 +11,7 @@ import {
 } from './pipeline-stage.js'
 
 /**
- * The whole status vocabulary. Six, closed — a seventh string is a compile error, not a review
- * finding (EXPERIENCE §4.2).
+ * The whole status vocabulary. Six, closed — a seventh string is a compile error.
  *
  * `active` and `in-progress` are BOTH "this is the current step". They differ in one thing: who is
  * computing. `active` is our own work and may carry a determinate fill; `in-progress` is somebody
@@ -142,12 +129,8 @@ export function stepsFor(state: PipelineState): ProgressStep[] {
   const rows: ProgressStep[] = []
 
   stages.forEach((stage, index) => {
-    //
-    // ONE ROW PER REPLACED ATTEMPT, EACH WITH ITS OWN KEY. A proof can expire twice, so `replaced`
-    // can legitimately name the same stage more than once — and `${stage}#replaced` for both would
-    // give two rows one React key, which is the duplicate-id defect story 6.4's review found when a
-    // token appeared in two sections. The occurrence index is what keeps them apart.
-    //
+    // One row per replaced attempt, each with its own key: a proof can expire twice, and
+    // `${stage}#replaced` for both would give two rows one React key.
     const attempts = replaced.filter((s) => s === stage).length
     for (let attempt = 0; attempt < attempts; attempt++) {
       rows.push({
@@ -183,13 +166,10 @@ function liveStatus(stage: PipelineStage): StepStatus {
   return ownsComputation(stage) ? 'active' : 'in-progress'
 }
 
-//
 // ── The copy ladder ───────────────────────────────────────────────────────────────────────
 //
-// Escalation is a LABEL SWAP and nothing else (EXPERIENCE §4.2). The ring keeps turning at the
-// same rate, the row keeps its height, and only the sentence changes — because a visual that
-// intensifies with time is a claim that something is going wrong, and usually nothing is.
-//
+// Escalation is a LABEL SWAP and nothing else: a visual that intensifies with time is a claim that
+// something is going wrong, and usually nothing is.
 
 /** Past this, "how long has it been" stops reassuring and starts needing an instruction. */
 export const PROVING_PATIENCE_MS = 20_000
@@ -211,13 +191,7 @@ export function elapsedLabel(ms: number): string {
   return `${minutes}:${String(seconds).padStart(2, '0')}`
 }
 
-/**
- * The three-rung proving ladder, byte-exact from EXPERIENCE §5.
- *
- * NOTE ON WHAT IS MISSING: §5's third rung ends `[Prover status ↗]`. No source in this repository
- * authors a URL for it, and inventing one would put a link to nowhere in front of a user who is
- * already worried. The sentence ships; the link is recorded in deferred-work.
- */
+/** The three-rung proving ladder. No prover-status link: nobody authored a URL, and a link to nowhere is worse than none. */
 export function provingLabel(elapsedMs: number): string {
   if (elapsedMs >= PROVING_ABNORMAL_MS) return 'This is taking longer than normal.'
   if (elapsedMs >= PROVING_PATIENCE_MS) return "Still proving. Don't close this tab."
@@ -225,12 +199,8 @@ export function provingLabel(elapsedMs: number): string {
 }
 
 /**
- * Block waits are COUNTED, never expressed as a percentage (§7.7), and a countdown never goes
- * negative — at or past zero it becomes `Available shortly` (§5's maturing row).
- *
- * §5's full string is `Spendable in 4 more blocks (about 7 seconds).` The parenthetical is duration
- * copy and this epic ships none until the proof-timing probe lands, so it is omitted rather than
- * estimated. The count itself is a measurement and is fine.
+ * Block waits are COUNTED, never expressed as a percentage, and a countdown never goes negative.
+ * No "(about 7 seconds)": no duration ships until a real proof has been timed.
  */
 export function blockCountdown(confirmed: number, required: number): string {
   const remaining = required - confirmed

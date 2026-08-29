@@ -1,5 +1,5 @@
 //
-// ONE transaction union, ONE feed (story 6.6, FR-056 / FR-011a / FR-025 / AD-6).
+// ONE transaction union, ONE feed.
 //
 // A row carries two things true in different ways. `chain` is what anyone reading the pool would
 // see. `surface` is what only THIS browser knows because it submitted the row — and it is `null`

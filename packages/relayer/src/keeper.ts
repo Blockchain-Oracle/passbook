@@ -49,10 +49,7 @@ export type KeeperAction =
   | { kind: 'void'; marketId: number }
   | { kind: 'skip'; marketId: number; because: string }
 
-/**
- * Mirrors `markets.cairo`. Duplicated rather than imported because there is nowhere to import them
- * from — they are Cairo constants — and `keeper.test.ts` is what keeps the two sets equal.
- */
+/** Mirrors `markets.cairo`. Duplicated because they are Cairo constants with nowhere to import from. */
 export const MARKET_ACTIVE = 1
 export const RESOLVE_WINDOW = 300
 export const ORACLE_MAX_LAG = 120
@@ -62,10 +59,8 @@ export const STRIKE_DECIMALS = 8
 /**
  * Decide what to do with one market at time `now`.
  *
- * PURE, and every guard below is the contract's own, restated. That is the point: a keeper whose
- * conditions were merely similar to the contract's would send transactions that revert, and each
- * revert costs this wallet gas for nothing. `keeper.test.ts` walks the boundaries one second at a
- * time on both sides.
+ * PURE, and every guard below is the contract's own, restated: a keeper whose conditions were
+ * merely similar would send transactions that revert, and each revert costs this wallet gas.
  *
  * `oracle` is what Pragma answered for this market's pair, or `null` if the read failed. A failed
  * read is a skip, never a guess — the contract is going to do its own read regardless, and sending
@@ -207,7 +202,6 @@ export async function runKeeperPass(deps: KeeperDeps): Promise<KeeperPass> {
  * Pinned as named constants rather than inline numbers because `k` being two felts is exactly
  * the kind of off-by-one that would read `collateral` as `state` and silently decide every
  * market was already settled — a keeper that then does nothing, forever, without erroring.
- * `keeper.test.ts` decodes a hand-built struct to hold these.
  */
 export const MARKET_FIELD = { pairId: 0, deadline: 2, state: 10 } as const
 

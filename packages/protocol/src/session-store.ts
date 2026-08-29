@@ -1,23 +1,8 @@
 //
-// The session storage tier (story 1.11, G1) — the first persistence this browser app has.
-//
-// Everything above this file is pure. `identity.ts` mints keys and never keeps one,
-// `backup-gate.ts` projects a ceremony and never writes it, `backup-cadence.ts` declares a
-// store interface and ships a refusal in its place. This module is the one place that
-// actually touches a browser storage API, and it is deliberately the smallest surface that
-// can carry the values this app is allowed to persist.
-//
-// THE LIST IS CLOSED. The account key, the `ready` projection of the backup ceremony, the
-// backup cadence record, the account list, the position secrets and the sealed vault.
-// Never a note, never a discovery result, never a Recovery Code, never a wrapped Recovery
-// File. See `session.ts`'s header for why each of those is excluded; `SESSION_KEYS` below is
-// the enforcement, because a value with no key here has nowhere to go.
-//
-// SYNCHRONOUS ON PURPOSE, following `relayer/src/sponsorship-store.ts`. The cadence seam
-// (`BackupCadenceStore`) is declared synchronous, and the reason is the same one written
-// there: a check-then-write that cannot yield in the middle is atomic against anything else
-// running in the same tab. An async store would let two callers interleave between the read
-// and the write, which is the class of bug this whole story exists to close.
+// The session storage tier — the one place that touches a browser storage API, kept to the
+// smallest surface that can carry the values this app is allowed to persist. THE LIST IS CLOSED:
+// `SESSION_KEYS` is the enforcement, because a value with no key here has nowhere to go.
+// Synchronous on purpose: a check-then-write that cannot yield is atomic within a tab.
 //
 
 import { SESSION_STORAGE_UNAVAILABLE } from './session-copy.js'
@@ -38,26 +23,16 @@ export interface SessionStore {
 }
 
 /**
- * The only keys a `SessionStore` will accept — the union of `SESSION_KEYS`' values.
- *
- * "The list is closed" was a claim in a comment and a count in a test; this makes it a rule the
- * compiler enforces. A new value cannot be persisted by adding a string at a call site: it has
- * to be added to `SESSION_KEYS`, which is the line a reviewer is watching and the decision the
- * spec reserves. The feature probe writes through the raw `Storage` API rather than through a
- * `SessionStore`, so its scratch key is unaffected by this and does not belong in the union.
+ * The only keys a `SessionStore` will accept — the union of `SESSION_KEYS`' values, so "the list
+ * is closed" is a rule the compiler enforces. The feature probe writes through the raw `Storage`
+ * API, so its scratch key does not belong here.
  */
 export type SessionKey = (typeof SESSION_KEYS)[keyof typeof SESSION_KEYS]
 
 /**
- * Every key this application is allowed to persist under.
- *
- * Namespaced so the app can be hosted on an origin it shares with something else without
- * either side stepping on the other, and so a human reading their own localStorage can tell
- * what belongs to this app.
- *
- * Story 1.11 wrote "exactly three" and meant it; the count is not the rule. The rule is that
- * adding one is a reviewable decision with an argument attached, and every entry past the
- * first three carries its argument at the key below.
+ * Every key this application is allowed to persist under. Namespaced so a shared origin and a
+ * human reading their own localStorage can both tell what belongs to this app. Adding one is a
+ * reviewable decision with an argument attached.
  */
 export const SESSION_KEYS = {
   /** The root Account Key (D33). The one secret this tier holds. */
@@ -68,63 +43,20 @@ export const SESSION_KEYS = {
   cadence: 'passbook.backup-cadence',
   /**
    * Every account this browser holds, which one is active, and whether the screen is locked
-   * (Wave 1, `session-accounts.ts`).
-   *
-   * It carries its argument, as every entry past the first three does. It holds ROOT KEYS, which
-   * is the one thing on the "may be persisted" list already — entry 1 — so this widens the SHAPE
-   * of what is stored, not the KIND. The exposure is unchanged: an origin compromise took the
-   * account key before this key existed and takes it now, and `session-key.ts`'s plaintext note
-   * covers both.
-   *
-   * It is here because the alternative is not "store less", it is "one browser, one account
-   * forever": there is no server-side account list by design, so the browser is the only party
-   * that can hold one, and a list that does not survive a reload means a user who imports a
-   * second account loses it the moment they close the tab — with the first account's key still
-   * sitting in `accountKey`, which reads exactly like the import silently failed.
-   *
-   * `passbook.account-key` KEEPS MIRRORING the active account's key rather than being superseded,
-   * so nothing that reads the old slot breaks. See `session-accounts.ts`'s header.
+   * (`session-accounts.ts`). Root keys, the same kind as `accountKey`, which keeps mirroring the
+   * active account's key so nothing reading the old slot breaks.
    */
   accounts: 'passbook.accounts',
   /**
-   * The secrets that claim market positions and launch purchases (Wave 3,
-   * `session-position-store.ts`).
-   *
-   * It carries its argument like the entries above it. Unlike them — records ABOUT keys and
-   * state — this one IS the money. A position is bearer: `markets.cairo` and `launch.cairo` store `poseidon(secret)` and
-   * pay whoever reveals the secret. There is no address on it, no recovery path, and no second
-   * copy anywhere. Losing this key is exactly as bad as losing a note.
-   *
-   * It is here because the alternative is not "store less", it is "no positions at all". The
-   * contracts were designed bearer precisely so a bet never writes the bettor's address on chain
-   * — that is the whole privacy claim — and the cost of that design is that the client is the only
-   * party holding the claim. A secret that does not survive a reload is a bet that can never be
-   * collected, and the money is simply gone with nothing to show a user.
-   *
-   * ON THE "MUST NEVER PERSIST" LIST IT IS NOT, but it belongs to the same category as entry 1:
-   * bearer key material, covered by `session-key.ts`'s plaintext note, and exposed to an origin
-   * compromise exactly as the account key already is. What it must NOT be is invisible to backup —
-   * see `session-position-store.ts` for why it rides the same surface note material does.
+   * The secrets that claim market positions and launch purchases (`session-position-store.ts`).
+   * A position is bearer — the contracts pay whoever reveals the secret — so a secret that does
+   * not survive a reload is money that is simply gone. It rides the same backup surface notes do.
    */
   positionSecrets: 'passbook.position-secrets',
   /**
-   * The password-sealed accounts record (Abu's ruling 2026-08-28, `session-vault.ts`).
-   *
-   * THE SEVENTH ENTRY, and it is the first one that makes this list SMALLER rather than longer.
-   * Every other key here widened what the browser holds; this one exists so that two of them —
-   * `accounts` and its `accountKey` mirror — can be DELETED. When a password is set, the plaintext
-   * pair is removed and this is what is left: a public header the lock screen draws itself from,
-   * and a body no script on this origin can read without the password.
-   *
-   * That inverts the exposure `session-key.ts`'s header accepted. Its argument for plaintext was
-   * that a password is a second secret to lose; the answer, written out in `session-vault.ts`, is
-   * that the Recovery File already exists and already is the recovery path, so a forgotten
-   * password costs an import rather than an account.
-   *
-   * IT IS NOT MANDATORY AND MUST NOT BECOME SO. A browser with no password keeps `accounts` in
-   * plaintext exactly as before — this key is simply absent — because forcing a password onto the
-   * cold open would put a form in front of the browse-first ninety seconds that
-   * `use-first-run.ts` exists to protect.
+   * The password-sealed accounts record (`session-vault.ts`). When a password is set, `accounts`
+   * and its `accountKey` mirror are DELETED and this is what is left. Not mandatory, and must not
+   * become so: forcing a password onto the cold open would put a form in front of browsing.
    */
   vault: 'passbook.vault',
 } as const

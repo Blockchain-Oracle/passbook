@@ -1,8 +1,7 @@
-// Third-party HTTP proxy (FR-029 / AD-7 / A8, story 1.5). Every third-party call — AVNU quotes,
-// Circle Iris bridge polling, oracle/price feeds — is fetched SERVER-SIDE so the aggregator sees
-// the relay's address, never the user's IP+intent (a browser-direct poll leaks exactly the class
-// FR-029 sells closing). Credentials live only here, never in the client bundle. This module is
-// the pure request-builder + an allowlist of proxiable upstreams; the http route wires it in.
+// Third-party HTTP proxy. Every third-party call — AVNU quotes, Circle Iris bridge polling,
+// oracle/price feeds — is fetched SERVER-SIDE so the aggregator sees the relay's address, never the
+// user's IP+intent. Credentials live only here, never in the client bundle. This module is the pure
+// request-builder + an allowlist of proxiable upstreams; the http route wires it in.
 
 import { utcDayKey } from './sponsorship.js'
 

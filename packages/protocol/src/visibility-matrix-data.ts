@@ -1,16 +1,15 @@
 //
-// The visibility matrix DATA: the review contexts, their labels, and every cell (FR-058).
+// The visibility matrix DATA: the review contexts, their labels, and every cell.
 //
-// Every cell here is a privacy claim, and each traces to a sentence in the planning documents.
-// Three recur: the relayer cannot read notes (it sees the network address and the moment a request
-// arrived, nothing inside a note); the auditor sees whatever the viewing key sees (escrowed copy,
-// not a network party, so no network address); and `absent` is not `hidden` — a registration moves
-// no tokens and a swap returns to the same account, so painting those cells hidden would claim we
-// protect something that does not exist.
+// Every cell here is a privacy claim. Three recur: the relayer cannot read notes (it sees the
+// network address and the moment a request arrived, nothing inside a note); the auditor sees
+// whatever the viewing key sees (escrowed copy, not a network party, so no network address); and
+// `absent` is not `hidden` — a registration moves no tokens and a swap returns to the same account,
+// so painting those cells hidden would claim we protect something that does not exist.
 //
-// A conditional cell cannot be spelled without its condition (FR-009's "as long as your
-// denomination has company"), and an unauthored context is a declared value with the reason, so a
-// surface can only print the reason rather than render an empty grid that reads as "nothing to see".
+// A conditional cell cannot be spelled without its condition ("as long as your denomination has
+// company"), and an unauthored context is a declared value with the reason, so a surface can only
+// print the reason rather than render an empty grid that reads as "nothing to see".
 //
 
 import type { VisibilityActor, VisibilityCell, VisibilityFact } from './visibility-matrix.js'
@@ -62,7 +61,7 @@ export const CONTEXT_LABELS = {
 
 // ── The notes, and the two refusals ───────────────────────────────────────────────────────
 
-/** FR-009, verbatim (EXPERIENCE §M1.4). The condition IS the honesty. */
+/** The condition IS the honesty. */
 const MARKETS_BET_COMPANY =
   'Who bet is hidden — as long as your denomination has company; if you are the only one at this ' +
   'size, your bet is identifiable.'
@@ -78,17 +77,15 @@ const SELF_SUBMIT_NODE_SEES =
   'transaction to a Starknet node, and that node sees the request and the network address it came ' +
   'from.'
 
+// The two refusals are user-facing: they say what is missing and never cite an internal document.
 const MARKETS_EXIT_UNAUTHORED =
-  'Nobody has written the disclosure for an early market exit. EXPERIENCE §M2.3 drafts it under ' +
-  '[ASSUMPTION] and gap G4 sends it to an FR-051 hand review, because a market-priced exit is a ' +
-  'unique amount with none of the denomination cover an entry has — so the cells that would make ' +
+  'Nobody has written the disclosure for an early market exit yet. A market-priced exit is a ' +
+  'unique amount with none of the denomination cover an entry has, so the cells that would make ' +
   'it look like a bet are exactly the claim nobody has checked.'
 
 const LAUNCH_SELL_UNAUTHORED =
-  'Nobody has written the disclosure for selling before graduation. FR-046 pins the mechanism and ' +
-  'EXPERIENCE §L6 records every sell-side sentence as unwritten, flagged for the sell spec when it ' +
-  'is sequenced. Until then the product says the true thing instead: selling before graduation is ' +
-  'not yet available.'
+  'Nobody has written the disclosure for selling before graduation. Until then the product says ' +
+  'the true thing instead: selling before graduation is not yet available.'
 
 // docs/governance.md §15's sentences, cell-sized.
 const GOV_BALLOT_SEALED =
@@ -172,7 +169,7 @@ export const MATRICES = {
     context: 'registration',
     cells: { amount: NONE, sender: ALL_SEE, recipient: NONE, timing: ALL_SEE, ip: BASELINE_IP },
   },
-  // FR-021: the relay sees who-talks-to-whom; a payment inside a room travels the same relay.
+  // The relay sees who-talks-to-whom; a payment inside a room travels the same relay.
   'chat-payment': {
     authored: true,
     context: 'chat-payment',
@@ -184,7 +181,7 @@ export const MATRICES = {
       ip: BASELINE_IP,
     },
   },
-  // EXPERIENCE §S1.4: both amounts, both tokens and the timing are on-chain; the owner is not.
+  // Both amounts, both tokens and the timing are on-chain; the owner is not.
   swap: {
     authored: true,
     context: 'swap',
@@ -208,7 +205,7 @@ export const MATRICES = {
       ip: BASELINE_IP,
     },
   },
-  // FR-009 verbatim — the one cell that carries its own qualifier.
+  // The one cell that carries its own qualifier.
   'markets-bet': {
     authored: true,
     context: 'markets-bet',
@@ -221,7 +218,7 @@ export const MATRICES = {
     },
   },
   'markets-exit': { authored: false, context: 'markets-exit', because: MARKETS_EXIT_UNAUTHORED },
-  // FR-049: identity hidden, amount not; fixed denominations hide which one is you.
+  // Identity hidden, amount not; fixed denominations hide which one is you.
   'launch-buy': {
     authored: true,
     context: 'launch-buy',

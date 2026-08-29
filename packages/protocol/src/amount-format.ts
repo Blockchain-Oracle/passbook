@@ -1,5 +1,5 @@
 //
-// Rendering an exact amount (story 6.4, DESIGN §7.1). The three rules:
+// Rendering an exact amount. The three rules:
 //
 // 1. NEVER A FALSE "0". The dust decision is delegated to `isDustAt` so the predicate the balance
 //    model tests and the branch this file takes cannot drift apart.

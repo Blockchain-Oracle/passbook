@@ -6,8 +6,8 @@
 // field-for-field transcriptions, in declaration order, of `Market` and `LaunchInfo`. A struct edit
 // that reorders a field breaks the test vectors before it breaks a user.
 //
-// Browser-safe: no imports at all. Selectors are pinned constants, held to `getSelectorFromName`
-// by `app-reads.test.ts`, so an eager route never needs the `starknet` graph.
+// Browser-safe: no imports at all. Selectors are pinned constants (`getSelectorFromName` of the
+// entrypoint name), so an eager route never needs the `starknet` graph.
 //
 
 // ── Selectors, pinned. ────────────────────────────────────────────────────────────────────

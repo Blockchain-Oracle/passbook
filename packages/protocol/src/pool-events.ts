@@ -1,5 +1,5 @@
 //
-// Pool events — the bounded read (AD-14, story 1.9). The decoders live in `pool-event-decoders.ts`.
+// Pool events — the bounded read. The decoders live in `pool-event-decoders.ts`.
 //
 // This is the only thing in the story that touches a chain over a RANGE rather than at a point,
 // so it is the only thing that can run away: `fromBlock` is required, pages are capped, and a

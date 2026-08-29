@@ -8,8 +8,7 @@
 // arguments. So an address exists before the contract does — the "counterfactual" address — and
 // it is a real, exact answer: fund it and the funds are there waiting when it deploys.
 //
-// The convention is already established in this repository and both funded keypairs were generated
-// against it (`scripts/ops/account-lib.ts:18-22`):
+// The convention every funded keypair in this repository was generated against:
 //
 //     calculateContractAddressFromHash(publicKey, OZ_ACCOUNT_CLASS_HASH, [publicKey], 0)
 //
@@ -18,8 +17,8 @@
 //
 // ── WHY IT IS REIMPLEMENTED HERE INSTEAD OF IMPORTED ──────────────────────────────────────
 //
-// `hash.calculateContractAddressFromHash` lives in `starknet`, and the ops scripts use it freely
-// because they run in Node. This runs in a browser, where the SDK graph may not be fetched at first
+// `hash.calculateContractAddressFromHash` lives in `starknet`. This runs in a browser, where the
+// SDK graph may not be fetched at first
 // paint — and the wallet surface is the cold open, so it is the one place that constraint bites
 // hardest.
 //

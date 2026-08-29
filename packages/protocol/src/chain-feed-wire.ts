@@ -18,10 +18,8 @@
 // and the codec functions are the only place the conversion happens — a frame built any other way
 // is a bug, not a variant.
 //
-// ── THIS MODULE IS PURE ──────────────────────────────────────────────────────────────────
-//
-// Type-only imports, no `starknet`, no `fetch`, no DOM. It must stay loadable from the eager
-// browser chunk (the build gate's rule) and from the relayer's node process alike.
+// Pure: type-only imports, no `starknet`, no `fetch`, no DOM — loadable from the eager browser
+// chunk and from the relayer's node process alike.
 //
 import type { OnChainLaunch, OnChainMarket } from './app-reads.js'
 

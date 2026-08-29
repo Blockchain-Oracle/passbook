@@ -1,21 +1,7 @@
 //
-// The oracle's SHAPE, with nothing attached to it.
-//
-// ── WHY THIS IS A SEPARATE FILE FROM `pragma.ts` ─────────────────────────────────────────
-//
-// `pragma.ts` reads the chain, and reading the chain means `rpc.ts`, which constructs an
-// `RpcProvider` from `starknet`. That import is correct for a reader and fatal for a price strip:
-// the component that formats a number and decides whether it looks stale has no business pulling
-// the SDK into its chunk.
-//
-// The build gate found this rather than a reviewer, and named it exactly — the polling hook
-// imported `pragma.ts` dynamically while the strip and the route imported it statically, so the
-// dynamic import moved nothing (`INEFFECTIVE_DYNAMIC_IMPORT`) and the whole graph came along.
-//
-// This is the fifth time the codebase has taken this split: `activity-entry.ts` out of
-// `activity.ts`, `pipeline-stage.ts`, `token-scale.ts`, `directory-name.ts`. The rule those files
-// record applies here too — THIS FILE MUST IMPORT NOTHING. `pragma.ts` re-exports every name
-// below, so no caller that wanted the reader changes.
+// The oracle's SHAPE, with nothing attached to it. `pragma.ts` reads the chain through `starknet`;
+// a price strip that formats a number must not pull that into its chunk. THIS FILE MUST IMPORT
+// NOTHING; `pragma.ts` re-exports every name below.
 //
 
 /** The pairs this app reads, with the short-string ids Pragma keys them by. */

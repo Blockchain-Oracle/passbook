@@ -1,4 +1,4 @@
-// Durable backing for the sponsorship ledger (FR-053 / AD-7, story 1.5).
+// Durable backing for the sponsorship ledger.
 //
 // Without this, every restart hands the daily budget back out. A relayer that forgets what
 // it spent has no budget at all — it has a budget per uptime, and the operator learns the

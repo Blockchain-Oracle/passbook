@@ -1,5 +1,5 @@
 //
-// Pool event decoders — pure functions over `(keys, data)` (AD-14, story 1.9).
+// Pool event decoders — pure functions over `(keys, data)`.
 //
 // Field offsets come from `packages/privacy/src/events.cairo` at the pinned deployed class,
 // cross-checked against the upstream indexer's decoder. Cairo splits an event into `keys` and

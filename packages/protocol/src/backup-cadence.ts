@@ -93,9 +93,9 @@ export interface BackupCadenceStore {
 
 /** Refuses in as many words — never an in-memory stub that looks like a real store on a fresh account. */
 export const REFUSING_CADENCE_STORE: BackupCadenceStore = {
-  load: () => ({ kind: 'unreadable', reason: 'no cadence store is wired yet (story 1.11 owns persistence)' }),
+  load: () => ({ kind: 'unreadable', reason: 'no cadence store is wired: pass one built over the session store' }),
   save: () => {
-    throw new Error('no cadence store is wired yet (story 1.11 owns persistence)')
+    throw new Error('no cadence store is wired: pass one built over the session store')
   },
 }
 

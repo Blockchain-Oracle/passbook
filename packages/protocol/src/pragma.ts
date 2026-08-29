@@ -12,11 +12,9 @@
 // Markets CONSTRUCTOR was given) and only falls back to the pinned one below — which is what
 // `evidence/day0-markets-launch-checks.json` measured, and what the deploy will use.
 //
-// ── THE PURE HALF LIVES IN `pragma-pairs.ts` AND IS RE-EXPORTED HERE ─────────────────────
-//
-// Everything that does not touch the chain — the pair ids, the decode, the staleness rule, the
-// formatter — is in that module, so a component that formats a number does not pull `starknet`
-// into its chunk. See its header; the build gate is what found the need for the split.
+// The pure half — pair ids, the decode, the staleness rule, the formatter — lives in
+// `pragma-pairs.ts` and is re-exported here, so a component that formats a number does not pull
+// `starknet` into its chunk.
 //
 import { withFallback } from './rpc.js'
 import { PRAGMA_PAIRS, PRAGMA_PAIR_LIST, medianFrom } from './pragma-pairs.js'

@@ -1,5 +1,5 @@
 //
-// The global degraded modes, as one copy table (story 6.5, EXPERIENCE §5 / FR-052).
+// The global degraded modes, as one copy table.
 //
 // ── THIS MODULE HOLDS COPY. `pool.ts` HOLDS THE CLASSIFICATION. ───────────────────────────
 //
@@ -19,9 +19,9 @@
 /**
  * Every named degraded state. Closed — a surface inventing a seventh is a compile error.
  *
- * `screening-flip` is the PRD addition (FR-052): the unreleased `OpenNoteScreeningPolicy
- * { Required }` rewrite reverts every value-bearing helper at once on a pool upgrade. It is a
- * named state precisely so it never renders as a silent revert that looks like our bug.
+ * `screening-flip`: the unreleased `OpenNoteScreeningPolicy { Required }` rewrite reverts every
+ * value-bearing helper at once on a pool upgrade. Named so it never renders as a silent revert
+ * that looks like our bug.
  */
 export type DegradedMode =
   | 'paused'
@@ -80,15 +80,9 @@ const TABLE: Readonly<Record<DegradedMode, DegradedCopy>> = {
   'screening-flip': {
     scope: 'global',
     severity: 'grey',
-    //
-    // AUTHORED HERE, AND NOWHERE ELSE. EXPERIENCE §5 marks this state's copy `[GAP — not authored
-    // in any source]` and the epic forbids inventing it silently, so it was drafted under the §3
-    // rules and RATIFIED BY ABU on 2026-08-26 before it shipped.
-    //
-    // The second sentence is the load-bearing one. `screening-declined` below is about one
-    // deposit; this refuses everyone. Without the disclaimer a user reads the two as the same
-    // event and concludes they were personally rejected, which is false and unfixable by them.
-    //
+    // The second sentence is the load-bearing one: `screening-declined` below is about one
+    // deposit; this refuses everyone. Without the disclaimer a user concludes they were
+    // personally rejected, which is false and unfixable by them.
     body:
       "The pool changed how deposits are screened, and every new deposit is being refused until it's " +
       "updated. This isn't about your deposit — nothing was submitted, nothing was charged, and no " +

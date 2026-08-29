@@ -1,43 +1,19 @@
 //
-// What the meter READ, and the boundary derived from it (story 6.7b, FR-052, EPICS:709).
+// What the meter READ, and the boundary derived from it. A leaf that imports nothing: a reading
+// ARRIVES here as data and this module never reaches for a reader.
 //
-// ── A LEAF THAT IMPORTS NOTHING ───────────────────────────────────────────────────────────
-//
-// Same discipline as `privacy.ts` and `degraded.ts`. A component asking "how big is the crowd I am
-// hiding in?" must not pull a chain client into the browser to find out, and `pool-events.ts` —
-// the thing that will eventually produce these numbers — imports `starknet` at its first line.
-// So a reading ARRIVES here as data and this module never reaches for a reader.
-//
-// ── WHY THE BOUNDARY IS A FUNCTION AND NOT A NUMBER ───────────────────────────────────────
-//
-// The planning documents specify tier thresholds only as a prohibition: "derived from the live
-// distribution at build time, never authored as constants". Those two halves contradict each
-// other. Anything derived at build time IS a constant by the time it ships, FR-052 bans hardcoded
-// counts, and EPICS:709 specifies a test that "asserts no hardcoded tier constant" — which a
-// build-time-baked number is exactly what would fail.
-//
-// The reconciliation is to make the boundary a FUNCTION of a sample rather than a value someone
-// wrote down. `distribution` travels inside the reading, so a tier can never be computed against a
-// number that did not arrive with the count it is judging. There is nothing to hardcode and nothing
-// to go stale, and the day AD-14's cached stats endpoint lands the meter becomes live with no code
-// change here — only a real `distribution` where a fixture used to be.
-//
-// ── THE ONLY NUMBERS IN THIS FILE ARE THE DEFINITION OF A QUARTILE ────────────────────────
-//
-// `QUARTILE` and `MIN_QUARTILE_SAMPLE` are arithmetic, not policy. Neither says anything about how
-// much anonymity is enough — they say what a first quartile IS and when one can be computed. The
-// guard in `no-tier-constant.test.ts` proves the distinction the way that matters: it feeds two
-// different distributions and requires two different boundaries, which no constant can satisfy.
+// The boundary is a FUNCTION of a sample, never a number someone wrote down: `distribution`
+// travels inside the reading, so a tier can never be computed against a number that did not arrive
+// with the count it is judging. The only numbers in this file define what a first quartile IS and
+// when one can be computed — arithmetic, not policy.
 //
 
 /**
  * A crowd reading, as a closed union with no third state.
  *
- * WHY `unmeasurable` CARRIES NO COUNT. It would be trivial to model a failed read as
- * `candidates: 0` and let the tier logic warn loudly about it. That is precisely the invented
- * privacy claim FR-051 bans: zero candidates means "you are alone", which is a measurement, and a
- * failed read has not measured anything. The union makes the wrong thing unspellable — there is no
- * `candidates` field to reach for on this arm.
+ * WHY `unmeasurable` CARRIES NO COUNT. Modelling a failed read as `candidates: 0` would be an
+ * invented privacy claim: zero candidates means "you are alone", which is a measurement, and a
+ * failed read has not measured anything. The union makes the wrong thing unspellable.
  *
  * WHY `distribution` LIVES ON THE READING and not beside it. It is the sample the boundary comes
  * from. Passing it separately would allow a caller to judge today's count against last week's
@@ -50,7 +26,7 @@ export type CrowdReading =
       readonly candidates: number
       /** The denominator's window, as words: `the last 24 hours`. */
       readonly window: string
-      /** AD-14: every live read is block-stamped, and the stamp is rendered, not just recorded. */
+      /** Every live read is block-stamped, and the stamp is rendered, not just recorded. */
       readonly blockNumber: number
       /** `null` when the largest-ever aggregate was not part of this read — not zero. */
       readonly largestEverWei: bigint | null

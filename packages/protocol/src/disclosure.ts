@@ -1,27 +1,12 @@
 //
-// The disclosure panel's model (story 6.7, DESIGN §7.5, EXPERIENCE §4.3).
-//
-// "One `<Disclosure>` component, REQUIRED ON EVERY REVIEW — a surface renders one or explicitly
-// asserts none." This is the half of it that is data: which lines a review states, which way each
-// one points, how loud the panel is, and whether there is a safer path to offer. The React half is
-// `apps/web/src/components/Disclosure.tsx` and it holds the nodes and the callbacks.
-//
-// Nothing here is a React node and nothing here is a callback — the way out is a LABEL, and the
+// The disclosure panel's model: which lines a review states, which way each one points, how loud
+// the panel is, and whether there is a safer path. Data only — the way out is a LABEL, and the
 // action that fulfils it is a prop on the component.
 //
-// ── A GREEN TICK BESIDE A CRITICAL CLAIM IS A LIE ─────────────────────────────────────────
-//
-// Each line carries a marker: `leaves` (↗, this leaves the private domain) or `stays` (✓, this
-// stays private). A `stays` line at `medium` or above is a self-contradiction — it would render a
-// reassuring tick next to a sentence the panel is simultaneously colouring as a risk — so the
-// union below makes it unspellable, and `assertHonestLine` runs over the whole table at module load
-// for the values that arrive from outside the type system.
-//
-// ── AND TWO CONTEXTS HAVE NO PANEL AT ALL ─────────────────────────────────────────────────
-//
-// The Markets early exit and the Launch sell have no disclosure prose in any source. They are
-// declared `authored: false` carrying the same refusal sentence `visibility-matrix.ts` carries,
-// read from that module rather than retyped, so the two never disagree about why.
+// A green tick beside a critical claim is a lie: a `stays` line at `medium` or above is
+// unspellable in the union, and `assertHonestLine` runs over the table at module load for values
+// that arrive from outside the type system. The two unauthored contexts read their refusal from
+// `visibility-matrix.ts` so the two halves never disagree about why.
 //
 
 import { maxSeverity, PRIVACY_SEVERITY, severityRank, type PrivacySeverity } from './privacy.js'
@@ -64,9 +49,8 @@ export interface DisclosurePanel {
   readonly context: VisibilityContext
   /**
    * In reading order, and the FIRST ONE IS THE HEADLINE — the line that takes the panel's semantic
-   * colour while every other line is forced to `neutral2 body3` (DESIGN §7.5: "coloured claim,
-   * neutral explanation"). Written as position rather than as a separate field so a panel cannot be
-   * built with two headlines or with none.
+   * colour ("coloured claim, neutral explanation"). Position rather than a separate field, so a
+   * panel cannot be built with two headlines or with none.
    */
   readonly lines: readonly DisclosureLine[]
   /**
@@ -114,24 +98,12 @@ function unauthoredReason(context: VisibilityContext): string {
 }
 
 /**
- * EVERY LINE HERE IS A PRIVACY CLAIM, and its severity is a second one — DESIGN §2.3's ladder puts
- * `irreversible` on "this deanonymizes you / links you publicly" and `exposed` on "this reveals",
- * and everything routine at neutral. Three calls worth reading before they are changed:
- *
- *   SELF-SUBMIT IS `high`. It publishes the user's own address as the sender of a pool action —
- *   a public link between a wallet and pool activity that cannot be unpublished, which is the
- *   ladder's own definition of the top colour. The relayed path costs nothing and is the default,
- *   so the panel also offers it as the way out rather than only naming the cost.
- *
- *   SWAP IS `low`, DELIBERATELY. Its amounts are public and that is the loudest thing about it, but
- *   EXPERIENCE §S1.4 rules that the swap CTA is INK and "the only loud element is the disclosure
- *   block". Severity routes to the CTA, so a `medium` here would repaint a button the design
- *   authority pins. The panel is loud by being the only thing on the screen, not by colour.
- *
- *   MARKETS AND LAUNCH ARE `low` even though both carry a conditional identity claim. The
- *   escalation for "you are alone at this size" belongs to the linkability meter, which reads a
- *   LIVE crowd count; a constant cannot know whether the condition holds, and colouring the CTA as
- *   though it always does would spend the warning on every bet ever placed.
+ * EVERY LINE HERE IS A PRIVACY CLAIM, and its severity is a second one. Three calls worth reading
+ * before they are changed: SELF-SUBMIT is `high` (a public wallet↔pool link that cannot be
+ * unpublished; the relayed path is offered as the way out). SWAP is `low` — the panel is loud by
+ * being the only thing on the screen, not by colour. MARKETS and LAUNCH are `low` even with a
+ * conditional identity claim: "you are alone at this size" belongs to the linkability meter, which
+ * reads a LIVE crowd count; a constant cannot know whether the condition holds.
  */
 const TABLE = {
   'pool-send': {
@@ -362,13 +334,7 @@ for (const entry of Object.values(TABLE) as readonly Disclosure[]) {
   for (const line of entry.lines) assertHonestLine(line)
 }
 
-/**
- * The loudest level the panel states. DESIGN §7.5: "panel severity = max severity of its lines".
- *
- * Delegates to `privacy.ts` rather than comparing here. One implementation of "which of these is
- * worse" is the whole point of a gap-numbered ladder — a second one written inline is where the day
- * a level is inserted goes wrong.
- */
+/** The loudest level the panel states — `privacy.ts`'s one implementation of "which is worse", never an inline copy. */
 export function panelSeverity(panel: DisclosurePanel): PrivacySeverity {
   return maxSeverity(panel.lines.map((line) => line.severity))
 }

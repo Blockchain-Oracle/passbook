@@ -1,63 +1,16 @@
 //
-// The account key across reloads, and the one ceremony fact that may sit beside it
-// (story 1.11, AC1).
+// The account key across reloads, and the one ceremony fact that may sit beside it.
 //
-// PERSIST BEFORE RETURN, AND RETURN WHAT WAS READ BACK. A generated key is written to the store
-// before it is handed to any caller, and then the STORED value is re-read and that is what the
-// caller gets. Both halves are load-bearing and the second one is easy to miss.
+// PERSIST BEFORE RETURN, AND RETURN WHAT WAS READ BACK. A key handed out and never written is an
+// identity the user can register with the pool — which writes the viewing key ONCE — and then lose
+// on the next reload. Re-reading the stored value is what makes two tabs that both generated
+// converge on ONE key before either can act. This narrows the tab race (localStorage has no
+// compare-and-set); `session-lock.ts` is what serialises the operations that matter.
 //
-// The first half is `relayer/src/sponsorship.ts`'s argument for the budget ledger — persist
-// first, so a failed write is a refusal to act rather than an action nobody recorded — and the
-// stakes here are higher than a double-spent budget: a key handed out and never written is an
-// identity the user can register with the pool, which writes the viewing key ONCE, and then
-// loses on the next reload. Unrecoverable, silent, produced by the ordering alone.
-//
-// The second half is what makes the tab race survivable. Two tabs starting at the same instant
-// both read an empty store and both generate; both write; one write lands last. If each tab
-// then returned the key IT generated, the losing tab would be holding a live key that the store
-// does not have — and everything downstream would use it: the backup ceremony would wrap it,
-// the user would write down a Recovery Code for it, and the registration would write ITS
-// viewing key on-chain. The next reload reads the other tab's key and that account is orphaned,
-// which is precisely the outcome this module exists to prevent. Re-reading means both tabs walk
-// away with the stored value, so they converge before either can act.
-//
-// THIS NARROWS THE RACE; IT DOES NOT CLOSE IT, and the difference is worth stating plainly
-// because the code reads like a fix. localStorage has no compare-and-set: the read, the write
-// and the re-read are three separate operations with no atomicity across them, so there is
-// still an interleaving — B writes between A's write and A's re-read, then A's stale value is
-// overwritten by nobody and A returns B's key while B returns its own — where the two tabs
-// agree, and a narrower one where a third write lands between A's re-read and B's that leaves
-// the store holding a key neither returned. What the re-read buys is that the window shrinks
-// from "the whole lifetime of the tab" to "the microseconds between two synchronous storage
-// calls", and that every tab's answer is a value that WAS in the store rather than one that
-// never reached it. The lock in `session-lock.ts` is what actually serialises the operations
-// that matter; this makes the unserialised path fail small instead of silently.
-//
-// ── WHY THE ROOT KEY SITS IN PLAINTEXT, AS AN ACCEPTED RISK ──────────────────────────────────
-//
-// The account key is written to localStorage unencrypted, and that means ANY script running on
-// this origin can read it — an XSS bug, a compromised dependency, a malicious extension with
-// host permissions. This is a deliberate decision, not an oversight, and the reasoning is that
-// the alternatives available today move the problem rather than solve it.
-//
-// Encrypting at rest requires a key, and in a browser that key has to come from somewhere. A
-// user-chosen password means a second secret to lose, protecting a first secret whose entire
-// design goal (FR-013, the two-secret split) is that losing it is unrecoverable — and a
-// password weak enough to remember is not much of a barrier to a script that can read the
-// ciphertext and grind offline. Deriving from anything the page holds means storing THAT beside
-// the ciphertext, which is the same exposure with an extra step. A hardcoded key is not a key.
-//
-// What genuinely improves this is a device-bound secret the page cannot read: a passkey used to
-// WRAP the key, never to DERIVE it. `backup-gate.ts`'s header states the derive prohibition and
-// why (WebAuthn assertions are not deterministic, a re-registered authenticator produces
-// different material, and the pool's WriteOnce viewing key cannot be replaced) — so the wrap
-// direction is the only safe one, and it needs a UX for the moment the authenticator is gone
-// that story 1.11 does not own. Until then: plaintext, stated here, with the exposure named.
-//
-// The mitigation that IS in place is scope. What sits here is the account key and two
-// non-secret records, and nothing else — see `session.ts`'s boundary. An origin compromise
-// takes the account either way; it must not also hand over a Recovery Code, a wrapped Recovery
-// File, or a history of what the user holds.
+// The root key sits in localStorage in PLAINTEXT, as an accepted risk: every alternative available
+// in a browser moves the exposure rather than removing it, and a passkey WRAP (never a derive —
+// WebAuthn assertions are not deterministic and the viewing key cannot be replaced) is the thing
+// that would actually improve it. `session-vault.ts` is the opt-in password layer over this.
 //
 
 import { generateIdentity, isStarkPrivateKey, readBackupHeader, type BackupHeader } from './identity.js'
