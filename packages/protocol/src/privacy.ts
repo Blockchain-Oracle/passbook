@@ -5,12 +5,8 @@
 // the CTA. Nothing implemented any of them, so every surface that wanted to say "this one is worse"
 // had to invent a colour on the spot. This module is that vocabulary, once, as data.
 //
-// ── A LEAF THAT IMPORTS NOTHING ───────────────────────────────────────────────────────────
-//
-// Deliberate, and it is the same discipline `degraded.ts` and `pipeline-stage.ts` keep: a component
-// that wants to know how loud a claim is must not have to pull a chain client into the browser to
-// find out. It also means the module can be loaded by plain `node` under type stripping, which is
-// what `scripts/render-privacy-matrix.mjs` needs of its siblings.
+// A leaf that imports nothing: a component that wants to know how loud a claim is must not have
+// to pull a chain client into the browser to find out.
 //
 // ── WHY THE LADDER IS GAP-NUMBERED ────────────────────────────────────────────────────────
 //
@@ -120,22 +116,4 @@ export function maxSeverity(levels: readonly PrivacySeverity[]): PrivacySeverity
     if (severityRank(level) > severityRank(worst)) worst = level
   }
   return worst
-}
-
-/**
- * What the CTA's own channel becomes, which is NARROWER than the panel's on purpose.
- *
- * DESIGN §7.5: "Severity routes to the CTA itself (High → irreversible button, Medium → exposed
- * button — the thumb carries the risk)." It names two levels and only two, so the other three
- * return `null` and the button emits no attribute at all rather than a third value nobody
- * specified.
- *
- * `blocked` returning `null` is the load-bearing one. `index.css` rules that blocked is an emphasis
- * DOWNGRADE and does not take the irreversible colour; giving it a channel here would be that
- * ruling reversed from a different file.
- */
-export function ctaSeverity(level: PrivacySeverity): 'exposed' | 'irreversible' | null {
-  if (level === 'medium') return 'exposed'
-  if (level === 'high') return 'irreversible'
-  return null
 }

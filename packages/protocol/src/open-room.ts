@@ -31,8 +31,6 @@ import { MAX_MESSAGE_BYTES, type RoomEnvelope } from './room.js'
 // `room.ts`'s spelling: the runtime's own WebCrypto, which exists in every browser and in Node 20+.
 const webcrypto: Crypto = globalThis.crypto
 
-export { OPEN_ROOM_DISCLOSURE, launchTalkTag, marketTalkTag } from './open-room-tags.js'
-
 const IV_BYTES = 12
 const ROOM_ID_BYTES = 16
 const OPEN_ROOM_VERSION = 'passbook-open-room-v1'

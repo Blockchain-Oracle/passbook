@@ -4,7 +4,6 @@
 // `getSelectorFromName` by `governance-reads.test.ts`), decoders transcribed field-for-field
 // from the Cairo structs, and half-failures reported as rows-plus-a-sentence.
 //
-import { NET } from './constants.js'
 import { decodeByteArray, defaultTransport, type Transport } from './app-reads.js'
 
 export const GOV_SELECTOR = {
@@ -206,17 +205,6 @@ export async function readAccumulators(
   return out
 }
 
-/** The identity's committed weight on a proposal — `get_ballot`'s public half. */
-export async function readBallotWeight(
-  contract: string,
-  proposalId: number,
-  identityKey: string,
-  transport: Transport = defaultTransport,
-): Promise<bigint> {
-  const out = await call(contract, GOV_SELECTOR.get_ballot, [hex(proposalId), identityKey], transport)
-  return toBig(out[0] ?? '0x0')
-}
-
 // ── Derivations the surfaces share ────────────────────────────────────────────────────────
 
 /** The quorum bar, 0–100. Live participation is public while the direction stays sealed (§4.2). */
@@ -237,7 +225,3 @@ export function proposalPhase(proposal: OnChainProposal, nowMs: number): string 
   if (proposal.state === PROPOSAL_STATE.voided) return 'Voided'
   return 'Unknown'
 }
-
-// Referenced so the two constants below stay importable by the eager chunk without dragging
-// anything: this module is fetch-only, `app-reads.ts`'s class.
-export const GOVERNANCE_READS_ARE_BROWSER_SAFE = NET.pool.length > 0

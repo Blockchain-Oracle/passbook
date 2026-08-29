@@ -17,8 +17,6 @@ export const GOV_OP = {
   revoke: 6,
 } as const
 
-export type GovOp = (typeof GOV_OP)[keyof typeof GOV_OP]
-
 /** Option semantics, fixed by the contract: 0 AGAINST, 1 FOR, 2 ABSTAIN when present. */
 export const GOV_OPT_AGAINST = 0
 export const GOV_OPT_FOR = 1
@@ -202,9 +200,4 @@ export function reclaimPayload(secrets: readonly (bigint | string)[]): CalldataR
 
 export function revokePayload(secrets: readonly (bigint | string)[]): CalldataResult {
   return settlingPayload(GOV_OP.revoke, secrets)
-}
-
-/** The open notes an op mints — `market-calldata.ts`'s contract, kept: settling 1:1, else 0. */
-export function expectedOpenNotes(op: number, entryCount: number): number {
-  return op === GOV_OP.reclaim || op === GOV_OP.revoke ? entryCount : 0
 }

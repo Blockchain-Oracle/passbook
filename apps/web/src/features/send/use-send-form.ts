@@ -136,7 +136,6 @@ export function useSendForm(initial: SendSearch) {
   }
 }
 
-export type SendForm = ReturnType<typeof useSendForm>
 
 interface BlockerInput {
   ready: boolean

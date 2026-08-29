@@ -92,37 +92,14 @@ export const PROGRESS_CEILING = 0.995
 /**
  * Clamps into the honest band.
  *
- * NaN AND INFINITY ARE NOT THE SAME CASE, and an earlier version of this treated them as one.
- * `NaN` means the estimate is unknown, so it starts at the floor. `Infinity` means the estimate
- * overshot, and floor-ing it would drive the bar BACKWARDS to nothing at the moment a step
- * finished — the precise retreat `monotonic` exists to make impossible. Comparisons against NaN
- * are all false, so `Math.max`/`Math.min` would otherwise let it through untouched.
+ * NaN AND INFINITY ARE NOT THE SAME CASE. `NaN` means the estimate is unknown, so it starts at the
+ * floor. `Infinity` means the estimate overshot, and floor-ing it would drive the bar BACKWARDS at
+ * the moment a step finished. Comparisons against NaN are all false, so `Math.max`/`Math.min`
+ * would otherwise let it through untouched.
  */
 export function clampProgress(raw: number): number {
   if (Number.isNaN(raw)) return PROGRESS_FLOOR
   return Math.min(PROGRESS_CEILING, Math.max(PROGRESS_FLOOR, raw))
-}
-
-/**
- * One step of a monotonic sequence: the next value, or the previous one if the next retreats.
- *
- * A progress bar that goes backwards is worse than no progress bar — it tells the user that work
- * they watched complete has been undone, which is never what happened. Real estimates DO retreat
- * (a slower-than-expected step re-forecasts downward), so this is not a theoretical guard.
- */
-export function monotonic(previous: number, next: number): number {
-  return Math.max(clampProgress(previous), clampProgress(next))
-}
-
-/** Folds a whole sequence through `monotonic`. Exported so the property test has one entry point. */
-export function foldMonotonic(sequence: readonly number[]): number[] {
-  const out: number[] = []
-  let carried = PROGRESS_FLOOR
-  for (const raw of sequence) {
-    carried = monotonic(carried, raw)
-    out.push(carried)
-  }
-  return out
 }
 
 /**

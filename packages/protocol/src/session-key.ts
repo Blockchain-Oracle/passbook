@@ -186,16 +186,6 @@ export function loadOrCreateAccountKey(
   return { ok: true, accountKey: settled, created: true }
 }
 
-/** Erases the stored account key. Exists so a test — and only a test — can reach a fresh state. */
-export function forgetAccountKey(store: SessionStore): SessionWrite {
-  try {
-    store.remove(SESSION_KEYS.accountKey)
-    return { ok: true }
-  } catch (e) {
-    return { ok: false, reason: String(e) }
-  }
-}
-
 // ── The ceremony projection ───────────────────────────────────────────────────────────────
 
 /**

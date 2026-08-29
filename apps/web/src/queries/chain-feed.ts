@@ -157,9 +157,5 @@ export function useChainFeed(): ChainFeed {
   return useSyncExternalStore(subscribe, () => snapshot, () => EMPTY)
 }
 
-export function chainFeedSnapshot(): ChainFeed {
-  return snapshot
-}
-
 /** The venue rows' poll cadence: off while the stream feeds the cache, 30 s otherwise. */
 export const FEED_FALLBACK_POLL_MS = 30_000

@@ -84,28 +84,6 @@ export const NOTES_STAY =
 /** The heading above the matrix wherever it renders. DESIGN §7.5 part 2, in the user's words. */
 export const WHO_CAN_READ = 'Who can read this'
 
-/**
- * Scopes the matrix's `You` column on a receipt whose amount this browser could not read.
- *
- * ── THE CONTRADICTION THIS EXISTS TO DELETE ───────────────────────────────────────────────
- *
- * A settled receipt for an encrypted note prints `AMOUNT_NOT_OURS_TO_READ` — "the amount is not in
- * the public record" — and, four inches below it, a matrix whose You/Amount cell reads `Sees`. Two
- * claims about the same number, on one screen, in opposite directions.
- *
- * Neither claim is wrong. The matrix's `You` is the party who TOOK the action, and on a row this
- * browser did not originate the reader is not that party. Saying so is the whole fix, and it is
- * better than hiding the matrix: the baseline is what is honestly true of any pool transaction, and
- * a receipt that dropped it would be a receipt that stopped disclosing.
- *
- * "Not readable here" rather than "not yours": a row that IS ours can still arrive with a `null`
- * amount when no discovered note matched it, and calling that row somebody else's would be a second
- * false claim replacing the first.
- */
-export const RECEIPT_YOU_IS_THE_ACTOR =
-  'The amount on this row is not readable here, so "You" in the table below means whoever made ' +
-  'this transaction.'
-
 // ── Sending ───────────────────────────────────────────────────────────────────────────────
 
 /** Self-submission has a safer path and it is a real one, so the panel offers it as a button. */

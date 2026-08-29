@@ -28,14 +28,6 @@
 // ── The ceremony (UX spine W3 steps 1, 5, 6) ───────────────────────────────────────────
 
 /**
- * The frame, shown before the key exists. This is where no-rotation is stated plainly:
- * the gate is justified by the write-once fact, not by a policy we chose.
- */
-export const BACKUP_CEREMONY_FRAME =
-  'Save your key before we write anything on-chain. ' +
-  'The key we register can never be replaced — the protocol writes it once.'
-
-/**
  * The done screen. An INVENTORY, not a congratulation — the second half is the point, and
  * a product that says "You're all set!" here has lied about what a two-secret backup is.
  */
@@ -43,19 +35,6 @@ export const BACKUP_DONE_INVENTORY =
   'What this protects against: a new laptop, a cleared browser, a lost phone. ' +
   "What it doesn't: anyone who gets both the file and the code has your balance, " +
   'your history and your messages, permanently. There is no revoke and no rotation.'
-
-/**
- * The single-root claim, WITH the caveat it is not allowed to ship without.
- *
- * Authored here rather than quoted: the brief states the claim and states that it may not
- * be made unqualified until the restore-time channel-index probe passes (`context/11` §9
- * Q5; epics 1.8 probe-gate). So the caveat is part of the sentence rather than a footnote
- * somebody can drop. Delete the second half only when that probe has actually run.
- */
-export const ONE_BACKUP_COVERS_EVERYTHING =
-  'One backup covers everything — your account key is the single root it all derives from. ' +
-  'One part of that is still untested: rebuilding your channel indexes when you restore. ' +
-  'Until we have tested it, treat that part as unproven rather than promised.'
 
 // ── Periodic verification (UX spine W3 step 7) ─────────────────────────────────────────
 

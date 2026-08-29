@@ -64,19 +64,6 @@ export const CHAT_MULTIPLEX_DISCLOSURE =
 
 // ── The directory ─────────────────────────────────────────────────────────────────────────
 
-export const DIRECTORY_TITLE = 'Claim a name'
-
-/**
- * The warning that has to sit on the claim screen.
- *
- * Registration is already publicly enumerable on chain; what a directory adds is the link from a
- * handle somebody chose to that address. "Forever" is the honest word — the ledger is file-backed
- * and restorable, so a delete cannot be sold as an erasure.
- */
-export const DIRECTORY_IS_PUBLIC =
-  'A name in the directory is public. Anyone can read the list and see which address it points to, ' +
-  'and taking it back removes it from the list rather than from anyone who already copied it.'
-
 export const DIRECTORY_SEARCH_PLACEHOLDER = 'A name, or an address starting 0x'
 
 /**
@@ -93,15 +80,6 @@ export const DIRECTORY_SEARCH_IS_LOCAL =
 export const DIRECTORY_NAME_IS_NOT_IDENTITY =
   'A name is a label somebody claimed, not proof of who they are. The address underneath it is the ' +
   'part that cannot be swapped.'
-
-export const DIRECTORY_NAME_TAKEN = 'That name is already claimed by another address.'
-
-export const DIRECTORY_NAME_MALFORMED =
-  'Names are 3 to 20 characters: lower-case letters, numbers, underscores and hyphens.'
-
-export const DIRECTORY_CLAIM_NEEDS_REGISTRATION =
-  'Claiming a name proves you hold the key registered to this address, so the account has to be ' +
-  'registered with the pool first.'
 
 // ── The empty and unreachable states ──────────────────────────────────────────────────────
 

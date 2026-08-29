@@ -21,12 +21,6 @@
 // were not idempotent. Every envelope's GCM nonce is already unique per message and already the
 // id the thread renders by — so `insert` keys on it and a replay is a no-op by construction.
 //
-// ── WHY packages/protocol AND NOT apps/web/src/shell ─────────────────────────────────────
-//
-// `vitest.config.ts` collects `packages/*/test/**` only — a store under the app is a store no
-// test can execute (the reasoning `activity-store.ts` already records). The invariants here —
-// dedupe, bounds, unread arithmetic — are exactly the kind that invert in one word.
-//
 import type { RoomMessage } from './room-message.js'
 
 /** One rendered message, exactly the shape the thread UI already uses (`ThreadEntry`). */

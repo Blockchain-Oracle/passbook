@@ -1,5 +1,10 @@
 {
   "name": "@strk20/relayer",
   "version": "0.1.0",
-  "type": "module"
+  "type": "module",
+  "dependencies": {
+    "@hono/node-server": "2.1.1",
+    "hono": "4.13.5",
+    "zod": "4.4.3"
+  }
 }

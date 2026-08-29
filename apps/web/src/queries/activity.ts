@@ -57,15 +57,3 @@ export function activityReadQuery(address: string | undefined, accountKey: strin
     staleTime: ACTIVITY_MS,
   })
 }
-
-/** The entries alone. Shares the read above through the client, so both keys cost one decode. */
-export function activityQuery(address: string | undefined, accountKey: string | undefined) {
-  return queryOptions({
-    queryKey: ['activity', address ?? null],
-    queryFn:
-      address && accountKey
-        ? async (): Promise<ActivityEntry[]> => (await queryClient.fetchQuery(activityReadQuery(address, accountKey))).entries
-        : skipToken,
-    staleTime: ACTIVITY_MS,
-  })
-}

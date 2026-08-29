@@ -4,6 +4,8 @@
 // FR-029 sells closing). Credentials live only here, never in the client bundle. This module is
 // the pure request-builder + an allowlist of proxiable upstreams; the http route wires it in.
 
+import { utcDayKey } from './sponsorship.js'
+
 export interface ProxyTarget {
   readonly host: string          // exact upstream host permitted
   readonly injectsCredential: boolean  // whether the server attaches a secret header/param
@@ -22,54 +24,6 @@ export const PROXY_TARGETS = {
 } as const satisfies Record<string, ProxyTarget>
 
 export type ProxyTargetName = keyof typeof PROXY_TARGETS
-
-/**
- * A third-party call the browser still makes DIRECTLY, and what that costs the user.
- *
- * "Everything is proxied" would be the easy sentence, and it would be false. These are the
- * exceptions, enumerated so the disclosure panel can state them and so a reviewer can count
- * them: an unlisted browser-direct host is a leak nobody wrote down. This list
- * fails the build on a third-party host in `web/` that is not one of these, which is what keeps
- * this list from drifting out of date the first time someone adds a fetch.
- *
- * Each entry names the leak in one line. Adding an entry is a disclosure decision, not a
- * formality — if the leak cannot be described in a sentence a user would accept, route it
- * through the proxy instead.
- */
-export interface ProxyException {
-  /** What the browser fetches directly. */
-  readonly what: string
-  /** Where in the source it happens, so the claim is checkable. */
-  readonly where: string
-  /** One line: what the upstream learns that it would not learn through the proxy. */
-  readonly leaks: string
-}
-
-export const PROXY_EXCEPTIONS: readonly ProxyException[] = [
-  {
-    what: 'Starknet JSON-RPC reads (starknet_call and class-hash lookups) go straight to the RPC hosts',
-    where: 'web/app.js:151',
-    leaks:
-      'the RPC provider sees the visitor IP alongside which contracts they read, though not ' +
-      'which note or key the read is about.',
-  },
-  {
-    what: 'Explorer links open Voyager in the user’s own browser',
-    where: 'web/app.js:44',
-    leaks:
-      'the explorer sees the visitor IP together with the transaction they clicked, so a ' +
-      'link followed is a link attributed. Copy the hash instead to avoid it.',
-  },
-  {
-    what: 'Token logos render straight from the public IPFS gateway (gateway.pinata.cloud)',
-    where: 'packages/protocol/src/token-media.ts:18',
-    leaks:
-      'the gateway sees the visitor IP alongside which token logos their browser loaded — ' +
-      'which pages they LOOKED at, never anything they did. Uploading goes through the relay; ' +
-      'only viewing is browser-direct, because proxying every image render would make this ' +
-      'process a CDN.',
-  },
-] as const
 
 export class UnknownProxyTarget extends Error {}
 
@@ -107,4 +61,46 @@ export function scrubClientHeaders(headers: Record<string, string>): Record<stri
     if (!isIdentityLeakingHeader(k)) out[k] = v
   }
   return out
+}
+
+/** How many distinct visitors one day tracks; the backstop that holds whatever the caps say. */
+export const MAX_TRACKED_QUOTE_VISITORS = 50_000
+
+/**
+ * Per-visitor daily counter, IN MEMORY on purpose: quota is egress, not money, so fresh quota
+ * on restart beats an unwritable disk stopping price lookups. Also the logo studio's meters.
+ */
+export class DailyQuoteCounter {
+  private day = ''
+  private dayTotal = 0
+  private counts = new Map<string, number>()
+
+  constructor(
+    private readonly perVisitor: number,
+    private readonly global: number,
+    private readonly maxTracked = MAX_TRACKED_QUOTE_VISITORS,
+  ) {}
+
+  /** Records one use for `visitor` and reports whether it was within the caps. */
+  tryConsume(visitor: string, now: number): boolean {
+    const today = utcDayKey(now)
+    // Forward only: a clock stepping back keeps yesterday's counters rather than minting a day.
+    if (today > this.day) {
+      this.day = today
+      this.dayTotal = 0
+      this.counts.clear()
+    }
+    if (this.dayTotal >= this.global) return false
+    const used = this.counts.get(visitor)
+    // A new visitor only gets in if there is room — a /64 has more addresses than we have memory.
+    if (used === undefined && this.counts.size >= this.maxTracked) return false
+    if ((used ?? 0) >= this.perVisitor) return false
+    this.counts.set(visitor, (used ?? 0) + 1)
+    this.dayTotal += 1
+    return true
+  }
+}
+
+export function createQuoteCounter(perVisitor: number, global: number, maxTracked?: number): DailyQuoteCounter {
+  return new DailyQuoteCounter(perVisitor, global, maxTracked)
 }

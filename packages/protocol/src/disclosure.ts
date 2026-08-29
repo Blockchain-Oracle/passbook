@@ -6,12 +6,8 @@
 // one points, how loud the panel is, and whether there is a safer path to offer. The React half is
 // `apps/web/src/components/Disclosure.tsx` and it holds the nodes and the callbacks.
 //
-// ── THE MODEL IS DATA; THE COMPONENT IS REACT ─────────────────────────────────────────────
-//
-// `option-row.ts:29-36`'s rule, and the reason is mechanical rather than aesthetic:
-// `vitest.config.ts:12` collects `packages/*/test/**` only, so a table written in `apps/web/src` is
-// a table no runner executes. Nothing here is a React node and nothing here is a callback — the way
-// out is a LABEL, and the action that fulfils it is a prop on the component.
+// Nothing here is a React node and nothing here is a callback — the way out is a LABEL, and the
+// action that fulfils it is a prop on the component.
 //
 // ── A GREEN TICK BESIDE A CRITICAL CLAIM IS A LIE ─────────────────────────────────────────
 //
@@ -52,11 +48,8 @@ import {
 } from './disclosure-copy.js'
 import { matrixFor, type VisibilityContext } from './visibility-matrix.js'
 
-/** ↗ leaves the private domain · ✓ stays private. DESIGN §7.5 part 1. */
-export type DisclosureMarker = 'leaves' | 'stays'
-
 /**
- * One stated consequence.
+ * One stated consequence. The marker is ↗ `leaves` (the private domain) or ✓ `stays` (private).
  *
  * The `stays` arm is NARROWED, and that narrowing is the contradiction rule expressed as a type:
  * there is no way to write a green tick beside a claim the panel colours as a risk, because the

@@ -19,7 +19,7 @@ import {
   setPipelineSubmission,
   startPipeline,
 } from './pipeline-store'
-import { currentRoute, embeddedAccount, makeSelfSubmit, operationId } from './self-submit'
+import { acquireSubmitLock, currentRoute, embeddedAccount, makeSelfSubmit, operationId } from './self-submit'
 
 export interface SendAsk {
   kind: SendKind
@@ -110,7 +110,7 @@ async function send(ask: SendAsk): Promise<SendResult> {
         ...(ask.app ? { app: ask.app } : {}),
         wallet: read.wallet,
       },
-      { selfSubmit: makeSelfSubmit(accountKey, address), onStage },
+      { acquireSubmitLock, selfSubmit: makeSelfSubmit(accountKey, address), onStage },
     )
 
     if (outcome.ok) {

@@ -116,7 +116,3 @@ export function isDrippableAddress(value: unknown): value is string {
   }
 }
 
-/** What the route decided. `txHash` is present only when something was actually sent. */
-export type DripResult =
-  | { ok: true; txHash: string; amountWei: string }
-  | { ok: false; status: 400 | 429 | 503; error: string }

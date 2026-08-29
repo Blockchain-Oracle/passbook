@@ -229,20 +229,3 @@ export class FileSponsorshipStore implements SponsorshipStore {
     atomicWriteJson(this.path, next)
   }
 }
-
-/**
- * Non-durable store for tests and for exercising the ledger without touching a disk.
- *
- * Deliberately NOT a default anywhere: a relayer that silently falls back to this has the
- * bug the file store exists to fix, and it would not announce itself. Callers pass one on
- * purpose or pass a real store.
- */
-export class MemorySponsorshipStore implements SponsorshipStore {
-  constructor(private record: PersistedLedger = emptyLedger()) {}
-  load(): PersistedLedger {
-    return structuredClone(this.record)
-  }
-  save(next: PersistedLedger): void {
-    this.record = structuredClone(next)
-  }
-}

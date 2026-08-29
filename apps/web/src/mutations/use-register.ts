@@ -17,7 +17,7 @@ import {
   setPipelineSubmission,
   startPipeline,
 } from './pipeline-store'
-import { currentRoute, embeddedAccount, makeSelfSubmitRegistration, operationId } from './self-submit'
+import { acquireSubmitLock, currentRoute, embeddedAccount, makeSelfSubmitRegistration, operationId } from './self-submit'
 
 /** Gas on top of the LIVE pool fee (read at call time, never a constant) before self-pay is chosen. */
 const GAS_HEADROOM_WEI = 2n * 10n ** 18n
@@ -83,6 +83,7 @@ async function register(ask: RegisterAsk): Promise<RegisterOutcome> {
       { accountKey, account: account as never, appName: 'Passbook' },
       {
         canRegister: () => ask.backedUp,
+        acquireSubmitLock,
         ...(selfPays ? { submit: makeSelfSubmitRegistration(accountKey, address) } : {}),
         onStage,
       },

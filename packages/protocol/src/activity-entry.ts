@@ -133,12 +133,3 @@ export function noteKey(id: bigint | string | number): string {
   return BigInt(id).toString()
 }
 
-/** The Personal tab. Global is the unfiltered list — there is no second builder. */
-export function personalEntries(entries: readonly ActivityEntry[]): ActivityEntry[] {
-  return entries.filter((e) => e.mine)
-}
-
-/** Finds one row by its addressable id, for `/activity/<id>`. */
-export function entryById(entries: readonly ActivityEntry[], id: string): ActivityEntry | undefined {
-  return entries.find((e) => e.id === id)
-}

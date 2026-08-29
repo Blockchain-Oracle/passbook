@@ -155,5 +155,4 @@ export function useSwapState(seed: SwapSeed = {}) {
   }
 }
 
-export type SwapState = ReturnType<typeof useSwapState>
 export type { SwapSide }

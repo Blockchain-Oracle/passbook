@@ -2,7 +2,7 @@
 // The `POST /submit` wire contract.
 //
 // ONE DEFINITION, both ends. The browser builds this body (`register.ts`) and the server
-// parses it (`relayer/src/server.ts`); before this existed, each side described the shape
+// parses it (`relayer/src/routes/submit.ts`); before this existed, each side described the shape
 // in its own words and the only thing keeping them agreed was that one person had written
 // both. It lives in `protocol` because that is the package both halves already depend on
 // — putting it in the relayer would make the browser import server code.

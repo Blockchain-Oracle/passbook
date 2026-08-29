@@ -13,8 +13,3 @@ export const OPEN_ROOM_DISCLOSURE =
 export function launchTalkTag(launchId: number): string {
   return `talk:launch:${launchId}`
 }
-
-/** The Talk tag for a market. */
-export function marketTalkTag(marketId: number): string {
-  return `talk:market:${marketId}`
-}

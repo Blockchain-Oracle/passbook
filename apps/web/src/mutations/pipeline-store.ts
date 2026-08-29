@@ -122,27 +122,6 @@ export function finishPipeline(terminal: PipelineTerminal): void {
   emit()
 }
 
-/** The expired-proof case: the earlier attempt keeps its row and gains a replaced marker. */
-export function replaceStage(stage: PipelineStageName): void {
-  if (!state || state.replaced.includes(stage)) return
-  state = { ...state, replaced: [...state.replaced, stage] }
-  emit()
-}
-
-export function canCancel(pipeline: RunningPipeline | null): boolean {
-  return pipeline !== null && !pipeline.submitted && pipeline.cancel !== null
-}
-
-export function cancelPipeline(): void {
-  if (!canCancel(state)) return
-  try {
-    state!.cancel!()
-  } finally {
-    state = null
-    emit()
-  }
-}
-
 export function clearPipeline(): void {
   state = null
   emit()

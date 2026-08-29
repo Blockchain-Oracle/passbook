@@ -219,13 +219,6 @@ export const SWITCH_BODY =
   'Each account is a separate key with its own address, its own balance and its own history. ' +
   'Nothing on chain joins them up, and neither does this app.'
 
-/** The only account there is. */
-export const SWITCH_NOTHING_TO_SWITCH_TO =
-  'This is the only account in this browser. Import one, or create another, to have something to ' +
-  'switch between.'
-
-export const CREATE_ACTION = 'Create another account'
-
 /**
  * The warning that has to ride with creation.
  *
