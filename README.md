@@ -21,9 +21,8 @@
   <a href="#what-we-do-not-claim-and-what-you-should-assume-instead"><b>What we refuse to claim</b></a>
   &nbsp;·&nbsp;
   <a href="https://strk20.run/docs"><b>Documentation</b></a>
-  <!-- when it exists, add here:
-  &nbsp;·&nbsp; <a href="DEMO_VIDEO_URL"><b>Demo video</b></a>
-  -->
+  &nbsp;·&nbsp;
+  <a href="https://vimeo.com/1222296410"><b>Demo video</b></a>
 </p>
 
 <p align="center">
@@ -31,6 +30,18 @@
 </p>
 
 The key is generated in your browser on first load, and everything below runs from it.
+
+## Demo video
+
+<p align="center">
+  <a href="https://vimeo.com/1222296410">
+    <img src="https://raw.githubusercontent.com/Blockchain-Oracle/strk20-run/main/assets/launch/demo-thumbnail.png" width="720" alt="Watch the strk20.run 3-minute demo" />
+  </a>
+</p>
+
+<p align="center">
+  <a href="https://vimeo.com/1222296410"><b>▶ Watch the 3-minute demo</b></a>
+</p>
 
 What distinguishes this from every other privacy product is not the privacy claim. It is that
 each screen names which parties can see what, **before** you act — including the parties you did
@@ -232,13 +243,18 @@ hash below resolves on Voyager (`https://voyager.online/tx/<hash>`).
 | `Governance` — the Houses (ours) | `0xdbe265829e0f1c859f3a8c1bd8fcfb0a774836b9e07191c6a624a59e37f9bf` |
 | Pragma oracle (read live by Markets) | `0x2a85bd616f912537c50a49a4076db02c00b29b2cdc8a197ce92ed1837fa875b` |
 
-**The eight declared transactions**, each with the evidence file that recorded it:
+**The eleven declared transactions** — every successful mainnet transaction that ran through one
+of our contracts, found by sweeping their events rather than copied from a log — each with the
+evidence file that recorded it:
 
 | What happened | Evidence | Transaction |
 |---|---|---|
+| Market 0 created — BTC/USD, priced off Pragma | `seq-market.json` | `0x77fceec7b1dab186b6f6121db07aca62c727dedae35b3a9db22c17b9716f978` |
 | The ladder — 3 bets on market 0, one transaction, one fee | `seq-bet.json` | `0x16933dd6edd5ade29c3b3cb3954da2c3b5bb806f85040fe42810f73acd72523` |
-| The batch claim — 3 of 4 positions settled in one transaction | `seq-claim.json` | `0x15eb0939a124cbe8fc6a0e5825004f665f031e0d6abb80088bab0a8466561c0` |
+| Launch 0 created — a confidential sale on the epoch curve | `seq-launch.json` | `0x13b246bd1ce1eb11af8ae5cbe3b2aa9ab8b458fe472b92511302048a74e4c93` |
 | The hidden buy — 4 units on launch 0, buyer never named | `seq-buy.json` | `0x84a59651f14c6c995eac59ce0598e9cb58a7b1d02334870db9494acf3871d4` |
+| Market 0 resolved against the oracle | `seq-claim.json` | `0x6dc4d81c7e1e7b03b1e5b78f50541c8a1998bdd6281c8fe6f722ca9600ab73d` |
+| The batch claim — 3 of 4 positions settled in one transaction | `seq-claim.json` | `0x15eb0939a124cbe8fc6a0e5825004f665f031e0d6abb80088bab0a8466561c0` |
 | House 0 activated — "Passbook Founders" | `seq-gov-house.json` | `0x11981995373bac3baf023588bb60e0e09652de7bda335decf54dee2bb3be3c5` |
 | A proposal, sealed until close | `seq-gov-propose.json` | `0x237a47cbb3e88194b8e684351f0709cdfff44898f9c5e06cca3b650ecca2726` |
 | A sealed FOR ballot, weight escrowed through the pool | `seq-gov-ballot.json` | `0x448ed7fc67b968b829d0e5cf8f7946fbb0fc47ef48903b33b8cd7be4dd6e7df` |
