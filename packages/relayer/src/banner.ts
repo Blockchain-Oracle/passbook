@@ -4,6 +4,7 @@ import type { AppContracts, GovernanceWriteSafety } from '../../protocol/src/app
 import { APP_POLL_MS, HISTORY_BOUND, PRICE_POLL_MS, type ChainFeed } from './chain-feed.js'
 import { offHostWarning, type SponsorshipConfig } from './env.js'
 import type { FundingMonitor } from './funding-monitor.js'
+import { KEEPER_CRON } from './keeper.js'
 import type { LogoService } from './logo.js'
 import { PROXY_TARGETS } from './quote-proxy.js'
 import { ROOM_HISTORY, ROOM_IDLE_MS } from './rooms.js'
@@ -19,7 +20,7 @@ export interface BannerInput {
   governanceSafety: GovernanceWriteSafety
   keeperWanted: boolean
   keeperReady: boolean
-  keeperIntervalMs: number
+  keeperNextRun: string | null
   allowedOrigins: ReadonlySet<string>
   sponsor: SponsorshipConfig
   feedWanted: boolean
@@ -48,7 +49,7 @@ export function printBanner(b: BannerInput): void {
   }
   console.log(
     b.keeperReady
-      ? `keeper: sweeping every ${b.keeperIntervalMs / 1000}s via Pragma ${app.pragma}`
+      ? `keeper: cron ${KEEPER_CRON} UTC (next ${b.keeperNextRun ?? '?'}) via Pragma ${app.pragma} — reads first, sends only for a due window somebody opened`
       : b.keeperWanted
         ? 'keeper: idle — nothing deployed to keep'
         : 'keeper: disabled by RELAYER_KEEPER=off',

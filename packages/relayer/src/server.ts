@@ -22,7 +22,7 @@ import type { RelayerContext } from './context.js'
 import { openDirectory } from './directory.js'
 import { faucetDripWei, resolveEnv } from './env.js'
 import { createFundingMonitor } from './funding-monitor.js'
-import { createChainKeeperDeps, runKeeperPass } from './keeper.js'
+import { createChainKeeperDeps, scheduleKeeper, type KeeperSchedule } from './keeper.js'
 import { openFaucetLedger, openSendBudgetLedger, openSponsorshipLedger } from './ledger.js'
 import type { LogoService } from './logo.js'
 import { createQuoteCounter } from './quote-proxy.js'
@@ -31,7 +31,6 @@ import { makeOpsPager, openSigner, readStrkBalance, tellerSubmitters } from './s
 import { openTeller, tellerChainDeps, TELLER_INTERVAL_MS } from './teller.js'
 
 // `Markets::resolve` is open for 300 s after a deadline; a 60 s pass gets five attempts.
-const KEEPER_INTERVAL_MS = 60_000
 
 /** Evidence files are optional: absent means "not deployed yet", never a refusal to boot. */
 function evidence(name: string): string | undefined {
@@ -158,6 +157,7 @@ async function main(): Promise<void> {
 
   // The settlement keeper: gas only, no privileges; `resolve`/`void` are permissionless.
   const keeperReady = env.keeperWanted && Boolean(app.markets && app.pragma)
+  let keeper: KeeperSchedule | undefined
   if (keeperReady) {
     const keeperDeps = createChainKeeperDeps({
       markets: app.markets!,
@@ -167,15 +167,7 @@ async function main(): Promise<void> {
         await account.execute([{ contractAddress, entrypoint, calldata }])
       },
     })
-    every(KEEPER_INTERVAL_MS, () =>
-      void runKeeperPass(keeperDeps)
-        .then((pass) => {
-          for (const id of pass.resolved) console.log(`keeper: resolved market ${id}`)
-          for (const id of pass.voided) console.log(`keeper: voided market ${id}`)
-          for (const f of pass.failed) console.warn(`keeper: market ${f.marketId} failed — ${f.reason}`)
-        })
-        .catch((e: unknown) => console.warn(`keeper: pass failed — ${String(e)}`)),
-    )
+    keeper = scheduleKeeper(keeperDeps, { log: (l) => console.log(l), warn: (l) => console.warn(l) })
   }
 
   // Awaited so the first request answers from a measurement, not from `unknown`.
@@ -185,7 +177,7 @@ async function main(): Promise<void> {
   serve({ fetch: web.fetch, port: env.port, hostname: env.host }, () =>
     printBanner({
       host: env.host, port: env.port, address, nodeUrl, messageBook, appContracts: app, governanceSafety,
-      keeperWanted: env.keeperWanted, keeperReady, keeperIntervalMs: KEEPER_INTERVAL_MS,
+      keeperWanted: env.keeperWanted, keeperReady, keeperNextRun: keeper?.nextRun() ?? null,
       allowedOrigins: env.allowedOrigins, sponsor: env.sponsor,
       feedWanted: env.chainFeedWanted, chainFeed, chainFeedStore: env.chainFeedStore,
       logos, teller, tellerStore: env.tellerStore,

@@ -25,6 +25,8 @@
 // the worst it could do is waste its own gas.
 //
 
+import { Cron } from 'croner'
+
 /** A market as the keeper needs to see it. Everything else about it is the contract's business. */
 export interface KeeperMarket {
   marketId: number
@@ -187,6 +189,59 @@ export async function runKeeperPass(deps: KeeperDeps): Promise<KeeperPass> {
   }
 
   return pass
+}
+
+// ─────────────────────────────────────────────────────────────────────────────────────────
+// The schedule — a cron, not a poll
+// ─────────────────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Every window closes on a multiple of fifteen minutes (15 min, 1 h and 24 h series all align
+ * to the hour), and `resolve` is accepted for 300 s after a deadline. Firing two minutes past
+ * every five-minute mark reaches each deadline inside its window with a fresh oracle read, and
+ * costs nothing in between: a pass only reads until it finds a window somebody actually opened
+ * and left due. Gas is spent by `send`, and `send` is reached only through `decideMarket`.
+ */
+export const KEEPER_CRON = '2-59/5 * * * *'
+
+export interface KeeperSchedule {
+  /** ISO time of the next firing, for the banner. */
+  nextRun(): string | null
+  stop(): void
+}
+
+export interface KeeperScheduleIO {
+  log: (line: string) => void
+  warn: (line: string) => void
+}
+
+/** Schedules `runKeeperPass` on `KEEPER_CRON` (UTC), one pass at a time, plus one pass now. */
+export function scheduleKeeper(deps: KeeperDeps, io: KeeperScheduleIO): KeeperSchedule {
+  const pass = async () => {
+    const result = await runKeeperPass(deps)
+    for (const id of result.resolved) io.log(`keeper: resolved market ${id}`)
+    for (const id of result.voided) io.log(`keeper: voided market ${id}`)
+    for (const f of result.failed) io.warn(`keeper: market ${f.marketId} failed — ${f.reason}`)
+  }
+  const job = new Cron(
+    KEEPER_CRON,
+    {
+      name: 'keeper',
+      timezone: 'UTC',
+      // A pass still running when the next tick lands is left alone; the tick is dropped.
+      protect: () => io.warn('keeper: a pass was still running at the next tick; skipped'),
+      catch: (e: unknown) => io.warn(`keeper: pass failed — ${String(e)}`),
+      // The cron must not keep a stopping process alive.
+      unref: true,
+    },
+    pass,
+  )
+  // A restart in the middle of a resolve window must not wait for the next mark.
+  void pass().catch((e: unknown) => io.warn(`keeper: boot pass failed — ${String(e)}`))
+  return {
+    nextRun: () => job.nextRun()?.toISOString() ?? null,
+    stop: () => job.stop(),
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────────────────
