@@ -1,17 +1,7 @@
 //
-// The pipeline stage vocabulary, as one leaf both pipelines and every renderer share (story 6.5).
-//
-// ── WHY THIS IS A LEAF, AND WHY IT IS NOT IN `send.ts` ────────────────────────────────────
-//
-// `SendStage` and `RegistrationStage` were declared beside the code that emits them, which was
-// right until something had to RENDER them. `send.ts` reaches the privacy SDK and `register.ts`
-// reaches the relayer wire, so a component importing either for a five-string union drags a chain
-// client into the browser bundle — the exact defect story 6.4 measured at 268 kB for one integer
-// (see `token-scale.ts`, split out of `balances.ts` for the same reason).
-//
-// So the vocabulary moves down here, where it has no imports at all, and `send.ts` / `register.ts`
-// re-export their own names from it. NO EXISTING CALLER CHANGED. That is the whole trick: the
-// names stay where every reader expects to find them, and the bytes stop travelling with them.
+// The pipeline stage vocabulary, as one leaf both pipelines and every renderer share. A component
+// importing `send.ts` for a five-string union would drag the privacy SDK into the browser bundle,
+// so the vocabulary lives here with no imports at all.
 //
 // ── WHY REGISTRATION HAS FOUR AND A SEND HAS FIVE ─────────────────────────────────────────
 //
@@ -104,15 +94,10 @@ export const STAGE_TITLES: Readonly<Record<PipelineStage, string>> = {
  * site can decide otherwise. A determinate progress bar is a claim that the remaining work is
  * knowable. That is true while we build a transaction locally and false for every stage below:
  *
- *   - `prove`   runs on StarkWare's hosted prover. Not ours, no progress channel, and the §5 state
- *               table is explicit — "never a determinate fill, never phase names we can't observe".
+ *   - `prove`   runs on StarkWare's hosted prover: not ours, no progress channel — never a
+ *               determinate fill, never phase names we cannot observe. Do not add `prove` here.
  *   - `relay`   is the relayer's queue.
  *   - `mature`  is the chain's block cadence, which is counted in blocks, never in percent.
- *
- * NOTE FOR ANYONE RECONCILING THE AUTHORITIES: DESIGN §7.7 writes "determinate while you own the
- * computation (build, prove)" and EXPERIENCE §4.2 writes "(build)" plus "the hosted prover is
- * ALWAYS the indeterminate ring". They contradict each other and EXPERIENCE is the specific one —
- * it names the mechanism and the reason. Do not "fix" this back to include `prove`.
  */
 export function ownsComputation(stage: PipelineStage): boolean {
   return stage === 'build'

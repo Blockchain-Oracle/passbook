@@ -1,9 +1,8 @@
 //
-// Every user-facing sentence the session tier ships (story 1.11, AC3).
+// Every user-facing sentence the session tier ships.
 //
-// One const per sentence, exported, `toBe`-asserted in the suite — the convention
-// `backup-copy.ts` establishes and states its reasons for. The reason it applies here too is
-// that the non-leader sentence travels a long way from where it is written: it is thrown by
+// One const per sentence, `backup-copy.ts`'s convention. It applies here too because the
+// non-leader sentence travels a long way from where it is written: it is thrown by
 // `makeAcquireSubmitLock`, stringified into `RegisterFailure`'s `lock-unavailable` reason by
 // `register.ts`, and rendered by a component epic 6 has not written yet. Three hops, and at
 // every one of them a hand-typed copy would be a sentence that drifts.

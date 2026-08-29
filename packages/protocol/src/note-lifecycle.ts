@@ -1,8 +1,8 @@
 //
-// The note lifecycle, as one closed state machine with its copy attached (story 6.4, DESIGN §7.2/§7.9).
+// The note lifecycle, as one closed state machine with its copy attached.
 //
 // A note is not a balance. It is a specific commitment with a specific position in a pipeline, and
-// the six positions below are the whole of it. They render as the §7.9 chip — 1px border in the
+// the six positions below are the whole of it. They render as the chip — 1px border in the
 // status solid, status tint behind, and the LABEL ALWAYS AT FULL TEXT CONTRAST, never in the status
 // colour, which is what makes the recipe pass contrast in both themes for free.
 //
@@ -50,9 +50,8 @@ export interface LifecycleChip {
   /** One sentence. What to do, or that there is nothing to do. */
   nextAction: string
   /**
-   * Whether this state is "not yet real" and must carry the dotted underline (`tokens.yaml`
-   * `notYetReal`). Grey alone may never be the sole carrier of that meaning — `neutral3` measures
-   * 2.12–2.18:1 on light surfaces and cannot be fixed without collapsing the text ladder.
+   * Whether this state is "not yet real" and must carry the dotted underline. Grey alone may never
+   * be the sole carrier of that meaning — it measures ~2.1:1 on light surfaces.
    */
   notYetReal: boolean
 }

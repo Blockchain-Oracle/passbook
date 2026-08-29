@@ -1,22 +1,7 @@
 //
-// The directory's SHAPE, with nothing attached to it.
-//
-// ── WHY THIS IS A SEPARATE FILE FROM `directory.ts` ──────────────────────────────────────
-//
-// `directory.ts` signs and verifies, and doing either needs `starknet` for the curve and the
-// Poseidon hash. That import is correct for a signer and fatal for a form: a settings panel that
-// wants to grey out a button while somebody types an invalid handle has no business dragging the
-// crypto graph into its chunk.
-//
-// The build gate found this rather than a reviewer. `NameClaim.tsx` imported the pattern
-// statically and `signClaim` dynamically, from the same module — so the dynamic import moved
-// nothing and the whole SDK edge came along anyway. Rolldown named it exactly:
-// `INEFFECTIVE_DYNAMIC_IMPORT`, and `build:web` refused the build.
-//
-// This is the fourth time the codebase has taken this split: `activity-entry.ts` out of
-// `activity.ts`, `pipeline-stage.ts`, `token-scale.ts`. The rule those files record applies here
-// too — THIS FILE MUST IMPORT NOTHING. An import here is a regression that compiles clean, and
-// only the warning gate would eventually say so.
+// The directory's SHAPE, with nothing attached to it. `directory.ts` signs and verifies, which
+// needs `starknet` for the curve and Poseidon; a form that greys out a button while somebody types
+// an invalid handle must not drag that into its chunk. THIS FILE MUST IMPORT NOTHING.
 //
 // `directory.ts` re-exports every name below, so no existing caller changes.
 //

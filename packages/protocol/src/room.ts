@@ -48,7 +48,7 @@ import { ec } from 'starknet'
 import { NET } from './constants.js'
 import { assertViewingKey } from './identity.js'
 
-/** Web Crypto from the global — the browser's in the app, Node's under vitest. Same as identity.ts. */
+/** Web Crypto from the global — the browser's in the app, Node's in the relayer. */
 const webcrypto: Crypto = globalThis.crypto
 
 /**

@@ -1,31 +1,13 @@
 //
-// Every user-facing sentence the backup ceremony ships (FR-013, story 1.8, AC6).
-//
-// One const per sentence, exported, and `toBe`-asserted in the suite. The reason copy
-// lives in source rather than in the components that render it is drift: the same
-// promise appears on the ceremony screen, the verification screen and the nag, and three
-// hand-typed copies of a sentence about what a backup does NOT protect you from will not
-// stay identical through a redesign. Epic 6 imports these; it does not retype them.
-//
-// The wording is the brief's, verbatim (`context/11-product-experience.md` §3 and the UX
-// spine's flow W3). Where a sentence is authored here rather than quoted, the comment
-// above it says so and says under which rule it was written.
-//
-// ── THE LINT TRAP, STATED SO IT IS NOT REDISCOVERED ────────────────────────────────────
-// Ten bare claim substrings are forbidden in user-facing copy, three of which are the
-// hyphenated capability words for "can see but cannot spend". Two sentences in the brief's §3
-// are built from those words — the fixed Account-Key definition that travels with every
-// rendering of the key, and the sentence in the second-device answer that refuses the same
-// capability. NEITHER IS HERE, and their absence is deliberate rather than an oversight: the
-// lint is protecting a real prohibition (spec §11), and the fix is for the surface that needs
-// the definition to reword it, never to loosen the lint or to smuggle the phrase past it.
-//
-// This applies to comments too, which is how it is easy to get wrong — the lint is line-based
-// over the whole file, so explaining the ban using the banned word trips it. `backup-copy`'s
-// suite reads the list straight out of the lint script and checks every line of these modules.
+// Every user-facing sentence the backup ceremony ships. One const per sentence, imported rather
+// than retyped: the same promise appears on the ceremony screen, the verification screen and the
+// nag, and hand-typed copies of a sentence about what a backup does NOT protect you from drift.
+// The wording is the brief's (`context/11-product-experience.md` §3); a sentence authored here
+// says so above it. The forbidden capability words (`forbidden-claims.ts`) never appear, in copy
+// or in comments — the fix is always to reword.
 //
 
-// ── The ceremony (UX spine W3 steps 1, 5, 6) ───────────────────────────────────────────
+// ── The ceremony ───────────────────────────────────────────────────────────────────────
 
 /**
  * The done screen. An INVENTORY, not a congratulation — the second half is the point, and
@@ -36,7 +18,7 @@ export const BACKUP_DONE_INVENTORY =
   "What it doesn't: anyone who gets both the file and the code has your balance, " +
   'your history and your messages, permanently. There is no revoke and no rotation.'
 
-// ── Periodic verification (UX spine W3 step 7) ─────────────────────────────────────────
+// ── Periodic verification ──────────────────────────────────────────────────────────────
 
 /** Shown beside the file-drop and code field. It is true: the check never leaves the tab. */
 export const BACKUP_VERIFICATION_IN_BROWSER =
@@ -60,7 +42,7 @@ export const BACKUP_REWRAP_NO_REVOCATION =
   'Your Account Key stays the same — it cannot be changed. Your old Recovery File still ' +
   'opens it with its old code, and nothing can invalidate that. Delete the old file yourself.'
 
-// ── The one persistent nag (`context/11` §4 table; UX spine W3 non-happy states) ────────
+// ── The one persistent nag ─────────────────────────────────────────────────────────────
 
 /**
  * Shown while an account holds value and has no backup. Not red, not dismissible, and gone
@@ -70,34 +52,22 @@ export const BACKUP_REWRAP_NO_REVOCATION =
 export const NO_BACKUP_NAG = 'This account has no backup. Save it.'
 
 /**
- * Shown when the backup status is UNKNOWN rather than known-absent.
- *
- * Authored here, because the brief has no sentence for it and `NO_BACKUP_NAG` cannot be
- * borrowed. "This account has no backup" is a factual claim, and the unknown state is exactly
- * the state that cannot support it: an unreadable cadence store, a seam story 1.11 has not
- * wired yet, or a first run says nothing about whether the user has a Recovery File sitting in
- * their password manager. Telling someone who backed up carefully last month that they have no
- * backup is how a product loses the credibility it needs for the moments it IS sure.
- *
- * The behaviour is identical — both nag, because `unknown` collapses to not-backed-up — and
- * only the sentence differs. Fail-closed in what we DO, honest in what we SAY.
+ * Shown when the backup status is UNKNOWN rather than known-absent. Authored here: "This account
+ * has no backup" is a factual claim an unreadable store cannot support, and telling someone who
+ * backed up last month that they have no backup loses the credibility the sure moments need.
+ * Both nag — fail-closed in what we DO, honest in what we SAY.
  */
 export const BACKUP_STATE_UNKNOWN_NAG =
   "We can't tell whether this account has a backup. Check it, or make a new one."
 
-// ── Restore failures (AC2) ─────────────────────────────────────────────────────────────
+// ── Restore failures ───────────────────────────────────────────────────────────────────
 //
-// These three are thrown by `restoreBackup` and re-exported from `identity.ts`, so a caller
-// catching one of its errors finds the sentence next to the function that threw it. They
-// live HERE because there must be exactly one definition of each, and this is the file whose
-// job is to hold it.
+// Thrown by `restoreBackup`; one definition of each, here.
 
 /**
- * The wrong-code sentence, byte-exact per AC2, and reserved for the ONE case it describes:
- * a structurally sound envelope whose ciphertext did not authenticate. Every other failure
- * gets a different sentence, because telling someone their code is wrong when their file is
- * damaged sends them to re-type a code that was right all along — and, worse, teaches them
- * to distrust a code that is the only copy in existence.
+ * Reserved for the ONE case it describes: a sound envelope whose ciphertext did not authenticate.
+ * Telling someone their code is wrong when their file is damaged sends them to re-type a code
+ * that was right all along.
  */
 export const WRONG_RECOVERY_CODE = 'That file and recovery code do not open this key.'
 

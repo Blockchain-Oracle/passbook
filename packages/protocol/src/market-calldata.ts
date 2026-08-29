@@ -1,30 +1,12 @@
 //
-// Serialising a Markets operation into the pool's invoke calldata (story: prediction markets).
+// Serialising a Markets operation into the pool's invoke calldata: the pool's `InvokeExternal`
+// calls `privacy_invoke(op, payload)` on the Markets contract, flattened as
+// `[op, payload_len, ...payload]`. Every shape below is the one `contracts/tests/test_markets.cairo`
+// asserts against the deployed logic.
 //
-// ── THE LAYOUT ────────────────────────────────────────────────────────────────────────────
-//
-// The pool's `InvokeExternal` action calls the fixed selector `privacy_invoke(op, payload)` on the
-// Markets contract. Flattened, that is:
-//
-//   [ op, payload_len, ...payload ]
-//
-// `payload` is a `Span<felt252>` the contract destructures per op. Every shape below is the one
-// `contracts/tests/test_markets.cairo` already asserts against the deployed logic — these two files
-// are the same statement made in two languages, and `market-calldata.test.ts` is where they are
-// held to each other.
-//
-// ── WHY THIS FILE IS PURE ─────────────────────────────────────────────────────────────────
-//
-// No `starknet.js`, no hashing, no I/O. The build gate bans the `poseidon` graph from every emitted
-// chunk and a markets surface imports this, so the whole module has to be arithmetic on strings.
-// Commitments therefore arrive ALREADY HASHED — `commitment.ts` owns that step and lives in the
-// lazy graph. See its header for why the split is load-bearing rather than tidy.
-//
-// ── AND WHY IT REFUSES RATHER THAN THROWS ─────────────────────────────────────────────────
-//
-// Same reason as `swap-calldata.ts`: a surface calls this while someone is standing on it, and a
-// refusal carries a sentence that can be rendered. A throw from inside a serialiser is a stack
-// trace in a place a person is waiting.
+// Pure — no `starknet.js`, no hashing, no I/O — because a markets surface imports this eagerly;
+// commitments arrive ALREADY HASHED from `commitment.ts` in the lazy graph. Refuses rather than
+// throws: a surface calls this while someone is standing on it, and a refusal carries a sentence.
 //
 
 /** The ops `Markets::privacy_invoke` dispatches on. Transcribed from `markets.cairo`. */
@@ -39,12 +21,7 @@ export const MARKET_OP = {
 export const SIDE_DOWN = 0
 export const SIDE_UP = 1
 
-/**
- * The contract's own ceiling on one batched op (`batch.cairo`, `MAX_BATCH`).
- *
- * Duplicated here rather than imported from anywhere, because there is nowhere to import it from —
- * it is a Cairo constant. `market-calldata.test.ts` is what keeps the two numbers equal.
- */
+/** The contract's own ceiling on one batched op (`batch.cairo`, `MAX_BATCH`) — a Cairo constant, so duplicated. */
 export const MAX_BATCH = 64
 
 export type CalldataResult =

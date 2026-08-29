@@ -1,31 +1,11 @@
 //
-// The linkability meter, as data (story 6.7b, DESIGN §7.6, EXPERIENCE §4.4).
+// The linkability meter, as data: A COUNT, A SENTENCE, AND A PICTURE. Anything beyond those three
+// is an invented privacy claim — no 0–100 score, no gauge, no invented scale. Every choice the
+// meter makes is made here, not in a component.
 //
-// Three parts that can each be true on their own: A COUNT, A SENTENCE, AND A PICTURE. Anything
-// beyond those three is a privacy claim FR-051 bans — no 0–100 score, no gauge, no invented scale.
-//
-// ── NO REACT IN THIS FILE ─────────────────────────────────────────────────────────────────
-//
-// `option-row.ts:29-36`'s rule, and `vitest.config.ts` is the reason it bites: the runner collects
-// `packages/*/test/**` only, so a decision written into a `.tsx` is a decision nothing executes.
-// Every choice the meter makes — which tier, which sentence, where each node sits — is made here.
-//
-// ── THE TIER CAN BE `null`, AND THAT IS A FOURTH ANSWER, NOT A MISSING ONE ────────────────
-//
-// A reading can be MEASURED and still not JUDGEABLE. If the sample that arrived is too small to
-// support a quartile, `boundaryFor` returns `null`, and there is genuinely no boundary to compare
-// the count against. Calling that Tier 0 would be the invented claim: "healthy" is a verdict, and
-// we would be delivering it without the measurement that backs it.
-//
-// So the count still renders — it was measured, it is true — and no verdict does. Only the amount
-// axis can still speak in that state, because Tier 2 needs `largestEverWei` and not the
-// distribution: an exit larger than every crossing ever read is unique on evidence we do have.
-//
-// ── SEVERITY ROUTES THROUGH `privacy.ts` AND THE METER OWNS NO BUTTON ─────────────────────
-//
-// Severity leaves as a value; the surface applies it to the CTA it already has. A meter rendering
-// its own primary action would put a second CTA on a review screen, and the never-disable rule
-// lives on `BlockedButton`, which is where the thumb is.
+// The tier can be `null`, a fourth answer rather than a missing one: a reading can be MEASURED and
+// still not JUDGEABLE when the sample is too small for a quartile. The count still renders; no
+// verdict does. Severity leaves as a value; the surface applies it to the CTA it already has.
 //
 
 import { formatTokenAmount, type RenderedAmount } from './amount.js'
@@ -48,17 +28,7 @@ import { caretDeltaOf } from './odometer.js'
 
 export type LinkabilityTier = 0 | 1 | 2
 
-/**
- * How many nodes the field will draw before it downsamples.
- *
- * `C10:101` requires the field be designed at 142 points AND at 10,000, so 10,000 must render in
- * full — the ceiling is where the requirement ends, not below it.
- *
- * DELIBERATELY NOT IN `tokens.yaml`. The design authority carries recipes the STYLESHEET writes
- * (durations, sizes, radii) so the build gate can resolve the emitted CSS against them. This number
- * never reaches CSS — it governs how many items a model contains — so recording it there would put
- * it somewhere the gate cannot check, which is how a number drifts.
- */
+/** How many nodes the field will draw before it downsamples: the field must render 10,000 in full. */
 export const FIELD_DENSITY_CEILING = 10_000
 
 /** One dot. Coordinates are proportions of the field's box, so the renderer owns the pixels. */
@@ -90,7 +60,7 @@ export type LinkabilityModel =
       /** `null` alongside a `null` tier: no verdict means no colour to spend. */
       readonly severity: PrivacySeverity | null
       readonly candidates: number
-      /** `null` on a first paint and on any non-increase (DESIGN:421 authors only the rising form). */
+      /** `null` on a first paint and on any non-increase — only the rising form is authored. */
       readonly caretDelta: number | null
       readonly headline: string
       readonly lines: readonly string[]
@@ -191,7 +161,7 @@ export interface MeterInput {
  * The whole meter, as one value.
  *
  * THE UNMEASURABLE ARM RETURNS NO COUNT AND NO WARNING. A warning with no measurement behind it is
- * the invented claim FR-051 bans, and it is the tempting mistake here — a failed read feels like
+ * the invented claim this meter refuses, and it is the tempting mistake here — a failed read feels like
  * bad news, so it is easy to render it as one. It is not news at all. It is silence.
  */
 export function meterFor(input: MeterInput): LinkabilityModel {
@@ -202,11 +172,9 @@ export function meterFor(input: MeterInput): LinkabilityModel {
   }
 
   const tier = tierFor(reading, amountWei)
-  // BOTH ZERO AND ONE ARE "ALONE", and both are reachable from a live read. Zero possible sources
-  // means nothing in the window could account for an exit; one means only your own. Written as two
-  // equalities rather than `<= 1` on purpose: a relational comparison against a literal is the
-  // shape of a hardcoded tier boundary, `no-tier-constant.test.ts` bans it, and this is a grammar
-  // guard rather than a threshold. Being explicit costs a few characters and keeps the ban total.
+  // BOTH ZERO AND ONE ARE "ALONE": zero possible sources means nothing in the window could account
+  // for an exit; one means only your own. Two equalities rather than `<= 1` — a relational compare
+  // against a literal is the shape of a hardcoded tier boundary, and this is a grammar guard.
   const alone = reading.candidates === 0 || reading.candidates === 1
 
   const largestEver =
@@ -238,9 +206,8 @@ export function meterFor(input: MeterInput): LinkabilityModel {
     caretDelta: caretDeltaOf(previousCandidates, reading.candidates),
     headline,
     lines,
-    // NAMED IN WORDS UNTIL SOMEONE CAN FULFIL THEM. `Split the amount`'s mechanics are an explicit
-    // GAP (EXPERIENCE:800) — tranche sizes and spacing in time, when timing correlation is the
-    // named attack — so it ships as a label and the caller decides whether it is ever a button.
+    // Named in words until someone can fulfil them: `Split the amount`'s mechanics (tranche sizes,
+    // spacing in time) are unwritten, so it ships as a label and the caller decides if it is a button.
     alternatives: tier === 1 || tier === 2 ? [WAIT_FOR_DEPOSITS, SPLIT_THE_AMOUNT] : [],
     ctaLabel: tier === 2 ? EXIT_ANYWAY : null,
     field: noteField(reading.candidates),

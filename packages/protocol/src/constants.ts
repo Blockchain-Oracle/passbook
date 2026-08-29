@@ -11,9 +11,8 @@ export interface NetworkConfig {
   readonly chainId: string
   readonly pool: string
   // The pinned pool class hash — the deployed class we built against, tag
-  // CONTRACT_V2_DEPLOYED_MAINNET_2026-07-08 / commit 74841caf (AD-3/AD-8, never `main`).
-  // A live class hash that differs from this is the "pool upgraded" degraded mode (FR-052).
-  // Empty where no pool is pinned (sepolia).
+  // CONTRACT_V2_DEPLOYED_MAINNET_2026-07-08 / commit 74841caf, never `main`. A live class hash
+  // that differs from this is the "pool upgraded" degraded mode. Empty where no pool is pinned.
   readonly poolClassHash: string
   readonly rpc: readonly string[]
   readonly prover: string

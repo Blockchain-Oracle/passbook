@@ -1,44 +1,18 @@
 //
-// Felt address parsing and equality, once (story 6.7b).
+// Felt address parsing and equality, once, in a leaf that imports nothing so a browser can ask "is
+// this my own address?" without a chain client.
 //
-// ── WHY THIS IS ITS OWN FILE AND NOT A FUNCTION IN `activity.ts` ──────────────────────────
-//
-// `markOwnAddress` in `activity.ts` owned the only address comparison in the package, inline inside
-// a `map` callback. The self-link detector needs exactly that comparison, and it runs in a browser.
-//
-// `activity.ts` imports `./discovery.js`, and `discovery.ts` imports both `starknet` and the
-// privacy SDK — so importing `activity.ts` to reuse eight characters of `===` would pull a chain
-// client and a spawned-devnet test barrel into any bundle that wanted to ask "is this my own
-// address?". `token-scale.ts` and `balances.ts` already exist as workarounds for that exact pull.
-// The fix is the direction, not the duplication: the comparison moves DOWN into a leaf that imports
-// nothing, and `activity.ts` consumes it from there.
-//
-// ── WHY THE COMPARISON IS `BigInt` AND NOT STRING EQUALITY ────────────────────────────────
-//
-// A felt has no canonical spelling. `0xa11ce` and `0x00000a11ce` are the same address, and they are
-// different strings. `activity.test.ts:316` pins that case deliberately. Any refactor that
-// "cleans this up" into a normalised string compare breaks it, so the numeric compare is the
-// contract and not an implementation detail.
-//
-// ── THE ASYMMETRY IS DELIBERATE, AND IT IS THE REASON THERE ARE TWO PARSERS ───────────────
-//
-// `activity.ts` refuses a malformed address it was HANDED (every row would be mismarked — a bug in
-// the caller worth surfacing) and silently skips a malformed counterparty it READ (one bad row
-// inside a page of real history — taking the whole feed down is the wrong trade). Both halves are
-// pinned by tests. Collapsing them into one parser loses one behaviour or the other, so the throwing
-// parser and the null-returning one are both exported and each names which side it is for.
+// The comparison is `BigInt`, not string equality: a felt has no canonical spelling, and `0xa11ce`
+// and `0x00000a11ce` are the same address. Two parsers on purpose: `activity.ts` refuses a
+// malformed address it was HANDED (a caller bug worth surfacing) and skips a malformed counterparty
+// it READ (one bad row must not take the whole feed down).
 //
 
 /**
- * Parse an address, REFUSING anything that is not one.
+ * Parse an address, REFUSING anything that is not one — for values the caller handed us.
  *
- * For values the caller handed us and is responsible for. The message is byte-identical to the one
- * `markOwnAddress` threw before this module existed, because `activity.test.ts` matches on it.
- *
- * NOTE ON WHAT THIS DOES **NOT** REJECT: `BigInt('')` is `0n`, not an error, so a blank string
- * parses. That is pre-existing behaviour and is preserved here rather than tightened, because
- * `markOwnAddress` has shipped with it and no test pins the alternative. `sameAddress` is where the
- * blank case is actually dangerous, and it is refused there instead — see its own note.
+ * `BigInt('')` is `0n`, not an error, so a blank string parses here; `sameAddress` is where the
+ * blank case is dangerous, and it is refused there instead.
  */
 export function asAddress(value: string): bigint {
   try {

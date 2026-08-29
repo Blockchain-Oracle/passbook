@@ -1,23 +1,7 @@
 //
-// The record's SHAPE, with nothing attached to it (story 6.6).
-//
-// ── WHY THIS IS A SEPARATE FILE FROM `activity.ts` ────────────────────────────────────────
-//
-// `activity.ts` builds the record, and building it needs the chain: it imports `discovery.js` for
-// `compute_note_id` / `compute_nullifier` (the privacy SDK) and `pool-events.js` for the decoders
-// (which reaches `starknet` for `starknetKeccak`, and `rpc.js` for the bounded read). Every one of
-// those is correct for a builder and fatal for a renderer — measured on this exact bundler in 6.4
-// and again in 6.5, where importing one chain-touching module put 227-268 kB of curve arithmetic
-// into a browser that wanted a string.
-//
-// But a FEED does not build the record. It reads one someone else built, filters it two ways and
-// looks a row up by id — three pure array operations that had no way to reach the browser because
-// they lived beside the SDK import. So the types and the pure half move here, `activity.ts`
-// re-exports every name it used to own, and no existing caller changes.
-//
-// This is the third time: `pipeline-stage.ts` (6.5) and `token-scale.ts` (6.4) are the same split
-// for the same reason. THIS FILE MUST IMPORT NOTHING. An import here is a 268 kB regression that
-// compiles clean, and `scripts/build-web.mjs` is what would eventually say so.
+// The record's SHAPE, with nothing attached to it. `activity.ts` builds the record and needs the
+// chain (the privacy SDK, `starknet`); a feed only reads one. THIS FILE MUST IMPORT NOTHING — an
+// import here drags curve arithmetic into the eager browser chunk.
 //
 
 /**

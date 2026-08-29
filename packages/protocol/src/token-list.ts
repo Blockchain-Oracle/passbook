@@ -1,32 +1,9 @@
 //
-// The token list, and where it comes from (story: swap; AD-14's sibling problem).
-//
-// ── WHY A LIST AT ALL, AND WHY NOT A HAND-WRITTEN ONE ─────────────────────────────────────
-//
-// `token-scale.ts` has verified the decimals of exactly ONE token, and its header explains the
-// refusal to guess: "a guessed 18 on a 6-decimal token would misplace a balance by a factor of a
-// trillion in the direction that looks like dust." That refusal was right, and it is also why the
-// asset selector had one row in it.
-//
-// The way out is not to guess more confidently. It is to fetch the set from a source that has to be
-// correct for its own business to work — AVNU's aggregator token list, which is the set that is
-// actually routable, which is the set with real liquidity, which is the set worth showing.
-//
-// ── AND THE FETCH IS STILL NOT TRUSTED ────────────────────────────────────────────────────
-//
-// `verifyDecimals` reads `decimals()` off each token contract before the value is allowed anywhere
-// near an amount. Measured live on mainnet at the time of writing: USDC 6, ETH 18, STRK 18, WBTC 8
-// — three of those four are exactly where a wrong 18 destroys the number.
-//
-// A token whose on-chain answer disagrees with the list is DROPPED, not corrected: the disagreement
-// means one of the two is describing a different contract, and neither of them is trustworthy about
-// which.
-//
-// ── THIS FILE IS BROWSER-SAFE ─────────────────────────────────────────────────────────────
-//
-// `fetch` and JSON only, exactly like `crowd-rpc.ts`, for exactly that file's reason: the build gate
-// bans the `poseidon` graph from every emitted chunk, so anything a surface imports must not reach
-// `starknet`.
+// The token list: AVNU's aggregator list — the set that is actually routable — with every entry's
+// `decimals()` read off its own contract before the value goes near an amount (USDC 6, ETH 18,
+// STRK 18, WBTC 8: a guessed 18 on a 6-decimal token misplaces a balance by a trillion). A token
+// whose chain answer disagrees with the list is DROPPED, not corrected. `fetch` and JSON only, so a
+// surface can import this without reaching `starknet`.
 //
 import { NET } from './constants.js'
 

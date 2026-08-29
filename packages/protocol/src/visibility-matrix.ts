@@ -1,6 +1,6 @@
 //
-// The visibility matrix (story 6.7, DESIGN §7.5 part 2, FR-058): columns You / Relayer /
-// Everyone / Auditor, rows amount / sender / recipient / timing / IP.
+// The visibility matrix: columns You / Relayer / Everyone / Auditor, rows amount / sender /
+// recipient / timing / IP.
 //
 // One table, three consumers (the `<Disclosure>` panel, the receipt, and the docs), and no fourth
 // place where a privacy claim can be typed. The cells live in `visibility-matrix-data.ts`; this
@@ -18,12 +18,12 @@ export * from './visibility-matrix-data.js'
 
 // ── The two axes, ordered ─────────────────────────────────────────────────────────────────
 
-/** The four columns, in DESIGN §7.5's order. ORDER IS PART OF THE CONTRACT — every renderer iterates it. */
+/** The four columns. ORDER IS PART OF THE CONTRACT — every renderer iterates it. */
 export const VISIBILITY_ACTORS = ['you', 'relayer', 'everyone', 'auditor'] as const
 
 export type VisibilityActor = (typeof VISIBILITY_ACTORS)[number]
 
-/** The five rows, in DESIGN §7.5's order. Same contract as the columns. */
+/** The five rows. Same contract as the columns. */
 export const VISIBILITY_FACTS = ['amount', 'sender', 'recipient', 'timing', 'ip'] as const
 
 export type VisibilityFact = (typeof VISIBILITY_FACTS)[number]

@@ -1,4 +1,4 @@
-// Sponsorship budgeting (FR-053 / AD-7, story 1.5). The funded relayer key pays for a cold
+// Sponsorship budgeting. The funded relayer key pays for a cold
 // visitor's first registration — bounded by a per-visitor cap AND a global daily budget, and
 // failing OPEN into pay-your-own-way (never a locked door). Pure decision + a stateful ledger
 // with an atomic single-claim set, persisted through an injected store.
@@ -11,7 +11,7 @@ import type { PersistedLedger, SponsorshipStore } from './sponsorship-store.js'
 // rather than a string this package owns. Re-exported here so existing importers are unchanged.
 export { SEND_CAP_NOTICE } from '../../protocol/src/relayer-wire.js'
 
-/** Shown when the daily budget is spent — the flow still offers the self-funded path (FR-012). */
+/** Shown when the daily budget is spent — the flow still offers the self-funded path. */
 export const BUDGET_EXHAUSTED_NOTICE =
   'Sponsored registrations are paused until 00:00 UTC. ' +
   'You can still create an account from a funded Starknet wallet.'
@@ -50,10 +50,9 @@ export function rolledToDay(state: BudgetState, now: number): BudgetState {
 /**
  * Pure decision — does NOT mutate. `commitSponsorship` applies the effect.
  *
- * `notice` is a parameter because the same counting machinery meters two different things now:
- * the sponsorship budget and the send cap (story 1.16). It defaults to the registration copy, so
- * every existing caller behaves exactly as before; what it prevents is a send being refused with
- * a sentence about account creation.
+ * `notice` is a parameter because the same counting machinery meters two different things: the
+ * sponsorship budget and the send cap. It defaults to the registration copy; what it prevents is a
+ * send being refused with a sentence about account creation.
  */
 export function decideSponsorship(
   state: BudgetState,

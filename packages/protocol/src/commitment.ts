@@ -1,33 +1,14 @@
 //
 // Bearer commitments: the secret a position is claimed with, and the hash the chain stores.
 //
-// ── WHY THIS IS A SEPARATE MODULE FROM THE CALLDATA BUILDERS ──────────────────────────────
+// Kept apart from the calldata builders because this reaches `starknet.js` for Poseidon, which the
+// eager browser chunk must never load: a commitment is computed ONCE, when a position is created,
+// inside the lazy send graph, and everything that merely reads positions reads the stored hash.
 //
-// `market-calldata.ts` and `launch-calldata.ts` are pure string arithmetic and a markets surface
-// imports them eagerly. This file reaches `starknet.js` for Poseidon, and the build gate bans that
-// graph from every emitted chunk (`build-web.mjs`'s `APP_FORBIDDEN_IN_CHUNK`). So the split is not
-// tidiness — an eager import of this file fails the build.
-//
-// What that means in practice: a commitment is computed ONCE, at the moment a position is created,
-// inside the lazy send graph, and stored alongside its secret. Everything that merely READS
-// positions — the markets list, the claim panel, the wallet — reads a commitment that was already
-// hashed and never needs Poseidon at all.
-//
-// ── THE HASH HAS TO MATCH THE CONTRACT EXACTLY ────────────────────────────────────────────
-//
-// `markets.cairo` and `launch.cairo` both key positions by `poseidon_hash_span(array![secret].span())`
-// and look them up by re-hashing the secret a claim reveals. If this function and that one ever
-// disagree, every claim reverts `POSITION_NOT_OPEN` and the position is unspendable — the money is
-// simply gone, with no error anyone could act on.
-//
-// They agree, and it is checked rather than assumed: `commitment.test.ts` pins two vectors that
-// were computed by BOTH implementations and compared. See its header for the exact procedure.
-//
-// ── A SECRET IS BEARER MONEY ──────────────────────────────────────────────────────────────
-//
-// Whoever holds the secret holds the position. There is no address on it, no recovery, and no
-// second copy anywhere — losing it is exactly as bad as losing a note. `session-position-store.ts`
-// is what makes it survive a reload, and it rides the same backup surface note material does.
+// `markets.cairo` and `launch.cairo` key positions by `poseidon_hash_span(array![secret].span())`;
+// if this function ever disagreed, every claim would revert `POSITION_NOT_OPEN` and the money would
+// be gone. Whoever holds the secret holds the position — there is no address, no recovery, no
+// second copy; `session-position-store.ts` is what makes it survive a reload.
 //
 
 import { hash } from 'starknet'

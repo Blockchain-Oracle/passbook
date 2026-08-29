@@ -1,8 +1,8 @@
 //
 // Reading the Governance contract — the browser's view of the Houses. `app-reads.ts`'s
-// discipline verbatim: raw `starknet_call` over `fetch` with pinned selectors (held to
-// `getSelectorFromName` by `governance-reads.test.ts`), decoders transcribed field-for-field
-// from the Cairo structs, and half-failures reported as rows-plus-a-sentence.
+// discipline verbatim: raw `starknet_call` over `fetch` with pinned selectors
+// (`getSelectorFromName` of the entrypoint name), decoders transcribed field-for-field from the
+// Cairo structs, and half-failures reported as rows-plus-a-sentence.
 //
 import { decodeByteArray, defaultTransport, type Transport } from './app-reads.js'
 

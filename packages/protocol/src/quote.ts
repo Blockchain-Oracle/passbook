@@ -1,27 +1,9 @@
 //
-// Swap quotes (story: swap; FR-028's venue, AD-14's honesty rules).
-//
-// ── WHAT A QUOTE IS AND IS NOT ────────────────────────────────────────────────────────────
-//
-// A quote is a MEASUREMENT taken at a moment: this much of that, by this route, right now. It is
-// not a promise, and the difference is the whole reason `minOut` exists. Every field below is
-// either something the venue told us or something derived from it in this file — nothing is
-// rounded for display here, because a rounded number that later gets compared against a chain
-// value is a bug waiting for a decimal place.
-//
-// ── BROWSER-SAFE ──────────────────────────────────────────────────────────────────────────
-//
-// `fetch` and JSON, exactly like `crowd-rpc.ts` and `token-list.ts`. No `starknet` import, because
-// the build gate bans the `poseidon` graph from every emitted chunk.
-//
-// ── AND THE BROWSER SHOULD NOT BE THE ONE ASKING ──────────────────────────────────────────
-//
-// FR-034's rule for the venue API is that the browser never calls it directly — a quote request
-// carries the pair and the size, and a third party watching those learns the shape of a private
-// transaction before it happens. `quoteUrl` is exported so a relayer can proxy it, and
-// `fetchQuote` takes a `fetchJson` seam so the caller decides which side of that boundary it runs
-// on. Today the surface calls it directly and that is a KNOWN GAP, recorded rather than hidden:
-// the proxy lands with the relayer host.
+// Swap quotes. A quote is a MEASUREMENT taken at a moment, not a promise — which is why `minOut`
+// exists. Nothing is rounded for display here: a rounded number later compared against a chain
+// value is a bug waiting for a decimal place. `fetch` and JSON only, no `starknet`. The browser
+// never asks the venue directly (a quote carries the pair and the size); `fetchQuote` takes a
+// `fetchJson` seam and the relayer proxies it.
 //
 const AVNU_BASE = 'https://starknet.api.avnu.fi'
 

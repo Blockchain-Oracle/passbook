@@ -1,22 +1,8 @@
 //
-// What a token's scale is, and when an amount is too small to show. A LEAF MODULE, on purpose.
-//
-// ── WHY THIS IS NOT IN `balances.ts`, WHERE IT STARTED ────────────────────────────────────
-//
-// It was, and importing it from the browser pulled the entire privacy SDK into the bundle. The
-// edge is three hops and completely invisible from the call site: `balances.ts` needs `toFeltHex`
-// from `discovery.ts`, `discovery.ts` imports the SDK's ABI, and the SDK's logger imports Node's
-// `async_hooks`. A surface that wanted one integer — how many decimal places STRK has — shipped
-// 266 kB of chain-walking code to a user's browser to get it.
-//
-// `scripts/build-web.mjs` caught it, which is worth recording: the symptom was ONE extra
-// externalized-module warning, and the gate treats an unexpected warning as a build failure for
-// exactly this reason. Nothing else would have noticed — the app worked, the types checked, and
-// the bundle was simply a quarter of a megabyte heavier.
-//
-// So the rule this file exists to enforce: THE THINGS A UI NEEDS TO RENDER A NUMBER MUST NOT
-// IMPORT THE THINGS THAT READ A CHAIN. `balances.ts` re-exports all three of these, so nothing
-// downstream had to change and the balance model is still their one home conceptually.
+// What a token's scale is, and when an amount is too small to show. A LEAF MODULE: the things a
+// UI needs to render a number must not import the things that read a chain (`balances.ts` reaches
+// the privacy SDK three hops away, and once shipped 266 kB to a browser that wanted one integer).
+// `balances.ts` re-exports all three of these.
 //
 import { STRK_TOKEN } from './constants.js'
 
@@ -81,12 +67,9 @@ export function isDustAt(wei: bigint, decimals: number, displayDecimals = DEFAUL
  * A malformed key in a caller-supplied map is skipped rather than thrown on: the map is
  * decoration for a balance, and one bad entry must not take the balance down with it.
  *
- * IT LIVES HERE RATHER THAN BESIDE THE WALK (moved in story 6.6, `balances.ts` re-exports it) for
- * the reason this whole module exists: it is pure string-and-bigint arithmetic with no chain edge,
- * and a browser that indexes `KNOWN_TOKEN_DECIMALS` directly instead — because the felt-aware
- * version was unreachable — gets `undefined` for every address that arrives spelled differently
- * from the constant. That failure is silent and falls through to the unverified-scale path, which
- * renders a real balance in raw units.
+ * Lives here, chain-free, so the felt-aware lookup is reachable from a browser: indexing
+ * `KNOWN_TOKEN_DECIMALS` directly gets `undefined` for every address spelled differently from the
+ * constant, and that failure silently renders a real balance in raw units.
  */
 export function lookupDecimals(
   table: Readonly<Record<string, number>>,

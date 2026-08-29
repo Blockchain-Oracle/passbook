@@ -27,14 +27,14 @@ import type { Call } from 'starknet'
  * Says what happened and what still works, in one sentence. Ops learns the cause from the
  * funding monitor's page; the user learns only that this route is closed and the other is open.
  * The relayer's balance never appears here — a number would leak our funding state and read as
- * our bug (FR-053).
+ * our bug.
  */
 export const RELAYER_DOWN_NOTICE =
   'The relayer is not submitting right now. ' +
   'You can still submit from a funded Starknet wallet.'
 
 /**
- * Shown when the cap on RELAYED SENDS is spent (story 1.16).
+ * Shown when the cap on RELAYED SENDS is spent.
  *
  * ITS OWN SENTENCE, and it must stay one. A send is not a sponsorship — the fee is reimbursed by
  * a `Withdraw` leg inside the user's own proven action chain — so showing someone the
@@ -51,61 +51,28 @@ export interface SubmitBody {
   /** The calls to sign, in order. The relayer's allowlist decides which are permitted. */
   calls: Call[]
   /**
-   * Prover facts for a proven pool submission (story 1.12). OPTIONAL and additive: a
-   * body without it is an ordinary submission and behaves exactly as it did before this
-   * field existed. When present it must be a non-empty array of felt strings — the
-   * server validates it, because these ride in the V3 transaction details rather than in
-   * any call's calldata and so never pass the allowlist.
-   */
-  /**
-   * Explicit v3 resource bounds, so the submitter SKIPS fee estimation.
-   *
-   * ── WHY THIS FIELD HAD TO EXIST ─────────────────────────────────────────────────────────
-   *
-   * `Account.execute` forwards `proofFacts`/`proof` to `invokeFunction` — the broadcast — and to
-   * NOTHING else. `prepareInvoke` runs first, and when no bounds are supplied it calls
-   * `starknet_estimateFee`, which therefore simulates the transaction with the proof ABSENT.
-   * `apply_actions` reverts for want of a proof and the estimate throws before anything is signed.
-   *
-   * Registration is the one proven case that escapes it: a zero-deposit `SetViewingKey` needs no
-   * proof, so its unproven estimate succeeds. Every value-moving pool transaction dies there — which
-   * is why, until this field, the relayer could not submit one at all.
-   *
-   * Supplying bounds makes `prepareInvoke` skip the estimate entirely (`if (!resourceBounds)`).
-   * They are CEILINGS, not charges: the transaction pays what it uses.
+   * Explicit v3 resource bounds, so the submitter SKIPS fee estimation. `Account.execute` forwards
+   * the proof pair to the broadcast and to nothing else, so `starknet_estimateFee` simulates the
+   * transaction with the proof ABSENT and every value-moving pool transaction reverts inside the
+   * estimate. Bounds make `prepareInvoke` skip it; they are CEILINGS, not charges.
    */
   resourceBounds?: {
     l1_gas: { max_amount: string | bigint; max_price_per_unit: string | bigint }
     l2_gas: { max_amount: string | bigint; max_price_per_unit: string | bigint }
     l1_data_gas: { max_amount: string | bigint; max_price_per_unit: string | bigint }
   }
+  /** Prover facts for a proven pool submission: a non-empty array of felt strings, validated server-side. */
   proofFacts?: string[]
   /**
-   * The proof blob the facts belong to — the prover's `proof` string (~300KB of base64),
-   * carried whole and unparsed. BOTH-OR-NEITHER with `proofFacts`, and that rule is the
-   * sequencer's before it is ours: `starknet_addInvokeTransaction` rejects a v3 invoke
-   * carrying `proof_facts` without `proof` ("must either both be present or both be
-   * absent" — learned from story 1.13's first real broadcast, 2026-08-24). The server
-   * refuses one-without-the-other at the free layer so the mismatch costs a 400 instead
-   * of a signed, paid-for broadcast rejection.
-   *
-   * Receipts do NOT echo this field back, which is why it was invisible to every
-   * receipt-sampling probe: an accepted proven transaction looks proof-less when read
-   * back. Do not "verify" its presence by fetching transactions.
+   * The proof blob the facts belong to (~300KB of base64), carried whole. BOTH-OR-NEITHER with
+   * `proofFacts` — the sequencer rejects one without the other, and the server refuses the mismatch
+   * at the free layer so it costs a 400 instead of a paid broadcast rejection. Receipts do NOT echo
+   * this field back: an accepted proven transaction looks proof-less when read.
    */
   proof?: string
   /**
-   * Present, and `true`, only on a submission the relayer is being asked to PAY FOR out of its
-   * own budget — today exactly one thing: a sponsored registration (story 1.12).
-   *
-   * OPTIONAL IN SHAPE, BUT IT CHANGED THE DEFAULT BRANCH — and that is worth stating plainly
-   * rather than calling this purely additive. Before story 1.16 an unflagged body was charged to
-   * the sponsorship budget, because the server treated every accepted submission as a
-   * sponsorship. Now an unflagged body is charged to the send cap instead. The shape is
-   * backwards-compatible; the METERING is not, and a client that predated the flag would find
-   * its registrations counted against the wrong ceiling. None does — `register.ts` is the only
-   * producer of a registration body and it sets the flag in the same commit that split the
-   * budgets — which is what makes the change safe, not the field being optional.
+   * Present, and `true`, only on a submission the relayer is being asked to PAY FOR out of its own
+   * budget — a sponsored registration. An unflagged body is charged to the send cap instead.
    *
    * WHY THE SPLIT. A sponsored registration is a lone `SetViewingKey` that mints nothing, so
    * there is no value in the transaction to reimburse the fee from and the relayer's own STRK

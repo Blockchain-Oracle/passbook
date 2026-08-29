@@ -1,14 +1,8 @@
 //
-// Serialising a Launch operation into the pool's invoke calldata (story: token launches).
-//
-// Same envelope as `market-calldata.ts` — `[op, payload_len, ...payload]` against the fixed
-// `privacy_invoke` selector — and the same purity rule: no `starknet.js`, no hashing, because the
-// build gate bans the `poseidon` graph from every emitted chunk and a launch surface imports this.
-// Commitments arrive already hashed; `commitment.ts` owns that step from inside the lazy graph.
-//
-// The two settling ops share their layout with a market claim, so they share its serialiser. That
-// is not incidental tidiness: the duplicate-secret and duplicate-note checks inside it are the two
-// that turn a whole reverted batch into a refusal, and one copy of them is one copy to keep right.
+// Serialising a Launch operation into the pool's invoke calldata. Same envelope as
+// `market-calldata.ts` — `[op, payload_len, ...payload]` — and the same purity rule: no
+// `starknet.js`, because a launch surface imports this eagerly; commitments arrive already hashed.
+// The two settling ops share a market claim's serialiser so its duplicate checks exist once.
 //
 
 import { settlementPayload, type CalldataResult } from './market-calldata.js'

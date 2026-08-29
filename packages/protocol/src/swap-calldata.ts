@@ -1,34 +1,12 @@
 //
-// Serialising a route into the pool's invoke calldata (story: swap).
+// Serialising a route into the pool's invoke calldata: `privacy_invoke(buy_token, calls, note_id)`
+// on the executor, flattened as `[buy_token, num_calls, (to, selector, calldata_len, ...calldata)*,
+// note_id]` — Cairo 1's `Span<Call>` serialisation. Reimplemented (four lines) rather than imported
+// because `starknet.js` must not reach the eager browser chunk.
 //
-// ── THE LAYOUT ────────────────────────────────────────────────────────────────────────────
-//
-// The pool's `InvokeExternal` action calls `privacy_invoke(buy_token, calls, note_id)` on the
-// executor. Flattened, that is:
-//
-//   [ buy_token, num_calls, (to, selector, calldata_len, ...calldata)*, note_id ]
-//
-// The middle is Cairo 1's `Span<Call>` serialisation — what `starknet.js` calls
-// `fromCallsToExecuteCalldata_cairo1`, and what the sponsor's own demo uses.
-//
-// ── WHY THIS FILE REIMPLEMENTS IT RATHER THAN IMPORTING IT ────────────────────────────────
-//
-// `starknet.js` is banned from every emitted chunk (`build-web.mjs`'s `poseidon` scan), and this
-// runs in the browser. The serialisation itself is four lines of array concatenation; the only part
-// that genuinely needs the library is turning an entrypoint NAME into its selector, which is a
-// keccak.
-//
-// ── SO THE SELECTORS ARE A CLOSED, PINNED SET — AND THAT IS A SAFETY PROPERTY ─────────────
-//
-// Rather than hashing at runtime, this file knows a fixed list of entrypoints and refuses anything
-// else. That is stricter than the demo and deliberately so: these calls are executed against a
-// contract holding real withdrawn funds, and the venue supplies them over HTTP. A route that comes
-// back naming an entrypoint we have never verified is a route we do not execute — the failure mode
-// of refusing is a swap that does not happen, and the failure mode of trusting is a swap that does
-// something we did not read.
-//
-// Every selector below is pinned in `swap-calldata.test.ts` against `starknet.js`'s own hasher,
-// which runs in Node where the library costs nothing. Same device as `crowd-rpc.ts`'s event key.
+// The selectors are a closed, pinned set, and that is a safety property: these calls execute
+// against a contract holding real withdrawn funds and the venue supplies them over HTTP, so a route
+// naming an entrypoint we have never verified is a route we do not execute.
 //
 import type { SwapCall } from './quote.js'
 

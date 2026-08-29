@@ -1,5 +1,5 @@
 //
-// The record — one activity model for every surface (FR-011a / AD-14, story 1.9 AC3).
+// The record — one activity model for every surface.
 //
 // ONE union, not two feeds: Global and Personal are the same rows with a different filter, and a
 // row's `mine` is computed — a note is ours when its id recomputes from a channel we hold
