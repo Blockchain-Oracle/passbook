@@ -77,7 +77,7 @@ export interface WireLaunch {
   swept: boolean
 }
 
-/** One oracle observation. `p` is Pragma's 8-decimal fixed point, safely inside a JS number. */
+/** One oracle observation. `p` is the price as a DECIMAL (77547.81 for BTC/USD) — `medianFrom` has already divided by 10^decimals. */
 export interface PricePoint {
   /** Unix milliseconds, the relayer's clock at the read. */
   t: number
@@ -121,8 +121,9 @@ export type TapeItem =
 
 /**
  * The latest reading per pair — the full `PragmaPrice`, not a bare number, so staleness checks
- * and the "N sources" sentence stay honest through the feed. `at` is when THIS relayer read it;
- * `timestamp` stays Pragma's own last-update in seconds, passed through untouched.
+ * and the "N sources" sentence stay honest through the feed. `price` is a DECIMAL, never the
+ * oracle's fixed point; a market's `strike` IS fixed point, so compare against `strike / 1e8`.
+ * `at` is when THIS relayer read it; `timestamp` stays Pragma's own last-update in seconds.
  */
 export interface WirePrice {
   pair: string

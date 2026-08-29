@@ -3,7 +3,7 @@ import { WheelGesturesPlugin } from 'embla-carousel-wheel-gestures'
 import type { OnChainMarket } from '@strk20/protocol/app-reads'
 import type { PricePoint, WirePrice } from '@strk20/protocol/chain-feed-wire'
 
-import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from '@/components/ui/carousel'
+import { Carousel, CarouselContent, CarouselItem } from '@/components/ui/carousel'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useNow } from '@/hooks/use-now'
@@ -38,7 +38,7 @@ export function WindowRail({ windows, loading, prices, history, symbol, decimals
   const rows = windows.filter((m) => String(m.window) === tab).sort((a, b) => a.deadline - b.deadline || a.pair.localeCompare(b.pair))
 
   return (
-    <Tabs value={tab} onValueChange={(next) => setTab(String(next))} className="gap-3">
+    <Tabs value={tab} onValueChange={(next) => setTab(String(next))} className="min-w-0 gap-3">
       <TabsList>
         {WINDOWS.map((w) => (
           <TabsTrigger key={w.key} value={w.key}>
@@ -46,7 +46,8 @@ export function WindowRail({ windows, loading, prices, history, symbol, decimals
           </TabsTrigger>
         ))}
       </TabsList>
-      <Carousel opts={{ align: 'start', dragFree: true }} plugins={PLUGINS} className="w-full">
+      {/* The rail clips at its own edge: a card half off-screen scrolls, it never widens the page. */}
+      <Carousel opts={{ align: 'start', dragFree: true }} plugins={PLUGINS} className="min-w-0 w-full overflow-hidden">
         <CarouselContent className="-ml-3 py-2">
           {loading
             ? [0, 1, 2].map((i) => (
@@ -68,12 +69,6 @@ export function WindowRail({ windows, loading, prices, history, symbol, decimals
                 </CarouselItem>
               ))}
         </CarouselContent>
-        {rows.length > 3 ? (
-          <>
-            <CarouselPrevious className="-left-3 hidden md:inline-flex" />
-            <CarouselNext className="-right-3 hidden md:inline-flex" />
-          </>
-        ) : null}
       </Carousel>
     </Tabs>
   )

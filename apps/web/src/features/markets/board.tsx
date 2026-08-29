@@ -78,7 +78,7 @@ export function MarketsBoard() {
           <AlertDescription>{MARKETS_NOT_DEPLOYED}</AlertDescription>
         </Alert>
       ) : (
-        <section className="flex flex-col gap-3">
+        <section className="flex min-w-0 flex-col gap-3">
           <div className="flex flex-wrap items-end justify-between gap-3">
             <div>
               <h2 className="text-kicker uppercase text-muted-foreground">Standing windows</h2>
@@ -163,7 +163,14 @@ export function MarketsBoard() {
       ) : null}
 
       {ticket ? (
-        <BetTicket key={`${ticket.market.id}:${ticket.side}`} market={ticket.market} initialSide={ticket.side} open onOpenChange={(open) => !open && setTicket(null)} />
+        <BetTicket
+          key={`${ticket.market.id}:${ticket.side}`}
+          market={ticket.market}
+          spot={feed.prices[ticket.market.pair]?.price ?? null}
+          initialSide={ticket.side}
+          open
+          onOpenChange={(open) => !open && setTicket(null)}
+        />
       ) : null}
       <CreateMarketDialog open={creating} onOpenChange={setCreating} prices={feed.prices} />
     </Page>
