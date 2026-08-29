@@ -326,7 +326,3 @@ export function tellerChainDeps(
     },
   }
 }
-
-// Referenced so the selector helpers are exercised by the type system even before main() wires
-// them — and exported for the ops probe.
-export const TELLER_SELECTORS = SEL

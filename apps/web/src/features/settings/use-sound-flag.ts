@@ -24,11 +24,7 @@ function subscribe(listener: () => void): () => void {
   }
 }
 
-/** Off by default. Anything that wants to make a noise reads `soundsEnabled()` first. */
-export function soundsEnabled(): boolean {
-  return read()
-}
-
+/** Off by default. */
 export function setSoundsEnabled(on: boolean): void {
   try {
     localStorage.setItem(KEY, on ? 'on' : 'off')

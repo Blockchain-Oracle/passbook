@@ -89,16 +89,3 @@ export function mintPositionSecret(): PositionSecret {
   const secret = `0x${value.toString(16)}`
   return { secret, commitment: commitmentFor(secret) }
 }
-
-/**
- * Mint `count` secrets at once — one per rung of a ladder, or per unit of a launch buy.
- *
- * Each position needs its OWN secret: the contracts refuse a reused commitment (`COMMITMENT_USED`),
- * and the reason they do is that two positions sharing one means the second is unclaimable.
- */
-export function mintPositionSecrets(count: number): PositionSecret[] {
-  if (!Number.isInteger(count) || count <= 0) {
-    throw new Error(`refusing to mint ${count} secrets`)
-  }
-  return Array.from({ length: count }, () => mintPositionSecret())
-}

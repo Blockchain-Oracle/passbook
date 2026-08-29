@@ -213,9 +213,3 @@ export const FIELD_DOT_MEANING =
 /** Which dot is theirs — and the honest answer is that nobody can tell, which IS the point. */
 export const FIELD_DOT_YOURS =
   'Yours is one of them. Nothing on this page, and nothing on chain, says which.'
-
-/**
- * The collapsed row's label. Not a claim — the CLAIM is the disclosure headline beside it, which
- * is authored elsewhere and reproduced byte-exact. This is furniture.
- */
-export const PRIVACY_ROW_LABEL = 'Privacy'

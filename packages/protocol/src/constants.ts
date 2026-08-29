@@ -57,12 +57,6 @@ export const ACTIVE_NETWORK: NetworkName = 'mainnet'
 
 export const NET: NetworkConfig = NETWORKS[ACTIVE_NETWORK]
 
-// Selectors are protocol-level and identical on every network.
-export const SELECTOR_PRIVACY_INVOKE =
-  '0x402925cce9218828b3ac9a72ac249103f8448a1e1d73c3efaf5da992625043'
-export const SELECTOR_PRIVACY_INVOKE_WITH_COMPUTATION =
-  '0x00d7dcfbab5157247251535943d20090fb50187f80535f739fbacc8febab767'
-
 // The STRK fee token, identical on every network. `collect_fee` pulls the fee from
 // `get_caller_address()`, so a submission's first call is `STRK.approve(pool, fee)`.
 // Verified live on SN_MAIN rather than copied: symbol "STRK", name "Starknet Token",

@@ -97,10 +97,6 @@ export function useBackupCeremony(): BackupCeremony {
   return useSyncExternalStore(subscribe, () => snapshot, () => snapshot)
 }
 
-export function getBackupCeremonySnapshot(): BackupCeremony {
-  return snapshot
-}
-
 function activeKey(): { accountKey: string; address: string } {
   const s = getSessionSnapshot()
   if (s.status !== 'ready' || !s.accountKey || !s.address) throw new Error('Open your wallet before saving a backup.')

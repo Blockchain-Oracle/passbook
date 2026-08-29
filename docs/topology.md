@@ -1,14 +1,9 @@
 # Deployment topology, signers, and the per-job degrade matrix
 
 **Architecture authority:** AD-17 (`ARCHITECTURE-SPINE.md`). **Story:** 1.6.
-**Source of truth:** [`packages/relayer/src/topology.ts`](../packages/relayer/src/topology.ts).
 
-Every table on this page mirrors that module. When the module changes, update the tables here to
-match.
-
-`packages/relayer/test/topology.test.ts` holds the other half: it drives a live relayer through
-every degrade row below and fails when the **server** stops behaving the way a row says it does.
-Data-to-server is held by those tests; data-to-doc is held by whoever remembers to re-run the renderer.
+The tables on this page are the record. Each relayer job (`packages/relayer/src/*.ts`) answers its
+own degrade state; when a job changes, update its row here.
 
 If you read nothing else: **a degraded job here answers its own honest state, it does not take
 the relayer down.** The only sentence on this page that is still an open question is the

@@ -3,6 +3,7 @@
 // failing OPEN into pay-your-own-way (never a locked door). Pure decision + a stateful ledger
 // with an atomic single-claim set, persisted through an injected store.
 
+import { createHash } from 'node:crypto'
 import type { PersistedLedger, SponsorshipStore } from './sponsorship-store.js'
 
 // The notice a spent send cap answers with. Defined in `protocol/src/relayer-wire.ts` alongside
@@ -162,4 +163,14 @@ export class SponsorshipLedger {
     this.claimed.add(code)
     return true
   }
+}
+
+/**
+ * The opaque id one visitor is counted under, for one UTC day: `sha256(salt|day|ip)`.
+ * Opaque at rest and day-scoped, but NOT one-way against a leak of the file — the salt sits
+ * beside the hashes, so the ledger file is sensitive.
+ */
+export function visitorId(ip: string, salt: string, now: number): string {
+  // `|` is safe as a separator: the salt is hex, the day is YYYY-MM-DD, the ip is a literal.
+  return createHash('sha256').update(`${salt}|${utcDayKey(now)}|${ip}`).digest('hex').slice(0, 32)
 }

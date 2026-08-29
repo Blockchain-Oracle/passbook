@@ -35,8 +35,6 @@ export const MARKET_OP = {
   claim: 4,
 } as const
 
-export type MarketOp = (typeof MARKET_OP)[keyof typeof MARKET_OP]
-
 /** `SIDE_DOWN` / `SIDE_UP` as the contract numbers them. `SIDE_SEED` is never client-supplied. */
 export const SIDE_DOWN = 0
 export const SIDE_UP = 1
@@ -300,31 +298,4 @@ export function settlementPayload(
   }
 
   return envelope(op, payload, noteIdSlots)
-}
-
-/**
- * How many open notes the transaction carrying this op MUST create. THE INVARIANT THE POOL CANNOT
- * CHECK FOR US.
- *
- * The pool counts open notes created in the transaction and asserts none are left undeposited
- * (`UNDEPOSITED_OPEN_NOTES`), and its free `compile_actions` view CANNOT catch a mismatch — Day-0
- * verification found it no-ops the open-note emission, so three unmatched open notes compiled
- * cleanly and would have reverted on chain AFTER the six-STRK fee was taken. That makes this
- * function the only thing standing between a miscounted batch and a burned fee.
- *
- * Bets and creates return zero: money goes IN, the contract returns an empty span, and an open
- * note in that transaction would be the unmatched one.
- */
-export function expectedOpenNotes(op: number, entryCount: number): number {
-  switch (op) {
-    case MARKET_OP.create:
-    case MARKET_OP.bet:
-      return 0
-    case MARKET_OP.cashout:
-      return 1
-    case MARKET_OP.claim:
-      return entryCount
-    default:
-      return 0
-  }
 }

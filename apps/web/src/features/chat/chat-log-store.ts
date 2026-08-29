@@ -69,11 +69,3 @@ export function useThread(address: string | undefined, peer: string): readonly C
     () => NO_ENTRIES,
   )
 }
-
-export function useTotalUnread(address: string | undefined): number {
-  return useSyncExternalStore(
-    subscribeTo(address),
-    () => (address ? chatLogFor(address).totalUnread() : 0),
-    () => 0,
-  )
-}

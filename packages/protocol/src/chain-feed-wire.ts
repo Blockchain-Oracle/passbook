@@ -8,9 +8,8 @@
 // 30s, three Pragma pairs every 15s — N browsers × M reads, all asking the same public questions
 // and each starting from an empty price history. The relayer is one always-on machine that
 // already holds an RPC provider; it asks once and fans the answers out over the same SSE-over-POST
-// framing the chat bus proved in production (`relayer/src/rooms.ts`, `room-transport.ts`). The
-// browser keeps its own read path as a fallback, so a dead feed degrades to "slower", never to
-// "blank".
+// framing the chat bus proved in production (`relayer/src/rooms.ts`). The browser keeps its own
+// read path as a fallback, so a dead feed degrades to "slower", never to "blank".
 //
 // ── BIGINTS TRAVEL AS HEX STRINGS ────────────────────────────────────────────────────────
 //
@@ -25,23 +24,6 @@
 // browser chunk (the build gate's rule) and from the relayer's node process alike.
 //
 import type { OnChainLaunch, OnChainMarket } from './app-reads.js'
-
-/** The browser posts here (same-origin), and the Vercel forwarder needs a literal file for it. */
-export const CHAIN_STREAM_PATH = '/api/chain/stream'
-
-/**
- * The stream endpoint, derived from the relayer URL the app already has — the rooms' rule
- * (`room-transport.ts` `roomEndpoint`), for the rooms' reason: one configured URL, not two.
- */
-export function chainStreamEndpoint(relayerUrl: string): string {
-  const url = relayerUrl.replace(/\/submit$/, '/chain/stream')
-  if (url === relayerUrl) {
-    throw new Error(
-      `cannot derive a chain-stream endpoint from ${JSON.stringify(relayerUrl)}: it does not end in /submit`,
-    )
-  }
-  return url
-}
 
 // ── Wire forms: the decoded chain shapes with every bigint as a hex string ────────────────
 

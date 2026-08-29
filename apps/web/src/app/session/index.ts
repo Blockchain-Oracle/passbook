@@ -1,12 +1,10 @@
 // The session's public surface. Everything under `src/app/session/` is reached from here.
 import { createAccount, forget, importAccount, setLabel, switchAccount } from './actions'
-import { ensureBooted, getSessionLock } from './boot'
-import { lock, removePassword, setPassword, unlock, type Outcome } from './vault'
+import { lock, removePassword, setPassword, unlock } from './vault'
 
-export type { PrivateTransfersUser, Session, SessionAccount, SessionStatus } from './store'
+export type { Session, SessionStatus } from './store'
 export { getSessionSnapshot, useSession } from './store'
-export type { Outcome as SessionOutcome }
-export { ensureBooted, getSessionLock }
+export { getSessionLock } from './boot'
 
 export const sessionActions = {
   createAccount,
@@ -21,4 +19,4 @@ export const sessionActions = {
 }
 
 export type { BackupCeremony } from './backup'
-export { backupActions, getBackupCeremonySnapshot, useBackupCeremony } from './backup'
+export { backupActions, useBackupCeremony } from './backup'

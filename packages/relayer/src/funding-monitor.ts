@@ -7,7 +7,7 @@
 // `STRK.allowance(relayer, pool)`, on the assumption that the relayer held a standing approval
 // the pool drew fees from. It does not. `collect_fee` pulls from `get_caller_address()`, so the
 // `STRK.approve(pool, fee)` rides INSIDE each submitted batch and is consumed by the
-// `apply_actions` beside it (constants.ts:66-68, paymaster.ts:59-61). The standing allowance is
+// `apply_actions` beside it (protocol constants.ts). The standing allowance is
 // therefore 0 in steady state — a quantity that cannot deplete, so watching it paged a false
 // alarm at every boot and gating on it would have refused every submission forever. The balance
 // is the thing that actually runs out, so the balance is what this watches.

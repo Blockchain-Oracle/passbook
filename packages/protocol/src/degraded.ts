@@ -3,11 +3,9 @@
 //
 // ── THIS MODULE HOLDS COPY. `pool.ts` HOLDS THE CLASSIFICATION. ───────────────────────────
 //
-// The predicates already exist and are already tested — `classifyPause` (two consecutive positive
-// reads, never a failed one), `classHashMatches`, `screeningPolicyPresent`. They live beside the
-// chain reads that feed them, and they reach `rpc.ts`. This file reaches nothing, so a component
-// can import the sentence a user reads without importing a chain client (story 6.4's 268 kB
-// lesson, and see `pipeline-stage.ts`).
+// The predicates — `classifyPause` (two consecutive positive reads, never a failed one),
+// `classHashMatches` — live beside the chain reads that feed them and reach `rpc.ts`. This file
+// reaches nothing, so a component can import the sentence a user reads without a chain client.
 //
 // ── CLASSIFICATION PRECEDES COPY (§3 rule 4) ──────────────────────────────────────────────
 //
@@ -162,41 +160,6 @@ export function upgradedBody(blockNumber?: number): string {
     : `The pool was upgraded at block ${blockNumber.toLocaleString('en-US')}. ${tail}`
 }
 
-/**
- * What the paused strip's detail panel lists — AS A LIST, not prose (§5).
- *
- * A paragraph saying "you can still read your balance and history and the global feed" is read as
- * reassurance and skimmed. Six items with a heading is read as an inventory and believed, which is
- * the difference between a user who waits and a user who assumes the app is broken.
- */
-export const PAUSED_WORKS: readonly string[] = [
-  'Balance',
-  'History',
-  'Global feed',
-  'Open chat rooms',
-  'Drafts',
-  'Browsing',
-]
-
-export const PAUSED_STOPPED: readonly string[] = ['Every pool transaction']
-
-/**
- * The paused strip's chat line, which §5 makes conditional on the reader actually having chat.
- *
- * `Chat still works` is a promise, and to a user with no open room and a dead transport it is a
- * false one — they would tap through to find nothing works. So the claim is only made to the
- * people it is true for, and everyone else gets the honest limitation instead.
- *
- * Chat is structurally immune to every pool degradation because it is zero-deposit: messages
- * travel off-chain and a paused pool cannot stop them. Opening a NEW room is a pool transaction
- * and cannot happen, which is exactly the split these two sentences draw.
- */
-export function pausedChatLine(openRooms: number, transportHealthy: boolean): string {
-  return openRooms >= 1 && transportHealthy
-    ? 'Chat still works — messages travel off-chain.'
-    : "New rooms can't open while the pool is paused."
-}
-
 export interface DegradedReading {
   mode: DegradedMode | null
   /**
@@ -212,11 +175,6 @@ export interface DegradedReading {
 
 /**
  * Maps a `PoolHealth` reading onto the named degraded mode a user sees.
- *
- * LIVES HERE RATHER THAN IN THE APP because it is logic, and `vitest.config.ts` collects
- * `packages/*&#47;test/**` only — a pure function under `apps/web` is a pure function nothing runs.
- * The paused and upgraded branches cannot be forced live, which makes a unit test the only
- * evidence they behave, exactly as it is for `pool.ts`'s own classifiers.
  *
  * Typed structurally rather than against `PoolHealth` itself: importing that type would erase at
  * build time, but it puts `pool.ts` in this leaf's resolution graph, and one careless later edit

@@ -1,41 +1,17 @@
-# The workspace, and the settings that came across from .npmrc.
-#
-# `packages/*` and `apps/*` mirror what the `workspaces` field in package.json declared. There is
-# no `workers/*`: it was in the npm globs and never had a directory.
+# The workspace: `packages/*` and `apps/*`.
 packages:
   - 'packages/*'
   - 'apps/*'
 
-# The pnpm equivalent of the `allowScripts` block package.json carries for npm.
-#
-# pnpm 11 blocks every install script by default and REFUSES to run any script until each one is
-# explicitly decided — it writes a `set this to true or false` placeholder here and then fails the
-# install, which is the behaviour we want: no dependency executes code on this machine without
-# someone having said so.
-#
-# `esbuild` is allowed because its postinstall links a NATIVE binary and it is a real transitive
-# dependency of the toolchain; without the build it resolves to a stub. `fsevents` is not listed —
-# it is an optional macOS-only watcher pnpm did not install, so listing it would be a rule with no
-# subject.
+# pnpm 11 refuses every install script until each one is explicitly decided. `esbuild` links a
+# native binary in its postinstall and is a real transitive dependency of the toolchain; without
+# the build it resolves to a stub.
 allowBuilds:
   esbuild: true
 
-# Was `engine-strict=true` in .npmrc. Makes `engines` binding rather than advisory, so a wrong-major
-# shell fails the install naming the required range instead of installing anyway. The repo pins
-# Node ^24 and this machine's default is 25 — without this the install silently half-works, which
-# is exactly how a lockfile edit got lost earlier today.
+# Node ^24 is binding, not advisory: a wrong-major shell fails the install naming the range instead
+# of installing anyway.
 engineStrict: true
 
-# Was `save-exact=true`. The manifest pins every dependency exactly; this stops `pnpm add <pkg>`
-# reintroducing a caret. Not cosmetic — a caret on vitest is what would swap the rolldown resolver
-# underneath the suite on a routine install.
+# Every dependency is pinned exactly; this stops `pnpm add` reintroducing a caret.
 saveExact: true
-
-# WHY THE ROOT DECLARES `@strk20/protocol` (see package.json dependencies).
-#
-# Root-level tests import it by BARE specifier — `packages/protocol/test/package-entry.test.ts` is
-# the whole exports-map gate and cannot use a relative path without testing something else. npm
-# linked EVERY workspace package into the root node_modules whether or not anything declared it, so
-# that dependency was real but invisible. pnpm links a workspace package only where it is declared,
-# and surfaced the omission as 8 failing tests on the first clean install. The declaration is the
-# phantom made honest; it is not a workaround for pnpm.

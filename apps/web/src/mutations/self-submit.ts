@@ -1,7 +1,19 @@
 import { NET } from '@strk20/protocol/constants'
 import type { SubmitResponseBody } from '@strk20/protocol/relayer-wire'
 
+import { getSessionLock } from '@/app/session'
+
 // Signing and broadcasting from the embedded key. Everything here loads `starknet` on the call.
+
+/**
+ * `deps.acquireSubmitLock` for send and register: only the leader tab may spend. A follower tab
+ * gets the `lock-unavailable` refusal instead of a second pipeline over the same notes.
+ */
+export function acquireSubmitLock(): Promise<() => void> {
+  const lock = getSessionLock()
+  if (!lock) return Promise.reject(new Error('The session has not finished opening, so nothing can be signed yet.'))
+  return lock.acquire()
+}
 
 export interface SubmitDetails {
   proofFacts: string[]

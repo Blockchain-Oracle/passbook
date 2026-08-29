@@ -129,40 +129,13 @@ export const SESSION_KEYS = {
   vault: 'passbook.vault',
 } as const
 
-/** An in-memory store: real semantics, no durability. The default for tests. */
-export function inMemorySessionStore(
-  seed: Readonly<Partial<Record<SessionKey, string>>> = {},
-): SessionStore {
-  const map = new Map<string, string>(Object.entries(seed))
-  return {
-    read: (key) => map.get(key) ?? null,
-    write: (key, value) => void map.set(key, value),
-    remove: (key) => void map.delete(key),
-  }
-}
-
-/** The named reason the refusing default gives. Named, so a log says which store answered. */
-export const SESSION_STORE_UNWIRED =
-  'no session store is wired: pass one built by localStorageSessionStore() or inMemorySessionStore()'
-
 /** A store whose every method throws `reason`. The shape of every refusal in this module. */
-export function refusingSessionStore(reason: string): SessionStore {
+function refusingSessionStore(reason: string): SessionStore {
   const refuse = (): never => {
     throw new Error(reason)
   }
   return { read: refuse, write: refuse, remove: refuse }
 }
-
-/**
- * The default store: it refuses, in as many words.
- *
- * The same shape of default `backup-cadence.ts` ships for its own seam, and for the same
- * reason stated there. An in-memory fallback would make persistence appear to work and forget
- * everything on reload — and the account key is the one value in this system where forgetting
- * is unrecoverable, because the pool writes the viewing key once. A store that throws is a bug
- * report; a store that quietly loses a key is an orphaned account.
- */
-export const REFUSING_SESSION_STORE: SessionStore = refusingSessionStore(SESSION_STORE_UNWIRED)
 
 /**
  * How old a probe key must be before a later probe will clear it away.
@@ -222,7 +195,7 @@ function sweepStaleProbeKeys(storage: Storage, keep: string, now: number): void 
 }
 
 /** What the feature probe found: a usable storage, or the reason there is not one. */
-export type StorageProbe =
+type StorageProbe =
   | { ok: true; storage: Storage }
   | { ok: false; reason: string }
 
@@ -268,7 +241,7 @@ let probeCounter = 0
  * writes and forgets them is not a storage, and it is the one failure mode a write-only probe
  * would wave through.
  */
-export function probeLocalStorage(candidate?: unknown): StorageProbe {
+function probeLocalStorage(candidate?: unknown): StorageProbe {
   let storage: Storage
   try {
     // `=== undefined`, not `??`. A caller passing `null` is saying "there is no storage here",
@@ -313,20 +286,7 @@ export function probeLocalStorage(candidate?: unknown): StorageProbe {
   }
 }
 
-/**
- * A store over `localStorage`, or `null` when this environment does not have a working one.
- *
- * `null` rather than a throwing store, so the caller has to decide what an environment
- * without persistence means for it — `browserSessionStore` below makes that decision one way,
- * and a caller that wants a different one (an in-memory session for a hardened browser, say)
- * can see the absence and choose.
- */
-export function localStorageSessionStore(candidate?: unknown): SessionStore | null {
-  const probe = probeLocalStorage(candidate)
-  return probe.ok ? storeOver(probe.storage) : null
-}
-
-/** The adapter, written once. Both constructors above and below reach a `Storage` through it. */
+/** The adapter, written once. */
 const storeOver = (storage: Storage): SessionStore => ({
   read: (key) => storage.getItem(key),
   write: (key, value) => storage.setItem(key, value),

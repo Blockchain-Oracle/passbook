@@ -1,8 +1,7 @@
 //
 // "Is this destination an address of my own?" (story 6.7b, C11:142, EXPERIENCE:743).
 //
-// Imports `address.ts` and `privacy.ts`, both leaves that import nothing, so this module stays
-// browser-safe. It deliberately does NOT import `activity.ts`, which owns the only other address
+// Imports `address.ts`, a leaf that imports nothing, so this module stays browser-safe. It deliberately does NOT import `activity.ts`, which owns the only other address
 // comparison in the package but reaches `discovery.ts` and through it `starknet` and the SDK.
 //
 // ── THE THIRD STATE IS THE WHOLE POINT ────────────────────────────────────────────────────
@@ -38,7 +37,6 @@
 //
 
 import { sameAddress } from './address.js'
-import type { PrivacySeverity } from './privacy.js'
 
 export type SelfLinkResult =
   /** Nothing to compare against. The surface renders nothing — see the header. */
@@ -47,15 +45,6 @@ export type SelfLinkResult =
   | { readonly state: 'no-match' }
   /** Compared, and it is ours. `matched` is the known address as WE spell it, not as pasted. */
   | { readonly state: 'self-link'; readonly matched: string }
-
-/**
- * Sending to your own funding wallet republishes the link the pool was used to break, and it is not
- * recoverable after the fact — the ladder's own definition of the top colour.
- *
- * `high`, not `blocked`: `blocked` means the action is refused, and this one never is. The user may
- * always proceed; the product's claim is informed consent, not a wall.
- */
-export const SELF_LINK_SEVERITY: PrivacySeverity = 'high'
 
 /**
  * Compare a destination against the addresses the app can PROVE are the user's.

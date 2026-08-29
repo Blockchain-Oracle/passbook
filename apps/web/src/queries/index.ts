@@ -1,8 +1,8 @@
 export { poolHealthQuery, poolConstantsQuery, feeRecipientQuery } from './pool'
-export { tokenListQuery, decimalsTable, findToken } from './tokens'
-export { shieldedQuery, shieldedBalanceQuery } from './shielded'
+export { tokenListQuery, findToken } from './tokens'
+export { shieldedBalanceQuery } from './shielded'
 export { publicBalancesQuery, publicTokenSet, type PublicBalances } from './public-balances'
-export { activityQuery, activityReadQuery, type ActivityRead } from './activity'
+export { activityReadQuery, type ActivityRead } from './activity'
 export { pricesQuery } from './prices'
 export {
   appContracts,
@@ -15,6 +15,5 @@ export {
   launchPositionQuery,
 } from './app'
 export { directoryQuery, avatarQuery, nameFor } from './directory'
-export { storedPositionsQuery, addStoredPosition, removeStoredPosition, relabelStoredPosition, type StoredPositionsRead } from './positions'
-export { accountStatusQuery, type AccountStatus, type AccountRung } from './account'
-export { useChainFeed, chainFeedSnapshot, type ChainFeed, type ChainFeedState } from './chain-feed'
+export { accountStatusQuery } from './account'
+export { useChainFeed, type ChainFeedState } from './chain-feed'

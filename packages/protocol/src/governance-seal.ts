@@ -16,7 +16,7 @@
 // payload, emitted in `BallotCast` so the ballot book is chain data. The plaintext is
 // `{c: choice, w: weight, b: blinds}` — exactly what `verifyTally`'s sums are made of.
 //
-import { ec, hash as starkHash, shortString } from 'starknet'
+import { ec } from 'starknet'
 
 import { CURVE_ORDER } from './governance-commitment.js'
 
@@ -78,23 +78,6 @@ function unpackFeltsToBytes(felts: readonly string[], byteLength: number): Uint8
   }
   if (written !== byteLength) throw new Error('the sealed span is shorter than its declared length')
   return out
-}
-
-/**
- * The user's own per-helper voter handle — the pool's derivation
- * (`hashes.cairo:57`, read from source): `poseidon('IDENTITY_KEY_TAG:V1', addr, key, helper)`.
- * Computable only by its owner, which is what lets a delegate PUBLISH their handle (their pot's
- * address) without anyone else being able to work backwards from it.
- */
-export function identityKeyFor(userAddress: string, viewingKey: bigint, helper: string): bigint {
-  return BigInt(
-    starkHash.computePoseidonHashOnElements([
-      shortString.encodeShortString('IDENTITY_KEY_TAG:V1'),
-      BigInt(userAddress),
-      viewingKey,
-      BigInt(helper),
-    ]),
-  )
 }
 
 /** Mint a per-proposal tally keypair — the Teller's, at `propose` time. */

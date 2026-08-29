@@ -166,15 +166,3 @@ export async function fetchTokenList(options: TokenListOptions = {}): Promise<To
 export function byLiquidity(tokens: readonly TokenInfo[]): TokenInfo[] {
   return [...tokens].sort((a, b) => (b.volumeUsd ?? -1) - (a.volumeUsd ?? -1))
 }
-
-/** Case-insensitive match over symbol, name and address — what a search box needs. */
-export function searchTokens(tokens: readonly TokenInfo[], query: string): TokenInfo[] {
-  const needle = query.trim().toLowerCase()
-  if (needle === '') return [...tokens]
-  return tokens.filter(
-    (token) =>
-      token.symbol.toLowerCase().includes(needle) ||
-      token.name.toLowerCase().includes(needle) ||
-      token.address.toLowerCase().includes(needle),
-  )
-}

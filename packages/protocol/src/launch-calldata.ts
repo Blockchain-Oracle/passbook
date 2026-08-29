@@ -20,8 +20,6 @@ export const LAUNCH_OP = {
   refund: 3,
 } as const
 
-export type LaunchOp = (typeof LAUNCH_OP)[keyof typeof LAUNCH_OP]
-
 export type { CalldataResult } from './market-calldata.js'
 
 const U64 = 1n << 64n
@@ -126,21 +124,4 @@ export function redeemPayload(secrets: readonly (bigint | string)[]): CalldataRe
 /** `[n, (secret, note_id) × n]` — post-failure, pays the STAKE token back. */
 export function refundPayload(secrets: readonly (bigint | string)[]): CalldataResult {
   return settlementPayload(LAUNCH_OP.refund, secrets, 'refund')
-}
-
-/**
- * How many open notes the transaction carrying this op MUST create — the invariant the pool cannot
- * check for us. See `market-calldata.ts`'s copy for why this function is the only thing standing
- * between a miscounted batch and a burned fee.
- */
-export function expectedOpenNotes(op: number, entryCount: number): number {
-  switch (op) {
-    case LAUNCH_OP.buy:
-      return 0
-    case LAUNCH_OP.redeem:
-    case LAUNCH_OP.refund:
-      return entryCount
-    default:
-      return 0
-  }
 }

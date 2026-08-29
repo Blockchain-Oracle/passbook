@@ -66,15 +66,3 @@ export function loadDotEnv(explicitPath?: string): EnvLoadResult {
     return { loaded: false, path: found, reason: `${found} could not be parsed: ${String(e)}` }
   }
 }
-
-/**
- * Loads `.env` and prints one line about it. For scripts, whose output is already a
- * report — silence about where the secrets came from is not a kindness when the answer
- * is "nowhere".
- */
-export function loadDotEnvVerbose(explicitPath?: string): EnvLoadResult {
-  const result = loadDotEnv(explicitPath)
-  if (result.loaded) console.log(`loaded ${result.path}`)
-  else if (result.path) console.warn(`WARNING: ${result.reason}`)
-  return result
-}

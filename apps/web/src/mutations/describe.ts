@@ -1,6 +1,5 @@
 import type { SendFailure, SendKind } from '@strk20/protocol/send'
 import type { ShieldFailure } from '@strk20/protocol/shield'
-import type { ActivitySurface } from '@strk20/protocol/transaction'
 
 // One sentence per failure kind. Arms that already carry authored copy (`notice`, `door.message`)
 // are used verbatim — a second sentence for the same fact is a second sentence to keep in step.
@@ -66,15 +65,6 @@ export function describeRegisterFailure(failure: { kind: string; reason?: string
     default:
       return failure.reason ?? `Registration stopped at \`${failure.kind}\`.`
   }
-}
-
-export function surfaceFor(kind: SendKind): ActivitySurface {
-  if (kind === 'swap') return 'swap'
-  if (kind === 'bridge') return 'bridge'
-  if (kind.startsWith('market-')) return 'markets'
-  if (kind.startsWith('launch-')) return 'launch'
-  if (kind.startsWith('gov-')) return 'houses'
-  return 'wallet'
 }
 
 export function labelFor(kind: SendKind, symbol: string): string {

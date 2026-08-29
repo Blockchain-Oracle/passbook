@@ -137,7 +137,8 @@ export async function handleLogoPin(
     send(res, 502, { error: `the pinning service did not answer: ${String(e)}` })
     return
   }
-  const text = await upstream.text().catch(() => '')
+  // Bounded like the generate path: an upstream that streams forever must not hold this process.
+  const text = await readBounded(upstream, MAX_UPSTREAM_RESPONSE_BYTES).catch(() => '')
   if (!upstream.ok) {
     // The status is ours to relay; the body is not — an upstream error page is not our JSON.
     send(res, 502, { error: `the pinning service answered ${upstream.status}` })
