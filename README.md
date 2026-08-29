@@ -31,6 +31,15 @@
 
 The key is generated in your browser on first load, and everything below runs from it.
 
+What distinguishes this from every other privacy product is not the privacy claim. It is that
+each screen names which parties can see what, **before** you act — including the parties you did
+not choose. A privacy tool that overstates what it hides is worse than none at all, because its
+users act on the difference.
+
+So the inventory of what actually exists sits above the build instructions rather than under them,
+and the section listing what this project refuses to claim is the one we would most like a judge
+to read.
+
 ## Demo video
 
 <p align="center">
@@ -43,14 +52,57 @@ The key is generated in your browser on first load, and everything below runs fr
   <a href="https://vimeo.com/1222296410"><b>▶ Watch the 3-minute demo</b></a>
 </p>
 
-What distinguishes this from every other privacy product is not the privacy claim. It is that
-each screen names which parties can see what, **before** you act — including the parties you did
-not choose. A privacy tool that overstates what it hides is worse than none at all, because its
-users act on the difference.
+---
 
-So the inventory of what actually exists sits above the build instructions rather than under them,
-and the section listing what this project refuses to claim is the one we would most like a judge
-to read.
+## Mainnet record
+
+Network is `SN_MAIN`. Every filled row is independently checkable with one RPC call, and every one
+was read back off the chain rather than copied from a deployment log — "the transaction succeeded"
+is a weaker claim than "the class is there now". `strk20.json` is the submission manifest; each
+hash below resolves on Voyager (`https://voyager.online/tx/<hash>`).
+
+| What | Address |
+|---|---|
+| STRK20 pool | [`0x040337b1…fe812a`](https://voyager.online/contract/0x040337b1af3c663e86e333bab5a4b28da8d4652a15a69beee2b677776ffe812a) |
+| Pool class hash this code was tested against | [`0x67dddd89…6b554d`](https://voyager.online/class/0x67dddd89d80fedadc06b6f160798f94800a4a70164e5a24301cd0d6076b554d) |
+| `Markets` (ours) | [`0x7905ba4e…72a783`](https://voyager.online/contract/0x7905ba4e7535a3e7c1f9f4045762cc7ce83cfb120fe916f97a0dc512d72a783) |
+| `Launch` (ours) | [`0x3fc07897…32eb54`](https://voyager.online/contract/0x3fc07897f657b184ff9b0dab28939bb5a175d7cff9290406a1bd4b3d032eb54) |
+| `MessageBook` (ours) | [`0x3105b6a3…ae35bc`](https://voyager.online/contract/0x3105b6a327ba11f5464335f480046348a4052be2c12df726f37633d50ae35bc) |
+| `Governance` — the Houses (ours) | [`0xdbe26582…37f9bf`](https://voyager.online/contract/0xdbe265829e0f1c859f3a8c1bd8fcfb0a774836b9e07191c6a624a59e37f9bf) |
+| Pragma oracle (read live by Markets) | [`0x2a85bd61…fa875b`](https://voyager.online/contract/0x2a85bd616f912537c50a49a4076db02c00b29b2cdc8a197ce92ed1837fa875b) |
+
+**The eleven declared transactions** — every successful mainnet transaction that ran through one
+of our contracts, found by sweeping their events rather than copied from a log — each with the
+evidence file that recorded it:
+
+| What happened | Evidence | Transaction |
+|---|---|---|
+| Market 0 created — BTC/USD, priced off Pragma | `seq-market.json` | [`0x77fceec7…16f978`](https://voyager.online/tx/0x77fceec7b1dab186b6f6121db07aca62c727dedae35b3a9db22c17b9716f978) |
+| The ladder — 3 bets on market 0, one transaction, one fee | `seq-bet.json` | [`0x16933dd6…d72523`](https://voyager.online/tx/0x16933dd6edd5ade29c3b3cb3954da2c3b5bb806f85040fe42810f73acd72523) |
+| Launch 0 created — a confidential sale on the epoch curve | `seq-launch.json` | [`0x13b246bd…4e4c93`](https://voyager.online/tx/0x13b246bd1ce1eb11af8ae5cbe3b2aa9ab8b458fe472b92511302048a74e4c93) |
+| The hidden buy — 4 units on launch 0, buyer never named | `seq-buy.json` | [`0x84a59651…3871d4`](https://voyager.online/tx/0x84a59651f14c6c995eac59ce0598e9cb58a7b1d02334870db9494acf3871d4) |
+| Market 0 resolved against the oracle | `seq-claim.json` | [`0x6dc4d81c…0ab73d`](https://voyager.online/tx/0x6dc4d81c7e1e7b03b1e5b78f50541c8a1998bdd6281c8fe6f722ca9600ab73d) |
+| The batch claim — 3 of 4 positions settled in one transaction | `seq-claim.json` | [`0x15eb0939…6561c0`](https://voyager.online/tx/0x15eb0939a124cbe8fc6a0e5825004f665f031e0d6abb80088bab0a8466561c0) |
+| House 0 activated — "Passbook Founders" | `seq-gov-house.json` | [`0x11981995…3be3c5`](https://voyager.online/tx/0x11981995373bac3baf023588bb60e0e09652de7bda335decf54dee2bb3be3c5) |
+| A proposal, sealed until close | `seq-gov-propose.json` | [`0x237a47cb…ca2726`](https://voyager.online/tx/0x237a47cbb3e88194b8e684351f0709cdfff44898f9c5e06cca3b650ecca2726) |
+| A sealed FOR ballot, weight escrowed through the pool | `seq-gov-ballot.json` | [`0x448ed7fc…d6e7df`](https://voyager.online/tx/0x448ed7fc67b968b829d0e5cf8f7946fbb0fc47ef48903b33b8cd7be4dd6e7df) |
+| The tally the curve accepts | `seq-gov-tally.json` | [`0x16bd3806…cbff0b`](https://voyager.online/tx/0x16bd3806cab40f1628e25c62ab8453d7af487b2c7006f0820f0d63405cbff0b) |
+| The tally key, on-chain forever | `seq-gov-tally.json` | [`0x475b97c4…c25227`](https://voyager.online/tx/0x475b97c46df69c24fbf92429a9ce03a0df3779a4a23415b2d51960b36c25227) |
+
+**The mine rule, and why the registration is not on that list.** The judges' indexer applies a
+rule that has already zeroed real projects: *if `strk20.json` declares any `contracts`, every
+declared transaction must also run through one of them.* Our contracts are declared, so every
+declared transaction above touches our contracts. The sponsored registration this project landed
+through its own relayer ([`0x4fbbf9aa…bfe27d`](https://voyager.online/tx/0x4fbbf9aa7992a95d313554bc17b2fff311b35a5974271defc6672f57abfe27d),
+`evidence/sponsored-registration.json`) touches the pool rather than our contracts — it is real,
+it is on chain, and declaring it would zero the submission, so it is history rather than manifest.
+
+**The pool class hash is pinned on purpose.** The pool is upgradeable with zero delay and can be
+paused, including during judging week — StarkWare can swap the implementation instantly and owes
+nobody notice. If the running pool's class hash stops matching the pinned one, the implementation
+is no longer the one this code was tested against, so the app must say so and stop rather than
+guess. That, and keeping a lane that still works while the pool is paused, are design requirements
+here rather than niceties.
 
 ---
 
@@ -223,58 +275,6 @@ The pool's fee is mutable, has been changed before, and the pool has no upgrade 
 change between two page loads. It is read at call time, every time. The most recent measurement was
 **6 STRK at block 13,650,965**, recorded in `evidence/constants.json`; if you are reading this
 later, re-run the probe rather than trusting that line.
-
----
-
-## Mainnet record
-
-Network is `SN_MAIN`. Every filled row is independently checkable with one RPC call, and every one
-was read back off the chain rather than copied from a deployment log — "the transaction succeeded"
-is a weaker claim than "the class is there now". `strk20.json` is the submission manifest; each
-hash below resolves on Voyager (`https://voyager.online/tx/<hash>`).
-
-| What | Address |
-|---|---|
-| STRK20 pool | `0x040337b1af3c663e86e333bab5a4b28da8d4652a15a69beee2b677776ffe812a` |
-| Pool class hash this code was tested against | `0x67dddd89d80fedadc06b6f160798f94800a4a70164e5a24301cd0d6076b554d` |
-| `Markets` (ours) | `0x7905ba4e7535a3e7c1f9f4045762cc7ce83cfb120fe916f97a0dc512d72a783` |
-| `Launch` (ours) | `0x3fc07897f657b184ff9b0dab28939bb5a175d7cff9290406a1bd4b3d032eb54` |
-| `MessageBook` (ours) | `0x3105b6a327ba11f5464335f480046348a4052be2c12df726f37633d50ae35bc` |
-| `Governance` — the Houses (ours) | `0xdbe265829e0f1c859f3a8c1bd8fcfb0a774836b9e07191c6a624a59e37f9bf` |
-| Pragma oracle (read live by Markets) | `0x2a85bd616f912537c50a49a4076db02c00b29b2cdc8a197ce92ed1837fa875b` |
-
-**The eleven declared transactions** — every successful mainnet transaction that ran through one
-of our contracts, found by sweeping their events rather than copied from a log — each with the
-evidence file that recorded it:
-
-| What happened | Evidence | Transaction |
-|---|---|---|
-| Market 0 created — BTC/USD, priced off Pragma | `seq-market.json` | `0x77fceec7b1dab186b6f6121db07aca62c727dedae35b3a9db22c17b9716f978` |
-| The ladder — 3 bets on market 0, one transaction, one fee | `seq-bet.json` | `0x16933dd6edd5ade29c3b3cb3954da2c3b5bb806f85040fe42810f73acd72523` |
-| Launch 0 created — a confidential sale on the epoch curve | `seq-launch.json` | `0x13b246bd1ce1eb11af8ae5cbe3b2aa9ab8b458fe472b92511302048a74e4c93` |
-| The hidden buy — 4 units on launch 0, buyer never named | `seq-buy.json` | `0x84a59651f14c6c995eac59ce0598e9cb58a7b1d02334870db9494acf3871d4` |
-| Market 0 resolved against the oracle | `seq-claim.json` | `0x6dc4d81c7e1e7b03b1e5b78f50541c8a1998bdd6281c8fe6f722ca9600ab73d` |
-| The batch claim — 3 of 4 positions settled in one transaction | `seq-claim.json` | `0x15eb0939a124cbe8fc6a0e5825004f665f031e0d6abb80088bab0a8466561c0` |
-| House 0 activated — "Passbook Founders" | `seq-gov-house.json` | `0x11981995373bac3baf023588bb60e0e09652de7bda335decf54dee2bb3be3c5` |
-| A proposal, sealed until close | `seq-gov-propose.json` | `0x237a47cbb3e88194b8e684351f0709cdfff44898f9c5e06cca3b650ecca2726` |
-| A sealed FOR ballot, weight escrowed through the pool | `seq-gov-ballot.json` | `0x448ed7fc67b968b829d0e5cf8f7946fbb0fc47ef48903b33b8cd7be4dd6e7df` |
-| The tally the curve accepts | `seq-gov-tally.json` | `0x16bd3806cab40f1628e25c62ab8453d7af487b2c7006f0820f0d63405cbff0b` |
-| The tally key, on-chain forever | `seq-gov-tally.json` | `0x475b97c46df69c24fbf92429a9ce03a0df3779a4a23415b2d51960b36c25227` |
-
-**The mine rule, and why the registration is not on that list.** The judges' indexer applies a
-rule that has already zeroed real projects: *if `strk20.json` declares any `contracts`, every
-declared transaction must also run through one of them.* Our contracts are declared, so every
-declared transaction above touches our contracts. The sponsored registration this project landed
-through its own relayer (`0x4fbbf9aa7992a95d313554bc17b2fff311b35a5974271defc6672f57abfe27d`,
-`evidence/sponsored-registration.json`) touches the pool rather than our contracts — it is real,
-it is on chain, and declaring it would zero the submission, so it is history rather than manifest.
-
-**The pool class hash is pinned on purpose.** The pool is upgradeable with zero delay and can be
-paused, including during judging week — StarkWare can swap the implementation instantly and owes
-nobody notice. If the running pool's class hash stops matching the pinned one, the implementation
-is no longer the one this code was tested against, so the app must say so and stop rather than
-guess. That, and keeping a lane that still works while the pool is paused, are design requirements
-here rather than niceties.
 
 ---
 
