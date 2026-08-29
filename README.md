@@ -19,8 +19,9 @@
   <a href="#mainnet-record"><b>Mainnet record</b></a>
   &nbsp;·&nbsp;
   <a href="#what-we-do-not-claim-and-what-you-should-assume-instead"><b>What we refuse to claim</b></a>
-  <!-- when they exist, add here:
-  &nbsp;·&nbsp; <a href="DOCS_SITE_URL"><b>Documentation</b></a>
+  &nbsp;·&nbsp;
+  <a href="https://passbook-site.vercel.app/docs"><b>Documentation</b></a>
+  <!-- when it exists, add here:
   &nbsp;·&nbsp; <a href="DEMO_VIDEO_URL"><b>Demo video</b></a>
   -->
 </p>
