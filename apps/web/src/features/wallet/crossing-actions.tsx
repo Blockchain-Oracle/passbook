@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuTrigger,
@@ -49,12 +50,15 @@ export function ShieldDoor({ data, token, className }: ShieldDoorProps) {
         Shield
       </DropdownMenuTrigger>
       <DropdownMenuContent align="center">
-        <DropdownMenuLabel>Public → shielded</DropdownMenuLabel>
-        {data.tokens.map((row) => (
-          <DropdownMenuItem key={row.token} onClick={() => open(row)}>
-            {row.symbol}
-          </DropdownMenuItem>
-        ))}
+        {/* Base UI: a GroupLabel reads its Group's context, so the label needs the Group around it. */}
+        <DropdownMenuGroup>
+          <DropdownMenuLabel>Public → shielded</DropdownMenuLabel>
+          {data.tokens.map((row) => (
+            <DropdownMenuItem key={row.token} onClick={() => open(row)}>
+              {row.symbol}
+            </DropdownMenuItem>
+          ))}
+        </DropdownMenuGroup>
       </DropdownMenuContent>
     </DropdownMenu>
   )
@@ -74,7 +78,6 @@ export function ShieldDoor({ data, token, className }: ShieldDoorProps) {
           logoUri={active.logoUri}
           publicWei={weiOf(data.publicRows, active.token)}
           publicStrkWei={data.publicStrkWei}
-          feeWei={data.feeWei}
           onShield={(ask) =>
             shield.mutate(ask, {
               onSuccess: (result) => {

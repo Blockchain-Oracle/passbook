@@ -73,3 +73,54 @@ export function approveCeiling(liveFeeWei: bigint): bigint {
   const derived = liveFeeWei * APPROVE_FEE_MULTIPLE
   return derived < ABSOLUTE_MAX_APPROVE_WEI ? derived : ABSOLUTE_MAX_APPROVE_WEI
 }
+
+/** Bigints, not hex strings: `ResourceBoundsBN` is what `execute` consumes; hex throws before signing. */
+export interface ResourceBounds {
+  l1_gas: { max_amount: bigint; max_price_per_unit: bigint }
+  l2_gas: { max_amount: bigint; max_price_per_unit: bigint }
+  l1_data_gas: { max_amount: bigint; max_price_per_unit: bigint }
+}
+
+/** The latest block's prices, in fri. Read live — a bound priced under the block is refused. */
+export interface GasPrices {
+  l1GasFri: bigint
+  l2GasFri: bigint
+  l1DataGasFri: bigint
+}
+
+/**
+ * Units a proven pool transaction may consume. Measured, not guessed: recent mainnet pool proofs
+ * used 81–101M l2 gas, 0 l1 gas and ≤ 1.9k l1 data gas (receipts, 2026-08-29); l2 keeps ~20 %.
+ */
+export const GAS_UNITS = { l2_gas: 120_000_000n, l1_gas: 5_000n, l1_data_gas: 30_000n } as const
+
+/** Price headroom over the block: the L2 price moved < 2 % across the blocks read; a refused bound costs nothing. */
+export const GAS_PRICE_HEADROOM_PERCENT = 25n
+
+/** Fee estimation cannot see a proof, so the bounds are built here: measured units × the live price plus headroom. */
+export function resourceBoundsFor(prices: GasPrices): ResourceBounds {
+  const price = (fri: bigint) => (fri * (100n + GAS_PRICE_HEADROOM_PERCENT)) / 100n
+  return {
+    l2_gas: { max_amount: GAS_UNITS.l2_gas, max_price_per_unit: price(prices.l2GasFri) },
+    l1_gas: { max_amount: GAS_UNITS.l1_gas, max_price_per_unit: price(prices.l1GasFri) },
+    l1_data_gas: { max_amount: GAS_UNITS.l1_data_gas, max_price_per_unit: price(prices.l1DataGasFri) },
+  }
+}
+
+/** The STRK a sender must HOLD for the bounds to be accepted by the mempool; only what is used is charged. */
+export function gasBoundWei(bounds: ResourceBounds): bigint {
+  return (
+    bounds.l2_gas.max_amount * bounds.l2_gas.max_price_per_unit +
+    bounds.l1_gas.max_amount * bounds.l1_gas.max_price_per_unit +
+    bounds.l1_data_gas.max_amount * bounds.l1_data_gas.max_price_per_unit
+  )
+}
+
+/**
+ * What public STRK a self-paid pool write must hold: one live fee plus the live gas bound. The
+ * approve ceiling above is allowance, not balance — a fee jump between read and execution
+ * reverts rather than demanding a second fee parked forever.
+ */
+export function feeFloor(liveFeeWei: bigint, prices: GasPrices): bigint {
+  return liveFeeWei + gasBoundWei(resourceBoundsFor(prices))
+}

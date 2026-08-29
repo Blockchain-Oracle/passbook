@@ -12,7 +12,7 @@ import type { Proof } from '@starkware-libs/starknet-privacy-sdk'
 import { CallData, cairo, type Call } from 'starknet'
 
 import { NET, STRK_TOKEN } from './constants.js'
-import { approveCeiling } from './fee-ceiling.js'
+import { approveCeiling, type ResourceBounds } from './fee-ceiling.js'
 import {
   DEFAULT_RELAYER_URL,
   RELAY_TIMEOUT_MS,
@@ -27,13 +27,6 @@ import type { FeeRecipientBody } from './relayer-wire.js'
 
 export { DEFAULT_RELAYER_URL }
 
-/** Bigints, not hex strings: `ResourceBoundsBN` is what `execute` consumes; hex throws before signing. */
-export interface ResourceBounds {
-  l1_gas: { max_amount: bigint; max_price_per_unit: bigint }
-  l2_gas: { max_amount: bigint; max_price_per_unit: bigint }
-  l1_data_gas: { max_amount: bigint; max_price_per_unit: bigint }
-}
-
 export interface SubmitDetails {
   proofFacts: string[]
   proof: string
@@ -42,17 +35,6 @@ export interface SubmitDetails {
 
 /** Signs and broadcasts; resolves to the transaction hash. Throws are classified by the caller. */
 export type Submitter = (calls: Call[], details?: SubmitDetails) => Promise<string>
-
-/**
- * Ceilings for a value-moving proven transaction, sized from the measured create probe (88M l2)
- * with a lean margin. A ceiling is a BALANCE requirement — the sequencer refuses bounds that
- * exceed the sender's balance — so this reserves ~4.7 STRK, well under the relayer's 20 STRK cap.
- */
-export const DEFAULT_RESOURCE_BOUNDS: ResourceBounds = {
-  l2_gas: { max_amount: 120_000_000n, max_price_per_unit: 35_000_000_000n },
-  l1_gas: { max_amount: 5_000n, max_price_per_unit: 100_000_000_000_000n },
-  l1_data_gas: { max_amount: 30_000n, max_price_per_unit: 300_000_000_000n },
-}
 
 const FELT = /^(0x[0-9a-fA-F]{1,64}|[0-9]{1,78})$/
 

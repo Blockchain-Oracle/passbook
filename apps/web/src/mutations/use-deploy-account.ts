@@ -5,7 +5,10 @@ import { getSessionSnapshot } from '@/app/session'
 import { invalidateAccount } from './invalidate'
 import { embeddedAccount } from './self-submit'
 
-export type DeployOutcome = { ok: true; transactionHash: string } | { ok: false; because: string }
+export type DeployOutcome =
+  /** `block` is where the deploy landed; the register ladder counts its proving wait from it. */
+  | { ok: true; transactionHash: string; block: number | null }
+  | { ok: false; because: string }
 
 /**
  * Counterfactual OZ deploy from the funded key. The derived address is checked against the
@@ -18,8 +21,9 @@ async function deploy(): Promise<DeployOutcome> {
   }
   const { address, accountKey } = session
   try {
-    const [{ ec, hash }, { provider, account }] = await Promise.all([
+    const [{ ec, hash }, { readReceiptBlockNumber }, { provider, account }] = await Promise.all([
       import('starknet'),
+      import('@strk20/protocol/relay'),
       embeddedAccount(accountKey, address),
     ])
     const publicKey = ec.starkCurve.getStarkKey(accountKey)
@@ -39,7 +43,7 @@ async function deploy(): Promise<DeployOutcome> {
       addressSalt: publicKey,
       contractAddress: address,
     })
-    await provider.waitForTransaction(result.transaction_hash)
+    const receipt = await provider.waitForTransaction(result.transaction_hash)
 
     // Read back rather than trusting the response.
     const onChain = await provider.getClassHashAt(result.contract_address)
@@ -49,7 +53,7 @@ async function deploy(): Promise<DeployOutcome> {
         because: `The address now holds class ${onChain}, which is not the account class. Something else deployed there.`,
       }
     }
-    return { ok: true, transactionHash: result.transaction_hash }
+    return { ok: true, transactionHash: result.transaction_hash, block: readReceiptBlockNumber(receipt.value) }
   } catch (error) {
     // The account paid for any attempt that reached the sequencer, so this says so.
     return {

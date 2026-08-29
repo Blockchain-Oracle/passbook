@@ -7,7 +7,6 @@ import { STRK_TOKEN } from '@strk20/protocol/constants'
 import type { ShieldDoor } from '@/components/money/money-field'
 import type { ShieldDialogProps } from '@/components/money/shield-dialog'
 import { shieldProblem, useShield } from '@/mutations'
-import { poolConstantsQuery } from '@/queries/pool'
 import { publicBalancesQuery, publicTokenSet, type PublicBalances } from '@/queries/public-balances'
 import type { SwapSide } from './sides'
 
@@ -33,7 +32,6 @@ export interface ShieldDoorInput {
 export function useShieldDoor({ sell, shortfallWei, address }: ShieldDoorInput): { door: ShieldDoor | null; dialogProps: ShieldDialogProps } {
   const [open, setOpen] = useState(false)
   const publicBalances = useQuery(publicBalancesQuery(address, publicTokenSet([sell.address])))
-  const fee = useQuery({ ...poolConstantsQuery(), enabled: open })
   const shield = useShield()
 
   const publicWei = lookup(publicBalances.data, sell.address)
@@ -51,7 +49,6 @@ export function useShieldDoor({ sell, shortfallWei, address }: ShieldDoorInput):
     logoUri: sell.logoUri,
     publicWei,
     publicStrkWei,
-    feeWei: fee.data?.feeWei ?? null,
     busy: shield.isPending,
     problem: shieldProblem(shield.data),
     onShield: (ask) =>

@@ -9,7 +9,7 @@
 
 import type { Call } from 'starknet'
 import type { PrivateTransfersUser } from '@starkware-libs/starknet-privacy-sdk'
-import { PROVING_BLOCK_LAG } from './client.js'
+import { PROVING_BLOCK_LAG } from './constants.js'
 import { readPoolConstants, type PoolConstants } from './pool.js'
 import {
   assembleRegistrationCalls,
@@ -35,7 +35,7 @@ import {
   type SubmitBody,
 } from './relay.js'
 
-export { PROVING_BLOCK_LAG } from './client.js'
+export { PROVING_BLOCK_LAG } from './constants.js'
 export {
   assembleRegistrationCalls,
   extractClientActionSpan,

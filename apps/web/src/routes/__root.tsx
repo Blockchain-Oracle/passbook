@@ -3,6 +3,7 @@ import { Outlet, createRootRouteWithContext } from '@tanstack/react-router'
 
 import { AppSidebar } from '@/components/layout/app-sidebar'
 import { MobileTabs } from '@/components/layout/mobile-tabs'
+import { TabBanner } from '@/components/layout/tab-banner'
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar'
 import { Toaster } from '@/components/ui/sonner'
 import { TooltipProvider } from '@/components/ui/tooltip'
@@ -24,6 +25,7 @@ function Shell() {
             <AccountChip />
           </div>
           <OnboardingGate />
+          <TabBanner />
           <Outlet />
         </SidebarInset>
         <MobileTabs />

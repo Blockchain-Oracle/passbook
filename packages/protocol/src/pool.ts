@@ -4,15 +4,43 @@
 //
 
 import { NET } from './constants.js'
+import type { GasPrices } from './fee-ceiling.js'
 import { withFallback } from './rpc.js'
 
 async function call(entrypoint: string, calldata: string[] = []): Promise<string[]> {
   return withFallback((p) => p.callContract({ contractAddress: NET.pool, entrypoint, calldata }))
 }
 
+/** The head and its gas prices from one block read: bounds are priced against the block they will land in. */
+export async function readHead(): Promise<{ blockNumber: number; gasPrices: GasPrices }> {
+  return withFallback(async (p) => {
+    const block = (await p.getBlockWithTxHashes('latest')) as {
+      block_number?: unknown
+      l1_gas_price?: { price_in_fri?: unknown }
+      l2_gas_price?: { price_in_fri?: unknown }
+      l1_data_gas_price?: { price_in_fri?: unknown }
+    }
+    const fri = (name: string, v: unknown): bigint => {
+      if (typeof v !== 'string' && typeof v !== 'number' && typeof v !== 'bigint') throw new Error(`the latest block carries no ${name}`)
+      const n = BigInt(v)
+      if (n <= 0n) throw new Error(`the latest block reports a ${name} of ${n}`)
+      return n
+    }
+    if (typeof block.block_number !== 'number') throw new Error('the latest block carries no block_number')
+    return {
+      blockNumber: block.block_number,
+      gasPrices: {
+        l1GasFri: fri('l1_gas_price', block.l1_gas_price?.price_in_fri),
+        l2GasFri: fri('l2_gas_price', block.l2_gas_price?.price_in_fri),
+        l1DataGasFri: fri('l1_data_gas_price', block.l1_data_gas_price?.price_in_fri),
+      },
+    }
+  })
+}
+
 /** A user-facing pool state. Each maps to exactly one honest string in the UI. */
 export type PoolHealth =
-  | { state: 'ok'; feeWei: bigint; proofValidityBlocks: number; blockNumber: number }
+  | { state: 'ok'; feeWei: bigint; proofValidityBlocks: number; blockNumber: number; gasPrices: GasPrices }
   | { state: 'paused' }
   | { state: 'upgraded'; pinned: string; onchain: string }
   | { state: 'unreachable' }
@@ -43,16 +71,13 @@ export async function readPoolHealth(): Promise<PoolHealth> {
       const paused2 = BigInt((await call('is_paused'))[0]!) !== 0n
       if (classifyPause(paused1, paused2)) return { state: 'paused' }
     }
-    const [fee, validity, blockNumber] = await Promise.all([
-      call('get_fee_amount'),
-      call('get_proof_validity_blocks'),
-      withFallback((p) => p.getBlockNumber()),
-    ])
+    const [fee, validity, head] = await Promise.all([call('get_fee_amount'), call('get_proof_validity_blocks'), readHead()])
     return {
       state: 'ok',
       feeWei: BigInt(fee[0]!),
       proofValidityBlocks: Number(BigInt(validity[0]!)),
-      blockNumber,
+      blockNumber: head.blockNumber,
+      gasPrices: head.gasPrices,
     }
   } catch {
     return { state: 'unreachable' }
@@ -64,21 +89,23 @@ export interface PoolConstants {
   paused: boolean
   proofValidityBlocks: number
   blockNumber: number
+  gasPrices: GasPrices
 }
 
 /** Every mutable protocol number in one shot. Throws on an unreachable RPC. */
 export async function readPoolConstants(): Promise<PoolConstants> {
-  const [fee, paused, validity, blockNumber] = await Promise.all([
+  const [fee, paused, validity, head] = await Promise.all([
     call('get_fee_amount'),
     call('is_paused'),
     call('get_proof_validity_blocks'),
-    withFallback((p) => p.getBlockNumber()),
+    readHead(),
   ])
   return {
     feeWei: BigInt(fee[0]!),
     paused: BigInt(paused[0]!) !== 0n,
     proofValidityBlocks: Number(BigInt(validity[0]!)),
-    blockNumber,
+    blockNumber: head.blockNumber,
+    gasPrices: head.gasPrices,
   }
 }
 

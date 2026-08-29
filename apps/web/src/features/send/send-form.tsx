@@ -175,7 +175,6 @@ export function SendForm({ initial }: { initial: SendSearch }) {
         logoUri={asset.logoUri}
         publicWei={asset.publicWei}
         publicStrkWei={form.publicStrkWei}
-        feeWei={form.feeWei}
         onShield={(ask) =>
           shield.mutate(ask, {
             onSuccess: (result) => {

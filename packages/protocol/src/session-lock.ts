@@ -47,7 +47,12 @@ export const SUBMIT_LOCK_NO_CHANNEL =
 
 /** The slice of `LockManager` this module uses. `navigator.locks`, or the in-memory stand-in. */
 export interface SubmitLockManager {
-  request(name: string, options: { mode: 'exclusive'; signal?: AbortSignal }, callback: () => Promise<void>): Promise<void>
+  request(
+    name: string,
+    /** `steal` releases the current holder (its request rejects with AbortError); the spec forbids pairing it with `signal`. */
+    options: { mode: 'exclusive'; signal?: AbortSignal; steal?: boolean },
+    callback: () => Promise<void>,
+  ): Promise<void>
 }
 
 export interface SessionLockOptions {
@@ -66,6 +71,8 @@ export interface SessionLock {
   isLeader(): boolean
   /** Takes the submit lock, or throws. The release is SYNCHRONOUS (called bare in a `finally`). */
   acquire(): Promise<() => void>
+  /** Makes THIS tab the leader now: the holder is preempted and told so. Resolves once granted. */
+  takeOver(): Promise<void>
   /** Gives the lock up so the next tab is granted it. */
   close(): void
 }
@@ -142,6 +149,7 @@ export function createSessionLock(options: SessionLockOptions = {}): SessionLock
       state: () => dead,
       isLeader: () => false,
       acquire: async () => { throw new Error(SUBMIT_LOCK_NO_CHANNEL) },
+      takeOver: async () => { throw new Error(SUBMIT_LOCK_NO_CHANNEL) },
       close: () => {},
     }
   }
@@ -167,19 +175,29 @@ export function createSessionLock(options: SessionLockOptions = {}): SessionLock
   }
 
   // The request resolves only when the callback's promise does — i.e. when this tab closes.
-  locks
-    .request(name, { mode: 'exclusive', signal: abort.signal }, () =>
-      new Promise<void>((release) => {
-        releaseLeadership = release
-        if (closed) release()
-        else set({ role: 'leader' })
-      }),
-    )
-    .catch((e: unknown) => {
-      if (closed) return
-      // A rejected request means no grant, ever: a fault the user can read, never a promotion.
-      set({ role: 'idle', held: false, fault: `the submit lock request failed: ${String(e)}` })
-    })
+  // A stolen lead rejects with AbortError: that tab steps down to follower and queues again, so
+  // it is promoted back the moment the thief closes. Any other rejection is a fault to read.
+  const requestLeadership = (steal: boolean): Promise<void> =>
+    locks
+      .request(name, steal ? { mode: 'exclusive', steal: true } : { mode: 'exclusive', signal: abort.signal }, () =>
+        new Promise<void>((release) => {
+          releaseLeadership = release
+          if (closed) release()
+          else set({ role: 'leader', held: false })
+        }),
+      )
+      .catch((e: unknown) => {
+        if (closed) return
+        const stolen = state.role === 'leader' && (e as { name?: string } | null)?.name === 'AbortError'
+        if (stolen) {
+          releaseLeadership = null
+          set({ role: 'follower', held: false })
+          void requestLeadership(false)
+          return
+        }
+        set({ role: 'idle', held: false, fault: `the submit lock request failed: ${String(e)}` })
+      })
+  void requestLeadership(false)
 
   // Not granted within the window while another tab is alive = follower. The queued request
   // stays in place, so the browser still promotes this tab when the leader goes away.
@@ -218,6 +236,17 @@ export function createSessionLock(options: SessionLockOptions = {}): SessionLock
         if (epoch !== grants) return
         set({ held: false })
       }
+    },
+
+    takeOver: async () => {
+      if (closed) throw new Error(SUBMIT_LOCK_CLOSED)
+      // Read through a call: `state` is reassigned by `set` across the await, which narrowing cannot see.
+      const leading = () => state.role === 'leader'
+      if (leading()) return
+      const granted = new Promise<void>((resolve) => waiters.push(resolve))
+      void requestLeadership(true)
+      await granted
+      if (!leading()) throw new Error(state.fault ?? 'the submit lock could not be taken over')
     },
 
     close: () => {

@@ -29,9 +29,9 @@ import { healthFailure, preflightSend, type OkHealth } from './send-preflight.js
 import { proveFailureFrom, proveSend, type ProveSendInput, type ProvedSend } from './send-prove.js'
 import type { SendInput } from './send-plan.js'
 import { withFallback } from './rpc.js'
+import { resourceBoundsFor } from './fee-ceiling.js'
 import {
   DEFAULT_RELAYER_URL,
-  DEFAULT_RESOURCE_BOUNDS,
   relayerSubmitter,
   selfSubmitApprove,
   selfSubmitter,
@@ -137,7 +137,7 @@ export async function sendShielded(input: SendInput, deps: SendDeps = {}): Promi
     reach('relay')
     // The identical batch in both modes: `collect_fee` pulls from whoever submits, so they approve first, in-batch.
     const calls: Call[] = [selfSubmitApprove(health.feeWei), proved.call]
-    const details: SubmitDetails = { proofFacts: proved.proofFacts, proof: proved.proof, resourceBounds: DEFAULT_RESOURCE_BOUNDS }
+    const details: SubmitDetails = { proofFacts: proved.proofFacts, proof: proved.proof, resourceBounds: resourceBoundsFor(health.gasPrices) }
     let transactionHash: string
     if (input.mode === 'self') {
       try {

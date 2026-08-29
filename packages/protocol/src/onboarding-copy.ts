@@ -66,9 +66,18 @@ export function deadlockFeeRow(appName: string, feeStrk: string | null): string 
 export const ONBOARDING_STAGE_NOTES = {
   drip: 'the faucet stakes this account — the receipt below is its record',
   deploy: 'your address goes live on Starknet',
+  settle: 'the proof is checked a few blocks behind the head, so a fresh deploy waits for the chain to pass it',
   register: 'the account pays its own fee — nobody sponsors this',
   confirm: 'the pool accepts your viewing key',
 } as const
+
+/** The live settle note. Blocks are counted, never turned into seconds; `null` when the deploy block is unknown. */
+export function settleNote(lag: number, blocksToGo: number | null): string {
+  const why = `the proof is checked ${lag} blocks behind the head, so a fresh deploy waits for the chain to pass it`
+  if (blocksToGo === null) return why
+  if (blocksToGo <= 0) return 'the chain has passed your deploy — registering now'
+  return `${why} — ${blocksToGo} more block${blocksToGo === 1 ? '' : 's'}`
+}
 
 /** Under the drip's receipt chip. Says whose money it was and that the record is keepable. */
 export const DRIP_RECEIPT_SUB = 'faucet drip · the receipt is yours to keep'

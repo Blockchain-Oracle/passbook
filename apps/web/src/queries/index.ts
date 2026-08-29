@@ -15,5 +15,5 @@ export {
   launchPositionQuery,
 } from './app'
 export { directoryQuery, avatarQuery, nameFor } from './directory'
-export { accountStatusQuery } from './account'
+export { accountStatusQuery, accountProvableQuery } from './account'
 export { useChainFeed, type ChainFeedState } from './chain-feed'

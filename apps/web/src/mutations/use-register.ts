@@ -76,6 +76,9 @@ async function register(ask: RegisterAsk): Promise<RegisterOutcome> {
     ])
     // The one-subsidy rule: an account that holds the live fee plus gas pays its own way; only one
     // that cannot falls back to the relayer's sponsored door. An unreadable balance selects sponsored.
+    // Deliberately UNDER `feeFloor` (fee + the ~4.7 STRK gas reserve): a 10 STRK drip self-paid its
+    // registration live on 2026-08-29 (~3 STRK gas charged), and the full floor would route every
+    // drip account to the sponsored door — a second subsidy. Raising the drip is the fix, not this.
     const floor = pool.feeWei + GAS_HEADROOM_WEI
     const selfPays = status.strkWei !== null && status.strkWei >= floor
 
