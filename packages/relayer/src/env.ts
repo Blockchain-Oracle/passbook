@@ -160,7 +160,6 @@ const switches = z.object({
   RELAYER_FAUCET: blank,
   RELAYER_CHAIN_FEED: blank,
   RELAYER_KEEPER: blank,
-  RELAYER_GROUNDSKEEPER: blank,
   RELAYER_AUTH_TOKEN: blank,
   RELAYER_DIRECTORY_STORE: blank,
   RELAYER_CHAIN_FEED_STORE: blank,
@@ -169,8 +168,6 @@ const switches = z.object({
   RELAYER_GEMINI_IMAGE_MODEL: blank,
   RELAYER_TELLER_STORE: blank,
   RELAYER_GOVERNANCE_FROM_BLOCK: blank,
-  RELAYER_GROUNDSKEEPER_SEED_WEI: blank,
-  RELAYER_GROUNDSKEEPER_STORE: blank,
   PORT: blank,
 })
 
@@ -192,9 +189,6 @@ export interface RelayerEnv {
   tellerStore: string
   governanceFromBlock: number
   keeperWanted: boolean
-  groundskeeperOn: boolean
-  groundskeeperSeedWei: bigint
-  groundskeeperStore: string
 }
 
 /** The whole environment, resolved once. Throws the spec's refusal strings on bad input. */
@@ -220,8 +214,5 @@ export function resolveEnv(env: NodeJS.ProcessEnv = process.env): RelayerEnv {
     tellerStore: s.RELAYER_TELLER_STORE ?? relayerFile('teller.json'),
     governanceFromBlock: Number(s.RELAYER_GOVERNANCE_FROM_BLOCK ?? 0),
     keeperWanted: s.RELAYER_KEEPER !== 'off',
-    groundskeeperOn: s.RELAYER_GROUNDSKEEPER === 'on',
-    groundskeeperSeedWei: BigInt(s.RELAYER_GROUNDSKEEPER_SEED_WEI ?? '2000000000000000000'),
-    groundskeeperStore: s.RELAYER_GROUNDSKEEPER_STORE ?? relayerFile('groundskeeper.json'),
   }
 }

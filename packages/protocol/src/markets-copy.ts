@@ -19,12 +19,29 @@ export const MARKETS_NOT_DEPLOYED =
   'The Markets deployment is missing from this build, so writes are unavailable. Prices remain ' +
   'live from the same oracle a verified deployment settles against.'
 
-/** Deployed, and genuinely nothing open. Different fact, different sentence. */
+/** Deployed, no standing series running, and nobody has opened a market. Different fact, different sentence. */
 export const MARKETS_NONE_OPEN =
-  'Between windows — the Groundskeeper opens the next standing markets shortly. Anyone can open ' +
-  'their own besides, and the first bet in it sets the odds.'
+  'No standing series is running on this contract and nobody has opened a market. Anyone can ' +
+  'open one, and the first bet in it sets the odds.'
 
 export const MARKETS_LOADING = 'Reading the markets registry…'
+
+// ── Standing windows ──────────────────────────────────────────────────────────────────────
+
+/** A window before its first bet: no line yet, and why. */
+export const WINDOW_OPENS_ON_FIRST_BET =
+  'No line yet. The first bet opens this window on Pragma’s price at that moment, and the house ' +
+  'seeds the other side.'
+
+/** The house's edge, stated where the stake is typed. `pct` is rendered by the caller. */
+export function houseVigLine(pct: string): string {
+  return `House vig ${pct}% comes off the stake; "pays if right" already shows it. Refunded in full if the window voids.`
+}
+
+/** The opening floor, so a dust bet cannot lock the seed. `amount` rendered by the caller. */
+export function openingStakeLine(amount: string): string {
+  return `Opening this window takes at least ${amount}.`
+}
 
 // ── The price strip ───────────────────────────────────────────────────────────────────────
 

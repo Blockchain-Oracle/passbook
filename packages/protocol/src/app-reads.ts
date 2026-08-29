@@ -11,16 +11,21 @@
 //
 import { NET } from './constants.js'
 import {
+  MARKET_STATE,
   SELECTOR,
   UNITS_PER_EPOCH,
   decodeByteArray,
   decodeLaunch,
   decodeMarket,
+  decodeSeries,
   hex,
+  seriesMarketId,
   toBig,
   toNum,
+  unopenedWindow,
   type OnChainLaunch,
   type OnChainMarket,
+  type OnChainSeries,
 } from './app-codecs.js'
 
 export * from './app-codecs.js'
@@ -71,27 +76,73 @@ async function call(
   return result as string[]
 }
 
+export interface MarketsRead {
+  /** Series windows (current and last, opened or not) first, then custom markets newest first. */
+  markets: OnChainMarket[]
+  series: OnChainSeries[]
+  /** `market_count` — custom markets only; series windows are not counted. */
+  total: number
+  problem: string | null
+}
+
 /**
- * Every market the contract has, newest first. A cap because `market_count` is unbounded and one
- * screen is not; the cap is stated in the result so a truncated list can say so.
+ * Every standing window and every custom market. A window exists before anyone bets (state
+ * NONE, no line) — that is the v2 design, so the board never has to say "between windows". The
+ * previous epoch rides along too, opened or settled, so a window that just closed stays visible
+ * while it resolves. A cap because `market_count` is unbounded and one screen is not.
  */
 export async function readMarkets(
   contract: string,
-  { cap = 24, transport = rpc as Transport } = {},
-): Promise<{ markets: OnChainMarket[]; total: number; problem: string | null }> {
+  { cap = 24, transport = rpc as Transport, nowSec = Math.floor(Date.now() / 1000) } = {},
+): Promise<MarketsRead> {
+  let problem: string | null = null
+  const note = (what: string, error: unknown) => {
+    problem = `${what} could not be read: ${error instanceof Error ? error.message : String(error)}`
+  }
+
+  const series: OnChainSeries[] = []
+  try {
+    const seriesCount = toNum((await call(contract, SELECTOR.series_count, [], transport))[0] ?? '0x0')
+    for (let i = 0; i < seriesCount; i++) {
+      series.push(decodeSeries(i, await call(contract, SELECTOR.get_series, [hex(i)], transport)))
+    }
+  } catch (error) {
+    note('The series', error)
+  }
+
+  const windows: OnChainMarket[] = []
+  for (const s of series) {
+    if (!s.active || s.window === 0) continue
+    const epoch = Math.floor(nowSec / s.window)
+    for (const e of [epoch, epoch - 1]) {
+      if (e < 0) continue
+      const id = seriesMarketId(s.id, e)
+      try {
+        const market = decodeMarket(id, await call(contract, SELECTOR.get_market, [hex(id)], transport))
+        if (market.state === MARKET_STATE.none) {
+          // Untouched. The current one is offered with a countdown; the last one never existed.
+          if (e === epoch) windows.push(unopenedWindow(s, e))
+          continue
+        }
+        windows.push({ ...market, window: s.window, vigBps: s.vigBps })
+      } catch (error) {
+        note(`Window ${id}`, error)
+      }
+    }
+  }
+
   const countFelts = await call(contract, SELECTOR.market_count, [], transport)
   const total = toNum(countFelts[0] ?? '0x0')
   const ids = Array.from({ length: Math.min(total, cap) }, (_, i) => total - 1 - i)
-  const markets: OnChainMarket[] = []
-  let problem: string | null = null
+  const custom: OnChainMarket[] = []
   for (const id of ids) {
     try {
-      markets.push(decodeMarket(id, await call(contract, SELECTOR.get_market, [hex(id)], transport)))
+      custom.push(decodeMarket(id, await call(contract, SELECTOR.get_market, [hex(id)], transport)))
     } catch (error) {
-      problem = `Market ${id} could not be read: ${error instanceof Error ? error.message : String(error)}`
+      note(`Market ${id}`, error)
     }
   }
-  return { markets, total, problem }
+  return { markets: [...windows, ...custom], series, total, problem }
 }
 
 /** Every launch, newest first, names included — same shape and same caveats as `readMarkets`. */
@@ -153,9 +204,25 @@ export async function quoteBuy(
 
 // ── Derivations the surfaces share ────────────────────────────────────────────────────────
 
-/** The question a market asks, in the prototype's own words: "BTC/USD above $80,500". */
+/**
+ * The question a market asks, in the prototype's own words: "BTC/USD above $80,500". A window
+ * nobody has opened has no line yet — the first bet sets it from the oracle — so it says so.
+ */
 export function marketQuestion(market: OnChainMarket): string {
+  if (market.strike === 0n) return `${market.pair} above the opening line`
   return `${market.pair} above $${strikeDisplay(market.strike)}`
+}
+
+/** "15 min" · "1 hour" · "24 hours" — a series' window, for a card's corner. */
+export function windowLabel(windowSec: number): string {
+  if (windowSec % 86_400 === 0) return windowSec === 86_400 ? '24 hours' : `${windowSec / 86_400} days`
+  if (windowSec % 3_600 === 0) return windowSec === 3_600 ? '1 hour' : `${windowSec / 3_600} hours`
+  return `${Math.round(windowSec / 60)} min`
+}
+
+/** A window can be opened until its last quarter (`OPEN_LEAD_DIVISOR` in `markets.cairo`). */
+export function openableUntil(market: OnChainMarket): number {
+  return market.window > 0 ? market.deadline - Math.floor(market.window / 4) : market.deadline
 }
 
 /** The strike out of Pragma's 8-decimal fixed point, at the pair's own precision. */

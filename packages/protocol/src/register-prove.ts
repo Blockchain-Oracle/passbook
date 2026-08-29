@@ -1,6 +1,6 @@
 //
 // The prove leg of registration: the lone `SetViewingKey`, the span guards that keep it lone,
-// and the fee approve that rides with it. Shared with the relayer's groundskeeper.
+// and the fee approve that rides with it. Shared with the relayer.
 //
 
 import { hash, type Call } from 'starknet'

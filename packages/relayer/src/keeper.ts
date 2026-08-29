@@ -197,7 +197,7 @@ export async function runKeeperPass(deps: KeeperDeps): Promise<KeeperPass> {
  * Where each field sits in a serialised `Market`, from `markets.cairo`'s struct order:
  *
  *   pair_id, strike, deadline, token, up, down, k(u256 = TWO felts), seed, collateral,
- *   state, winner, experimental
+ *   state, winner, experimental, house, series, open_cash, vig
  *
  * Pinned as named constants rather than inline numbers because `k` being two felts is exactly
  * the kind of off-by-one that would read `collateral` as `state` and silently decide every
@@ -257,26 +257,58 @@ export function decodeOracle(felts: readonly string[]): OracleReading {
  * state it is cached and never re-read. Without that, every pass costs one RPC call per market
  * this contract has ever held, forever.
  */
+/** `markets.cairo`'s `SERIES_ID_BASE`: a series window's id is `(series + 1) · 2^32 + epoch`. */
+export const SERIES_ID_BASE = 2 ** 32
+/** `Series` felts: pair_id, window, token, seed, min_sources, vig_bps, experimental, active. */
+export const SERIES_FIELD = { window: 1, active: 7 } as const
+/**
+ * How many epochs back a series is checked. A window is only ever settled in the 300 s after its
+ * deadline or voided 600 s after; two epochs of the shortest series (15 min) cover that with room
+ * for a missed pass. Anything older was handled, or never opened.
+ */
+export const SERIES_LOOKBACK_EPOCHS = 2
+
 export function createChainKeeperDeps(io: KeeperChainIO): KeeperDeps {
   const settled = new Map<number, KeeperMarket>()
+  const now = io.now ?? (() => Math.floor(Date.now() / 1000))
+  const hexOf = (n: number) => `0x${n.toString(16)}`
+
+  /** Read one market, remembering it forever once it can no longer change. */
+  const readMarket = async (id: number): Promise<KeeperMarket> => {
+    const cached = settled.get(id)
+    if (cached) return cached
+    const market = decodeMarket(id, await io.call(io.markets, 'get_market', [hexOf(id)]))
+    if (market.state !== MARKET_ACTIVE && market.state !== 0) settled.set(id, market)
+    return market
+  }
 
   return {
-    now: io.now ?? (() => Math.floor(Date.now() / 1000)),
+    now,
 
+    // Custom markets by the counter; series windows by arithmetic — only the epochs that could
+    // still need settling, and only the ones somebody actually opened (state 0 = never existed).
     markets: async () => {
+      const out: KeeperMarket[] = []
+
       const countFelts = await io.call(io.markets, 'market_count', [])
       const count = Number(BigInt(countFelts[0] ?? '0x0'))
+      for (let id = 0; id < count; id++) out.push(await readMarket(id))
 
-      const out: KeeperMarket[] = []
-      for (let id = 0; id < count; id++) {
-        const cached = settled.get(id)
-        if (cached) {
-          out.push(cached)
-          continue
+      const seriesFelts = await io.call(io.markets, 'series_count', [])
+      const seriesCount = Number(BigInt(seriesFelts[0] ?? '0x0'))
+      const at = now()
+      for (let s = 0; s < seriesCount; s++) {
+        const felts = await io.call(io.markets, 'get_series', [hexOf(s)])
+        const window = Number(BigInt(felts[SERIES_FIELD.window] ?? '0x0'))
+        if (window === 0) continue
+        const epoch = Math.floor(at / window)
+        for (let back = 0; back <= SERIES_LOOKBACK_EPOCHS; back++) {
+          const e = epoch - back
+          if (e < 0) continue
+          const market = await readMarket((s + 1) * SERIES_ID_BASE + e)
+          if (market.state === 0) continue
+          out.push(market)
         }
-        const market = decodeMarket(id, await io.call(io.markets, 'get_market', [`0x${id.toString(16)}`]))
-        if (market.state !== MARKET_ACTIVE) settled.set(id, market)
-        out.push(market)
       }
       return out
     },

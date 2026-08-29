@@ -22,7 +22,16 @@ export const SELECTOR = {
   launch_logo: '0x258cd291f3689b9c76fc62d1def3b5b2b297dc5ec349211a7ac7f499b3c02b6',
   quote_buy: '0x14b48ce6868b115791fd52c2a56e57ac8a205144b03b21af265c85884881bde',
   create_launch: '0x385b6268c717439a1106322e5a47c12378406dc2126d7cfa29bb0d3bc88d7e0',
+  series_count: '0x3e09157332ece5630a1cf543f50c10d55eb0d67c4f3f32998017c6420a5eaed',
+  get_series: '0x11f1fc1fd125ad1539e312a8dd280f9a8de388238a16661fc14e7db57e62600',
 } as const
+
+/** `markets.cairo`'s `SERIES_ID_BASE`: a series window's id is `(series + 1) · 2^32 + epoch`. */
+export const SERIES_ID_BASE = 2 ** 32
+
+export function seriesMarketId(seriesId: number, epoch: number): number {
+  return (seriesId + 1) * SERIES_ID_BASE + epoch
+}
 
 // ── Contract state numbers, transcribed from the Cairo constants. ─────────────────────────
 export const MARKET_STATE = { none: 0, active: 1, resolved: 2, voided: 3 } as const
@@ -48,6 +57,32 @@ export interface OnChainMarket {
   state: number
   winner: number
   experimental: boolean
+  /** Seeded from the house float by a series; its residual returns there, nobody claims it. */
+  house: boolean
+  /** The series this window belongs to. Meaningful only when `house`. */
+  series: number
+  /** Σ cash_in of open bettor positions — the refund bill if the market voids. */
+  openCash: bigint
+  /** House vig held until settlement. Always 0 on a custom market. */
+  vig: bigint
+  /** The series' window length in seconds; 0 for a custom market. Filled by the reader. */
+  window: number
+  /** The series' vig in basis points; 0 for a custom market. Filled by the reader. */
+  vigBps: number
+}
+
+/** One standing series, decoded. Field names follow `markets.cairo`'s `Series` verbatim. */
+export interface OnChainSeries {
+  id: number
+  pair: string
+  /** Seconds; windows are aligned to multiples of it. */
+  window: number
+  token: string
+  seed: bigint
+  minSources: number
+  vigBps: number
+  experimental: boolean
+  active: boolean
 }
 
 /** One launch, decoded. Field names follow `launch.cairo`'s `LaunchInfo` verbatim. */
@@ -140,9 +175,9 @@ export function decodeByteArray(felts: readonly string[], at = 0): { text: strin
   return { text: String.fromCharCode(...bytes), next: at + words + 3 }
 }
 
-/** `Market`'s 13 felts, in declaration order. Exported so the test can feed it a pinned vector. */
+/** `Market`'s 17 felts, in declaration order. Exported so the test can feed it a pinned vector. */
 export function decodeMarket(id: number, felts: readonly string[]): OnChainMarket {
-  if (felts.length < 13) throw new Error(`get_market returned ${felts.length} felts; Market is 13`)
+  if (felts.length < 17) throw new Error(`get_market returned ${felts.length} felts; Market is 17`)
   return {
     id,
     pair: decodeShortString(felts[0]!),
@@ -157,6 +192,55 @@ export function decodeMarket(id: number, felts: readonly string[]): OnChainMarke
     state: toNum(felts[10]!),
     winner: toNum(felts[11]!),
     experimental: toBig(felts[12]!) !== 0n,
+    house: toBig(felts[13]!) !== 0n,
+    series: toNum(felts[14]!),
+    openCash: toBig(felts[15]!),
+    vig: toBig(felts[16]!),
+    window: 0,
+    vigBps: 0,
+  }
+}
+
+/** `Series`'s 8 felts, in declaration order. */
+export function decodeSeries(id: number, felts: readonly string[]): OnChainSeries {
+  if (felts.length < 8) throw new Error(`get_series returned ${felts.length} felts; Series is 8`)
+  return {
+    id,
+    pair: decodeShortString(felts[0]!),
+    window: toNum(felts[1]!),
+    token: felts[2]!,
+    seed: toBig(felts[3]!),
+    minSources: toNum(felts[4]!),
+    vigBps: toNum(felts[5]!),
+    experimental: toBig(felts[6]!) !== 0n,
+    active: toBig(felts[7]!) !== 0n,
+  }
+}
+
+/**
+ * The window a series would open right now, before anyone has: state NONE, no line yet, the seed
+ * on both sides. What the board shows with a countdown, and what a first bet turns real.
+ */
+export function unopenedWindow(series: OnChainSeries, epoch: number): OnChainMarket {
+  return {
+    id: seriesMarketId(series.id, epoch),
+    pair: series.pair,
+    strike: 0n,
+    deadline: (epoch + 1) * series.window,
+    token: series.token,
+    up: series.seed,
+    down: series.seed,
+    seed: series.seed,
+    collateral: series.seed,
+    state: MARKET_STATE.none,
+    winner: 255,
+    experimental: series.experimental,
+    house: true,
+    series: series.id,
+    openCash: 0n,
+    vig: 0n,
+    window: series.window,
+    vigBps: series.vigBps,
   }
 }
 

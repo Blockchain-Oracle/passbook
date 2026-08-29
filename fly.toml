@@ -41,10 +41,6 @@ primary_region = "iad"
   # Losing it before a permanently-private close makes that vote untalliable — void_proposal is
   # the backstop, but the volume is where these keys belong. Idle until Governance deploys.
   RELAYER_TELLER_STORE = "/data/teller.json"
-  # The Groundskeeper's seed-secret ledger — each standing market's bearer claim on its pot.
-  # Money, not history: a lost secret is a seed nobody can ever reclaim, so it lives on the
-  # volume. The job itself stays off until `fly secrets set RELAYER_GROUNDSKEEPER=on`.
-  RELAYER_GROUNDSKEEPER_STORE = "/data/groundskeeper.json"
   # The faucet's once-per-address claim ledger. WITHOUT THIS on the volume, every deploy resets
   # the caps and re-opens the drip for every address ever funded. The faucet itself stays off
   # until `fly secrets set RELAYER_FAUCET=on` — flipping it spends real principal (M8: the drip
