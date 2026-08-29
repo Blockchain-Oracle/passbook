@@ -37,11 +37,6 @@ export const WINDOW_OPENS_ON_FIRST_BET =
   'No line yet. The first bet opens this window on Pragma’s price at that moment, and the house ' +
   'seeds the other side.'
 
-/** The house's edge, stated where the stake is typed. `pct` is rendered by the caller. */
-export function houseVigLine(pct: string): string {
-  return `House vig ${pct}% comes off the stake; "pays if right" already shows it. Refunded in full if the window voids.`
-}
-
 /** The opening floor, so a dust bet cannot lock the seed. `amount` rendered by the caller. */
 export function openingStakeLine(amount: string): string {
   return `Opening this window takes at least ${amount}.`
@@ -67,11 +62,6 @@ export const CHART_REFERENCE_IS_WINDOW_OPEN =
 
 export const BET_SIDE_UP = 'Over'
 export const BET_SIDE_DOWN = 'Under'
-
-/** The crowd is part of the choice, not a warning under it: an unshared size is a decision to be identifiable. */
-export const DENOMINATION_CROWD =
-  'Bets hide in the crowd at their own size. Pick one others are using and you are one of many; ' +
-  'pick a size nobody else has and the amount alone points back at you.'
 
 /** The FPMM's whole advantage: the odds shown are the odds taken. */
 export const BET_PRICE_LOCKS =

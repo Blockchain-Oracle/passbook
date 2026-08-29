@@ -9,12 +9,15 @@ export const PRAGMA_PAIRS = {
   'BTC/USD': '0x4254432f555344',
   'ETH/USD': '0x4554482f555344',
   'STRK/USD': '0x5354524b2f555344',
+  // Five sources on mainnet (read live 2026-08-29) — enough for a standing series, and a window
+  // without a feed here would show no price and no line.
+  'BTC/EUR': '0x4254432f455552',
 } as const
 
 export type PragmaPair = keyof typeof PRAGMA_PAIRS
 
-/** In display order — the strip renders them left to right in this order. */
-export const PRAGMA_PAIR_LIST: readonly PragmaPair[] = ['BTC/USD', 'ETH/USD', 'STRK/USD']
+/** In display order — every pair a standing series settles on, so each has a live price and a history. */
+export const PRAGMA_PAIR_LIST: readonly PragmaPair[] = ['BTC/USD', 'ETH/USD', 'STRK/USD', 'BTC/EUR']
 
 /** One median reading. Everything a surface needs to render it honestly. */
 export interface PragmaPrice {

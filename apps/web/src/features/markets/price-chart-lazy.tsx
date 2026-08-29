@@ -14,7 +14,7 @@ export function LazyPriceChart(props: PriceChartProps & { pair: string; caption?
     return (
       <div className="flex flex-col gap-2">
         <Skeleton className="w-full" style={{ height }} />
-        <p className="text-body4 text-muted-foreground">Waiting for the first {pair} reading from the relay.</p>
+        <p className="text-body4 text-muted-foreground">No {pair} readings yet — the line starts with the relay’s first one.</p>
       </div>
     )
   }

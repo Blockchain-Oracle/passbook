@@ -5,15 +5,8 @@ import { insufficient, parseAmountInput, toPlainText } from '@strk20/protocol/am
 import { MARKET_STATE, marketQuestion, type OnChainMarket } from '@strk20/protocol/app-reads'
 import { disclosureFor } from '@strk20/protocol/disclosure'
 import { MARKET_OP, SIDE_DOWN, SIDE_UP, betPayload } from '@strk20/protocol/market-calldata'
-import {
-  BET_PRICE_LOCKS,
-  BET_SIDE_DOWN,
-  BET_SIDE_UP,
-  DENOMINATION_CROWD,
-  WINDOW_OPENS_ON_FIRST_BET,
-  houseVigLine,
-  openingStakeLine,
-} from '@strk20/protocol/markets-copy'
+import { payoutMultiple } from '@strk20/protocol/market-math'
+import { BET_PRICE_LOCKS, BET_SIDE_DOWN, BET_SIDE_UP, openingStakeLine } from '@strk20/protocol/markets-copy'
 
 import { Amount } from '@/components/money/amount'
 import { AssetIdentity } from '@/components/money/asset-identity'
@@ -60,6 +53,8 @@ export function BetTicket({ market, open, onOpenChange, initialSide }: BetTicket
   const floorWei = opening ? market.seed / 100n : 0n
   const floorText = `${formatWei(floorWei, stake.decimals)} ${stake.symbol}`
   const vigPct = market.vigBps > 0 ? (market.vigBps / 100).toFixed(market.vigBps % 100 === 0 ? 0 : 2) : null
+  const unit = stake.decimals !== null ? 10n ** BigInt(stake.decimals) : 10n ** 18n
+  const unitPays = payoutMultiple(market.up, market.down, market.k, side === SIDE_UP ? 1 : 0, unit, market.vigBps)
 
   const blocker = !contract
     ? 'The Markets deployment is missing from this build'
@@ -167,21 +162,22 @@ export function BetTicket({ market, open, onOpenChange, initialSide }: BetTicket
               problem={parsed.problem ?? (short ? `Not enough shielded ${stake.symbol}` : null)}
               autoFocus
             />
-            <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-body4">
-              <dt className="text-muted-foreground">Pays if right</dt>
-              <dd className="text-right">
-                <Amount wei={quote.isError ? null : tickets ?? undefined} decimals={stake.decimals} symbol={stake.symbol} size="sm" />
-              </dd>
-              <dt className="text-muted-foreground">Implied odds</dt>
-              <dd className="text-right font-mono tabular-nums">{impliedPct !== null ? `${impliedPct.toFixed(1)}%` : '—'}</dd>
-            </dl>
-            {opening ? (
-              <p className="text-body4 text-muted-foreground">
-                {WINDOW_OPENS_ON_FIRST_BET} {openingStakeLine(floorText)}
-              </p>
-            ) : null}
-            {vigPct !== null ? <p className="text-body4 text-muted-foreground">{houseVigLine(vigPct)}</p> : null}
-            <p className="text-body4 text-muted-foreground">{DENOMINATION_CROWD}</p>
+            {/* One line: what this stake pays, or what 1 unit pays before anything is typed. */}
+            <p className="flex items-center justify-between text-body4">
+              <span className="text-muted-foreground">Pays</span>
+              <span className="font-mono tabular-nums">
+                {parsed.wei && tickets ? (
+                  <>
+                    <Amount wei={tickets} decimals={stake.decimals} symbol={stake.symbol} size="sm" />
+                    {impliedPct !== null ? ` · ${impliedPct.toFixed(0)}%` : ''}
+                  </>
+                ) : (
+                  `1 ${stake.symbol} → ${unitPays.toFixed(2)}`
+                )}
+                {vigPct !== null ? ` · vig ${vigPct}%` : ''}
+              </span>
+            </p>
+            {opening ? <p className="text-body4 text-muted-foreground">{openingStakeLine(floorText)}</p> : null}
           </div>
           <DialogFooter>
             <Button
@@ -207,11 +203,18 @@ export function BetTicket({ market, open, onOpenChange, initialSide }: BetTicket
         rows={[
           { label: 'Side', value: sideWord },
           { label: 'Stake', value: <Amount wei={parsed.wei} decimals={stake.decimals} symbol={stake.symbol} size="sm" /> },
-          { label: 'Pays if right', value: <Amount wei={tickets} decimals={stake.decimals} symbol={stake.symbol} size="sm" /> },
-          { label: 'Implied odds', value: impliedPct !== null ? `${impliedPct.toFixed(1)}%` : '—' },
+          {
+            label: 'Pays',
+            value: (
+              <>
+                <Amount wei={tickets} decimals={stake.decimals} symbol={stake.symbol} size="sm" />
+                {impliedPct !== null ? ` · ${impliedPct.toFixed(0)}%` : ''}
+              </>
+            ),
+          },
         ]}
         disclosure={disclosureFor('markets-bet')}
-        confirmLabel={`Back ${sideWord} · ${stakeText} ${stake.symbol}`}
+        confirmLabel={`Back ${sideWord}`}
         onConfirm={() => void confirm()}
         busy={send.isPending}
         blocker={blocker}
