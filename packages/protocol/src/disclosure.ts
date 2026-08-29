@@ -213,7 +213,7 @@ const TABLE = {
     because: unauthoredReason('launch-sell'),
   },
 
-  // ── The Houses (docs/governance.md §15's shipped sentences). The Teller is a NAMED party on
+  // ── The Houses (docs/architecture.md — Houses). The Teller is a NAMED party on
   //    the ballot panel, beside the relayer and the auditor — that placement is the disclosure.
   'gov-ballot': {
     authored: true,
