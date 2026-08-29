@@ -14,11 +14,11 @@ import {
   type PrivateRegistry,
   type PrivateTransfersUser,
 } from '@starkware-libs/starknet-privacy-sdk'
-import { NET, STRK_TOKEN } from './constants.js'
-import { createPoolClient, PROVING_BLOCK_LAG } from './client.js'
+import { NET, PROVING_BLOCK_LAG, STRK_TOKEN } from './constants.js'
+import { createPoolClient } from './client.js'
 import { contractDiscoveryFor, poolContractFor } from './discovery.js'
 import { approveCall, type Submitter } from './submit.js'
-import { approveCeiling } from './fee-ceiling.js'
+import { approveCeiling, feeFloor, resourceBoundsFor, type ResourceBounds } from './fee-ceiling.js'
 import { noteExists, readPoolHealth, type PoolHealth } from './pool.js'
 import { getProvider } from './rpc.js'
 import { assertProvenShieldCall, assertShieldActionSpan, shieldPoolModeForClassHash, type ShieldPoolMode } from './shield-guards.js'
@@ -52,6 +52,8 @@ export interface ShieldPlan {
   feeCeilingWei: bigint
   poolMode: ShieldPoolMode
   approvalCalls: readonly Call[]
+  /** Priced from the block the plan was read against; ride as v3 details because estimation cannot see the proof. */
+  resourceBounds: ResourceBounds
 }
 
 export type ShieldFailure =
@@ -129,12 +131,14 @@ export function planShield(request: ShieldRequest, health: Extract<PoolHealth, {
 
   const feeCeilingWei = approveCeiling(health.feeWei)
   const tokenIsStrk = token === BigInt(STRK_TOKEN)
-  const publicTokenRequired = tokenIsStrk ? request.amount + feeCeilingWei : request.amount
+  // The balance must hold the fee floor (fee + the live gas bound), not the allowance ceiling.
+  const floorWei = feeFloor(health.feeWei, health.gasPrices)
+  const publicTokenRequired = tokenIsStrk ? request.amount + floorWei : request.amount
   if (request.publicTokenWei < publicTokenRequired) {
     return { kind: 'insufficient-public-token', symbol: request.symbol, requiredWei: publicTokenRequired, availableWei: request.publicTokenWei }
   }
-  if (!tokenIsStrk && request.publicStrkWei < feeCeilingWei) {
-    return { kind: 'insufficient-public-strk', requiredWei: feeCeilingWei, availableWei: request.publicStrkWei }
+  if (!tokenIsStrk && request.publicStrkWei < floorWei) {
+    return { kind: 'insufficient-public-strk', requiredWei: floorWei, availableWei: request.publicStrkWei }
   }
   return {
     request,
@@ -142,6 +146,7 @@ export function planShield(request: ShieldRequest, health: Extract<PoolHealth, {
     feeCeilingWei,
     poolMode: shieldPoolModeForClassHash(NET.poolClassHash),
     approvalCalls: shieldApprovalCalls(request.token, request.amount, feeCeilingWei),
+    resourceBounds: resourceBoundsFor(health.gasPrices),
   }
 }
 
@@ -276,7 +281,11 @@ export async function shieldPublic(request: ShieldRequest, deps: ShieldDeps = {}
   reach('relay')
   let transactionHash: string
   try {
-    transactionHash = await selfSubmit(assembleShieldCalls(planned, proved.call), { proofFacts: proved.proofFacts, proof: proved.proof })
+    transactionHash = await selfSubmit(assembleShieldCalls(planned, proved.call), {
+      proofFacts: proved.proofFacts,
+      proof: proved.proof,
+      resourceBounds: planned.resourceBounds,
+    })
   } catch (error) {
     return fail({ kind: 'submit-failed', reason: String(error) }, planned)
   }

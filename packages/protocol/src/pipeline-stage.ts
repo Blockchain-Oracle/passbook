@@ -55,11 +55,14 @@ export const REGISTRATION_STAGES: readonly RegistrationStage[] = [
  * `[1500,1700,2300,1100]` — that is a mockup's privilege, and copying it would be a progress bar
  * that reports the passage of time as if it were the progress of a transaction.
  */
-export type OnboardingStage = 'drip' | 'deploy' | 'register' | 'confirm'
+export type OnboardingStage = 'drip' | 'deploy' | 'settle' | 'register' | 'confirm'
 
+// `settle` is a real chain read, not a timer: the prover checks the account at
+// `latest − PROVING_BLOCK_LAG`, so a fresh deploy is invisible there until the head moves on.
 export const ONBOARDING_STAGES: readonly OnboardingStage[] = [
   'drip',
   'deploy',
+  'settle',
   'register',
   'confirm',
 ]
@@ -83,6 +86,7 @@ export const STAGE_TITLES: Readonly<Record<PipelineStage, string>> = {
   // spell `Register` and guaranteed the two would eventually disagree.
   drip: 'Drip lands',
   deploy: 'Deploy',
+  settle: 'Chain catches up',
   register: 'Register',
   confirm: 'Confirm',
 }

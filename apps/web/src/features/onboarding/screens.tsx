@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { Eye, FileKey, KeyRound, ShieldCheck, Sparkles } from 'lucide-react'
+import { Eye, FileKey, KeyRound, ShieldCheck, Wallet } from 'lucide-react'
 import { IMPORT_ENTRY_CTA, PASSWORD_BODY, PASSWORD_MISMATCH, PASSWORD_NO_RESET } from '@strk20/protocol/account-copy'
 import {
   CUSTODY_BODY,
@@ -49,7 +49,7 @@ export function ForkScreen({ onCreate, onImport }: { onCreate: () => void; onImp
       </div>
       <div className="flex flex-col gap-3 sm:flex-row">
         <Button size="lg" className="h-12 flex-1 text-buttonLabel2" onClick={onCreate}>
-          <Sparkles data-icon="inline-start" />
+          <Wallet data-icon="inline-start" />
           Create a new wallet
         </Button>
         <Button size="lg" variant="outline" className="h-12 flex-1 text-buttonLabel2" onClick={onImport}>

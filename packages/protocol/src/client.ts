@@ -13,13 +13,10 @@ import {
   type ProofProviderInterface,
   type ProvingRetryOptions,
 } from '@starkware-libs/starknet-privacy-sdk'
-import { NET } from './constants.js'
+import { NET, PROVING_BLOCK_LAG } from './constants.js'
 import { contractDiscoveryFor, poolContractFor } from './discovery.js'
 import { deriveViewingKey } from './identity.js'
 import { getProvider, withFallback } from './rpc.js'
-
-/** Observed ~10 blocks behind head in both live probes; not a protocol constant. */
-export const PROVING_BLOCK_LAG = 10
 
 /** Transient prover refusals (`-32005` / 503) are retried with backoff: 1 s, 2 s, 4 s. */
 export const PROVER_RETRY: ProvingRetryOptions = { maxRetries: 3, baseDelayMs: 1_000 }

@@ -5,7 +5,7 @@
 // Nothing here has asked a prover or a relayer to do anything.
 //
 
-import { PROVING_BLOCK_LAG } from './client.js'
+import { PROVING_BLOCK_LAG } from './constants.js'
 import { SELF_SUBMIT_DISCLOSURE, SELF_SUBMIT_GAS_LOSS, type SelfSubmitOffer, type SendFailure } from './pipeline.js'
 import { getPublicKey, readPoolHealth, type PoolHealth } from './pool.js'
 import { preflightRecipient } from './recipient.js'

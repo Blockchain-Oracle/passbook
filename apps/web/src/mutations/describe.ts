@@ -16,7 +16,7 @@ export function describeSendFailure(failure: SendFailure): string {
     case 'blocked-rpc-unknown':
       return `The chain could not be read, so nothing was sent: ${failure.reason}`
     case 'lock-unavailable':
-      return 'Another tab is in the middle of a send. Finish or close it, then try again.'
+      return 'Another Passbook tab holds the right to sign. Press "Use this tab" in the banner above, or close the other tab, then try again.'
     case 'pool-paused':
       return 'The pool is paused, so nothing can move right now. Nothing was spent.'
     case 'pool-upgraded':

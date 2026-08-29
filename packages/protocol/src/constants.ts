@@ -63,5 +63,12 @@ export const NET: NetworkConfig = NETWORKS[ACTIVE_NETWORK]
 export const STRK_TOKEN =
   '0x04718f5a0fc34cc1af16a1cdee98ffb20c31f5cd61d6ab07201858f4287c938d'
 
+/**
+ * Proofs are built against `latest − PROVING_BLOCK_LAG`: a proof against the head is rejected as
+ * unseen. Observed ~10 in both live probes; not a protocol constant. Lives here, SDK-free, so the
+ * app can count a fresh deploy's wait without loading the SDK.
+ */
+export const PROVING_BLOCK_LAG = 10
+
 // Deliberately absent: the pool fee, note maturity, and proof validity.
 // All three are mutable on-chain and MUST be read at call time. See pool.ts.

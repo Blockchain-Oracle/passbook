@@ -1,5 +1,29 @@
 import { queryOptions, skipToken } from '@tanstack/react-query'
-import { NET, STRK_TOKEN } from '@strk20/protocol/constants'
+import { NET, PROVING_BLOCK_LAG, STRK_TOKEN } from '@strk20/protocol/constants'
+
+export interface AccountProvable {
+  head: number
+  provingBlock: number
+  /** The account contract exists at `provingBlock`, where the prover will look for it. */
+  visible: boolean
+}
+
+/** Whether a registration proof could be built right now. Polled by the caller until `visible`. */
+export function accountProvableQuery(address: string | undefined) {
+  return queryOptions({
+    queryKey: ['account-provable', address ?? null],
+    queryFn: address
+      ? async (): Promise<AccountProvable> => {
+          const { withFallback } = await import('@strk20/protocol/rpc')
+          const head = await withFallback((p) => p.getBlockNumber())
+          const provingBlock = Math.max(0, head - PROVING_BLOCK_LAG)
+          const classHash = await withFallback((p) => p.getClassHashAt(address, provingBlock)).catch(() => null)
+          return { head, provingBlock, visible: typeof classHash === 'string' }
+        }
+      : skipToken,
+    staleTime: 0,
+  })
+}
 
 export type AccountRung = 'unfunded' | 'undeployed' | 'unregistered' | 'ready' | 'unknown'
 

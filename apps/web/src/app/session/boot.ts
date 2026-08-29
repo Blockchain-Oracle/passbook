@@ -130,6 +130,14 @@ export function getSessionLock(): SessionLock | null {
   return lock
 }
 
+/** "Use this tab": preempts the leader tab; the 1 s poll above publishes the new role. */
+export async function takeOverSubmitLock(): Promise<void> {
+  if (!lock) throw new Error('The session has not finished opening yet.')
+  await lock.takeOver()
+  setLeader(true)
+  if (getSessionSnapshot().status !== 'booting') patchSession({ isLeader: true })
+}
+
 setBootTrigger(() => {
   void ensureBooted()
 })

@@ -28,6 +28,8 @@ export interface ReviewSheetProps {
   busy?: boolean
   /** Why confirm is blocked. The CTA stays enabled but says this instead (never `disabled`). */
   blocker?: string | null
+  /** What went wrong on the last confirm, in the caller's words. Shown above the CTA so a refusal is never silent. */
+  problem?: string | null
   children?: ReactNode
 }
 
@@ -45,6 +47,7 @@ export function ReviewSheet({
   onConfirm,
   busy = false,
   blocker,
+  problem,
   children,
 }: ReviewSheetProps) {
   const blocked = busy || Boolean(blocker)
@@ -69,6 +72,11 @@ export function ReviewSheet({
           </Table>
           {children}
           {disclosure ? <DisclosurePanelView panel={disclosure} onWayOut={onWayOut} /> : null}
+          {problem ? (
+            <p role="alert" className="rounded-lg border border-irreversible/40 bg-irreversibleTint px-3 py-2 text-body4 text-irreversible">
+              {problem}
+            </p>
+          ) : null}
         </div>
         <SheetFooter>
           <Button

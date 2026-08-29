@@ -5,7 +5,7 @@ import { STRK_TOKEN } from '@strk20/protocol/constants'
 
 import { useSession, type Session } from '@/app/session'
 import type { BalanceRow } from '@/components/money/balance-cards'
-import { poolConstantsQuery, publicBalancesQuery, publicTokenSet, shieldedBalanceQuery, tokenListQuery } from '@/queries'
+import { publicBalancesQuery, publicTokenSet, shieldedBalanceQuery, tokenListQuery } from '@/queries'
 import { publicRows, shieldedRows, walletTokens, weiOf, type WalletToken } from './rows'
 
 export interface WalletData {
@@ -19,8 +19,6 @@ export interface WalletData {
   publicRows: BalanceRow[]
   /** Public STRK at the address — what a shield's pool fee is paid from. `null` = unread. */
   publicStrkWei: bigint | null
-  /** Live pool fee. `null` while reading or unreadable; the dialog says so. */
-  feeWei: bigint | null
   headBlock: number | null
   loading: boolean
   refetch: () => void
@@ -35,7 +33,6 @@ export function useWalletData(): WalletData {
 
   const list = useQuery(tokenListQuery())
   const shielded = useQuery(shieldedBalanceQuery(address, accountKey))
-  const fee = useQuery(poolConstantsQuery())
 
   const tokens = useMemo(() => walletTokens(list.data, shielded.data), [list.data, shielded.data])
   const publicSet = useMemo(() => publicTokenSet(tokens.map((row) => row.token)), [tokens])
@@ -56,7 +53,6 @@ export function useWalletData(): WalletData {
     shieldedRows: shieldedList,
     publicRows: publicList,
     publicStrkWei: weiOf(publicList, STRK_TOKEN),
-    feeWei: fee.data?.feeWei ?? null,
     headBlock: shielded.data?.blockNumber ?? null,
     loading: shielded.isPending || publics.isPending,
     refetch: () => {
