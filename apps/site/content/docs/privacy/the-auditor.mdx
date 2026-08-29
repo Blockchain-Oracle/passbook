@@ -1,0 +1,42 @@
+---
+title: The auditor
+description: Registration escrows your viewing private key on-chain, permanently. Read this before you register.
+---
+
+<Callout type="warn">
+This is the single most consequential fact about the protocol, and it is irreversible.
+</Callout>
+
+## What registration does
+
+Registering encrypts your **viewing private key** to an auditor public key stored in the pool
+contract, and writes the result on-chain.
+
+- It is **permanent**. There is no rotation path.
+- There is **no opt-out**. You cannot use the pool without it.
+- Anyone can read the record with one permissionless view call — `get_enc_private_key(address)`.
+- Whoever holds the matching private key can recover **every pool-rooted shared secret**, and can
+  do so **retroactively**, including for activity from before they decided to look.
+- Your **chat room keys derive from those same viewing keys**.
+
+## Why it is like this
+
+The protocol is compliance-compatible by design. That is a deliberate choice by its authors, and it
+is a coherent one: a privacy pool that no authority can ever inspect is a privacy pool that will
+struggle to exist.
+
+What matters here is that it is **stated**, not buried. A user who knows there is an auditor can
+decide what to put in. A user who believes the marketing phrase "end-to-end encrypted" cannot.
+
+## The consequence for our copy
+
+This is exactly why nothing in this product is described as end-to-end encrypted, and why
+`end-to-end`, `e2ee` and `only you can` are on the
+[refused claims](/docs/privacy/refused-claims) list. There is a third party by construction. Any
+sentence implying otherwise would be false.
+
+## What it does not mean
+
+The auditor is not the relayer, and it is not us. We do not hold that key. Our
+[relayer](/docs/architecture/relayer) sees your IP and your request timing and holds no key of
+yours at all — a different party with a different, smaller view.

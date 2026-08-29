@@ -1,0 +1,42 @@
+---
+title: Relayer configuration
+description: It holds a funded key and pays for what it signs, so whatever can reach its port can spend.
+---
+
+The relayer submits transactions so that its address, not yours, is the visible submitter on the
+public record. It holds a funded key and pays for what it signs, which means the security property
+that matters is simple and blunt: **whatever can reach its port can spend.**
+
+It binds `127.0.0.1` by default and refuses anything outside a small allowlist of
+(contract, entrypoint) pairs.
+
+## Environment
+
+| Variable | Default | What it does |
+|---|---|---|
+| `RELAYER_AUTH_TOKEN` | unset | Shared secret required as `x-relayer-auth`. **Mandatory behind a proxy.** |
+| `RELAYER_ALLOWED_ORIGINS` | unset | Comma-separated browser origins. Can only refuse access, never grant it — not a substitute for the auth token. |
+| `RELAYER_HOST` | `127.0.0.1` | Interface to bind. An empty value is treated as unset. |
+| `PORT` | `8787` | Port to listen on. |
+
+<Callout type="warn">
+If this server is reachable through a proxy, `RELAYER_AUTH_TOKEN` is mandatory. Behind a proxy,
+loopback has stopped being a boundary — and nothing warns you, because from the server's point of
+view every request still arrives from `127.0.0.1`.
+</Callout>
+
+## Two things that look like authentication and are not
+
+**Origin checking.** `RELAYER_ALLOWED_ORIGINS` can only refuse a request, never authorise one.
+Behind a proxy, every internet client arrives with no `Origin` header at all — which is the same
+shape a same-process call has. It is a useful narrowing, not a gate.
+
+**The content-type requirement.** Requiring `content-type: application/json` is a **CSRF control**,
+not authentication. It stops a form on another site posting to the relayer. It stops nothing that
+can set a header.
+
+## What it does not hold
+
+No key of yours. Not your account key, not your viewing key, not your room keys. What it has is
+your IP and your timing — which is a real disclosure, and is listed as one on
+[who sees what](/docs/privacy/who-sees-what).

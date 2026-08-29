@@ -1,0 +1,51 @@
+---
+title: Build and verify
+description: Run the tests, build the app, check the mainnet guard — and what the build gate refuses.
+---
+
+Node 24, pnpm 11.24.0, plus `scarb` 2.8.2 and `snforge` 0.31.0 for the contracts.
+
+```bash
+nvm use && corepack enable && pnpm install
+pnpm test                            # 2,600 tests across 104 files
+pnpm run typecheck
+pnpm run build:web                   # the app — the only supported build
+pnpm --filter @strk20/site build     # this site
+pnpm run verify:mainnet-guard
+```
+
+Contracts:
+
+```bash
+cd contracts && scarb build && snforge test    # 109 tests
+```
+
+## Why `build:web` and not `vite build`
+
+A bare `vite build` produces an artifact and skips every gate that makes the artifact trustworthy.
+`build:web` is the only supported path, and it refuses a build that:
+
+- lets a **Node-only module** into any emitted chunk — the failure mode is a green build that dies
+  at load with `ReferenceError`,
+- exceeds the **first-paint byte cap**, measured over the entry chunk plus every `modulepreload`,
+- moves the cold-open surface **out of the entry chunk**, which would silently add a round trip
+  before anything paints,
+- emits a **bundler warning** that is not on an explicit allowlist,
+- has a **route tree** that disagrees with the route files on disk,
+- ships **without the design system** in the artifact.
+
+## The mainnet guard
+
+A production build of the app may only be made against `ACTIVE_NETWORK = 'mainnet'`. The guard runs
+during config evaluation, before the bundler starts, so an off-mainnet build dies in about a second
+and never writes a byte to `dist/`.
+
+`vite preview` will happily serve a stale off-mainnet `dist/`, so preview output is never evidence
+that the guard ran. `pnpm run verify:mainnet-guard` is.
+
+## This site
+
+Deliberately has none of that. It is two pages of type on hairlines with a docs tree behind them,
+it holds no key and talks to no chain, and a gate on it would be a gate nobody reads. It is a
+separate package with a plain build — `apps/site`, its own dependencies, its own deploy — and
+nothing in the app imports from it.

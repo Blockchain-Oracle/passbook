@@ -1,0 +1,42 @@
+---
+title: System topology
+description: The four parties that touch a request, and exactly what each of them can see.
+---
+
+Four parties touch a request. Each one is listed with what it can see, because this diagram is the
+trust model rather than the plumbing.
+
+| Party | What it is | What it sees |
+|---|---|---|
+| **Your browser** | Holds the embedded key in `localStorage`, in plaintext | Everything. "Lock" means a screen lock, not encryption |
+| **App host proxy** | Same origin. The browser posts to `/api/*` and the host injects the relayer auth token | The request. The browser never holds the token |
+| **Relayer** | A trust assumption, and named as one | Your IP and request timing. For chat, a short in-memory ciphertext backlog. Holds no key of yours |
+| **Starknet · STRK20 pool** | The public record | Deposits: depositor and amount. What it hides is which notes are yours afterwards |
+
+## The proxy exists so the browser never holds a secret
+
+The relayer requires an auth token when it is reachable off-loopback. If the browser held that
+token, it would be in the bundle, which means it would be public — so the app host injects it
+server-side and the browser posts to same-origin paths. See [the relayer](/docs/architecture/relayer).
+
+## The relayer is the visible submitter
+
+This is the whole reason it exists. Somebody's address appears on-chain as the submitter of every
+transaction, and the design choice is whether that is yours or ours. It is ours.
+
+The cost is that the relayer learns your IP and the timing of your request, which is why it is
+listed as a trust assumption on the surface and here, rather than described as infrastructure.
+
+## Four design rules that follow
+
+**The account is an embedded key.** Derived in the browser on first load — no wallet, no email, no
+seed phrase before anything works. See [the account](/docs/how-it-works/the-account).
+
+**One socket, disclosed.** Every conversation rides one multiplexed socket, and a multiplexed
+subscribe tells the relayer those rooms share one participant. The copy says so.
+
+**The name directory is public by construction.** Claiming a name publishes `name → address`; that
+is its function. Search is private — the client fetches the whole list and matches locally.
+
+**No protocol number is hardcoded.** The pool fee is mutable with no upgrade delay, so it is read
+from the pool at call time, every time. `evidence/` records only what a probe actually measured.

@@ -1,0 +1,36 @@
+---
+title: Markets and Launch
+description: Prediction markets settled against a live oracle, and token launches that record no buyer address.
+---
+
+Both contracts are deployed on Starknet mainnet — the addresses and deploy transactions are in
+[the evidence](/docs/evidence), and [surface status](/docs/surfaces) computes their state from that
+same file rather than asserting it.
+
+## Markets
+
+Prediction markets that settle against **Pragma**, the on-chain oracle. The price strip and chart on
+the surface are live reads from the same oracle a market settles against — not a decorative chart,
+and not a fixture.
+
+Betting is done from shielded notes, so the bet is not linked to a public address of yours. The
+**size** of the bet is public, like every leg that touches an open note.
+
+<Callout type="warn">
+There is one privacy caveat the app states on the surface itself: your bet is hidden as long as
+your denomination has company. If you are the only participant at that size, your bet is
+identifiable. A privacy claim that is usually true is the most dangerous kind, so the product
+carries the condition rather than the headline.
+</Callout>
+
+## Launch
+
+Token launches with an epoch mechanism. Buys arrive as **withdrawals from the pool**, which means:
+
+> **the launch records no buyer address.**
+
+That is the narrow, true claim. The tempting version — "your address never appears on the launch" —
+is false and is on the [refused claims](/docs/privacy/refused-claims) list, because your address
+does appear on the deposit that funded you and on any public withdrawal you make later.
+
+The difference between those two sentences is exactly the difference this product is about.

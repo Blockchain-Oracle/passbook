@@ -1,0 +1,36 @@
+---
+title: Mainnet record
+description: Every contract and transaction, on Starknet mainnet, with the file each value came out of.
+---
+
+Network is `SN_MAIN`. Every row is independently checkable with one RPC call, and every one was read
+back off the chain rather than copied from a deployment log.
+
+<MainnetRecord />
+
+## Why each row names a file
+
+A table of hex strings retyped out of a deployment log stays green forever, including on the day it
+starts naming a contract nobody deployed. These rows are derived from the `evidence/*.json` files
+the deploy scripts wrote and the verifier read back — so a redeploy that rewrites those files
+rewrites this page, and a reader who does not trust it can diff it against the repository.
+
+## "Succeeded" versus "is there"
+
+> "The transaction succeeded" is a weaker claim than "the class is there now".
+
+The first is a statement about the past that nobody can re-check. The second is a statement about
+current chain state that anyone can. Every address above was verified the second way.
+
+## The pool class hash is pinned on purpose
+
+The STRK20 pool is **upgradeable with zero delay** and can be **paused**. If the running pool's
+class hash stops matching the one the app was built against, the app says so and stops rather than
+guess — an upgraded pool is a different contract, and continuing against it would mean acting on
+assumptions that have expired.
+
+## Audit status
+
+The OpenZeppelin audit of the underlying protocol covers commit `c5e2fb5` (May 2026). Everything
+newer, **including this repository, is unaudited**. The pool is StarkWare's and audited; the product
+around it is ours and is not.

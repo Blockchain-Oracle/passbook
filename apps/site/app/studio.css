@@ -1,0 +1,295 @@
+/*
+ * The site's stylesheet: the STUDIO design language, and Fumadocs wearing it.
+ *
+ * ── WHERE THE VALUES COME FROM ────────────────────────────────────────────────────────────
+ *
+ * Every colour and type step below is lifted from the project's design authority —
+ * `apps/web/design/tokens.yaml`, the STUDIO direction ratified 2026-08-28 — and none of it is
+ * invented here. This file carries the subset a marketing page and a docs site actually use; the
+ * app's generated sheet carries the whole system (disclosure recipes, progress rings, odometer
+ * digits) and none of that has a use on a page with no product in it.
+ *
+ * THE TRADE, STATED: this is a second copy of about twenty values, so the two can drift. That is
+ * the price of the site being its own package with its own build. Each block names its source key
+ * so the two can be diffed, and if the palette changes `tokens.yaml` is what changed.
+ *
+ * ── NOTHING IS RESET TO `initial` HERE, UNLIKE THE APP'S SHEET ────────────────────────────
+ *
+ * That sheet empties Tailwind's default palette and spacing so every value in the app is one
+ * somebody chose. It cannot be done here: Fumadocs' own components are built out of the default
+ * scale and the `fd-*` namespace, and emptying either takes the sidebar, the search dialog and the
+ * table of contents down with it. The discipline this file keeps instead is that every value the
+ * SITE'S OWN markup uses is a token from the authority.
+ *
+ * DARK ONLY, and a decision rather than an omission — `root.tsx` pins `class="dark"` and
+ * `lib/layout.shared.tsx` disables the theme switch. The prototype is dark, the app opens dark, and
+ * a toggle here would be a control that changes nothing a reader came to find out.
+ */
+@import 'tailwindcss';
+@import 'fumadocs-ui/css/neutral.css';
+@import 'fumadocs-ui/css/preset.css';
+
+@import '@fontsource/anton/400.css';
+@import '@fontsource-variable/archivo/wght.css';
+@import '@fontsource/space-mono/400.css';
+@import '@fontsource/space-mono/700.css';
+
+/*
+ * Fumadocs ships its own components, so Tailwind has to scan them for the classes they use. Without
+ * this the sidebar, search dialog and TOC render unstyled — the single most confusing failure in
+ * this stack, because the build is green and only the chrome is broken.
+ */
+@source '../node_modules/fumadocs-ui/dist';
+
+@theme {
+  /* colours — [tokens.yaml colors.dark] */
+  --color-ground: #0a0a0a; /* bg0 — near-black, never #000 */
+  --color-raised: #151515; /* bg1 */
+  --color-inset: #1d1d1d; /* bg2 */
+  --color-surface3: rgba(240, 239, 234, 0.1); /* line */
+  --color-surface3Hovered: rgba(240, 239, 234, 0.2); /* line2 */
+  --color-neutral1: #f1f0eb; /* ink — bone white, never #fff */
+  --color-neutral2: #a3a29c; /* ink2 */
+  --color-neutral3: #6d6c67; /* ink3 */
+  --color-accent1: #c8f57f; /* gold — the one branded colour */
+  --color-accent1Hovered: #dafa9f; /* goldB */
+  --color-exposed: #f2dc4e; /* warn */
+  --color-irreversible: #f2a0b4; /* red — a rose, not a fire alarm */
+
+  /* type — [tokens.yaml typography] */
+  --font-sans: 'Archivo Variable', 'Inter', system-ui, sans-serif;
+  --font-display: 'Anton', 'Archivo Variable', system-ui, sans-serif;
+  --font-mono: 'Space Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  --font-weight-book: 400;
+  --font-weight-medium: 600;
+  --font-weight-bold: 700;
+
+  /*
+   * The poster steps are the SITE'S OWN and have no equivalent in the app's ladder, which tops out
+   * at 76px for the wallet balance. The landing page has no chrome above it and one idea per
+   * screen, so its headline is sized to the viewport. The prototype spelled these as `clamp()`;
+   * they land as fixed steps a call site pairs with `display1` below `md`. Leading is 0.84 of size,
+   * snapped to the 4px baseline grid the app's token generator enforces.
+   */
+  --text-poster1: 148px;
+  --text-poster1--line-height: 124px;
+  --text-poster1--letter-spacing: -0.005em;
+  --text-poster2: 92px;
+  --text-poster2--line-height: 76px;
+  --text-poster2--letter-spacing: -0.005em;
+
+  --text-display1: 62px;
+  --text-display1--line-height: 56px;
+  --text-display1--letter-spacing: 0.004em;
+  --text-display2: 44px;
+  --text-display2--line-height: 40px;
+  --text-display2--letter-spacing: 0.004em;
+  --text-display3: 29px;
+  --text-display3--line-height: 28px;
+  --text-display3--letter-spacing: 0.004em;
+  --text-heading3: 24px;
+  --text-heading3--line-height: 28px;
+  --text-heading3--letter-spacing: -0.005em;
+  --text-body1: 18px;
+  --text-body1--line-height: 24px;
+  --text-body2: 16px;
+  --text-body2--line-height: 24px;
+  --text-body3: 14px;
+  --text-body3--line-height: 20px;
+  --text-body4: 12px;
+  --text-body4--line-height: 16px;
+  --text-kicker: 11px;
+  --text-kicker--line-height: 16px;
+  --text-kicker--letter-spacing: 0.16em;
+
+  /* spacing — [tokens.yaml spacing.scale], the subset this site reaches for */
+  --spacing-s2: 2px;
+  --spacing-s4: 4px;
+  --spacing-s6: 6px;
+  --spacing-s8: 8px;
+  --spacing-s12: 12px;
+  --spacing-s16: 16px;
+  --spacing-s20: 20px;
+  --spacing-s24: 24px;
+  --spacing-s28: 28px;
+  --spacing-s32: 32px;
+  --spacing-s36: 36px;
+  --spacing-s40: 40px;
+  --spacing-s48: 48px;
+  --spacing-s60: 60px;
+
+  /* radii — [tokens.yaml rounded] */
+  --radius-card: 16px;
+  --radius-large: 20px;
+  --radius-pill: 9999px;
+
+  /* motion — [tokens.yaml motion] */
+  --ease-simple: ease-in-out;
+  --ease-linear: linear;
+  --duration-attention: 1200ms;
+  /*
+   * AMBIENT, and the only duration here that is not a transition: the refusal ticker travels one
+   * full copy of its own content and loops. A travel SPEED expressed as the time to cross.
+   */
+  --duration-marquee: 36000ms;
+}
+
+/*
+ * ---- Fumadocs, in the STUDIO palette --------------------------------------------------------
+ *
+ * The docs chrome is built out of the `fd-*` namespace, so re-theming it is a matter of pointing
+ * those variables at the tokens above rather than restyling components. Under `.dark` because
+ * `root.tsx` pins that class and there is no other mode.
+ */
+.dark {
+  --color-fd-background: var(--color-ground);
+  --color-fd-foreground: var(--color-neutral1);
+  --color-fd-card: var(--color-raised);
+  --color-fd-card-foreground: var(--color-neutral1);
+  --color-fd-popover: var(--color-inset);
+  --color-fd-popover-foreground: var(--color-neutral1);
+  --color-fd-muted: var(--color-raised);
+  --color-fd-muted-foreground: var(--color-neutral2);
+  --color-fd-border: var(--color-surface3);
+  --color-fd-primary: var(--color-accent1);
+  /* Lime is a LIGHT colour: text on it is the near-black ground, never white. */
+  --color-fd-primary-foreground: var(--color-ground);
+  --color-fd-secondary: var(--color-inset);
+  --color-fd-secondary-foreground: var(--color-neutral1);
+  --color-fd-accent: rgba(200, 245, 127, 0.12); /* [tokens.yaml accent2] the filled-accent tint */
+  --color-fd-accent-foreground: var(--color-accent1Hovered);
+  --color-fd-ring: var(--color-accent1);
+}
+
+@layer base {
+  body {
+    font-family: var(--font-sans);
+    background-color: var(--color-ground);
+    color: var(--color-neutral1);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-wrap: pretty;
+  }
+
+  ::selection {
+    background-color: var(--color-accent1);
+    color: var(--color-ground);
+  }
+
+  /*
+   * The display voice — Anton, uppercase, tight. Size stays at the call site (`text-poster1` …), so
+   * this class is the voice and the step tokens are the volume. `font-weight` is pinned to 400
+   * because Anton ships one cut: any inherited weight triggers faux-bolding in the browser.
+   *
+   * IT IS NOT APPLIED TO MDX HEADINGS, and that is a legibility call rather than an oversight.
+   * Anton is a poster face: uppercase `h2`s down a page of technical prose are markedly harder to
+   * scan than Archivo at the same size. The docs page TITLE takes it — that is the brand moment —
+   * and everything below it stays in the body face with Fumadocs' own anchor behaviour intact.
+   */
+  .display {
+    font-family: var(--font-display);
+    font-weight: 400;
+    text-transform: uppercase;
+  }
+
+  /* The mono section kicker — "01 — overview". Uppercase, wide-tracked, faint. */
+  .kicker {
+    font-family: var(--font-mono);
+    font-size: var(--text-kicker);
+    line-height: var(--text-kicker--line-height);
+    letter-spacing: var(--text-kicker--letter-spacing);
+    text-transform: uppercase;
+    color: var(--color-neutral3);
+  }
+
+  /* The brand's rotated square — the same mark the app header carries. */
+  .brand-mark {
+    flex: none;
+    width: var(--spacing-s12);
+    height: var(--spacing-s12);
+    background-color: var(--color-accent1);
+    transform: rotate(45deg);
+  }
+
+  /* `:focus-visible`, not `:focus`, so a mouse click does not paint a ring nobody asked for. */
+  .focus-ring:focus-visible {
+    outline: 2px solid var(--color-accent1);
+    outline-offset: 2px;
+    border-radius: var(--radius-card);
+  }
+
+  /*
+   * The refusal ticker. The track holds the list TWICE and travels exactly one copy's width, so at
+   * the instant it lands on -50% the second copy is standing where the first one started and the
+   * reset is invisible. The keyframe is a percentage rather than a pixel measurement because the
+   * seam is a property of the duplication, not of the content's length — it survives the list
+   * changing length.
+   */
+  @keyframes pb-marquee {
+    to {
+      transform: translateX(-50%);
+    }
+  }
+
+  .site-ticker-track {
+    display: flex;
+    width: max-content;
+    animation-name: pb-marquee;
+    animation-duration: var(--duration-marquee);
+    animation-timing-function: var(--ease-linear);
+    animation-iteration-count: infinite;
+  }
+
+  /*
+   * The "live on SN_MAIN" breath, at 1200ms because a faster blink beside the word "live" reads as
+   * an alarm rather than a heartbeat. It is the SECOND channel — the words carry the claim.
+   */
+  @keyframes pb-pulse {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.4;
+    }
+  }
+
+  .site-live-dot {
+    animation-name: pb-pulse;
+    animation-duration: var(--duration-attention);
+    animation-timing-function: var(--ease-simple);
+    animation-iteration-count: infinite;
+  }
+
+  /*
+   * ---- reduced motion ------------------------------------------------------------------------
+   *
+   * The blanket rule covers transitions. Both animations above carry their own `animation-name`, so
+   * each has to be named here or it keeps playing — a class's own declaration beats a `*` selector.
+   */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      transition-duration: 1ms !important;
+      scroll-behavior: auto !important;
+    }
+
+    /*
+     * THE TICKER STOPS AND UNWINDS. `transform: none` is the load-bearing half: stopping the
+     * animation alone freezes the track wherever the lap had got to, which mid-travel means the
+     * strip opens with a word cut in half against the left edge. Reset to 0 and the first copy
+     * reads from its start, which is a legible static list.
+     */
+    .site-ticker-track {
+      animation-name: none;
+      transform: none;
+    }
+
+    /* The dot stops at full opacity. The dip IS the motion; there is nothing underneath to keep. */
+    .site-live-dot {
+      animation-name: none;
+      opacity: 1;
+    }
+  }
+}

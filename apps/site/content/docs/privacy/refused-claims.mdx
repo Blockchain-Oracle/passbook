@@ -1,0 +1,47 @@
+---
+title: Refused claims
+description: The ten phrases that are false about this system, kept as data rather than as a style guide.
+---
+
+These phrases are false about STRK20 as deployed. They live as data in
+`packages/protocol/src/forbidden-claims.ts`, each with the reason it is false written beside it,
+and the copy tests hold every shipped copy module to the list.
+
+<RefusedClaims />
+
+## Why some of them read as fragments
+
+They are **substrings the tests sweep for**, not sentences. `only you can` catches "only you can see
+your balance" and every variation of it without anybody having to enumerate the variations.
+
+## Why each one is false here
+
+| Phrase | Why it is false |
+|---|---|
+| `end-to-end`, `e2ee`, `only you can` | The [auditor](/docs/privacy/the-auditor) holds an escrowed viewing key and `get_enc_private_key` is permissionless. There is a third party by construction. |
+| `zero-knowledge` | The pool proves things, but amounts on any leg touching an open note are public. The phrase promises more than the protocol delivers. |
+| `watch-only`, `view-only`, `read-only` | One key both reads notes and signs spending. There is no view-only derivation to hand an accountant, and there never will be here. |
+| `your address never appears` | It appears on the deposit, and on any withdrawal to a public address. |
+| `amounts are private` | False for swaps, launches and market bets. The sponsor's own rule: *claim identity privacy; never claim amount privacy for swaps.* |
+| `unlinkable across surfaces` | The seven identities are unlinkable **to other users**. The auditor and the relayer can join them up. The honest sentence names who cannot, not "nobody". |
+
+## What the list does and does not buy
+
+<Callout>
+Stated precisely, because a page about not overstating things is a bad place to overstate one: the
+tests sweep the **copy modules**, not every string in the app. There is no repository-wide lint any
+more — it existed, and it was removed on purpose in August 2026.
+</Callout>
+
+Below the copy modules, this is a list a human has to mean. That is why it is published here rather
+than only enforced.
+
+## The narrow claim usually survives
+
+The value of the list is not that it deletes sentences. It is that it forces the true, narrower
+version:
+
+- ~~your address never appears on the launch~~ → **the launch records no buyer address**
+- ~~your bet is private~~ → **your bet is hidden as long as your denomination has company**
+
+Both replacements are weaker. Both are checkable. That is the trade this product keeps making.
