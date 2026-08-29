@@ -63,8 +63,8 @@ export function BridgeReview({
     },
     // Unabbreviated on purpose: a truncated address here truncates the one thing left to check.
     { label: 'Destination', value: <span className="break-all text-mono">{destination}</span> },
-    { label: 'Delivery fee', value: usdc(fee?.forwardFeeWei ?? null) },
-    { label: 'Transfer fee', value: usdc(fee?.protocolFeeWei ?? null) },
+    { label: 'Delivery fee · Circle pays the far-end gas', value: usdc(fee?.forwardFeeWei ?? null) },
+    { label: 'Transfer fee · CCTP’s cut', value: usdc(fee?.protocolFeeWei ?? null) },
     { label: 'Speed', value: 'Fast — seconds, not minutes' },
   ]
   // Tier 2 supplies its own label; the CTA keeps the chain's name everywhere else.
@@ -84,13 +84,9 @@ export function BridgeReview({
       busy={busy}
       blocker={blocker}
     >
-      <p className="text-body4 text-muted-foreground">
-        Delivery fee: Circle submits the transfer and pays the gas at the far end. Transfer fee: CCTP&rsquo;s own cut of
-        the amount.
-      </p>
       <DestinationCaveat chain={chain} />
       <SelfLinkNotice selfLink={selfLink} />
-      <LinkabilityMeter meter={meter} pending={crowdPending} className="rounded-lg border p-3" />
+      <LinkabilityMeter meter={meter} pending={crowdPending} variant="row" className="rounded-lg border p-3" />
       {problem ? (
         <Alert variant="destructive">
           <OctagonX />

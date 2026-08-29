@@ -22,9 +22,26 @@ export function shortenHash(hash: string, lead = 8, tail = 6): string {
   return hash.length <= lead + tail + 1 ? hash : `${hash.slice(0, lead)}…${hash.slice(-tail)}`
 }
 
+/** A long felt or address, shortened on screen and copied whole. Never lets a row scroll sideways. */
+export function CopyableValue({ value, short, label }: { value: string; short?: string; label?: string }) {
+  const { copied, copy } = useCopy()
+  return (
+    <Button
+      variant="ghost"
+      size="xs"
+      onClick={() => void copy(value)}
+      className="font-mono text-mono"
+      title={value}
+      aria-label={copied ? 'Copied' : `Copy ${label ?? 'value'}`}
+    >
+      {short ?? shortenHash(value)}
+      {copied ? <Check className="size-3 text-settled" data-icon="inline-end" /> : <Copy className="size-3 text-muted-foreground" data-icon="inline-end" />}
+    </Button>
+  )
+}
+
 /** What landed, with its hash. The boundary badge says where the money ended up. */
 export function Receipt({ title = 'Receipt', transactionHash, rows, boundary, explorerUrl, className }: ReceiptProps) {
-  const { copied, copy } = useCopy()
   return (
     <Card className={cn('border-settled', className)}>
       <CardHeader>
@@ -38,24 +55,14 @@ export function Receipt({ title = 'Receipt', transactionHash, rows, boundary, ex
           <TableBody>
             {rows.map((row) => (
               <TableRow key={row.label}>
-                <TableCell className="text-muted-foreground">{row.label}</TableCell>
-                <TableCell className="text-right font-mono tabular-nums">{row.value}</TableCell>
+                <TableCell className="whitespace-normal text-muted-foreground">{row.label}</TableCell>
+                <TableCell className="whitespace-normal text-right font-mono tabular-nums break-words">{row.value}</TableCell>
               </TableRow>
             ))}
             <TableRow>
               <TableCell className="text-muted-foreground">Transaction</TableCell>
               <TableCell className="text-right">
-                <Button
-                  variant="ghost"
-                  size="xs"
-                  onClick={() => void copy(transactionHash)}
-                  className="font-mono text-mono"
-                  title={transactionHash}
-                  aria-label={copied ? 'Copied' : 'Copy transaction hash'}
-                >
-                  {shortenHash(transactionHash)}
-                  {copied ? <Check className="size-3 text-settled" data-icon="inline-end" /> : <Copy className="size-3 text-muted-foreground" data-icon="inline-end" />}
-                </Button>
+                <CopyableValue value={transactionHash} label="transaction hash" />
               </TableCell>
             </TableRow>
           </TableBody>

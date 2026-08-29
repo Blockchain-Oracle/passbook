@@ -1,10 +1,12 @@
-import { ArrowUpRight, Check } from 'lucide-react'
+import { useState } from 'react'
+import { ArrowUpRight, Check, ChevronDown } from 'lucide-react'
 import type { Disclosure, DisclosureLine } from '@strk20/protocol/disclosure'
 import { panelSeverity } from '@strk20/protocol/disclosure'
 import { getPrivacyColor, type PrivacyColor } from '@strk20/protocol/privacy'
 import { CONTEXT_LABELS } from '@strk20/protocol/visibility-matrix'
 
 import { Button } from '@/components/ui/button'
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { Item, ItemContent, ItemGroup, ItemMedia } from '@/components/ui/item'
 import { cn } from '@/lib/utils'
 
@@ -31,10 +33,12 @@ export interface DisclosurePanelViewProps {
 }
 
 /**
- * The required review disclosure. First line is the headline and takes the panel's colour;
- * every other line is neutral. Marker = word + shape, so it survives greyscale.
+ * The required review disclosure. The headline is always on screen and takes the panel's colour;
+ * the remaining lines fold behind "more" so a review sheet fits one screen. Marker = word +
+ * shape, so it survives greyscale.
  */
 export function DisclosurePanelView({ panel, onWayOut, className }: DisclosurePanelViewProps) {
+  const [open, setOpen] = useState(false)
   if (!panel.authored) {
     return (
       <p className={cn('rounded-lg border border-dashed px-3 py-2 text-body4 text-muted-foreground', className)}>
@@ -46,25 +50,37 @@ export function DisclosurePanelView({ panel, onWayOut, className }: DisclosurePa
   const [headline, ...rest] = panel.lines
   return (
     <section aria-label={`What this reveals: ${CONTEXT_LABELS[panel.context]}`} className={cn('rounded-lg border p-3', tone.ring, className)}>
-      <p className="text-kicker uppercase text-muted-foreground">Who sees what</p>
-      <ItemGroup className="mt-2 gap-1.5">
+      <Collapsible open={open} onOpenChange={setOpen}>
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-kicker uppercase text-muted-foreground">Who sees what</p>
+          {rest.length > 0 ? (
+            <CollapsibleTrigger render={<Button variant="ghost" size="xs" />}>
+              {open ? 'Less' : `${rest.length} more`}
+              <ChevronDown data-icon="inline-end" className={cn('transition-transform', open && 'rotate-180')} />
+            </CollapsibleTrigger>
+          ) : null}
+        </div>
         {headline ? (
-          <Item size="xs" className="items-start p-0">
+          <Item size="xs" className="mt-2 items-start p-0">
             <ItemMedia variant="icon">
               <Marker line={headline} />
             </ItemMedia>
             <ItemContent className={cn('text-body3 font-medium', tone.text)}>{headline.text}</ItemContent>
           </Item>
         ) : null}
-        {rest.map((line) => (
-          <Item key={line.text} size="xs" className="items-start p-0">
-            <ItemMedia variant="icon">
-              <Marker line={line} />
-            </ItemMedia>
-            <ItemContent className="text-body4 text-muted-foreground">{line.text}</ItemContent>
-          </Item>
-        ))}
-      </ItemGroup>
+        <CollapsibleContent>
+          <ItemGroup className="mt-1.5 gap-1.5">
+            {rest.map((line) => (
+              <Item key={line.text} size="xs" className="items-start p-0">
+                <ItemMedia variant="icon">
+                  <Marker line={line} />
+                </ItemMedia>
+                <ItemContent className="text-body4 text-muted-foreground">{line.text}</ItemContent>
+              </Item>
+            ))}
+          </ItemGroup>
+        </CollapsibleContent>
+      </Collapsible>
       {panel.wayOut && onWayOut ? (
         <Button variant="outline" size="sm" className="mt-3" onClick={onWayOut}>
           {panel.wayOut.label}

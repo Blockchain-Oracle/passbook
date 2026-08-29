@@ -8,11 +8,11 @@ import { STAGE_TITLES } from '@strk20/protocol/pipeline-stage'
 import { Amount } from '@/components/money/amount'
 import { MoneyField } from '@/components/money/money-field'
 import { OperationPipeline } from '@/components/money/operation-pipeline'
-import { Receipt } from '@/components/money/receipt'
+import { CopyableValue, Receipt } from '@/components/money/receipt'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Item, ItemContent, ItemDescription, ItemGroup, ItemTitle } from '@/components/ui/item'
-import { explorerTx } from '@/lib/format'
+import { explorerTx, shortAddress } from '@/lib/format'
 import { describeSendFailure, usePipeline, useSend } from '@/mutations'
 import { BridgeReview } from './bridge-review'
 import { ChainMark } from './chain-marks'
@@ -73,7 +73,8 @@ export function BridgeSurface({ initialChain }: { initialChain?: string }) {
   }
 
   return (
-    <div className="grid gap-6 md:grid-cols-[minmax(0,1fr)_20rem]">
+    // `items-start`: the form card keeps its own height instead of stretching to the aside's.
+    <div className="grid gap-6 md:grid-cols-[minmax(0,1fr)_20rem] md:items-start">
       <Card>
         <CardHeader>
           <CardTitle className="font-display text-display4 uppercase">Crossing</CardTitle>
@@ -142,11 +143,14 @@ export function BridgeSurface({ initialChain }: { initialChain?: string }) {
           </Card>
         ) : null}
         {landed ? <LandedReceipt landed={landed} /> : null}
-        <Card>
-          <CardContent>
-            <LinkabilityMeter meter={form.meter} pending={form.crowdPending} />
-          </CardContent>
-        </Card>
+        {/* The meter's full reading lives here only while nothing is running: the form row and the review carry it otherwise. */}
+        {!ours && !landed ? (
+          <Card>
+            <CardContent>
+              <LinkabilityMeter meter={form.meter} pending={form.crowdPending} />
+            </CardContent>
+          </Card>
+        ) : null}
       </aside>
 
       <BridgeReview
@@ -213,12 +217,14 @@ function LandedReceipt({ landed }: { landed: Landed }) {
               </span>
             ),
           },
-          { label: 'Destination', value: <span className="break-all text-mono">{landed.destination}</span> },
+          {
+            label: 'Destination',
+            value: <CopyableValue value={landed.destination} short={shortAddress(landed.destination)} label="destination address" />,
+          },
         ]}
       />
       <p className="px-1 text-body4 text-muted-foreground">
-        The burn is on Starknet. Circle submits the transfer at the far end — usually within seconds, and this browser
-        does not watch it happen.
+        The burn is on Starknet. Circle submits the far-end transfer, usually within seconds; this browser does not watch it.
       </p>
     </div>
   )
