@@ -1,0 +1,52 @@
+---
+title: The invoke sandwich
+description: How a swap or a bridge happens without your value ever landing on a public address of yours.
+---
+
+Swap and bridge are the same shape, and it is worth understanding because it is what makes them
+private at all.
+
+<Steps>
+
+<Step>
+### A note in the pool
+Your value sits as shielded notes. Nothing about which notes are yours is public.
+</Step>
+
+<Step>
+### Withdraw to the executor
+The input leaves the pool to the **venue's privacy executor** — not to any address of yours. This
+is the step that would otherwise deanonymise you: a swap that first withdraws to your own public
+address and then trades has already told everyone who you are.
+</Step>
+
+<Step>
+### Invoke
+The executor runs the swap, or the bridge burn, **inside the same transaction**. There is no
+window in which the value is sitting somewhere waiting.
+</Step>
+
+<Step>
+### Proceeds land back as a note
+Output returns into the pool. On a bridge it exits through `OutboundAnonymizer` instead — outbound
+only, see [surface status](/docs/surfaces).
+</Step>
+
+</Steps>
+
+## What this hides, and what it does not
+
+It hides **who**. It does not hide **how much**.
+
+Any leg that touches an open note publishes its size. A swap, a launch buy and a market bet all
+reveal their amount to anyone reading the chain. This is why "amounts are private" is a
+[refused claim](/docs/privacy/refused-claims) — the sponsor's own rule is *claim identity privacy;
+never claim amount privacy for swaps*, and this product follows it.
+
+## Everything is rehearsed first
+
+The pool's `compile_actions` is a **view**, so every action list is validated for free before a
+funded transaction is built. It has to be: a malformed list burns the fee even when it reverts.
+
+Nothing about the fee is hardcoded either. The pool fee is mutable with no upgrade delay, so it is
+read from the pool at call time, every time.

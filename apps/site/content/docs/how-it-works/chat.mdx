@@ -1,0 +1,30 @@
+---
+title: Chat
+description: Sealed messages, money attached to them, and the two things the relayer learns anyway.
+---
+
+Chat is a real surface, not a demo: multiple conversations, sealed messages, and value attached to
+a message so that paying someone and telling them why are one action.
+
+## The honest parts
+
+**It is not end-to-end encrypted, and this documentation will not say that it is.** Room keys derive
+from the same viewing keys that are [escrowed to the auditor](/docs/privacy/the-auditor) at
+registration. There is a third party by construction, so the phrase would be false.
+
+**One socket, disclosed.** Every conversation rides a single multiplexed connection. That means a
+multiplexed subscribe tells the relayer that those rooms share one participant. The app's own copy
+says so rather than implying otherwise — the alternative, a socket per room, has its own timing
+tells and costs more.
+
+**The relayer holds a short backlog.** Ciphertext only, in memory, bounded, dropped after a quiet
+period. It holds no key of yours.
+
+## The name directory
+
+Claiming a name publishes `name → address` on-chain. That is its entire function — a directory
+nobody can read is not a directory — and it is opt-in.
+
+**Search, however, is private.** The client fetches the whole list and matches locally, so the
+relayer never learns who you looked for. That asymmetry is deliberate: publishing your own name is
+your choice, and looking someone up should not be a disclosure.

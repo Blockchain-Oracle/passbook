@@ -19,10 +19,9 @@ export * from './transaction-render.js'
 
 // ── The seven surfaces ────────────────────────────────────────────────────────────────────
 
-/** Every surface that can originate a transaction, in nav order. Pinned against the router's modes. */
-export const ACTIVITY_SURFACES = ['wallet', 'chat', 'swap', 'bridge', 'markets', 'launch', 'houses'] as const
-
-export type ActivitySurface = (typeof ACTIVITY_SURFACES)[number]
+/** Every surface that can originate a transaction, in nav order — the leaf `surfaces.ts` owns the list. */
+export { ACTIVITY_SURFACES, type ActivitySurface } from './surfaces.js'
+import type { ActivitySurface } from './surfaces.js'
 
 // ── The union ─────────────────────────────────────────────────────────────────────────────
 

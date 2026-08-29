@@ -1,0 +1,26 @@
+---
+title: Surface status
+description: What is shipped, what is partial, and what is not deployed — computed from the deployment record rather than written down.
+---
+
+Seven surfaces, one pool. This table is not prose: the Markets and Launch rows are computed from
+whether `evidence/markets-launch-deployment.json` has contract addresses in it, so a build that has
+no deployment says so and a build that has one cannot claim otherwise.
+
+<SurfaceStatus />
+
+## Why it is built this way
+
+The design prototype these pages came from said Markets and Launch were "not deployed, contract
+written, 52 tests". That was true when it was written and false three days later, when both went to
+mainnet — and it kept being false, in the prototype, in this repository's `README`, and in a source
+comment inside the app itself.
+
+That is the ordinary fate of a status written as a sentence. It is why the two rows that can change
+read a file instead.
+
+## The one that is genuinely partial
+
+**Bridge is outbound only.** Shielded USDC leaves through StarkWare's deployed
+`OutboundAnonymizer`. Bringing value back is not built, and no crossing has been sent from this
+code. The surface says that on its own screen too.

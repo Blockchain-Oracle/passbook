@@ -1,0 +1,12 @@
+{
+  "title": "Passbook",
+  "pages": [
+    "index",
+    "quickstart",
+    "surfaces",
+    "how-it-works",
+    "privacy",
+    "architecture",
+    "evidence"
+  ]
+}

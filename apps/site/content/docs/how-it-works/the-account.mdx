@@ -1,0 +1,45 @@
+---
+title: The account
+description: An embedded key derived in your browser — why there is no wallet, and what that costs.
+---
+
+Most products in this category start with "connect your wallet". Passbook does not have that step,
+because it does not have that dependency.
+
+## What happens on first load
+
+The browser derives a key and keeps it in `localStorage`. That key is the account: it signs, it
+decrypts your notes, and it derives the shared secrets your chat rooms use. No extension, no email,
+no seed phrase stands between opening the page and having somewhere to put money.
+
+The account contract is then deployed on-chain, because **a key cannot sign anything until the
+account it belongs to exists**. Registration follows, and registration is the consequential step —
+see [the auditor](/docs/privacy/the-auditor).
+
+## The cost, stated plainly
+
+<Callout type="warn">
+The key sits in `localStorage` in plaintext. Any script that runs on the origin can read it, and so
+can anybody holding the unlocked device. There is no passphrase wrapping it and the in-app lock is
+a screen lock, not encryption.
+</Callout>
+
+This is a real trade and it is the one that buys the whole product: no wallet to install, no seed
+phrase to write down, no chicken-and-egg where you need funds before you can be onboarded. It is
+accepted deliberately and argued in the source rather than glossed over.
+
+What follows from it: this is an account for an amount of money you are willing to keep in a
+browser. It is not a cold storage design and does not pretend to be one.
+
+## One key, two jobs
+
+The same key both reads your notes and spends them. There is **no view-only derivation** — you
+cannot hand an accountant a key that shows them your balance without also handing them the ability
+to spend it. That is why "watch-only", "view-only" and "read-only" are on the
+[refused claims](/docs/privacy/refused-claims) list.
+
+## Registration is sponsored
+
+Your first transaction is paid for by our relayer, which is what makes "open the page and you have
+an account" true rather than "open the page, then go and buy STRK". There is a real sponsored
+registration on mainnet in [the evidence](/docs/evidence).

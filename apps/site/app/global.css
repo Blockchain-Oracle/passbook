@@ -1,0 +1,11 @@
+/* The STUDIO design language, and Fumadocs wearing it — see studio.css for every value's source. */
+@import './studio.css';
+
+html {
+  scrollbar-gutter: stable;
+}
+
+html > body[data-scroll-locked] {
+  margin-right: 0px !important;
+  --removed-body-scroll-bar-size: 0px !important;
+}

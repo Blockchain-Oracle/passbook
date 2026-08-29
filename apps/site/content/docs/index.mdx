@@ -1,0 +1,42 @@
+---
+title: What Passbook is
+description: A private account on Starknet's STRK20 pool. No wallet, no login, no seed phrase — and a straight answer about what that does and does not hide.
+---
+
+Open the app and you have an account. There is no wallet to connect, nothing to install and
+nothing to paste. The key is generated in your browser on first load, and everything runs from
+it: hold and send shielded value, chat with anyone who has registered, swap, bridge out, bet,
+launch.
+
+## The part that is actually different
+
+It is not the privacy claim. Every product in this category claims privacy.
+
+It is that **each screen names which parties can see what, before you act** — including the
+parties you did not choose. There are four of them, they are listed on
+[who sees what](/docs/privacy/who-sees-what), and one of them is an auditor who holds a copy of
+your viewing key forever.
+
+<Callout type="warn">
+A privacy tool that overstates what it hides is worse than none at all, because its users act on
+the difference. That sentence is the reason this documentation exists in the shape it does.
+</Callout>
+
+## What you can do with it today
+
+<SurfaceStatus />
+
+## Where to go next
+
+- **[Quickstart](/docs/quickstart)** — from opening the page to your first shielded send.
+- **[Who sees what](/docs/privacy/who-sees-what)** — the four parties, and what each one learns.
+- **[Refused claims](/docs/privacy/refused-claims)** — the ten sentences this product will not say
+  about itself, and why each one is false here.
+- **[Evidence](/docs/evidence)** — every contract and transaction, on mainnet, checkable.
+
+## What this is built on
+
+The [STRK20 pool](https://voyager.online/contract/0x040337b1af3c663e86e333bab5a4b28da8d4652a15a69beee2b677776ffe812a)
+is StarkWare's, not ours — a deployed privacy pool on Starknet mainnet. Passbook is an account, seven
+surfaces and a relayer built on top of it. The distinction matters when you are deciding whom to
+trust: the cryptography is theirs and audited, the product around it is ours and is not.
