@@ -19,6 +19,8 @@ const ABOVE: u128 = 8_100_000_000_000;
 const BELOW: u128 = 7_900_000_000_000;
 /// 2^128 — one past what an `OpenNoteDeposit` amount can carry.
 const TOO_BIG_FOR_U128: felt252 = 0x100000000000000000000000000000000;
+/// The house steward: adds series, funds and withdraws the idle float.
+const STEWARD: felt252 = 'steward';
 
 #[derive(Copy, Drop)]
 struct Ctx {
@@ -43,7 +45,7 @@ fn setup() -> Ctx {
     let (markets_addr, _) = declare("Markets")
         .unwrap()
         .contract_class()
-        .deploy(@array![pool_addr.into(), pragma_addr.into()])
+        .deploy(@array![pool_addr.into(), pragma_addr.into(), STEWARD, token_addr.into()])
         .unwrap();
 
     start_cheat_block_timestamp_global(NOW);

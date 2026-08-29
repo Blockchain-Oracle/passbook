@@ -12,6 +12,9 @@
 //! raise to an address they name. That leg is public by construction, so it pushes directly
 //! rather than pretending otherwise.
 //!
+//! `transfer_from` funds the markets' house float: house liquidity has nothing to hide, so it
+//! arrives as a plain pull from an approving public account — no pool, no proof, no pool fee.
+//!
 //! snake_case only. STRK's mainnet class exposes both casings, and picking the snake ones keeps
 //! this interface readable next to the rest of the Cairo 1 ecosystem.
 
@@ -22,4 +25,7 @@ pub trait IERC20<TContractState> {
     fn balance_of(self: @TContractState, account: ContractAddress) -> u256;
     fn approve(ref self: TContractState, spender: ContractAddress, amount: u256) -> bool;
     fn transfer(ref self: TContractState, recipient: ContractAddress, amount: u256) -> bool;
+    fn transfer_from(
+        ref self: TContractState, sender: ContractAddress, recipient: ContractAddress, amount: u256,
+    ) -> bool;
 }
