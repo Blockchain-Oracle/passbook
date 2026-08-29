@@ -42,7 +42,7 @@ export function ForkScreen({ onCreate, onImport }: { onCreate: () => void; onImp
     <div className="flex flex-col gap-6">
       <div>
         <p className="text-kicker uppercase text-muted-foreground">Passbook</p>
-        <h1 className="font-display text-display1 uppercase">Private money that behaves like money</h1>
+        <h1 className="font-display text-display2 uppercase md:text-display1">Private money that behaves like money</h1>
         <p className="mt-2 max-w-prose text-body2 text-muted-foreground">
           The key that reads your balance and signs your spending is made in this browser. Nothing here signs you in.
         </p>

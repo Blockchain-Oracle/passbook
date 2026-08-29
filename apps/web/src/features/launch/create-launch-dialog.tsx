@@ -141,7 +141,7 @@ export function CreateLaunchDialog({ open, onOpenChange }: { open: boolean; onOp
         </DialogHeader>
 
         <FieldGroup>
-          <div className="grid grid-cols-[2fr_1fr] gap-3">
+          <div className="grid grid-cols-[minmax(0,2fr)_minmax(0,1fr)] gap-3">
             <Field>
               <FieldLabel htmlFor="cl-name">Name</FieldLabel>
               <Input id="cl-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Night Owl" />
@@ -201,7 +201,7 @@ export function CreateLaunchDialog({ open, onOpenChange }: { open: boolean; onOp
             ) : null}
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid gap-3 sm:grid-cols-2">
             <Field data-invalid={Boolean(price.problem) || undefined}>
               <FieldLabel htmlFor="cl-price">Price / unit, epoch 1</FieldLabel>
               <InputGroup>
@@ -221,7 +221,7 @@ export function CreateLaunchDialog({ open, onOpenChange }: { open: boolean; onOp
               </InputGroup>
             </Field>
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid gap-3 sm:grid-cols-2">
             <Field>
               <FieldLabel htmlFor="cl-epochs">Epochs</FieldLabel>
               <Input id="cl-epochs" value={epochsRaw} onChange={(e) => setEpochsRaw(e.target.value)} inputMode="numeric" className="font-mono" />

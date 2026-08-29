@@ -57,12 +57,12 @@ export function LaunchCard({ launch, now, onBuy }: { launch: OnChainLaunch; now:
         <PhaseChip phase={phase} className="shrink-0" />
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
-        <div className="flex items-baseline justify-between gap-3">
+        <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
           <Amount wei={unitPriceAt(launch, epoch)} decimals={stake.decimals} symbol={stake.symbol} size="lg" />
           <span className="text-body4 text-muted-foreground">per unit, this epoch</span>
         </div>
         <Progress value={pct} aria-label={`${pct}% of units sold`} />
-        <div className="flex justify-between font-mono text-mono text-muted-foreground">
+        <div className="flex flex-wrap justify-between gap-x-3 font-mono text-mono text-muted-foreground">
           <span>
             {launch.sold} of {launch.epochs * UNITS_PER_EPOCH} units · {pct}%
           </span>
@@ -71,7 +71,7 @@ export function LaunchCard({ launch, now, onBuy }: { launch: OnChainLaunch; now:
           </span>
         </div>
       </CardContent>
-      <CardFooter className="flex items-center justify-between gap-3">
+      <CardFooter className="flex flex-wrap items-center justify-between gap-3">
         {phase === 'selling' ? (
           <>
             <span className="inline-flex items-center gap-1 text-body4 text-muted-foreground">

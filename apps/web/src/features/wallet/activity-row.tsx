@@ -1,5 +1,5 @@
-import { Link } from '@tanstack/react-router'
-import { AlertTriangle, ExternalLink } from 'lucide-react'
+import { useNavigate } from '@tanstack/react-router'
+import { AlertTriangle, ChevronRight, ExternalLink } from 'lucide-react'
 import { CHECK_ON_VOYAGER } from '@strk20/protocol/activity-copy'
 import { AMOUNT_UNREADABLE_WHY } from '@strk20/protocol/history-copy'
 import {
@@ -55,7 +55,13 @@ function Slot({ slot }: { slot: RightSlot }) {
       )
     case 'not-indexed':
       return slot.href ? (
-        <a href={slot.href} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-body4 underline">
+        <a
+          href={slot.href}
+          target="_blank"
+          rel="noreferrer"
+          onClick={(e) => e.stopPropagation()}
+          className="inline-flex items-center gap-1 text-body4 underline"
+        >
           {CHECK_ON_VOYAGER}
           <ExternalLink className="size-3" aria-hidden />
         </a>
@@ -72,7 +78,10 @@ export interface ActivityRowProps {
   tokens: readonly WalletToken[]
 }
 
-/** One row of the record. The whole row links to its receipt; the slot's link is its sibling. */
+/**
+ * One row of the record. The whole row is the door to its receipt — hover lifts it, a chevron says
+ * so. A `role="link"` div rather than an anchor, so the slot's explorer link stays valid inside it.
+ */
 export function ActivityRow({ transaction, now, tokens }: ActivityRowProps) {
   const model = activityRowModel(transaction, now)
   const slot = rightSlot(transaction, now)
@@ -80,14 +89,27 @@ export function ActivityRow({ transaction, now, tokens }: ActivityRowProps) {
   const direction = amountDirection(transaction)
   const token = transaction.chain.state === 'settled' ? transaction.chain.entry.token : null
   const known = token ? tokens.find((row) => sameFelt(row.token, token)) : undefined
+  const navigate = useNavigate()
+  const openReceipt = () => void navigate({ to: '/activity/$id', params: { id: transaction.id } })
 
   return (
-    <Item variant="outline" size="sm" className="gap-3">
+    <Item
+      variant="outline"
+      size="sm"
+      role="link"
+      tabIndex={0}
+      onClick={openReceipt}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault()
+          openReceipt()
+        }
+      }}
+      className="group/row cursor-pointer gap-3 hover:border-primary/60 hover:bg-muted"
+    >
       <ItemContent className="min-w-0">
         <ItemTitle className="flex flex-wrap items-center gap-2">
-          <Link to="/activity/$id" params={{ id: transaction.id }} className="truncate hover:underline">
-            {model.title}
-          </Link>
+          <span className="truncate group-hover/row:underline">{model.title}</span>
           {model.badge ? (
             <Badge variant="outline" className={cn(CHIP_CLASS[model.badge.status], model.badge.notYetReal && 'border-dashed')}>
               {model.badge.label}
@@ -115,6 +137,7 @@ export function ActivityRow({ transaction, now, tokens }: ActivityRowProps) {
         ) : null}
         <Slot slot={slot} />
       </ItemActions>
+      <ChevronRight className="size-4 shrink-0 text-muted-foreground transition-transform group-hover/row:translate-x-0.5 group-hover/row:text-primary" aria-hidden />
     </Item>
   )
 }

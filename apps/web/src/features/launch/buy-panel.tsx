@@ -145,17 +145,17 @@ export function BuyPanel({ launch, onDone }: { launch: OnChainLaunch; onDone?: (
       />
 
       <dl className="flex flex-col gap-1 text-body4">
-        <div className="flex justify-between gap-3">
+        <div className="flex flex-wrap justify-between gap-x-3">
           <dt className="text-muted-foreground">You receive at graduation</dt>
           <dd className="font-mono text-settled">
             {units !== null && units > 0 ? <Amount wei={launch.unitTokens * BigInt(units)} decimals={18} symbol={launch.symbol || 'tokens'} size="sm" /> : '—'}
           </dd>
         </div>
-        <div className="flex justify-between gap-3">
+        <div className="flex flex-wrap justify-between gap-x-3">
           <dt className="text-muted-foreground">If the raise misses</dt>
           <dd>full refund, reclaimed by you</dd>
         </div>
-        <div className="flex justify-between gap-3">
+        <div className="flex flex-wrap justify-between gap-x-3">
           <dt className="text-muted-foreground">Epoch</dt>
           <dd className="font-mono">
             {currentEpoch(launch) + 1} of {launch.epochs}

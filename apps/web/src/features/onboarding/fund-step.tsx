@@ -56,8 +56,8 @@ export function FundStep({ address, onNext }: FundStepProps) {
       </div>
 
       <div className="flex flex-col gap-3 rounded-lg border p-4">
-        <div className="flex items-center justify-between gap-3">
-          <div>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="min-w-0 flex-1 basis-48">
             <p className="font-display text-display4 uppercase">Starter STRK</p>
             <p className="text-body4 text-muted-foreground">One drip, sized to deploy and register this account.</p>
           </div>
@@ -93,7 +93,7 @@ export function FundStep({ address, onNext }: FundStepProps) {
 
       <ConnectFundingWallet passbookAddress={address} />
 
-      <div className="flex items-center justify-between gap-3 rounded-lg border px-4 py-3">
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border px-4 py-3">
         <span className="text-body4 text-muted-foreground">Public STRK at this address</span>
         {strkWei !== null && strkWei > 0n ? (
           <span className="text-body4 text-settled">{fundsArrived(formatWei(strkWei, STRK_DECIMALS))}</span>

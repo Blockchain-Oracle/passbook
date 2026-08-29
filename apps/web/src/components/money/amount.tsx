@@ -7,7 +7,7 @@ const SIZE_CLASS = {
   sm: 'text-mono',
   md: 'text-body3',
   lg: 'text-display4',
-  hero: 'text-display2',
+  hero: 'text-display3 md:text-display2',
 } as const
 
 export interface AmountProps {

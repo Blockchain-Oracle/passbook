@@ -72,7 +72,7 @@ export function ProposalRow({ proposal, now, symbol, decimals, unit, onVote, cla
             </span>
           </div>
           {onVote ? (
-            <div className={cn('grid gap-2', proposal.options > 2 ? 'grid-cols-3' : 'grid-cols-2')}>
+            <div className={cn('grid gap-2', proposal.options > 2 ? 'grid-cols-1 sm:grid-cols-3' : 'grid-cols-2')}>
               <Button variant="outline" size="sm" className="border-settled text-settled" onClick={() => onVote(GOV_OPT_FOR)}>
                 For — sealed
               </Button>

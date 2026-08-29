@@ -123,21 +123,23 @@ export interface CrossingRailProps {
 }
 
 /**
- * The dashed gutter between the two cards. Vertical between columns on desktop, a horizontal band
- * between stacked cards on mobile.
+ * The dashed gutter between the two cards. A vertical column between the cards on desktop; on a
+ * phone, a band between the stacked cards with the four doors in a two-by-two grid.
  */
 export function CrossingRail({ actions, className }: CrossingRailProps) {
   return (
     <div
       className={cn(
-        'flex items-center justify-center gap-3 border-dashed border-border py-3',
-        'border-y md:w-28 md:flex-col md:border-x md:border-y-0 md:py-6',
+        'flex flex-col gap-3 border-y border-dashed border-border py-3',
+        'md:w-28 md:items-center md:justify-center md:border-x md:border-y-0 md:py-6',
         className,
       )}
     >
-      <ArrowLeftRight className="size-4 text-muted-foreground md:rotate-90" aria-hidden />
-      <span className="text-kicker uppercase text-muted-foreground md:[writing-mode:vertical-rl]">Cross the boundary</span>
-      <div className="flex gap-2 md:flex-col">{actions}</div>
+      <div className="flex items-center justify-center gap-2 md:flex-col md:gap-3">
+        <ArrowLeftRight className="size-4 text-muted-foreground md:rotate-90" aria-hidden />
+        <span className="text-kicker uppercase text-muted-foreground md:[writing-mode:vertical-rl]">Cross the boundary</span>
+      </div>
+      <div className="grid grid-cols-2 gap-2 md:flex md:flex-col">{actions}</div>
     </div>
   )
 }

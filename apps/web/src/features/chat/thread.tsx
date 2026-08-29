@@ -96,12 +96,13 @@ function ThreadView({ me, peer, connection }: { me: RoomInputs; peer: string; co
 
   return (
     <section className="flex min-h-[60vh] flex-1 flex-col rounded-xl border bg-card lg:min-h-0">
-      <header className="flex items-center gap-3 border-b px-3 py-2">
+      {/* The name keeps a phone's width; the badges and the money button drop to a second line. */}
+      <header className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b px-3 py-2">
         <Button size="icon-sm" variant="ghost" className="lg:hidden" render={<Link to="/chat" aria-label="All conversations" />}>
           <ArrowLeft aria-hidden />
         </Button>
         <PeerAvatar peer={peer} identity={identity} />
-        <div className="min-w-0 flex-1">
+        <div className="min-w-0 flex-1 basis-40">
           <p className="truncate font-medium">{peerLabel(peer, identity)}</p>
           <p className="truncate text-body4 text-muted-foreground">{status.isPending ? 'Reading their key…' : statusLine(status.data)}</p>
         </div>

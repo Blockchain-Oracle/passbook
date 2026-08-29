@@ -5,6 +5,7 @@ import { UNITS_PER_EPOCH, unitPriceAt, type OnChainLaunch } from '@strk20/protoc
 
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from '@/components/ui/chart'
 import { formatWei } from '@/lib/format'
+import { cn } from '@/lib/utils'
 
 const config = {
   price: { label: 'Unit price', color: 'var(--color-chart-1)' },
@@ -49,7 +50,7 @@ export default function StaircaseChart({ launch, decimals, symbol, at, className
         Price is flat within each of {launch.epochs} epochs and steps up between them. This epoch:{' '}
         {decimals === null ? `${unitPriceAt(launch, at)} ${unit}` : `${formatWei(unitPriceAt(launch, at), decimals)} ${symbol}`} per unit.
       </span>
-    <ChartContainer config={config} className={className ?? 'h-44 w-full'}>
+    <ChartContainer config={config} className={cn('min-w-0 overflow-hidden', className ?? 'h-44 w-full')}>
       <LineChart data={data} margin={{ top: 12, right: 12, bottom: 0, left: 0 }}>
         <XAxis
           dataKey="unit"

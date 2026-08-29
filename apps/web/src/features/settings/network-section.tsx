@@ -123,7 +123,7 @@ export function NetworkSection({ health, healthProblem, refreshing, onRefresh, f
         </ItemMedia>
         <ItemContent>
           <ItemTitle>RPC hosts</ItemTitle>
-          <ol className="flex flex-col gap-0.5 font-mono text-mono text-muted-foreground">
+          <ol className="flex flex-col gap-0.5 break-all font-mono text-mono text-muted-foreground">
             {NET.rpc.map((host, i) => (
               <li key={host}>
                 {i + 1}. {host}
@@ -140,7 +140,7 @@ export function NetworkSection({ health, healthProblem, refreshing, onRefresh, f
         </ItemMedia>
         <ItemContent>
           <ItemTitle>Prover</ItemTitle>
-          <ItemDescription className="font-mono text-mono">{NET.prover}</ItemDescription>
+          <ItemDescription className="break-all font-mono text-mono">{NET.prover}</ItemDescription>
         </ItemContent>
       </Item>
 

@@ -15,15 +15,18 @@ interface PageProps {
 /** Every surface's frame: kicker, display title, optional actions, then content. */
 export function Page({ kicker, title, description, actions, className, children }: PageProps) {
   return (
-    <div className={cn('mx-auto flex w-full max-w-5xl flex-col gap-6 px-4 py-4 md:px-8 md:py-6', className)}>
-      <header className="flex items-start gap-3">
-        <SidebarTrigger className="mt-1 hidden md:inline-flex" />
-        <div className="flex-1">
-          {kicker ? <p className="text-kicker uppercase text-muted-foreground">{kicker}</p> : null}
-          <h1 className="font-display text-display2 uppercase">{title}</h1>
-          {description ? <p className="mt-1 max-w-prose text-body3 text-muted-foreground">{description}</p> : null}
+    <div className={cn('mx-auto flex w-full min-w-0 max-w-5xl flex-col gap-6 px-4 py-4 md:px-8 md:py-6', className)}>
+      {/* The title block keeps a phone's width to itself; the actions drop under it rather than squeeze it. */}
+      <header className="flex flex-wrap items-start justify-between gap-x-4 gap-y-3">
+        <div className="flex min-w-0 flex-1 basis-64 items-start gap-3">
+          <SidebarTrigger className="mt-1 hidden md:inline-flex" />
+          <div className="min-w-0 flex-1">
+            {kicker ? <p className="text-kicker uppercase text-muted-foreground">{kicker}</p> : null}
+            <h1 className="wrap-break-word font-display text-display3 uppercase md:text-display2">{title}</h1>
+            {description ? <p className="mt-1 max-w-prose text-body3 text-muted-foreground">{description}</p> : null}
+          </div>
         </div>
-        {actions ? <div className="flex items-center gap-2">{actions}</div> : null}
+        {actions ? <div className="flex flex-wrap items-center gap-2">{actions}</div> : null}
       </header>
       {children}
     </div>

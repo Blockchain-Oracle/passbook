@@ -14,6 +14,7 @@ import {
   SidebarMenuItem,
   SidebarRail,
 } from '@/components/ui/sidebar'
+import { SidebarAccount } from '@/features/account'
 
 const GROUPS: readonly NavGroup[] = ['money', 'venues']
 
@@ -61,6 +62,7 @@ export function AppSidebar() {
 
       <SidebarFooter>
         <SidebarMenu>
+          <SidebarAccount />
           {NAV.filter((item) => item.group === 'system').map((item) => (
             <SidebarMenuItem key={item.to}>
               <SidebarMenuButton

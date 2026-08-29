@@ -36,7 +36,7 @@ export default function PriceChart({ series, reference, height = 220 }: PriceCha
   const split = level === null || max === min ? 0 : Math.min(1, Math.max(0, (max - level) / (max - min)))
 
   return (
-    <ChartContainer config={CONFIG} className="w-full" style={{ height }}>
+    <ChartContainer config={CONFIG} className="w-full min-w-0 overflow-hidden" style={{ height }}>
       <LineChart data={data} accessibilityLayer margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
         <defs>
           <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">

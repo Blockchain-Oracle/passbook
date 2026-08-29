@@ -1,9 +1,10 @@
 import { useState } from 'react'
-import { Lock } from 'lucide-react'
+import { ChevronRight, Lock } from 'lucide-react'
 
 import { useSession } from '@/app/session'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
-import { Button } from '@/components/ui/button'
+import { Item, ItemActions, ItemContent, ItemDescription, ItemTitle } from '@/components/ui/item'
+import { SidebarMenuButton, SidebarMenuItem } from '@/components/ui/sidebar'
 import { Skeleton } from '@/components/ui/skeleton'
 import { shortAddress } from '@/lib/format'
 import { AccountDrawer } from './account-drawer'
@@ -17,33 +18,89 @@ function disc(address: string): { text: string; hue: number } {
   return { text: felt.slice(0, 2).toUpperCase(), hue }
 }
 
-/** Address short + label + lock state. Opens the drawer. Hidden while there is nothing to show. */
-export function AccountChip({ className }: { className?: string }) {
+function Disc({ address }: { address: string }) {
+  const { text, hue } = disc(address)
+  return (
+    <Avatar>
+      <AvatarFallback style={{ background: `hsl(${hue} 40% 35%)`, color: 'white' }} className="font-mono text-[10px]">
+        {text}
+      </AvatarFallback>
+    </Avatar>
+  )
+}
+
+/** The sidebar footer's account row: disc, label, address, lock state. Collapses to the disc alone. */
+export function SidebarAccount() {
   const session = useSession()
   const [open, setOpen] = useState(false)
 
-  if (session.status === 'booting') return <Skeleton className="h-8 w-32 rounded-lg" />
-  if (session.status === 'fresh' || session.status === 'no-storage' || !session.address) {
-    return <span className="text-body4 text-muted-foreground">{NO_ACCOUNT}</span>
+  if (session.status === 'booting') {
+    return (
+      <SidebarMenuItem>
+        <Skeleton className="h-12 w-full rounded-md" />
+      </SidebarMenuItem>
+    )
   }
-  const { text, hue } = disc(session.address)
+  if (session.status === 'fresh' || session.status === 'no-storage' || !session.address) {
+    return (
+      <SidebarMenuItem>
+        <SidebarMenuButton size="lg" disabled tooltip={NO_ACCOUNT}>
+          <Avatar>
+            <AvatarFallback />
+          </Avatar>
+          <span className="text-muted-foreground">{NO_ACCOUNT}</span>
+        </SidebarMenuButton>
+      </SidebarMenuItem>
+    )
+  }
+  const locked = session.status === 'locked'
+  const name = session.label ?? shortAddress(session.address)
+  return (
+    <SidebarMenuItem>
+      <SidebarMenuButton size="lg" tooltip={name} onClick={() => setOpen(true)} aria-haspopup="dialog">
+        <Disc address={session.address} />
+        <span className="flex min-w-0 flex-col leading-tight">
+          <span className="truncate font-medium">{name}</span>
+          <span className="truncate font-mono text-mono text-muted-foreground">{locked ? LOCKED_MARK : shortAddress(session.address)}</span>
+        </span>
+        {locked ? <Lock className="ml-auto text-muted-foreground" aria-hidden /> : null}
+      </SidebarMenuButton>
+      <AccountDrawer session={session} open={open} onOpenChange={setOpen} />
+    </SidebarMenuItem>
+  )
+}
+
+/** The phone's account row, at the top of the More sheet. Opens the same drawer. */
+export function AccountRow() {
+  const session = useSession()
+  const [open, setOpen] = useState(false)
+
+  if (session.status === 'booting') return <Skeleton className="h-14 w-full rounded-lg" />
+  if (session.status === 'fresh' || session.status === 'no-storage' || !session.address) {
+    return <p className="text-body4 text-muted-foreground">{NO_ACCOUNT}</p>
+  }
   const locked = session.status === 'locked'
   return (
     <>
-      <Button variant="outline" size="default" className={className} onClick={() => setOpen(true)} aria-haspopup="dialog">
-        <Avatar size="sm">
-          <AvatarFallback style={{ background: `hsl(${hue} 40% 35%)`, color: 'white' }} className="font-mono text-[10px]">
-            {text}
-          </AvatarFallback>
-        </Avatar>
-        <span className="max-w-32 truncate">{session.label ?? shortAddress(session.address)}</span>
-        {locked ? (
-          <span className="flex items-center gap-1 text-body4 text-muted-foreground">
-            <Lock className="size-3" aria-hidden />
-            {LOCKED_MARK}
-          </span>
-        ) : null}
-      </Button>
+      <Item
+        variant="outline"
+        size="sm"
+        className="text-left"
+        render={<button type="button" onClick={() => setOpen(true)} aria-haspopup="dialog" />}
+      >
+        <Disc address={session.address} />
+        <ItemContent className="min-w-0">
+          <ItemTitle className="truncate">{session.label ?? shortAddress(session.address)}</ItemTitle>
+          <ItemDescription className="truncate font-mono text-mono">
+            {shortAddress(session.address)}
+            {locked ? ` · ${LOCKED_MARK}` : ''}
+          </ItemDescription>
+        </ItemContent>
+        <ItemActions>
+          {locked ? <Lock className="size-3.5 text-muted-foreground" aria-hidden /> : null}
+          <ChevronRight className="size-4 text-muted-foreground" aria-hidden />
+        </ItemActions>
+      </Item>
       <AccountDrawer session={session} open={open} onOpenChange={setOpen} />
     </>
   )

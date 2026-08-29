@@ -32,9 +32,9 @@ interface Ticket {
 
 function Stat({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="flex flex-col gap-0.5 rounded-lg border px-3 py-2">
+    <div className="flex min-w-0 flex-col gap-0.5 rounded-lg border px-3 py-2">
       <span className="text-kicker uppercase text-muted-foreground">{label}</span>
-      <span className="font-mono text-body3 tabular-nums">{children}</span>
+      <span className="truncate font-mono text-body3 tabular-nums">{children}</span>
     </div>
   )
 }
@@ -84,7 +84,7 @@ export function MarketsBoard() {
               <h2 className="text-kicker uppercase text-muted-foreground">Standing windows</h2>
               <p className="text-body4 text-muted-foreground">{RAIL_LINE}</p>
             </div>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid w-full grid-cols-3 gap-2 sm:w-auto">
               <Stat label="Series">{feed.loading ? '—' : active.length}</Stat>
               <Stat label="House float">
                 <Amount wei={houseFloat.data ?? (houseFloat.isError ? null : undefined)} decimals={stake.decimals} symbol={stake.symbol} size="sm" />
