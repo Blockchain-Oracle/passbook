@@ -61,6 +61,8 @@ pub trait IMockPragma<TContractState> {
     fn set_price(
         ref self: TContractState, price: u128, decimals: u32, last_updated_timestamp: u64,
     );
+    /// How many publishers the median aggregates. Ten until a test says otherwise.
+    fn set_sources(ref self: TContractState, sources: u32);
 }
 
 #[starknet::contract]
@@ -225,6 +227,8 @@ pub mod MockPragma {
         price: u128,
         decimals: u32,
         last_updated_timestamp: u64,
+        /// 0 reads as the default of ten, so every existing test keeps its feed.
+        sources: u32,
     }
 
     #[abi(embed_v0)]
@@ -237,11 +241,16 @@ pub mod MockPragma {
             // `spot_entry_serialises_as_the_recorded_mainnet_calldata`, which a mock could never
             // catch anyway.
             let _ = data_type;
+            let sources = self.sources.read();
             PragmaPricesResponse {
                 price: self.price.read(),
                 decimals: self.decimals.read(),
                 last_updated_timestamp: self.last_updated_timestamp.read(),
-                num_sources_aggregated: 10,
+                num_sources_aggregated: if sources == 0 {
+                    10
+                } else {
+                    sources
+                },
                 expiration_timestamp: Option::None,
             }
         }
@@ -252,6 +261,10 @@ pub mod MockPragma {
             self.price.write(price);
             self.decimals.write(decimals);
             self.last_updated_timestamp.write(last_updated_timestamp);
+        }
+
+        fn set_sources(ref self: ContractState, sources: u32) {
+            self.sources.write(sources);
         }
     }
 }
