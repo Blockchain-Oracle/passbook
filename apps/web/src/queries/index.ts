@@ -8,6 +8,7 @@ export {
   appContracts,
   governanceWrites,
   marketsQuery,
+  legacyMarketsQuery,
   launchesQuery,
   housesQuery,
   proposalsQuery,

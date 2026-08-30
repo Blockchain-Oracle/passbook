@@ -53,6 +53,30 @@ export function houseFloatQuery(token: string) {
   })
 }
 
+/**
+ * Markets on the SUPERSEDED contract, for positions only — never the board.
+ *
+ * A claim on a pre-migration bet needs its market's STATE and DEADLINE to know which door to
+ * offer; without them `marketPositionAction` is never called and the row renders as "Reading"
+ * forever, which is a settled bet with no Claim button on it. Kept out of `marketsQuery` on
+ * purpose: that one feeds the board and the live stream writes into its cache, so merging a
+ * retired contract into it would both pollute the board and be clobbered by the next tape frame.
+ */
+export function legacyMarketsQuery() {
+  const contract = appContracts().marketsLegacy
+  return queryOptions({
+    queryKey: ['markets', 'legacy', contract ?? null],
+    queryFn: contract
+      ? async () => {
+          const { readMarkets } = await import('@strk20/protocol/app-reads')
+          return readMarkets(contract)
+        }
+      : skipToken,
+    // A retired contract does not gain markets. Read it once.
+    staleTime: Infinity,
+  })
+}
+
 export function launchesQuery() {
   const contract = appContracts().launch
   return queryOptions({

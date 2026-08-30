@@ -25,9 +25,20 @@ export const NETWORKS = {
     chainId: '0x534e5f4d41494e', // SN_MAIN
     pool: '0x040337b1af3c663e86e333bab5a4b28da8d4652a15a69beee2b677776ffe812a',
     poolClassHash: '0x67dddd89d80fedadc06b6f160798f94800a4a70164e5a24301cd0d6076b554d',
+    // ── NEVER THE BARE LAVA HOST ────────────────────────────────────────────────────────
+    //
+    // `https://rpc.starknet.lava.build` is load-balanced across nodes running DIFFERENT RPC
+    // spec versions: probed eight times it answered 0.8.1 six times and 0.10.2 twice. starknet.js
+    // supports two specs (0.9 and 0.10 for v10), so most requests were landing on a node it
+    // cannot speak to — which is why the settlement keeper failed intermittently and a declare
+    // died on `missing field: "l1_data_gas"`. The failure is random per request, so it reads as
+    // flakiness rather than as the version mismatch it is.
+    //
+    // Both entries below are single-version endpoints. Lava keeps its place, addressed by the
+    // versioned path its own docs use.
     rpc: [
-      'https://rpc.starknet.lava.build',
       'https://starknet-rpc.publicnode.com',
+      'https://rpc.starknet.lava.build/rpc/v0_9',
     ],
     prover: 'https://transaction-prover.alpha-mainnet.sw-dev.io',
     discovery: 'https://discovery-service.alpha-mainnet.sw-dev.io',
