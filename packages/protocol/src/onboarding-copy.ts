@@ -39,35 +39,55 @@ export const BACKUP_BODY =
 export const BACKUP_GATE_NOTE =
   'This is the one step you cannot skip. Everything after it is written on-chain and cannot be undone.'
 
-// ── Screen 4 — The deadlock, named ────────────────────────────────────────────────────────
+// ── Screen 4 — The deadlock, and who pays it ──────────────────────────────────────────────
+//
+// THE DEADLOCK IS REAL AND WE SOLVE IT; the copy has to say which of those is which. Registering
+// costs one pool transaction, a new account cannot pay from nothing, and nobody may hold a shielded
+// balance until they are registered. What changed is the answer: the relayer pays, out of a budget
+// with a number on it, rather than staking the user to pay for themselves.
+//
+// SO NOTHING HERE MAY SAY "your own account pays its own way" ANY MORE. It did, truthfully, under
+// the one-subsidy model. Under this one the relayer submits and is charged, and a user reading that
+// sentence would be told the opposite of what the receipt shows.
 
-export const DEADLOCK_TITLE = 'Someone has to go first'
+export const DEADLOCK_TITLE = 'The first three are on us'
 
-/** Sourced, §1 screen 4, with the fee as a parameter. A failed fee read omits the number. */
+/** The fee is a parameter, never a literal — read from `get_fee_amount()` at render. */
 export function deadlockBody(feeStrk: string | null): string {
   const cost = feeStrk === null ? 'one pool transaction' : `one pool transaction — currently ~${feeStrk} STRK`
-  return `Registering costs ${cost}. A new account cannot pay it from nothing — the fee comes from real STRK, and nobody may give you a shielded balance until you are registered. Someone has to stake you first. That is the next screen: we send you the STRK, and your own account signs and pays its own way with it.`
+  return `Registering costs ${cost}, and a new account cannot pay it from nothing — nobody may hold a shielded balance until they are registered. So we cover your first three transactions on mainnet. Registering is the first. The other two are yours to spend on anything.`
 }
 
-/** The fee row names who stakes and who signs — the one-subsidy claim, written where payment happens. */
+/** Names who pays, where payment happens. The claim has to match what the receipt will show. */
 export function deadlockFeeRow(appName: string, feeStrk: string | null): string {
   return feeStrk === null
-    ? `Staked by ${appName} · signed and paid by your own account`
-    : `Staked by ${appName} · ${feeStrk} STRK · signed and paid by your own account`
+    ? `Paid by ${appName} · submitted from our relayer`
+    : `Paid by ${appName} · ${feeStrk} STRK · submitted from our relayer`
 }
+
+/** What the offer is, in one line, wherever the flow needs to state it before anything is spent. */
+export const SPONSORED_OFFER = 'Your first three transactions are on us — real STRK, on mainnet.'
+
+/**
+ * The honest footnote under the offer. Two things a user is owed before they rely on it: the pool
+ * charges a fee on every transaction, which comes out of their own balance once ours runs out, and
+ * the budget is finite and shared.
+ */
+export const SPONSORED_OFFER_NOTE =
+  'After that, each transaction costs the pool fee from your shielded balance. The budget is shared and resets daily.'
 
 // ── The ladder — creating the account ─────────────────────────────────────────────────────
 //
-// The drip is the ONLY gift and it arrives first, sized to stake the whole journey: the account
-// deploys itself from it, registration is signed and paid by the user's own account, and what
-// remains is the starter. Row titles live in `pipeline-stage.ts`; only the notes are here.
+// The drip buys ONE thing: enough STRK for the account to put itself on chain. Registration and the
+// starter balance are sponsored and arrive together. Row titles live in `pipeline-stage.ts`; only
+// the notes are here.
 
 /** The per-stage note, shown only for the rung that is currently running. No amount is baked in. */
 export const ONBOARDING_STAGE_NOTES = {
-  drip: 'the faucet stakes this account — the receipt below is its record',
+  drip: 'enough STRK to put your account on chain — the receipt below is its record',
   deploy: 'your address goes live on Starknet',
   settle: 'the proof is checked a few blocks behind the head, so a fresh deploy waits for the chain to pass it',
-  register: 'the account pays its own fee — nobody sponsors this',
+  register: 'we pay this one — your key and your starting balance land together',
   confirm: 'the pool accepts your viewing key',
 } as const
 
@@ -83,32 +103,44 @@ export function settleNote(lag: number, blocksToGo: number | null): string {
 export const DRIP_RECEIPT_SUB = 'faucet drip · the receipt is yours to keep'
 
 /** Said while the drip is in flight. Never promises the amount before it has landed. */
-export const FUND_PENDING = 'Sending the STRK that pays your way…'
+export const FUND_PENDING = 'Sending the STRK that puts your account on chain…'
 
-/** The success line. `amount` is rendered by the caller so the number is never hardcoded here. */
+/**
+ * The success line. `amount` is rendered by the caller so the number is never hardcoded here.
+ *
+ * It must NOT claim this covers registration any more — it does not, and it is not sized to. What
+ * this money does is pay for one `deployAccount`; the fee after it is ours.
+ */
 export function fundArrived(amount: string): string {
   return (
-    `${amount} STRK is on its way — give it a few seconds to land. It pays for your ` +
-    'registration, signed by your own account, and what remains covers your first swaps, bets ' +
-    'and sends.'
+    `${amount} STRK is on its way — give it a few seconds to land. It covers putting your account ` +
+    'on chain. Registering, and the balance you start with, are on us.'
   )
 }
 
 /**
- * The refusal wrapper. `because` is the relayer's own sentence; this adds where the door is. It
- * does not promise a sponsor — the faucet gives once, and there is no second subsidy behind it.
+ * The refusal wrapper. `because` is the relayer's own sentence; this adds where the door is.
+ *
+ * A refused drip is not a refused account: the sponsored door is a separate budget with its own
+ * counter, so this names the self-funded path without implying everything behind it is closed too.
  */
 export function fundRefused(because: string): string {
   return `${because} Fund the account yourself from any wallet or exchange — the address is below, and this screen notices when it lands.`
 }
 
-export const FUND_CTA = 'Continue — register my key'
+export const FUND_CTA = 'Continue'
 
-/** The register screen's blocker when the account cannot pay yet: say what is missing and where it goes. */
+/**
+ * The register screen's blocker when the account cannot get on chain yet.
+ *
+ * The number names the DEPLOY, not the registration — a deploy is ~0.06 STRK and the fee behind it
+ * is sponsored, so quoting the old "about 8 STRK" would ask for money we no longer need and make
+ * the door look far higher than it is.
+ */
 export const REGISTER_NEEDS_FUNDS =
-  'This account holds no STRK yet, and registration is signed and paid from it — about 8 STRK ' +
-  'covers the fee, the deploy and gas. Send it to your address below from any wallet or ' +
-  'exchange; this screen notices when it lands.'
+  'This account holds no STRK yet, and it needs a little to put itself on chain — well under ' +
+  '1 STRK. Registering is on us. Send some to your address below from any wallet or exchange; ' +
+  'this screen notices when it lands.'
 
 /** Above the copyable address, wherever the flow asks the user to fund it themselves. */
 export const FUND_ADDRESS_HINT = 'Your address — send STRK here:'

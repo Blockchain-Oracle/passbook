@@ -1,4 +1,4 @@
-export { poolHealthQuery, poolConstantsQuery, feeRecipientQuery } from './pool'
+export { poolHealthQuery, poolConstantsQuery, feeRecipientQuery, allowanceQuery } from './pool'
 export { tokenListQuery, findToken } from './tokens'
 export { shieldedBalanceQuery } from './shielded'
 export { publicBalancesQuery, publicTokenSet, type PublicBalances } from './public-balances'

@@ -33,17 +33,32 @@
 // rather than in requests: what an operator needs to reason about is how much of their wallet a
 // bad day can cost.
 //
-// ── DRIP FIRST, AND IT STAKES THE WHOLE JOURNEY — THE ONE-SUBSIDY RULE ────────────────────
+// ── THE DRIP BUYS EXACTLY ONE THING: THE ACCOUNT DEPLOY ───────────────────────────────────
 //
-// M8's ruling, verbatim intent: "if we're already giving them money, we cannot then see the
-// relayer sponsoring their transaction again." So the drip is the ONLY subsidy, it fires FIRST
-// (a plain transfer lands on a counterfactual address), and it is sized to pay for everything
-// that follows: the account deploys itself from it, registration runs SELF-PAID (`collect_fee`
-// pulls from whoever submits — the user, now holding the drip), and what remains is the starter.
-// Sponsored registration demotes to the fallback for when this faucet is off or dry — never a
-// locked door, never a second subsidy on top of a drip.
+// This used to be the ONLY subsidy — M8's one-subsidy rule, "if we're already giving them money,
+// we cannot then see the relayer sponsoring their transaction again" — and it was sized to pay for
+// the whole journey: deploy, then a SELF-PAID registration out of what was left.
 //
-// The daily cap is therefore the whole acquisition budget: cap ÷ drip = new users a day.
+// THAT RULE WAS BUILT ON A COST MODEL THE RECEIPTS DO NOT SUPPORT, so it is retired here rather
+// than left to argue with the code around it. Three measurements, all from mainnet:
+//
+//   - A self-paid pool write must HOLD `feeFloor` — the 6 STRK fee plus the gas bound, ~11.7 STRK
+//     (protocol `fee-ceiling.ts`). The old 10 STRK drip was BELOW that floor, so every account it
+//     funded was refused before a transaction was built. Funded enough to exist, too poor to act:
+//     exactly the failure the 10 STRK was chosen to fix, reintroduced one rung higher up.
+//   - `collect_fee` pulls one 6 STRK fee PER SUBMISSION, and in relayer mode the proof carries a
+//     reimbursement leg that withdraws it straight back out of the user's own shielded notes
+//     (protocol `send-prove.ts`). Verified on tx 0x84a596…71d4: 6 STRK out to the pool, 6 STRK
+//     back to us, in one transaction. So a sponsored action costs this wallet GAS ALONE.
+//   - The drip and the sponsorship were therefore never two payments for one thing. The drip buys
+//     an account deploy. The sponsorship buys gas. The pool fee comes from the user's balance.
+//
+// So the drip is now sized to ONE job — letting a counterfactual account deploy itself — and
+// everything after it is sponsored. What a visitor who leaves takes with them drops from a whole
+// journey's funding to the price of a deploy.
+//
+// The daily cap is still the acquisition budget: cap × drip is what a bad day costs in transfers,
+// though the sponsorship budget beside it is now the larger number.
 //
 import type { Call } from 'starknet'
 
@@ -51,14 +66,19 @@ import { STRK_TOKEN } from '../../protocol/src/constants.js'
 import { asAddress, toFeltHex } from '../../protocol/src/address.js'
 
 /**
- * What a new account is given, in wei — 10 STRK by default, `RELAYER_FAUCET_DRIP_WEI` to retune
- * without a release (the exact number is the operator's call at flip-on).
+ * What a new account is given, in wei — 2 STRK by default, `RELAYER_FAUCET_DRIP_WEI` to retune
+ * without a release.
  *
- * SIZED TO THE JOURNEY, NOT TO A TASTE OF IT: account-deploy gas (~0.5) + the pool's 6 STRK
- * registration fee + approve headroom + a couple of STRK of starter. The old 1 STRK drip left a
- * cold visitor exactly one screen short — funded enough to exist, too poor to register.
+ * SIZED TO THE DEPLOY, AND DELIBERATELY NOT TO THE JOURNEY. A measured `deployAccount` costs
+ * 0.059 STRK (evidence/account-deployment.json). Two STRK is that, a failed attempt, and a second
+ * try, with room for a gas spike — and nothing beyond it, because everything past the deploy is
+ * sponsored and a visitor who wanders off should cost us a deploy rather than a wallet.
+ *
+ * DO NOT RAISE THIS TO LET SOMEONE SELF-PAY A POOL WRITE. That needs `feeFloor` — ~11.7 STRK held,
+ * not spent — and a drip sized for it hands every passer-by the price of an onboarding. The
+ * self-paid path stays open for anyone who funds their own account; it is not what this buys.
  */
-export const DRIP_WEI = 10_000_000_000_000_000_000n
+export const DRIP_WEI = 2_000_000_000_000_000_000n
 
 /** The refusal a spent per-address claim answers with. */
 export const DRIP_ALREADY_CLAIMED =

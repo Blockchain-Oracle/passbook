@@ -118,6 +118,17 @@ export interface SponsorshipConfig {
   storePath: string
   sendCaps: BudgetCaps
   sendStorePath: string
+  /**
+   * The allowance a USER is shown and counts down — keyed by account address, not by IP.
+   *
+   * NOT AN ABUSE CONTROL, and it must never be mistaken for one: the address arrives in the request
+   * body, so anyone willing to make a new account gets a new allowance. The IP-keyed budgets above
+   * and the wallet balance below them are what actually bound the spend. This exists so a number
+   * can be shown to a person and mean something to them — an IP-keyed count is wrong for anyone
+   * behind shared egress, and worse, it is wrong in the direction that refuses honest users.
+   */
+  accountCaps: BudgetCaps
+  accountStorePath: string
   /** `daily` × the drip is a literal STRK amount handed out per day, not a rate limit. */
   faucetCaps: BudgetCaps
   faucetStorePath: string
@@ -141,9 +152,19 @@ export function resolveSponsorshipCaps(env: NodeJS.ProcessEnv = process.env): Sp
       daily: positiveInt(env, 'RELAYER_SEND_DAILY', 20),
     },
     sendStorePath: env.RELAYER_SEND_STORE || relayerFile('send-budget.json'),
+    // Three per account: the registration takes one, two remain to spend on anything. `daily` is
+    // the shared brake — 60 is ~20 accounts using all three, and the wallet runs out before it.
+    accountCaps: {
+      perVisitor: positiveInt(env, 'RELAYER_ACCOUNT_SPONSORED', 3),
+      daily: positiveInt(env, 'RELAYER_ACCOUNT_SPONSORED_DAILY', 60),
+    },
+    accountStorePath: env.RELAYER_ACCOUNT_STORE || relayerFile('account-allowance.json'),
+    // 20/day, not 2. The old number was sized against a 10 STRK drip, where a day's worth was
+    // 20 STRK of real money; at a 2 STRK deploy-only drip the same daily spend buys ten times the
+    // visitors. The sponsorship budget below is now the one that bounds an expensive day.
     faucetCaps: {
       perVisitor: positiveInt(env, 'RELAYER_FAUCET_PER_VISITOR', 1),
-      daily: positiveInt(env, 'RELAYER_FAUCET_DAILY', 2),
+      daily: positiveInt(env, 'RELAYER_FAUCET_DAILY', 20),
     },
     faucetStorePath: env.RELAYER_FAUCET_STORE || relayerFile('faucet.json'),
     opsWebhook: env.RELAYER_OPS_WEBHOOK || undefined,

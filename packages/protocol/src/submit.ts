@@ -23,7 +23,7 @@ import {
   type DeadlineTimer,
   type RelayResponse,
 } from './relay.js'
-import type { FeeRecipientBody } from './relayer-wire.js'
+import type { Allowance, AllowanceBody, FeeRecipientBody } from './relayer-wire.js'
 
 export { DEFAULT_RELAYER_URL }
 
@@ -100,10 +100,24 @@ export class RelayRefused extends Error {
  * Resolves only with a usable hash. A 200 whose body cannot be read, or carries no hash, is a
  * transaction that EXISTS with an id we lost: `RelayDeliveryUnknown`, never a clean refusal.
  */
-export function relayerSubmitter(url: string = DEFAULT_RELAYER_URL, timer: DeadlineTimer = REAL_TIMER): Submitter {
+export function relayerSubmitter(
+  url: string = DEFAULT_RELAYER_URL,
+  timer: DeadlineTimer = REAL_TIMER,
+  /** The sending account, so the relayer counts this against its allowance and reports what is left. */
+  account?: string,
+  /** True when no reimbursement leg was folded — this is one of the transactions we cover. */
+  covered?: boolean,
+): Submitter {
   return async (calls, details) => {
     if (!details) throw new Error('refusing to relay a pool batch without its proof details')
-    const body = { calls, proofFacts: details.proofFacts, proof: details.proof, resourceBounds: details.resourceBounds }
+    const body = {
+      calls,
+      ...(account ? { account } : {}),
+      ...(covered ? { covered: true } : {}),
+      proofFacts: details.proofFacts,
+      proof: details.proof,
+      resourceBounds: details.resourceBounds,
+    }
     let response: RelayResponse
     try {
       // The fetch carries its own abort; the outer deadline only guards a timer that never fires.
@@ -170,4 +184,44 @@ export async function readFeeRecipient(
   }
   if (felt === 0n) throw new RelayerMisconfigured('the relayer advertised a fee recipient of 0; a reimbursement sent there is burned')
   return advertised
+}
+
+const ALLOWANCE_TIMEOUT_MS = 8_000
+
+/**
+ * How many sponsored transactions this account has left, or `null` when that cannot be established.
+ *
+ * ── NULL IS NOT ZERO, AND THE DIFFERENCE DECIDES WHO PAYS A FEE ───────────────────────────
+ *
+ * A sponsored send folds NO reimbursement leg, so if this read wrongly reported "you have some
+ * left" the relayer would silently pay a fee nobody agreed to; if it wrongly reported "none left"
+ * the user would be charged for a transaction we had promised to cover. So every failure — a
+ * timeout, a 404 from a deployment that does not meter, a malformed body — resolves to `null`,
+ * and `null` means "assume nothing is covered". The user pays their own fee, which is the
+ * conservative direction: it costs them a fee they might have avoided, never a surprise.
+ *
+ * NEVER THROWS. A counter is not worth failing a send over.
+ */
+export async function readAllowance(
+  relayerUrl: string,
+  account: string,
+  timer: DeadlineTimer = REAL_TIMER,
+  timeoutMs: number = ALLOWANCE_TIMEOUT_MS,
+): Promise<Allowance | null> {
+  const base = relayerUrl.replace(/\/submit$/, '/allowance')
+  if (base === relayerUrl) return null
+  try {
+    const res = await withDeadline(
+      fetch(`${base}/${account}`, { headers: { accept: 'application/json' } }),
+      timeoutMs,
+      timer,
+    )
+    if (res.status !== 200) return null
+    const body = (await res.json().catch(() => ({}))) as AllowanceBody | null
+    const a = body?.allowance
+    if (!a || !Number.isInteger(a.remaining) || !Number.isInteger(a.of) || a.remaining < 0) return null
+    return a
+  } catch {
+    return null
+  }
 }

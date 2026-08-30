@@ -59,7 +59,7 @@ export function FundStep({ address, onNext }: FundStepProps) {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="min-w-0 flex-1 basis-48">
             <p className="font-display text-display4 uppercase">Starter STRK</p>
-            <p className="text-body4 text-muted-foreground">One drip, sized to deploy and register this account.</p>
+            <p className="text-body4 text-muted-foreground">One drip, enough to put this account on chain.</p>
           </div>
           <Button aria-disabled={faucet.isPending || drip?.ok === true} onClick={() => !faucet.isPending && !drip?.ok && faucet.mutate()}>
             {faucet.isPending ? <Spinner data-icon="inline-start" /> : <Droplets data-icon="inline-start" />}

@@ -92,6 +92,15 @@ export interface RegisterInput {
   account: PrivateTransfersUser
   appName?: string
   relayerUrl?: string
+  /**
+   * A shielded starter to fold into the same proof, in wei. Absent for a bare registration.
+   *
+   * ONLY MEANINGFUL ON THE SPONSORED DOOR, and the caller has to know that: the pool pulls it from
+   * whoever submits, so on the self-paid path this is the user depositing their OWN STRK and they
+   * need that much again on top of the fee. `use-register.ts` passes it only when the relayer is
+   * the submitter — see `STARTER_WEI` for why the amount is what it is.
+   */
+  starterWei?: bigint
 }
 
 /** Every default is the live implementation or a refusal — never a stub that succeeds. */
@@ -163,6 +172,7 @@ export async function registerSponsored(input: RegisterInput, deps: RegisterDeps
   }
   const fail = (failure: RegisterFailure): RegisterResult => ({ ok: false, stages, failure })
   const address = String(input.account.address)
+  const starterWei = input.starterWei
 
   try {
     if (!(await canRegister())) return fail({ kind: 'backup-not-confirmed' })
@@ -231,7 +241,7 @@ export async function registerSponsored(input: RegisterInput, deps: RegisterDeps
     reach('prove')
     let proved: ProvedRegistration
     try {
-      proved = await prove({ accountKey: input.accountKey, account: input.account, provingBlockId })
+      proved = await prove({ accountKey: input.accountKey, account: input.account, provingBlockId, starterWei })
     } catch (e) {
       return fail({ kind: 'prover-failed', reason: String(e) })
     }
@@ -247,15 +257,18 @@ export async function registerSponsored(input: RegisterInput, deps: RegisterDeps
     reach('relay')
     let calls: Call[]
     try {
-      calls = assembleRegistrationCalls(proved.call, live.feeWei)
+      calls = assembleRegistrationCalls(proved.call, live.feeWei, starterWei ?? 0n)
     } catch (e) {
       return fail({ kind: 'bad-input', reason: String(e) })
     }
     let response: RelayResponse
     try {
       // `sponsored: true` charges the sponsorship budget rather than the plain-send cap.
+      // `account` counts this against the address's own allowance — the first of the three, and
+      // the one the counter starts from.
       response = await submit(input.relayerUrl ?? DEFAULT_RELAYER_URL, {
         calls,
+        account: address,
         proofFacts: proved.proofFacts,
         proof: proved.proof,
         sponsored: true,

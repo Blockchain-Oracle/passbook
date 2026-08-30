@@ -17,6 +17,8 @@ export interface RelayerContext {
   sponsorship?: SponsorshipLedger
   sendBudget?: SponsorshipLedger
   faucet?: SponsorshipLedger
+  /** Keyed by ACCOUNT ADDRESS, not by hashed IP — the count a user is shown. See ledger.ts. */
+  accountAllowance?: SponsorshipLedger
   feeRecipient: string
   visitorSalt: string
   quoteCounter: DailyQuoteCounter

@@ -18,6 +18,8 @@ import { getConnInfo } from '@hono/node-server/conninfo'
 
 import type { AppEnv, RelayerContext } from './context.js'
 import { SEND_CAP_NOTICE } from './sponsorship.js'
+import { ALLOWANCE_SPENT_NOTICE } from '../../protocol/src/relayer-wire.js'
+import { allowanceRoutes } from './routes/allowance.js'
 import { submitRoutes } from './routes/submit.js'
 import { quoteRoutes } from './routes/quote.js'
 import { feeRecipientRoutes } from './routes/fee-recipient.js'
@@ -61,6 +63,13 @@ function checkedContext(ctx: RelayerContext): RelayerContext {
         'about sponsored registrations. Construct it with the send notice.',
     )
   }
+  if (ctx.accountAllowance && ctx.accountAllowance.notice !== ALLOWANCE_SPENT_NOTICE) {
+    throw new Error(
+      'the account allowance was built without ALLOWANCE_SPENT_NOTICE, so a user who spent the ' +
+        'transactions we cover would be told their account creation was paused. Construct it ' +
+        'with the allowance notice.',
+    )
+  }
   // Never hash with an empty salt: that makes every visitor id a precomputable plain hash.
   return {
     ...ctx,
@@ -70,6 +79,7 @@ function checkedContext(ctx: RelayerContext): RelayerContext {
 
 const MOUNTS = [
   ['submit', submitRoutes],
+  ['allowance', allowanceRoutes],
   ['quote', quoteRoutes],
   ['fee-recipient', feeRecipientRoutes],
   ['faucet', faucetRoutes],

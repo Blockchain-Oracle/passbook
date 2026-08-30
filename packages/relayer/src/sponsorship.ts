@@ -130,6 +130,23 @@ export class SponsorshipLedger {
   }
 
   /**
+   * How many of this visitor's units are left, and how many they started with — the pair a user
+   * can be shown ("2 of 3 left") without a submission being attempted.
+   *
+   * THE DAILY BUDGET IS FOLDED IN, and it has to be: a visitor with two personal units left is
+   * shown zero once the shared daily budget is spent, because that is what they will actually get.
+   * A counter that promises what the next request will refuse is worse than no counter.
+   *
+   * Read-only. `spend` remains the only thing that moves a number.
+   */
+  remaining(visitorId: string, now: number = Date.now()): { remaining: number; of: number } {
+    const s = rolledToDay(this.state, now)
+    const personal = Math.max(0, this.caps.perVisitor - (s.perVisitor[visitorId] ?? 0))
+    const shared = Math.max(0, this.caps.daily - s.dailyCount)
+    return { remaining: Math.min(personal, shared), of: this.caps.perVisitor }
+  }
+
+  /**
    * Records a sponsored action if the decision allows; returns the decision made.
    *
    * The store is written BEFORE memory is updated, and both mutators do the same. Mutating

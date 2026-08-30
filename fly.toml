@@ -46,6 +46,9 @@ primary_region = "iad"
   # until `fly secrets set RELAYER_FAUCET=on` — flipping it spends real principal (M8: the drip
   # stakes the whole journey; the daily cap is the acquisition budget).
   RELAYER_FAUCET_STORE = "/data/faucet.json"
+  # The per-account sponsored allowance — the number the app shows counting down. On the volume
+  # for the same reason as the others: without it every deploy hands every account a fresh three.
+  RELAYER_ACCOUNT_STORE = "/data/account-allowance.json"
   # After `deploy-governance.ts --execute`, set this to the blockNumber it prints — the Teller's
   # event-scan floor:
   #   fly secrets set RELAYER_GOVERNANCE_FROM_BLOCK=<block>

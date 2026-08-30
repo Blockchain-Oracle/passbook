@@ -1,5 +1,6 @@
 import { useMutation } from '@tanstack/react-query'
 import { REGISTRATION_STAGES, type RegistrationStage } from '@strk20/protocol/pipeline-stage'
+import { STARTER_WEI } from '@strk20/protocol/constants'
 
 import { getSessionSnapshot } from '@/app/session'
 import { queryClient } from '@/app/query-client'
@@ -74,16 +75,31 @@ async function register(ask: RegisterAsk): Promise<RegisterOutcome> {
       queryClient.fetchQuery(accountStatusQuery(address)),
       queryClient.fetchQuery(poolConstantsQuery()),
     ])
-    // The one-subsidy rule: an account that holds the live fee plus gas pays its own way; only one
-    // that cannot falls back to the relayer's sponsored door. An unreadable balance selects sponsored.
-    // Deliberately UNDER `feeFloor` (fee + the ~4.7 STRK gas reserve): a 10 STRK drip self-paid its
-    // registration live on 2026-08-29 (~3 STRK gas charged), and the full floor would route every
-    // drip account to the sponsored door — a second subsidy. Raising the drip is the fix, not this.
+    // SPONSORED IS THE DEFAULT DOOR; self-pay is the exception for an account that arrived funded.
+    //
+    // This test used to enforce the one-subsidy rule — sponsorship was the fallback for accounts too
+    // poor to pay. That is inverted now: the drip buys a deploy and nothing more, so a dripped
+    // account holds ~2 STRK, falls under this floor, and takes the sponsored door by design. What
+    // still self-pays is the case the check was always really about: someone who funded this
+    // address from their own wallet or an exchange, who does not need our budget spent on them.
+    //
+    // The threshold stays deliberately UNDER `feeFloor` (fee + the full gas BOUND). The bound is
+    // what a sender must hold; ~3 STRK is what registration is actually charged (measured live,
+    // 2026-08-29). Testing against the bound would push funded accounts onto the sponsored door
+    // over a margin they were never going to spend. An unreadable balance selects sponsored.
     const floor = pool.feeWei + GAS_HEADROOM_WEI
     const selfPays = status.strkWei !== null && status.strkWei >= floor
 
     const result = await registerSponsored(
-      { accountKey, account: account as never, appName: 'strk20.run' },
+      {
+        accountKey,
+        account: account as never,
+        appName: 'strk20.run',
+        // The starter rides only on the sponsored door. On the self-paid path the pool would pull
+        // it from the USER, so folding it in would silently ask them for 3 STRK more than the
+        // screen said — and they took that path precisely because they are funding themselves.
+        ...(selfPays ? {} : { starterWei: STARTER_WEI }),
+      },
       {
         canRegister: () => ask.backedUp,
         acquireSubmitLock,

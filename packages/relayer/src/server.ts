@@ -23,7 +23,12 @@ import { openDirectory } from './directory.js'
 import { faucetDripWei, resolveEnv } from './env.js'
 import { createFundingMonitor } from './funding-monitor.js'
 import { createChainKeeperDeps, scheduleKeeper, type KeeperSchedule } from './keeper.js'
-import { openFaucetLedger, openSendBudgetLedger, openSponsorshipLedger } from './ledger.js'
+import {
+  openAccountAllowanceLedger,
+  openFaucetLedger,
+  openSendBudgetLedger,
+  openSponsorshipLedger,
+} from './ledger.js'
 import type { LogoService } from './logo.js'
 import { createQuoteCounter } from './quote-proxy.js'
 import { ROOM_IDLE_MS, RoomHub } from './rooms.js'
@@ -68,8 +73,9 @@ async function main(): Promise<void> {
   const sponsorship = openSponsorshipLedger(env.sponsor)
   const sendBudget = openSendBudgetLedger(env.sponsor, sponsorship.salt)
   const faucet = env.faucetOn ? openFaucetLedger(env.sponsor, sponsorship.salt) : undefined
+  const accountAllowance = openAccountAllowanceLedger(env.sponsor, sponsorship.salt)
 
-  const { nodeUrl, provider, account, address } = await openSigner(env.address, env.privateKey)
+  const { nodeUrl, provider, execute, address } = await openSigner(env.address, env.privateKey)
   const callContract = (contractAddress: string, entrypoint: string, calldata: string[]) =>
     provider.callContract({ contractAddress, entrypoint, calldata })
 
@@ -130,18 +136,21 @@ async function main(): Promise<void> {
         },
         env.governanceFromBlock,
       ),
-      ...tellerSubmitters(account, writableGovernance),
+      ...tellerSubmitters(execute, writableGovernance),
     }
     every(TELLER_INTERVAL_MS, () => void teller.tick(deps).catch((e) => console.warn(`teller: sweep failed — ${String(e)}`)))
   }
 
   const ctx: RelayerContext = {
-    submit: async (calls, details) => (await account.execute(calls, details)).transaction_hash,
+    // Through the signer's queue, never `account.execute`: this key has four writers sharing one
+    // nonce, and the queue is the only thing keeping them from colliding under load.
+    submit: async (calls, details) => (await execute(calls, details)).transaction_hash,
     policy: { messageBook, markets: app.markets, launch: app.launch, governance: writableGovernance },
     resolveApproveCeiling: async () => approveCeiling((await readPoolConstants()).feeWei),
     sponsorship,
     sendBudget,
     faucet,
+    accountAllowance,
     feeRecipient: address,
     visitorSalt: sponsorship.salt,
     quoteCounter: createQuoteCounter(env.sponsor.quoteDailyPerVisitor, env.sponsor.quoteDailyGlobal),
@@ -164,7 +173,7 @@ async function main(): Promise<void> {
       pragma: app.pragma!,
       call: callContract,
       send: async (contractAddress, entrypoint, calldata) => {
-        await account.execute([{ contractAddress, entrypoint, calldata }])
+        await execute([{ contractAddress, entrypoint, calldata }])
       },
     })
     keeper = scheduleKeeper(keeperDeps, { log: (l) => console.log(l), warn: (l) => console.warn(l) })

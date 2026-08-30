@@ -1,8 +1,9 @@
-// The three money ledgers, opened before the socket does. One salt across all of them, so an
+// The four money ledgers, opened before the socket does. One salt across all of them, so an
 // operator reading a day can read the counters against each other.
 import { SEND_CAP_NOTICE, SponsorshipLedger } from './sponsorship.js'
 import { FileSponsorshipStore } from './sponsorship-store.js'
 import { DRIP_BUDGET_SPENT } from './faucet.js'
+import { ALLOWANCE_SPENT_NOTICE } from '../../protocol/src/relayer-wire.js'
 import type { SponsorshipConfig } from './env.js'
 
 export { atomicWriteJson } from './sponsorship-store.js'
@@ -34,4 +35,26 @@ export function openFaucetLedger(config: SponsorshipConfig, salt: string): Spons
   const record = store.load()
   if (record.salt !== salt) store.save({ ...record, salt })
   return new SponsorshipLedger(config.faucetCaps, store, Date.now(), DRIP_BUDGET_SPENT)
+}
+
+/**
+ * Fourth file: the per-ACCOUNT allowance, the one a user watches count down.
+ *
+ * ── IT SHARES THE SALT AND USES NONE OF IT, WHICH IS WORTH SAYING OUT LOUD ────────────────
+ *
+ * Every other ledger here keys on `visitorId(ip, salt, day)` — hashed, day-scoped, and reset every
+ * midnight by construction. This one keys on the account address instead, so the salt it carries is
+ * inert. It is written anyway, because `FileSponsorshipStore` records own a salt and a file whose
+ * salt disagreed with its siblings would look like a re-key rather than a design choice.
+ *
+ * The consequence to hold in mind: these keys are NOT day-scoped the way a visitor id is, so the
+ * per-account count survives until `rolledToDay` clears the whole map at 00:00 UTC. That is the
+ * behaviour we want — an allowance is a daily grant, not a lifetime one — but it means the number
+ * a user sees resets overnight, and the copy must not promise otherwise.
+ */
+export function openAccountAllowanceLedger(config: SponsorshipConfig, salt: string): SponsorshipLedger {
+  const store = new FileSponsorshipStore(config.accountStorePath)
+  const record = store.load()
+  if (record.salt !== salt) store.save({ ...record, salt })
+  return new SponsorshipLedger(config.accountCaps, store, Date.now(), ALLOWANCE_SPENT_NOTICE)
 }

@@ -75,6 +75,32 @@ export const STRK_TOKEN =
   '0x04718f5a0fc34cc1af16a1cdee98ffb20c31f5cd61d6ab07201858f4287c938d'
 
 /**
+ * The shielded balance a new account is registered with, in wei — 3 STRK.
+ *
+ * ── WHY IT IS THIS SMALL, AND WHY THAT IS NOT STINGY ──────────────────────────────────────
+ *
+ * It rides inside the registration's own proof, so the pool pulls it from whoever submits — the
+ * relayer — against the SAME approve that pays `collect_fee`. `approveCeiling` is twice the live
+ * fee, which at a 6 STRK fee leaves exactly 6 STRK of headroom for a starter. Six is therefore the
+ * hard ceiling, not a preference (`assembleRegistrationCalls` refuses anything above it), and
+ * raising `approveCeiling` to fit a bigger one would widen the blast radius of every sponsored
+ * submission rather than buy a more generous starter.
+ *
+ * Three is usable because a covered transaction deducts NO pool fee from the holder — the relayer
+ * pays `collect_fee` and folds no reimbursement leg (`send-preflight.ts`). An account's first
+ * transactions therefore spend only what they send, so a small balance is a spendable one.
+ *
+ * ── WHAT THIS COSTS US IF SOMEBODY LIES ───────────────────────────────────────────────────
+ *
+ * The client composes the proof, so the amount is the client's to name and the relayer cannot read
+ * it back out of `apply_actions`. The approve ceiling is the real bound: the most a hostile caller
+ * extracts is one fee's headroom per sponsored registration, metered by the sponsorship budget.
+ * That exposure predates the starter — it is what an approve ceiling above the fee has always
+ * meant — and the span guard in `register-prove.ts` is what keeps an honest client honest.
+ */
+export const STARTER_WEI = 3_000_000_000_000_000_000n
+
+/**
  * Proofs are built against `latest − PROVING_BLOCK_LAG`: a proof against the head is rejected as
  * unseen. Observed ~10 in both live probes; not a protocol constant. Lives here, SDK-free, so the
  * app can count a fresh deploy's wait without loading the SDK.

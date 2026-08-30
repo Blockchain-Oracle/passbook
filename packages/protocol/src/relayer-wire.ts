@@ -51,6 +51,34 @@ export interface SubmitBody {
   /** The calls to sign, in order. The relayer's allowlist decides which are permitted. */
   calls: Call[]
   /**
+   * The account this submission is for, so its sponsored allowance is counted down and can be
+   * shown back. Optional — a body without one is metered by hashed IP alone.
+   *
+   * SELF-REPORTED, AND THEREFORE NOT A SECURITY CONTROL. Nothing here proves the sender owns this
+   * address, and a caller willing to make new accounts gets new allowances. That is deliberate:
+   * the IP-keyed budgets and the relayer's own balance are what bound the spend, and this field
+   * exists so a person can be shown a number that matches their experience rather than their
+   * network's. Do not add a check here and start treating it as an entitlement.
+   */
+  account?: string
+  /**
+   * True when this batch folds NO reimbursement leg, so the relayer's own STRK pays `collect_fee`
+   * and is not paid back. Implied by `sponsored`, which is never reimbursed either.
+   *
+   * ── IT IS WHAT SPENDS THE ACCOUNT ALLOWANCE, AND ONLY IT ──────────────────────────────────
+   *
+   * A reimbursed send costs this relayer gas alone — the 6 STRK returns inside the same
+   * transaction — so it must NOT consume one of the transactions we advertised as covered. Metering
+   * every relayed submission alike would burn a user's three on sends they were paying for
+   * themselves, and then refuse the ones they were owed.
+   *
+   * UNVERIFIABLE BY THE RELAYER, like `sponsored`: `apply_actions` calldata is deliberately
+   * uninspected, so nothing here can tell a batch that reimburses from one that does not. The flag
+   * routes to a meter; it grants nothing. A client that lies gets what the allowance permits and
+   * no more, which is precisely why the allowance exists.
+   */
+  covered?: boolean
+  /**
    * Explicit v3 resource bounds, so the submitter SKIPS fee estimation. `Account.execute` forwards
    * the proof pair to the broadcast and to nothing else, so `starknet_estimateFee` simulates the
    * transaction with the proof ABSENT and every value-moving pool transaction reverts inside the
@@ -112,12 +140,49 @@ export interface SubmitResponseBody {
    *   - `send-cap-reached` — the relayer's cap on plain submissions is spent for this visitor
    *     or this day. Distinct from the above so a send never renders registration copy, and so
    *     the client can offer self-submission rather than a dead end.
+   *   - `allowance-spent` — this ACCOUNT has used its sponsored transactions. Distinct from
+   *     `send-cap-reached` because it is a per-account count the user has been watching count
+   *     down, not a shared rate limit they have no way to see coming.
    *   - `relayer-down` — the relayer cannot pay at all right now (503, funding-monitor.ts).
    */
   reason?: string
   /** Operator-authored copy the client shows verbatim rather than paraphrasing. */
   notice?: string
+  /** This account's sponsored-transaction allowance AFTER this request. See `AllowanceBody`. */
+  sponsorship?: Allowance
 }
+
+/**
+ * The sponsored-transaction allowance for one account: what is left, and what it started at.
+ *
+ * BOTH NUMBERS TRAVEL, because the client renders "2 of 3" and must not learn the denominator from
+ * a constant of its own — the cap is an operator setting that can change between deploys, and a
+ * hardcoded 3 would quietly start lying the day it does.
+ */
+export interface Allowance {
+  remaining: number
+  of: number
+}
+
+/**
+ * What `GET /allowance/:address` answers, so the shell can show the counter without submitting.
+ *
+ * A MISSING `allowance` IS NOT A ZERO. It means this deployment does not meter per account, or the
+ * ledger could not be read — and a counter that renders "0 of 0" on a read failure would tell every
+ * user their offer had been withdrawn. The client shows nothing when it is absent.
+ */
+export interface AllowanceBody {
+  allowance?: Allowance
+  error?: string
+}
+
+/**
+ * Shown when an ACCOUNT has spent the transactions we cover. Names what is gone and what is not:
+ * the account still works, it now pays its own pool fee like any other.
+ */
+export const ALLOWANCE_SPENT_NOTICE =
+  'You have used the transactions we cover. Your account still works — ' +
+  'each transaction now pays the pool fee from your own balance.'
 
 /** What `GET /fee-recipient` answers: the address a reimbursement `Withdraw` must name. */
 export interface FeeRecipientBody {

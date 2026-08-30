@@ -4,6 +4,7 @@ import { Hono } from 'hono'
 import type { Call } from 'starknet'
 
 import { RELAYER_DOWN_NOTICE } from '../../../protocol/src/relayer-wire.js'
+import { asAddress, toFeltHex } from '../../../protocol/src/address.js'
 import {
   assertProofFacts,
   assertResourceBounds,
@@ -13,7 +14,6 @@ import {
   type ResourceBounds,
 } from '../allowlist.js'
 import type { AppEnv } from '../context.js'
-import type { SponsorDecision } from '../sponsorship.js'
 import { jsonError, reply, visitorOf } from './shared.js'
 
 interface SubmitDetails {
@@ -23,10 +23,18 @@ interface SubmitDetails {
 }
 
 /** Validates the wire body by hand — every refusal string here is a shipped contract. */
-function parseSubmitBody(raw: unknown): { calls: Call[]; details?: SubmitDetails; sponsored: boolean } {
+function parseSubmitBody(raw: unknown): {
+  calls: Call[]
+  details?: SubmitDetails
+  sponsored: boolean
+  covered: boolean
+  account?: string
+} {
   const body = (raw ?? {}) as {
     calls?: unknown
     sponsored?: unknown
+    covered?: unknown
+    account?: unknown
     proofFacts?: unknown
     proof?: unknown
     resourceBounds?: unknown
@@ -45,6 +53,33 @@ function parseSubmitBody(raw: unknown): { calls: Call[]; details?: SubmitDetails
       )
     }
     sponsored = true
+  }
+  // Whether this batch expects NO reimbursement, so our own STRK pays the fee for good. Same
+  // exactly-true-or-absent rule as `sponsored`, for the same reason: a flag that picks a meter must
+  // mean one thing. A sponsored registration is never reimbursed, so it implies this.
+  let covered = sponsored
+  if (body.covered !== undefined) {
+    if (body.covered !== true) {
+      throw new Error(
+        `refusing covered=${JSON.stringify(body.covered)}: the only accepted value is true, ` +
+          'and a reimbursed submission omits the field entirely',
+      )
+    }
+    covered = true
+  }
+  // The account this submission is FOR, so its allowance can be counted down. Optional: a body
+  // without one is metered by IP alone, exactly as before this field existed.
+  //
+  // NORMALISED, NEVER PASSED THROUGH — `0x123` and `0x0123` are one account, and a client that
+  // varied the padding would otherwise mint itself a fresh allowance per spelling. Unparseable is
+  // refused rather than ignored: silently dropping it would hand out an uncounted transaction.
+  let account: string | undefined
+  if (body.account !== undefined) {
+    try {
+      account = toFeltHex(asAddress(body.account as string))
+    } catch {
+      throw new Error(`refusing account=${JSON.stringify(body.account)}: it is not a Starknet address`)
+    }
   }
   let details: SubmitDetails | undefined
   if (body.proofFacts !== undefined) {
@@ -72,7 +107,7 @@ function parseSubmitBody(raw: unknown): { calls: Call[]; details?: SubmitDetails
         'and a blob with no facts is not a proven submission',
     )
   }
-  return { calls, details, sponsored }
+  return { calls, details, sponsored, covered, account }
 }
 
 export const submitRoutes = new Hono<AppEnv>()
@@ -92,8 +127,10 @@ submitRoutes.post('/', async (c) => {
   let calls: Call[]
   let details: SubmitDetails | undefined
   let sponsored: boolean
+  let covered: boolean
+  let account: string | undefined
   try {
-    ;({ calls, details, sponsored } = parseSubmitBody(await c.req.json()))
+    ;({ calls, details, sponsored, covered, account } = parseSubmitBody(await c.req.json()))
   } catch (e) {
     return jsonError(c, 400, String(e))
   }
@@ -117,33 +154,65 @@ submitRoutes.post('/', async (c) => {
   }
 
   // Spend is recorded BEFORE broadcast so concurrent requests cannot share one check.
+  //
+  // ── BOTH LEDGERS ARE DECIDED BEFORE EITHER IS SPENT ───────────────────────────────────────
+  //
+  // Two meters gate this door — the IP-keyed budget that bounds abuse, and the account allowance a
+  // user watches count down. Spending the first and then being refused by the second would burn a
+  // unit for a transaction that never happened, and the user would have paid for a refusal. Both
+  // `decide` calls are pure and synchronous, so checking them together is atomic in the same sense
+  // the single check was: nothing yields between the decisions and the spends.
   const budget = sponsored ? ctx.sponsorship : ctx.sendBudget
   const kind = sponsored ? 'sponsorship' : 'send'
+  // ONLY a covered batch spends the allowance. A reimbursed send costs us gas alone and must not
+  // burn one of the transactions we said we would pay for — see `SubmitBody.covered`.
+  const allowance = account && covered ? ctx.accountAllowance : undefined
+  const now = Date.now()
+  const visitor = budget ? visitorOf(c, budget.salt, now) : ''
+
   if (budget) {
-    const now = Date.now()
-    const visitor = visitorOf(c, budget.salt, now)
-    let decision: SponsorDecision
-    try {
-      decision = budget.spend(visitor, now)
-    } catch (e) {
-      console.warn(`relayer: ${kind} ledger write failed: ${String(e)}`)
-      return jsonError(c, 500, `the ${kind} ledger could not be written; refusing to sign`)
-    }
-    if (!decision.allow) {
+    const d = budget.decide(visitor, now)
+    if (!d.allow) {
       // Which cap bound goes to ops, never to the caller.
-      console.warn(`relayer: ${kind} refused (${decision.reason}) for visitor ${visitor.slice(0, 8)}…`)
+      console.warn(`relayer: ${kind} refused (${d.reason}) for visitor ${visitor.slice(0, 8)}…`)
       return reply(
         c,
         403,
         sponsored
-          ? { error: 'sponsored submissions are paused', reason: 'sponsorship-paused', notice: decision.notice }
-          : { error: 'relayed sends are paused', reason: 'send-cap-reached', notice: decision.notice },
+          ? { error: 'sponsored submissions are paused', reason: 'sponsorship-paused', notice: d.notice }
+          : { error: 'relayed sends are paused', reason: 'send-cap-reached', notice: d.notice },
       )
     }
   }
+  if (allowance && account) {
+    const d = allowance.decide(account, now)
+    if (!d.allow) {
+      console.warn(`relayer: allowance spent (${d.reason}) for account ${account.slice(0, 10)}…`)
+      return reply(c, 403, {
+        error: 'this account has used its sponsored transactions',
+        reason: 'allowance-spent',
+        notice: d.notice,
+        sponsorship: allowance.remaining(account, now),
+      })
+    }
+  }
+
+  // Both said yes; now commit both. A write failure here refuses to sign rather than signing
+  // something nobody recorded — see `SponsorshipLedger.spend`.
+  try {
+    if (budget) budget.spend(visitor, now)
+    if (allowance && account) allowance.spend(account, now)
+  } catch (e) {
+    console.warn(`relayer: ${kind} ledger write failed: ${String(e)}`)
+    return jsonError(c, 500, `the ${kind} ledger could not be written; refusing to sign`)
+  }
 
   try {
-    return reply(c, 200, { transactionHash: await ctx.submit(calls, details) })
+    const transactionHash = await ctx.submit(calls, details)
+    return reply(c, 200, {
+      transactionHash,
+      ...(allowance && account ? { sponsorship: allowance.remaining(account, now) } : {}),
+    })
   } catch (e) {
     return jsonError(c, 502, String(e))
   }

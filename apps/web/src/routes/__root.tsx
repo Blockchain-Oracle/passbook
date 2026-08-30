@@ -3,6 +3,7 @@ import { Outlet, createRootRouteWithContext } from '@tanstack/react-router'
 
 import { AppSidebar } from '@/components/layout/app-sidebar'
 import { MobileTabs } from '@/components/layout/mobile-tabs'
+import { SponsorshipBanner } from '@/components/layout/sponsorship-banner'
 import { TabBanner } from '@/components/layout/tab-banner'
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar'
 import { Toaster } from '@/components/ui/sonner'
@@ -24,6 +25,7 @@ function Shell() {
         <SidebarInset className="@container min-w-0 overflow-x-clip pb-20 md:pb-0">
           <OnboardingGate />
           <TabBanner />
+          <SponsorshipBanner />
           <Outlet />
         </SidebarInset>
         <MobileTabs />

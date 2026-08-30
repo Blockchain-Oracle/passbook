@@ -1,5 +1,6 @@
 import { queryOptions } from '@tanstack/react-query'
 import type { PoolConstants, PoolHealth } from '@strk20/protocol/pool'
+import type { Allowance, AllowanceBody } from '@strk20/protocol/relayer-wire'
 
 import { relayerGet } from '@/lib/relayer'
 
@@ -46,5 +47,33 @@ export function feeRecipientQuery() {
       return body.feeRecipient
     },
     staleTime: 5 * 60_000,
+  })
+}
+
+/**
+ * How many sponsored transactions this account has left, or `null` when we cannot say.
+ *
+ * ── NULL IS A RENDERED STATE, NOT AN ERROR ────────────────────────────────────────────────
+ *
+ * The banner shows nothing at all when this is `null`, and that is the whole reason the query
+ * resolves rather than throws: a deployment that does not meter per account answers 404, and a
+ * counter that rendered "0 of 3" there would tell every user their offer had been withdrawn.
+ * `undefined` address means no account yet — the query does not run.
+ */
+export function allowanceQuery(address: string | undefined) {
+  return queryOptions({
+    queryKey: ['relayer', 'allowance', address ?? null],
+    enabled: Boolean(address),
+    queryFn: async (): Promise<Allowance | null> => {
+      try {
+        const body = await relayerGet<AllowanceBody>(`/api/allowance/${address}`)
+        const a = body.allowance
+        if (!a || !Number.isInteger(a.remaining) || !Number.isInteger(a.of)) return null
+        return a
+      } catch {
+        return null
+      }
+    },
+    staleTime: 15_000,
   })
 }
