@@ -1,0 +1,109 @@
+<!doctype html>
+<!--
+  A drawing of the unshield screen — the "take it out" step, and the newest surface in the app.
+
+  It is the honest one to show at this step BECAUSE it is the exposed one: the disclosure panel is
+  reproduced verbatim from `packages/protocol/src/disclosure-copy.ts` (UNSHIELD_SCOPE and
+  UNSHIELD_SELF_LINK), not paraphrased for the picture. A landing page that softened its own
+  warning copy to look better would be doing the exact thing this product refuses.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title></title>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&family=Archivo:wght@400;600&family=Space+Mono:wght@400;700&display=swap" />
+    <style>
+      :root {
+        color-scheme: dark;
+        --ground: #0a0a0a; --raised: #151515; --inset: #1d1d1d;
+        --line: rgba(240, 239, 234, 0.1);
+        --ink: #f1f0eb; --ink2: #a3a29c; --ink3: #6d6c67;
+        --accent: #e04708; --onAccent: #fbf4ec;
+        --shielded: #7fd4a8; --exposed: #f2dc4e;
+      }
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      body { width: 1180px; height: 700px; background: transparent; padding: 28px 32px;
+             font-family: 'Archivo', system-ui, sans-serif; color: var(--ink); }
+      .kicker { font-family: 'Space Mono', monospace; font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink3); }
+      h1 { font-family: 'Anton', sans-serif; font-size: 44px; line-height: 40px; text-transform: uppercase; }
+      header { display: flex; align-items: flex-end; justify-content: space-between; padding-bottom: 22px; }
+      .badge { font-family: 'Space Mono', monospace; font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase;
+               border: 1px solid var(--exposed); color: var(--exposed); border-radius: 999px; padding: 6px 12px; }
+      .grid { display: grid; grid-template-columns: 1.3fr 1fr; gap: 24px; }
+      .panel { border: 1px solid var(--line); border-radius: 12px; background: var(--raised); padding: 20px; }
+      /* The destination toggle: the one control that turns a transfer into a withdrawal. */
+      .toggle { display: flex; gap: 8px; margin-bottom: 18px; }
+      .opt { flex: 1; text-align: center; border: 1px solid var(--line); border-radius: 8px; padding: 10px; font-size: 13px; color: var(--ink2); }
+      .opt.on { border-color: var(--ink); color: var(--ink); font-weight: 600; }
+      .label { font-size: 12px; color: var(--ink2); margin-bottom: 6px; }
+      .field { border: 1px solid var(--line); border-radius: 10px; padding: 13px 14px; margin-bottom: 14px; }
+      .field .v { font-family: 'Space Mono', monospace; font-size: 24px; }
+      .field .addr { font-family: 'Space Mono', monospace; font-size: 14px; color: var(--ink); word-break: break-all; }
+      .avail { display: flex; justify-content: space-between; font-size: 12px; color: var(--ink3); margin-top: 6px; }
+      .avail b { color: var(--shielded); font-family: 'Space Mono', monospace; font-weight: 400; }
+      .row { display: flex; justify-content: space-between; padding: 9px 0; font-size: 13px; border-bottom: 1px solid var(--line); }
+      .row span:last-child { font-family: 'Space Mono', monospace; }
+      .cta { margin-top: 16px; background: var(--accent); color: var(--onAccent); text-align: center;
+             border-radius: 10px; padding: 13px; font-weight: 600; font-size: 15px; }
+      /* The disclosure. Verbatim from disclosure-copy.ts — the point of showing this screen. */
+      .disc { border: 1px solid var(--line); border-radius: 12px; background: var(--raised); padding: 18px 20px; }
+      .disc h2 { font-family: 'Anton', sans-serif; font-size: 20px; text-transform: uppercase; margin-bottom: 12px; }
+      .line { display: flex; gap: 10px; padding: 9px 0; font-size: 13px; line-height: 19px; border-bottom: 1px solid var(--line); }
+      .line:last-child { border-bottom: 0; }
+      .m { flex: none; font-family: 'Space Mono', monospace; font-size: 11px; padding-top: 2px; }
+      .m.out { color: var(--exposed); }
+      .m.stay { color: var(--shielded); }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div><div class="kicker">Money</div><h1>Unshield</h1></div>
+      <div class="badge">Public exit</div>
+    </header>
+
+    <div class="grid">
+      <div class="panel">
+        <div class="toggle">
+          <div class="opt">strk20 account</div>
+          <div class="opt on">Public address</div>
+        </div>
+
+        <div class="label">Amount</div>
+        <div class="field">
+          <div class="v">2.5000 STRK</div>
+          <div class="avail"><span>From your shielded balance</span><b>3.0000 available</b></div>
+        </div>
+
+        <div class="label">To</div>
+        <div class="field">
+          <div class="addr">0x10fe91ce9947fdfb2b8dbfcb146560176ab3bf5ec15f3fc501170a5880f4b97</div>
+        </div>
+
+        <div class="row"><span>Lands as</span><span>Public STRK</span></div>
+        <div class="row"><span>Pool fee (exact)</span><span>6.00 STRK</span></div>
+        <div class="row" style="border-bottom:0"><span>Gas (estimated)</span><span>~3.02, 5.06 held</span></div>
+        <div class="cta">Unshield</div>
+      </div>
+
+      <div class="disc">
+        <h2>Who sees what</h2>
+        <div class="line">
+          <span class="m out">LEAVES</span>
+          <span>Leaving the pool hides which shielded note funded this. It does not hide the amount, the destination address, or the timing.</span>
+        </div>
+        <div class="line">
+          <span class="m out">LEAVES</span>
+          <span>If this address is yours and holds funds people can already tie to you, this withdrawal ties them to your shielded balance too.</span>
+        </div>
+        <div class="line">
+          <span class="m stay">STAYS</span>
+          <span>The relayer sees the network address and the moment a request arrived. It cannot read your notes.</span>
+        </div>
+        <div class="line">
+          <span class="m out">LEAVES</span>
+          <span>An encrypted copy of your viewing key is escrowed on-chain to StarkWare’s auditor. That is not optional.</span>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>

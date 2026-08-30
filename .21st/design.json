@@ -1,0 +1,66 @@
+{
+  "version": 1,
+  "project": {
+    "name": "strk20-app",
+    "productType": null,
+    "stack": []
+  },
+  "sources": {
+    "tokens": [],
+    "components": [],
+    "assets": [
+      "assets"
+    ],
+    "instructions": [
+      "CLAUDE.md"
+    ]
+  },
+  "design": {
+    "colorMode": "unknown",
+    "colors": {},
+    "typography": {},
+    "spacing": {},
+    "radius": {},
+    "shadows": {},
+    "motion": {},
+    "density": "unknown"
+  },
+  "components": {
+    "installed": [],
+    "preferredPrimitives": [],
+    "patterns": []
+  },
+  "constraints": {
+    "must": [],
+    "avoid": []
+  },
+  "decisions": [
+    {
+      "date": "2026-08-30",
+      "surface": "apps/site landing page",
+      "direction": "The Walkthrough \u2014 product-led",
+      "chosen_by": "Abu",
+      "idea": "Each band is one step of the suite with its own hand-built mock screen. Light bands hold the screens; dark bands hold the claims. Answers 'it never shows the product' by showing rather than asserting breadth.",
+      "considered": [
+        "The Ledger (dense, surfaces-as-index)",
+        "The Refusal (sparse, refused-claims as hero)"
+      ],
+      "fixed_constraints": [
+        "alternating light/dark full-bleed bands, never a theme toggle",
+        "STUDIO tokens: ground #0a0a0a, neutral1 #f1f0eb, accent1 #e04708",
+        "Anton display / Archivo body / Space Mono",
+        "copy must pass packages/protocol/src/forbidden-claims.ts",
+        "surfaces + deployment rows stay computed, never typed twice"
+      ],
+      "headline": "Everything on Starknet, from one private account.",
+      "note": "21st search returned no strong references for an editorial alternating-band layout; only @tom_ui/text-marquee matched the ticker. Structure designed in-project rather than adapted from the catalogue."
+    }
+  ],
+  "evidence": [
+    {
+      "fact": "project.instructions",
+      "source": "CLAUDE.md"
+    }
+  ],
+  "generatedAt": "2026-08-30T22:14:37.319Z"
+}

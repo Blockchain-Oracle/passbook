@@ -222,6 +222,41 @@
     }
   }
 
+  /*
+   * ── THE BANDS ─────────────────────────────────────────────────────────────────────────────
+   *
+   * The page alternates full-bleed light and dark sections. NOT A THEME TOGGLE, and the
+   * distinction matters: a toggle is a preference the reader sets once and every section obeys,
+   * where these are a property of the section itself — an argument that reads better on white
+   * sitting next to one that reads better on black, on the same scroll.
+   *
+   * Each band publishes the same four variables, so a section written against them does not know
+   * or care which tone it is inside. Without that, every section would need a light and a dark
+   * spelling of every colour, and the two would drift the first time one of them was edited.
+   *
+   * `--ink2` is NOT the same relationship in both. On black, `neutral2` (#a3a29c) is a soft grey
+   * that recedes; the same value on bone-white is barely legible, so the light band uses the ink
+   * at 62 % instead. Reusing one token for both is the mistake that makes a light section look
+   * washed out and unfinished.
+   */
+  .band-dark {
+    --ink: var(--color-neutral1);
+    --ink2: var(--color-neutral2);
+    --ink3: var(--color-neutral3);
+    --line: var(--color-surface3);
+    background-color: var(--color-ground);
+    color: var(--ink);
+  }
+
+  .band-light {
+    --ink: var(--color-ground);
+    --ink2: color-mix(in oklab, var(--color-ground) 62%, transparent);
+    --ink3: color-mix(in oklab, var(--color-ground) 42%, transparent);
+    --line: color-mix(in oklab, var(--color-ground) 14%, transparent);
+    background-color: var(--color-neutral1);
+    color: var(--ink);
+  }
+
   .site-ticker-track {
     display: flex;
     width: max-content;

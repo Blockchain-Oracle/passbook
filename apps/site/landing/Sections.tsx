@@ -5,7 +5,7 @@
 // Split out of `Landing.tsx` rather than appended to it — the page composition and the copy for
 // seven sections do not belong in one file, and this repository holds a 400-line ceiling.
 //
-import { MockScreen } from './MockScreen'
+import { Band, Inner } from './Band'
 import { NETWORK } from '@/data/deployment'
 
 /**
@@ -23,9 +23,9 @@ import { NETWORK } from '@/data/deployment'
  */
 export function Offer() {
   return (
-    <section className="px-s20 py-s60 lg:px-s40">
-      <div className="mx-auto flex max-w-[1100px] flex-col gap-s24">
-        <span className="kicker">Getting started</span>
+    <Band tone="light" className="py-s60">
+      <Inner className="flex max-w-[1100px] flex-col gap-s24">
+        <span className="kicker text-[color:var(--ink3)]">Getting started</span>
         <p className="display m-0 text-display2 xl:text-display1">
           Your first three transactions are on us.{' '}
           <span className="text-accent1">Real STRK, on {NETWORK}.</span>
@@ -48,81 +48,19 @@ export function Offer() {
               body: 'Send, swap, bet, vote. The pool charges a fee on every transaction; on these two it comes out of our wallet and not your balance. The app counts them down where you can see it.',
             },
           ].map((step) => (
-            <div key={step.n} className="flex flex-col gap-s8 border-t border-surface3 pt-s16">
-              <span className="font-mono text-body4 text-neutral3">{step.n}</span>
+            <div key={step.n} className="flex flex-col gap-s8 border-t border-[color:var(--line)] pt-s16">
+              <span className="font-mono text-body4 text-[color:var(--ink3)]">{step.n}</span>
               <h3 className="m-0 text-body1 font-medium">{step.title}</h3>
-              <p className="m-0 text-body4 text-neutral2">{step.body}</p>
+              <p className="m-0 text-body4 text-[color:var(--ink2)]">{step.body}</p>
             </div>
           ))}
         </div>
-        <p className="m-0 font-mono text-body4 text-neutral3">
+        <p className="m-0 font-mono text-body4 text-[color:var(--ink3)]">
           The budget is shared and resets daily. When it is spent the account still works — each
           transaction simply pays the pool fee from its own balance, like any other.
         </p>
-      </div>
-    </section>
-  )
-}
-
-/**
- * The boundary, in three steps, each naming what becomes public at that step.
- *
- * Every privacy product draws this diagram. The one thing ours does that theirs do not is say what
- * is VISIBLE at each stage in the same breath as what is hidden — which is the difference between
- * a mechanism explainer and a claim, and it is the only version of this section worth shipping from
- * a page whose next block is a list of sentences we refuse to write.
- */
-export function HowItWorks() {
-  return (
-    <section className="px-s20 pb-s60 lg:px-s40">
-      <div className="mx-auto max-w-[1500px]">
-        <div className="flex items-baseline justify-between gap-s16 pb-s24">
-          <span className="kicker">How the boundary works</span>
-          <span className="kicker">What is public at each step</span>
-        </div>
-        <p className="display m-0 max-w-[20ch] pb-s40 text-display2 xl:text-display1">
-          Public in. Private through. <span className="text-accent1">Public out.</span>
-        </p>
-
-        <div className="grid gap-s32 lg:grid-cols-3">
-          {[
-            {
-              n: '01',
-              title: 'Shield in',
-              body: 'Move public tokens into the pool. They stop being a balance at an address and become notes, spent with your key.',
-              seen: 'Visible: that this address deposited, and how much. We say so on the screen that does it.',
-            },
-            {
-              n: '02',
-              title: 'Act inside',
-              body: 'Send, swap, bet, launch, vote — all from notes rather than from an address.',
-              seen: 'Hidden from other users: which note paid. Not hidden: the amount on any leg that touches an open note.',
-            },
-            {
-              n: '03',
-              title: 'Unshield or bridge out',
-              body: 'Take value back to an ordinary Starknet address, or across to another chain.',
-              seen: 'Visible: the destination, the amount and the timing. Not visible: which note funded it.',
-            },
-          ].map((step) => (
-            <div key={step.n} className="flex flex-col gap-s12 border-t border-surface3 pt-s16">
-              <span className="font-mono text-body4 text-neutral3">{step.n}</span>
-              <h3 className="display m-0 text-display3">{step.title}</h3>
-              <p className="m-0 text-body3 text-neutral2">{step.body}</p>
-              <p className="m-0 text-body4 text-exposed">{step.seen}</p>
-            </div>
-          ))}
-        </div>
-
-        <div className="mt-s40 overflow-hidden rounded-[12px] border border-surface3 bg-raised">
-          <MockScreen src="/mock-wallet.html" width={1180} height={760} />
-        </div>
-        <p className="m-0 pt-s12 font-mono text-body4 text-neutral3">
-          The wallet, drawn from this repository&rsquo;s own design tokens — not a screenshot, and
-          not a live read. The balances shown are the ones a new account actually lands with.
-        </p>
-      </div>
-    </section>
+      </Inner>
+    </Band>
   )
 }
 
@@ -168,23 +106,23 @@ const FAQ = [
 
 export function Faq() {
   return (
-    <section className="px-s20 pb-s60 lg:px-s40">
-      <div className="mx-auto max-w-[1100px]">
+    <Band tone="dark" className="py-s60">
+      <Inner className="max-w-[1100px]">
         <div className="flex items-baseline justify-between gap-s16 pb-s24">
           <span className="kicker">Questions</span>
           <span className="kicker">Answered straight</span>
         </div>
-        <div className="flex flex-col border-t border-surface3">
+        <div className="flex flex-col border-t border-[color:var(--line)]">
           {FAQ.map((item) => (
             /* Open by default and not a disclosure widget: a page arguing that it does not hide
                things should not make a reader click seven times to find out what they are. */
-            <div key={item.q} className="grid gap-s8 border-b border-surface3 py-s24 md:grid-cols-[minmax(0,22ch)_minmax(0,1fr)] md:gap-s32">
+            <div key={item.q} className="grid gap-s8 border-b border-[color:var(--line)] py-s24 md:grid-cols-[minmax(0,22ch)_minmax(0,1fr)] md:gap-s32">
               <h3 className="m-0 text-body1 font-medium">{item.q}</h3>
-              <p className="m-0 max-w-[70ch] text-body3 text-neutral2">{item.a}</p>
+              <p className="m-0 max-w-[70ch] text-body3 text-[color:var(--ink2)]">{item.a}</p>
             </div>
           ))}
         </div>
-      </div>
-    </section>
+      </Inner>
+    </Band>
   )
 }

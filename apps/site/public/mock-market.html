@@ -1,0 +1,100 @@
+<!doctype html>
+<!--
+  A drawing of a prediction market ticket — the "act inside" step.
+  Same rules as mock-wallet.html: hand-built from this repo's tokens, never a screenshot, and the
+  numbers are ones the product could actually produce rather than ones that photograph well.
+  The strike and the window are the shape Markets really uses: a standing 15-minute BTC/USD window
+  whose line is read from Pragma at the first bet.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title></title>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&family=Archivo:wght@400;600&family=Space+Mono:wght@400;700&display=swap" />
+    <style>
+      :root {
+        color-scheme: dark;
+        --ground: #0a0a0a; --raised: #151515; --inset: #1d1d1d;
+        --line: rgba(240, 239, 234, 0.1);
+        --ink: #f1f0eb; --ink2: #a3a29c; --ink3: #6d6c67;
+        --accent: #e04708; --onAccent: #fbf4ec;
+        --shielded: #7fd4a8; --exposed: #f2dc4e;
+      }
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      body { width: 1180px; height: 700px; background: transparent; padding: 28px 32px;
+             font-family: 'Archivo', system-ui, sans-serif; color: var(--ink); }
+      .kicker { font-family: 'Space Mono', monospace; font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink3); }
+      h1 { font-family: 'Anton', sans-serif; font-size: 44px; line-height: 40px; text-transform: uppercase; }
+      header { display: flex; align-items: flex-end; justify-content: space-between; padding-bottom: 22px; }
+      .badge { font-family: 'Space Mono', monospace; font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase;
+               border: 1px solid var(--line); border-radius: 999px; padding: 6px 12px; color: var(--ink2); }
+      .grid { display: grid; grid-template-columns: 1.35fr 1fr; gap: 24px; }
+      .panel { border: 1px solid var(--line); border-radius: 12px; background: var(--raised); padding: 20px; }
+      .pair { display: flex; align-items: baseline; gap: 12px; }
+      .pair b { font-family: 'Anton', sans-serif; font-size: 29px; text-transform: uppercase; font-weight: 400; }
+      .price { font-family: 'Space Mono', monospace; font-size: 15px; color: var(--shielded); }
+      .meta { display: flex; gap: 22px; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line); }
+      .meta div { display: flex; flex-direction: column; gap: 3px; }
+      .meta span:last-child { font-family: 'Space Mono', monospace; font-size: 14px; }
+      /* A sparkline, drawn rather than charted: it illustrates a window, it is not data. */
+      .spark { margin-top: 18px; height: 120px; width: 100%; }
+      .sides { display: flex; gap: 10px; margin-top: 18px; }
+      .side { flex: 1; border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; }
+      .side.on { border-color: var(--accent); background: rgba(224, 71, 8, 0.08); }
+      .side .n { font-family: 'Space Mono', monospace; font-size: 20px; }
+      .side .l { font-size: 12px; color: var(--ink2); }
+      .field { margin-top: 16px; border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; display: flex; justify-content: space-between; align-items: baseline; }
+      .field .v { font-family: 'Space Mono', monospace; font-size: 22px; }
+      .row { display: flex; justify-content: space-between; padding: 9px 0; font-size: 13px; border-bottom: 1px solid var(--line); }
+      .row span:last-child { font-family: 'Space Mono', monospace; }
+      .cta { margin-top: 16px; background: var(--accent); color: var(--onAccent); text-align: center;
+             border-radius: 10px; padding: 13px; font-weight: 600; font-size: 15px; }
+      .note { margin-top: 12px; font-size: 12px; color: var(--exposed); line-height: 17px; }
+      .covered { font-family: 'Space Mono', monospace; font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase;
+                 color: var(--accent); border: 1px solid var(--accent); border-radius: 4px; padding: 3px 7px; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div><div class="kicker">Markets</div><h1>BTC/USD · 15 min</h1></div>
+      <div class="badge">Shielded in → out</div>
+    </header>
+
+    <div class="grid">
+      <div class="panel">
+        <div class="pair"><b>Above 80,075.04</b><span class="price">now 80,112.60</span></div>
+        <div class="meta">
+          <div><span class="kicker">Closes in</span><span>08:24</span></div>
+          <div><span class="kicker">Line from</span><span>Pragma</span></div>
+          <div><span class="kicker">Pool</span><span>14.20 STRK</span></div>
+        </div>
+        <svg class="spark" viewBox="0 0 560 120" preserveAspectRatio="none" aria-hidden="true">
+          <line x1="0" y1="62" x2="560" y2="62" stroke="#6d6c67" stroke-width="1" stroke-dasharray="4 5" />
+          <path d="M0 84 L56 78 L112 88 L168 66 L224 72 L280 54 L336 60 L392 44 L448 52 L504 38 L560 30"
+                fill="none" stroke="#7fd4a8" stroke-width="2" />
+          <circle cx="560" cy="30" r="4" fill="#7fd4a8" />
+        </svg>
+        <div class="sides">
+          <div class="side on"><div class="n">1.9×</div><div class="l">Above · your side</div></div>
+          <div class="side"><div class="n">2.1×</div><div class="l">Below</div></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="kicker">Your bet</div>
+        <div class="field"><span class="v">0.30</span><span class="kicker">STRK shielded</span></div>
+        <div style="margin-top:16px">
+          <div class="row"><span>Pool fee</span><span class="covered">On us</span></div>
+          <div class="row"><span>Network gas</span><span class="covered">On us</span></div>
+          <div class="row"><span>Sponsored left</span><span>1 of 3</span></div>
+          <div class="row" style="border-bottom:0"><span>Submitted by</span><span>strk20.run relayer</span></div>
+        </div>
+        <div class="cta">Place bet</div>
+        <p class="note">
+          Visible on chain: that a bet of this size was placed, and when. Not visible: which note
+          paid for it, or that it was yours.
+        </p>
+      </div>
+    </div>
+  </body>
+</html>
