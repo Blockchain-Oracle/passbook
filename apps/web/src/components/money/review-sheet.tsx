@@ -3,7 +3,9 @@ import type { Disclosure } from '@strk20/protocol/disclosure'
 
 import type { BoundaryKind } from '@/app/boundary'
 import { BoundaryBadge } from '@/components/money/boundary-badge'
+import { OperationPipeline } from '@/components/money/operation-pipeline'
 import { DisclosurePanelView } from '@/components/privacy/disclosure-panel'
+import { usePipeline } from '@/mutations/pipeline-store'
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Spinner } from '@/components/ui/spinner'
@@ -13,6 +15,9 @@ export interface ReviewRow {
   label: string
   value: ReactNode
 }
+
+/** Past this many characters a blocker is an explanation, not a button label. */
+const CTA_MAX = 32
 
 export interface ReviewSheetProps {
   open: boolean
@@ -51,6 +56,18 @@ export function ReviewSheet({
   children,
 }: ReviewSheetProps) {
   const blocked = busy || Boolean(blocker)
+  // A blocker is a SENTENCE when it explains a standing condition ("this deployment is read-only
+  // until…") and a PHRASE when it names a missing input ("Enter an amount"). Both were being
+  // rendered as the button's label, so the explaining kind produced a paragraph inside a CTA that
+  // read as breakage. Long ones move to a line above the button; the CTA stays a few words.
+  const explained = blocker && blocker.length > CTA_MAX ? blocker : null
+  const label = explained ? 'Not available' : (blocker ?? confirmLabel)
+  // Every venue that submits does it behind this sheet, and the app allows exactly one pipeline at a
+  // time (`use-send`, `use-direct-invoke`). So a BUSY sheet's live pipeline is necessarily its own,
+  // and drawing it here gives markets, launch and houses the same prove/relay/confirm run that send
+  // and shield had — without nine copies of the same block, which is how they came to be missing.
+  const pipeline = usePipeline()
+  const running = busy ? pipeline : null
   return (
     <Sheet open={open} onOpenChange={(next) => (busy && !next ? undefined : onOpenChange(next))}>
       <SheetContent side="right" className="w-full sm:max-w-md" showCloseButton={!busy}>
@@ -70,6 +87,15 @@ export function ReviewSheet({
               ))}
             </TableBody>
           </Table>
+          {running ? (
+            <OperationPipeline
+              stages={running.stages}
+              reached={running.reached}
+              failedAt={running.failedAt}
+              replaced={running.replaced}
+              startedAt={running.startedAt}
+            />
+          ) : null}
           {children}
           {disclosure ? <DisclosurePanelView panel={disclosure} onWayOut={onWayOut} /> : null}
           {problem ? (
@@ -78,7 +104,10 @@ export function ReviewSheet({
             </p>
           ) : null}
         </div>
-        <SheetFooter>
+        <SheetFooter className="flex-col items-stretch gap-2">
+          {explained ? (
+            <p className="rounded-lg border bg-muted/40 px-3 py-2 text-body4 text-muted-foreground">{explained}</p>
+          ) : null}
           <Button
             size="lg"
             aria-disabled={blocked || undefined}
@@ -87,7 +116,7 @@ export function ReviewSheet({
             }}
           >
             {busy ? <Spinner data-icon="inline-start" /> : null}
-            {blocker ?? confirmLabel}
+            {label}
           </Button>
         </SheetFooter>
       </SheetContent>

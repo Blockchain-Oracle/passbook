@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { toast } from 'sonner'
+import { notify } from '@/lib/notify'
 import { insufficient, parseAmountInput, toPlainText } from '@strk20/protocol/amount'
 import { disclosureFor } from '@strk20/protocol/disclosure'
 import { DISCLOSURE_HEADLINE } from '@strk20/protocol/disclosure-copy'
@@ -14,7 +14,7 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Field, FieldDescription, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
-import { sendProblem, useSend } from '@/mutations'
+import { sendProblem, sendTransactionHash, useSend } from '@/mutations'
 import { shortAddress } from '@/lib/format'
 import { govLeg, houseTitle, mayHaveLanded } from './gov-send'
 import { useDoorGate, type DoorProps } from './house-doors'
@@ -64,7 +64,7 @@ export function DelegateDialog({ house, open, onOpenChange }: DoorProps) {
     const escrow = mintPositionSecret()
     const payload = delegatePayload({ houseId: house.id, delegate: handle, amount: parsed.wei, reclaimCommitment: escrow.commitment })
     if (payload.state === 'refused') {
-      toast.error('The delegation was refused', { description: payload.because })
+      notify.refused('The delegation was refused', { description: payload.because })
       return
     }
     // The secret IS the escrow. Stored first, so a landed delegation can never outrun its record.
@@ -89,14 +89,17 @@ export function DelegateDialog({ house, open, onOpenChange }: DoorProps) {
     })
     if (result.ok) {
       await relabelStoredPosition(escrow.commitment, { txHash: result.transactionHash })
-      toast.success('Weight delegated', { description: 'Revoke it any time from your positions — the escrow comes back as a fresh note.' })
+      notify.settled('Weight delegated', {
+        description: 'Revoke it any time from your positions — the escrow comes back as a fresh note.',
+        hash: sendTransactionHash(result),
+      })
       setReviewing(false)
       onOpenChange(false)
       setRaw('')
       return
     }
     if (!mayHaveLanded(result)) await removeStoredPosition(escrow.commitment)
-    toast.error(sendProblem(result) ?? 'The delegation did not go through.')
+    notify.refused('The delegation did not go through.', { description: sendProblem(result) ?? undefined, hash: sendTransactionHash(result) })
   }
 
   return (

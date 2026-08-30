@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { toast } from 'sonner'
+import { notify } from '@/lib/notify'
 import { insufficient, parseAmountInput, toPlainText } from '@strk20/protocol/amount'
 import { disclosureFor } from '@strk20/protocol/disclosure'
 import { DISCLOSURE_HEADLINE } from '@strk20/protocol/disclosure-copy'
@@ -15,7 +15,7 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Field, FieldDescription, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
-import { sendProblem, useSend } from '@/mutations'
+import { sendProblem, sendTransactionHash, useSend } from '@/mutations'
 import { appContracts, governanceWrites } from '@/queries'
 import { govLeg, houseTitle } from './gov-send'
 import { useHouseToken } from './use-house-token'
@@ -30,8 +30,9 @@ export interface DoorProps {
 export function useDoorGate(sessionReady: boolean): { contract: string | null; blocker: string | null } {
   const writes = governanceWrites()
   const contract = appContracts().governance ?? null
+  // The CTA gets the short word; `WritesBlocked` on the list and record pages carries the sentence.
   const blocker = !writes.enabled
-    ? writes.because
+    ? writes.blocker
     : !contract
       ? 'The Governance deployment is missing from this build'
       : !sessionReady
@@ -58,7 +59,7 @@ export function FundDialog({ house, open, onOpenChange }: DoorProps) {
     if (!gate.contract || parsed.wei === null) return
     const payload = fundPayload({ houseId: house.id, amount: parsed.wei })
     if (payload.state === 'refused') {
-      toast.error('The gift was refused', { description: payload.because })
+      notify.refused('The gift was refused', { description: payload.because })
       return
     }
     const result = await send.mutateAsync({
@@ -71,13 +72,16 @@ export function FundDialog({ house, open, onOpenChange }: DoorProps) {
       app: govLeg(gate.contract, GOV_OP.fund, payload),
     })
     if (result.ok) {
-      toast.success('The treasury grew', { description: `${amountText} ${token.symbol} is now the House's, in public.` })
+      notify.settled('The treasury grew', {
+        description: `${amountText} ${token.symbol} is now the House's, in public.`,
+        hash: sendTransactionHash(result),
+      })
       setReviewing(false)
       onOpenChange(false)
       setRaw('')
       return
     }
-    toast.error(sendProblem(result) ?? 'The treasury was not funded.')
+    notify.refused('The treasury was not funded.', { description: sendProblem(result) ?? undefined, hash: sendTransactionHash(result) })
   }
 
   return (
@@ -151,7 +155,7 @@ export function JoinDialog({ house, open, onOpenChange }: DoorProps) {
     if (!gate.contract) return
     const payload = joinPayload({ houseId: house.id, inviteSecret: trimmed })
     if (payload.state === 'refused') {
-      toast.error('The join was refused', { description: payload.because })
+      notify.refused('The join was refused', { description: payload.because })
       return
     }
     const result = await send.mutateAsync({
@@ -164,13 +168,13 @@ export function JoinDialog({ house, open, onOpenChange }: DoorProps) {
       app: govLeg(gate.contract, GOV_OP.join, payload, { via: 'compute' }),
     })
     if (result.ok) {
-      toast.success('You are on the roll', { description: DISCLOSURE_HEADLINE['gov-join'] })
+      notify.settled('You are on the roll', { description: DISCLOSURE_HEADLINE['gov-join'], hash: sendTransactionHash(result) })
       setReviewing(false)
       onOpenChange(false)
       setInvite('')
       return
     }
-    toast.error(sendProblem(result) ?? 'The join did not go through.')
+    notify.refused('The join did not go through.', { description: sendProblem(result) ?? undefined, hash: sendTransactionHash(result) })
   }
 
   return (

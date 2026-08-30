@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { toast } from 'sonner'
+import { notify } from '@/lib/notify'
 import { sameAddress } from '@strk20/protocol/address'
 import { STRK_TOKEN } from '@strk20/protocol/constants'
 
@@ -56,7 +56,10 @@ export function useShieldDoor({ sell, shortfallWei, address }: ShieldDoorInput):
         onSuccess: (result) => {
           if (!result.ok) return
           setOpen(false)
-          toast.success(`Shielded ${sell.symbol}`, { description: 'The note is in the pool. Your shielded balance refreshes on the next read.' })
+          notify.settled(`Shielded ${sell.symbol}`, {
+            description: 'The note is in the pool. Your shielded balance refreshes on the next read.',
+            hash: result.transactionHash,
+          })
         },
       }),
   }

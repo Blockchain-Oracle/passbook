@@ -21,7 +21,7 @@ import { explorerAddress } from '@/lib/format'
 import { BuyPanel } from './buy-panel'
 import { PhaseChip } from './launch-card'
 import { LAUNCH_CLOCK_MS, PHASE_SENTENCE, phaseOf } from './phase'
-import { PositionsPanel } from './positions-panel'
+import { PositionsStrip } from '@/features/positions'
 import { useLaunch, useStakeToken } from './queries'
 import { TalkThread } from './talk-thread'
 
@@ -88,7 +88,7 @@ export function LaunchDetail({ id }: { id: number }) {
         </>
       }
     >
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,3fr)_minmax(280px,2fr)]">
+      <div className="grid gap-6 @3xl:grid-cols-[minmax(0,3fr)_minmax(280px,2fr)]">
         <div className="flex min-w-0 flex-col gap-6">
           <Card>
             <CardHeader>
@@ -158,7 +158,7 @@ export function LaunchDetail({ id }: { id: number }) {
               <CardContent className="text-body3">{PHASE_SENTENCE[phase]}</CardContent>
             </Card>
           )}
-          <PositionsPanel launch={launch} />
+          <PositionsStrip venue="launch" id={launch.id} />
         </aside>
       </div>
     </Page>

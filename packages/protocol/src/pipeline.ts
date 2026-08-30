@@ -97,6 +97,16 @@ export function notEnoughShielded(symbol: string): string {
   return `Not enough shielded ${symbol}`
 }
 
+/**
+ * The refusal for a short PUBLIC balance, which is a different fact from a short shielded one and
+ * was previously discovered by the sequencer rather than by us. It names the distinction outright
+ * because the two balances are shown side by side and only one of them can pay a fee: the note walk
+ * says the spend is affordable, and it is — the fee and the gas reserve are not.
+ */
+export function notEnoughPublicStrk(haveText: string, needText: string): string {
+  return `The pool fee and network gas are paid from your PUBLIC STRK, not from your shielded balance. This address holds ${haveText} STRK and a shielded transaction needs ${needText}. Nothing was submitted.`
+}
+
 export const SELF_SUBMIT_GAS_LOSS = 'Your wallet paid network gas for the failed attempt.'
 
 export const SELF_SUBMIT_DISCLOSURE =

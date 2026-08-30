@@ -57,16 +57,22 @@ export const VULNERABLE_GOVERNANCE_CLASS_HASH =
 
 export type GovernanceWriteSafety =
   | { readonly enabled: true }
-  | { readonly enabled: false; readonly because: string }
+  /**
+   * Two strings, deliberately. `because` is the standing explanation and belongs in a panel;
+   * `blocker` is what a BUTTON may say. They were one field, so every governance CTA rendered a
+   * 137-character sentence as its own label and read as breakage rather than as a locked door.
+   */
+  | { readonly enabled: false; readonly blocker: string; readonly because: string }
 
 /** Fail closed unless both an address and the specifically reviewed corrected class are present. */
 export function governanceWriteSafety(contracts: AppContracts): GovernanceWriteSafety {
   if (!contracts.governance) {
-    return { enabled: false, because: 'No Governance deployment is recorded.' }
+    return { enabled: false, blocker: 'Not deployed', because: 'No Governance deployment is recorded.' }
   }
   if (contracts.governanceClassHash !== CORRECTED_GOVERNANCE_CLASS_HASH) {
     return {
       enabled: false,
+      blocker: 'Read-only',
       because:
         contracts.governanceClassHash === VULNERABLE_GOVERNANCE_CLASS_HASH
           ? 'This Governance deployment predates the tally-key and exclusion fixes. It is read-only until a corrected deployment is separately authorized.'

@@ -9,7 +9,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { useNow } from '@/hooks/use-now'
 import { CreateHouse } from './create-house'
 import { HouseCard } from './house-card'
-import { PositionsPanel } from './positions-panel'
+import { PositionsStrip } from '@/features/positions'
 import { useGovernanceRead } from './queries'
 
 /** A 30 s clock for "closes in" and phase words. */
@@ -103,7 +103,7 @@ export function HousesList() {
         </div>
       )}
 
-      <PositionsPanel houses={read.houses} proposals={read.proposals} />
+      <PositionsStrip venue="governance" />
 
       <footer className="flex flex-col gap-1 rounded-lg border p-4 text-body4 text-muted-foreground">
         <p>{GOV_BALLOT_VISIBLE}</p>

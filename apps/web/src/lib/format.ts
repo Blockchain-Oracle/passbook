@@ -21,6 +21,16 @@ export function shortAddress(address: string, lead = 6, tail = 4): string {
   return `${address.slice(0, lead)}…${address.slice(-tail)}`
 }
 
+/**
+ * A registered handle as `@name`, or the shortened address when there is none.
+ *
+ * The `@` is not decoration: without it "hello" reads as a word, and the one place that matters
+ * most is the sidebar, where you are looking for YOUR name and have to recognise it as a name.
+ */
+export function handleLabel(name: string | null | undefined, address: string, lead = 6, tail = 4): string {
+  return name ? `@${name}` : shortAddress(address, lead, tail)
+}
+
 export function explorerTx(hash: string): string {
   return `${NET.explorer}/tx/${hash}`
 }

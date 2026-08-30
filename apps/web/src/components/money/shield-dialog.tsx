@@ -12,7 +12,6 @@ import { Amount } from '@/components/money/amount'
 import { AssetIdentity } from '@/components/money/asset-identity'
 import { BoundaryBadge } from '@/components/money/boundary-badge'
 import { MoneyField } from '@/components/money/money-field'
-import { OperationPipeline } from '@/components/money/operation-pipeline'
 import { ReviewSheet } from '@/components/money/review-sheet'
 import { usePipeline } from '@/mutations/pipeline-store'
 // Type-only: nothing from mutations loads into this component.
@@ -80,13 +79,22 @@ export function ShieldDialog({ open, onOpenChange, token, symbol, decimals, logo
   const gasWei = prices ? gasBoundWei(resourceBoundsFor(prices)) : pool.isError ? null : undefined
   const floorWei = feeWei && gasWei ? feeWei + gasWei : null
 
-  // Fee + gas come out of public STRK, so an STRK shield can only spend what is left above them.
+  // Fee + gas come out of public STRK, so an STRK shield can only spend what is left above them —
+  // and it must be left above them TWICE.
+  //
+  // Reserving one floor was the bug: the shield's own fee and gas then SPEND that floor, so taking
+  // the offered maximum landed exactly on empty and the next shielded action was refused by the
+  // sequencer. Shielded value is unspendable without public STRK to pay for spending it, so a
+  // shield that consumes the last floor does not move money, it strands it. Observed on mainnet
+  // 2026-08-29: 20.22 public, floor 11.93, offered max 8.28 taken in full, 2.92 left, every
+  // following bet refused. One floor for this transaction, one for the next.
   const tokenIsStrk = BigInt(token) === BigInt(STRK_TOKEN)
+  const reserveWei = floorWei === null ? null : floorWei * 2n
   const shieldable =
-    tokenIsStrk && publicWei !== null && floorWei !== null ? (publicWei > floorWei ? publicWei - floorWei : 0n) : publicWei
+    tokenIsStrk && publicWei !== null && reserveWei !== null ? (publicWei > reserveWei ? publicWei - reserveWei : 0n) : publicWei
   const starved = tokenIsStrk && shieldable === 0n
   const short = starved || insufficient(parsed.wei, shieldable)
-  const strkShort = !tokenIsStrk && publicStrkWei !== null && floorWei !== null && publicStrkWei < floorWei
+  const strkShort = !tokenIsStrk && publicStrkWei !== null && reserveWei !== null && publicStrkWei < reserveWei
 
   // The CTA carries a few words; the sentence goes in the alert under the field.
   const blocker =
@@ -105,15 +113,17 @@ export function ShieldDialog({ open, onOpenChange, token, symbol, decimals, logo
                 : short
                   ? `Not enough ${symbol}`
                   : null
+  // Every sentence quotes the RESERVE, not one floor: the number shown has to be the number
+  // enforced, and it has to say why it is twice the fee — one shield, one spend afterwards.
   const explain =
-    floorWei === null
+    reserveWei === null
       ? null
       : starved
-        ? `Fee and gas need ${formatWei(floorWei, 18, 2)} STRK on top of the amount; this address holds ${formatWei(publicWei ?? 0n, 18, 4)}. Receive STRK here first.`
+        ? `This shield and one spend afterwards need ${formatWei(reserveWei, 18, 2)} STRK for fee and gas; this address holds ${formatWei(publicWei ?? 0n, 18, 4)}. Receive STRK here first.`
         : strkShort
-          ? `Fee and gas need ${formatWei(floorWei, 18, 2)} public STRK here; it holds ${formatWei(publicStrkWei ?? 0n, 18, 4)}.`
+          ? `This shield and one spend afterwards need ${formatWei(reserveWei, 18, 2)} public STRK here; it holds ${formatWei(publicStrkWei ?? 0n, 18, 4)}.`
           : short && tokenIsStrk
-            ? `Keep ${formatWei(floorWei, 18, 2)} STRK for fee and gas — up to ${formatWei(shieldable ?? 0n, 18, 4)} STRK can be shielded.`
+            ? `Keep ${formatWei(reserveWei, 18, 2)} STRK back — one fee and gas for this shield, one for spending what it shields. Up to ${formatWei(shieldable ?? 0n, 18, 4)} STRK can be shielded.`
             : null
 
   const confirm = () => {
@@ -123,7 +133,7 @@ export function ShieldDialog({ open, onOpenChange, token, symbol, decimals, logo
 
   const gasLabel = gasWei ? `up to ${formatWei(gasWei, 18, 2)} STRK` : '—'
 
-  // The running shield's ladder, so the sheet narrates prove / sign / accept instead of spinning.
+  // Only the CTA's stage word is read here now — `ReviewSheet` draws the ladder itself for every venue.
   const pipeline = usePipeline()
   const running = busy && pipeline?.operation === 'shield' ? pipeline : null
   const stage = running?.reached.at(-1)
@@ -216,15 +226,6 @@ export function ShieldDialog({ open, onOpenChange, token, symbol, decimals, logo
         blocker={busy ? (stage ? STAGE_TITLES[stage] : null) : blocker}
         problem={problem}
       >
-        {running ? (
-          <OperationPipeline
-            stages={running.stages}
-            reached={running.reached}
-            failedAt={running.failedAt}
-            replaced={running.replaced}
-            startedAt={running.startedAt}
-          />
-        ) : null}
       </ReviewSheet>
     </>
   )

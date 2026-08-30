@@ -2,7 +2,7 @@
 // lands. The buyer's address goes nowhere near the Launch record — only the commitment does.
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { toast } from 'sonner'
+import { notify } from '@/lib/notify'
 import { Minus, Plus } from 'lucide-react'
 import { UNITS_PER_EPOCH, currentEpoch, type OnChainLaunch } from '@strk20/protocol/app-reads'
 import { disclosureFor } from '@strk20/protocol/disclosure'
@@ -18,7 +18,7 @@ import { Button } from '@/components/ui/button'
 import { Field, FieldLabel } from '@/components/ui/field'
 import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from '@/components/ui/input-group'
 import { formatWei } from '@/lib/format'
-import { sendProblem, usePipeline, useSend } from '@/mutations'
+import { sendProblem, sendTransactionHash, usePipeline, useSend } from '@/mutations'
 import { appContracts, shieldedBalanceQuery } from '@/queries'
 import { addStoredPosition } from '@/queries/positions'
 import { quoteBuyQuery, useStakeToken } from './queries'
@@ -72,7 +72,7 @@ export function BuyPanel({ launch, onDone }: { launch: OnChainLaunch; onDone?: (
     const minted = mintPositionSecret()
     const payload = buyPayload([{ launchId: launch.id, units, commitment: minted.commitment }])
     if (payload.state === 'refused') {
-      toast.error('The buy was refused', { description: payload.because })
+      notify.refused('The buy was refused', { description: payload.because })
       return
     }
     // The secret IS the claim on these units: stored before the send so a landed-but-unreported
@@ -95,10 +95,13 @@ export function BuyPanel({ launch, onDone }: { launch: OnChainLaunch; onDone?: (
       app: { contract, op: LAUNCH_OP.buy, calldata: payload.calldata, noteIdSlots: [], openNoteCount: 0 },
     })
     if (!outcome.ok) {
-      toast.error('The buy did not go through', { description: sendProblem(outcome) ?? undefined })
+      notify.refused('The buy did not go through', { description: sendProblem(outcome) ?? undefined, hash: sendTransactionHash(outcome) })
       return
     }
-    toast.success('Bought', { description: 'If the raise misses, you reclaim in full. The claim secret is stored in this browser.' })
+    notify.settled('Bought', {
+      description: 'If the raise misses, you reclaim in full. The claim secret is stored in this browser.',
+      hash: sendTransactionHash(outcome),
+    })
     setReview(false)
     onDone?.()
   }
@@ -168,7 +171,7 @@ export function BuyPanel({ launch, onDone }: { launch: OnChainLaunch; onDone?: (
         size="lg"
         aria-disabled={Boolean(blocker) || undefined}
         onClick={() => {
-          if (blocker) toast(blocker)
+          if (blocker) notify.noted(blocker)
           else setReview(true)
         }}
       >

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Check, Copy } from 'lucide-react'
-import { toast } from 'sonner'
+import { notify } from '@/lib/notify'
 import { parseAmountInput } from '@strk20/protocol/amount'
 import { STRK_TOKEN } from '@strk20/protocol/constants'
 import { KNOWN_TOKEN_DECIMALS } from '@strk20/protocol/token-scale'
@@ -63,16 +63,16 @@ export function CreateHouse({ open, onOpenChange }: CreateHouseProps) {
     if (blocker !== null) return
     const outcome = await create.mutateAsync({ name: trimmed, quorumWei: quorum.wei ?? 0n, thresholdPct, invite, memberVotes })
     if (!outcome.ok) {
-      toast.error('The House was not created', { description: outcome.because })
+      notify.refused('The House was not created', { description: outcome.because })
       return
     }
     if (outcome.inviteSecret) {
       // Shown once. The dialog stays open on this state until the creator dismisses it.
       setDoorKey(outcome.inviteSecret)
-      toast.success(`${trimmed} is standing`, { description: 'Copy the invite before you close this.' })
+      notify.settled(`${trimmed} is standing`, { description: 'Copy the invite before you close this.' })
       return
     }
-    toast.success(`${trimmed} is standing`, { description: 'Anyone holding the token can vote in it.' })
+    notify.settled(`${trimmed} is standing`, { description: 'Anyone holding the token can vote in it.' })
     close()
   }
 

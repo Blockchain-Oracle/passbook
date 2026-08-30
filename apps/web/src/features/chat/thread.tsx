@@ -1,24 +1,31 @@
 import { Link } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
-import { ArrowLeft, Banknote, Lock, SendHorizontal } from 'lucide-react'
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
+import { ArrowLeft, Lock } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { CHAT_THREAD_EMPTY } from '@strk20/protocol/chat-copy'
 import { CHAT_AUDITOR_DERIVES } from '@strk20/protocol/disclosure-copy'
+import { PAY_ASSETS, type PayAsset } from '@strk20/protocol/pay-link'
+import { disclosureFor } from '@strk20/protocol/disclosure'
 import type { ChatLogEntry } from '@strk20/protocol/chat-log'
-import { toast } from 'sonner'
 
+import { Amount } from '@/components/money/amount'
+import { ReviewSheet } from '@/components/money/review-sheet'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
-import { Textarea } from '@/components/ui/textarea'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { cn } from '@/lib/utils'
+import { shortAddress } from '@/lib/format'
+import { notify } from '@/lib/notify'
 
 import { useChatContext } from './chat-context'
+import { Composer } from './composer'
 import { setActiveThread, useThread } from './chat-log-store'
 import { MessageBubble } from './message-bubble'
+import type { PayAsk } from './message-bubble'
+import { AttachMoneyDialog, type MoneyAttachment } from './money-attachment'
 import { PeerAvatar, peerLabel } from './peer-avatar'
 import { peerRoomQuery, statusLine, type RoomInputs } from './queries'
+import { useChatMoney } from './use-chat-money'
 import { usePeerIdentity } from './use-peers'
 import { useSendMessage } from './use-send-message'
 import type { StreamState } from './use-room-stream'
@@ -29,6 +36,9 @@ const CONNECTION_LABEL: Record<StreamState, string> = {
   live: 'Live',
   retrying: 'Reconnecting…',
 }
+
+// The purpose-built one: paying inside a thread is not the same disclosure as paying from /send.
+const CHAT_PAYMENT_DISCLOSURE = disclosureFor('chat-payment')
 
 /** Reactions fold into chips under their target; everything else is a bubble. */
 function fold(entries: readonly ChatLogEntry[]): { bubbles: ChatLogEntry[]; reactions: Map<string, string[]> } {
@@ -56,7 +66,12 @@ function ThreadView({ me, peer, connection }: { me: RoomInputs; peer: string; co
   const status = useQuery(peerRoomQuery(me, peer))
   const entries = useThread(me.address, peer)
   const send = useSendMessage()
+  const money = useChatMoney()
   const [draft, setDraft] = useState('')
+  const [attachment, setAttachment] = useState<MoneyAttachment | null>(null)
+  // What the money dialog should open as, and prefilled with what. `seed` only arrives from an ask.
+  const [attaching, setAttaching] = useState<{ kind: MoneyAttachment['kind']; seed?: { asset?: PayAsset; amount?: string } } | null>(null)
+  const [reviewing, setReviewing] = useState(false)
   const endRef = useRef<HTMLDivElement>(null)
   const { bubbles, reactions } = useMemo(() => fold(entries), [entries])
   const room = status.data?.kind === 'open' ? status.data.room : null
@@ -70,35 +85,53 @@ function ThreadView({ me, peer, connection }: { me: RoomInputs; peer: string; co
     endRef.current?.scrollIntoView({ block: 'end' })
   }, [bubbles.length])
 
-  const blocker = room
-    ? null
-    : status.isPending
-      ? 'Still reading their key…'
-      : statusLine(status.data)
+  const blocker = room ? null : status.isPending ? 'Still reading their key…' : statusLine(status.data)
+  const busy = send.isPending || money.busy
 
-  function submit() {
-    const text = draft.trim()
-    if (!text) return
-    if (blocker || !room) {
-      toast.error(blocker ?? 'This thread is not open yet.')
-      return
-    }
+  const clear = () => {
     setDraft('')
-    send.mutate({ address: me.address, peer, room, message: { kind: 'text', text } }, { onError: (e) => toast.error(e.message) })
+    setAttachment(null)
   }
 
-  function onKey(event: KeyboardEvent<HTMLTextAreaElement>) {
-    if (event.key === 'Enter' && !event.shiftKey) {
-      event.preventDefault()
-      submit()
+  /** The composer's one action. What it does depends on what is staged, and the button says so. */
+  function submit() {
+    if (blocker || !room) {
+      notify.refused(blocker ?? 'This thread is not open yet.')
+      return
     }
+    if (attachment?.kind === 'payment') {
+      // Money is reviewed before it moves, here as everywhere else in the app.
+      setReviewing(true)
+      return
+    }
+    if (attachment?.kind === 'request') {
+      void money.ask({ address: me.address, peer, room, attachment, note: draft.trim() }).then(clear)
+      return
+    }
+    const text = draft.trim()
+    if (!text) return
+    setDraft('')
+    send.mutate({ address: me.address, peer, room, message: { kind: 'text', text } }, { onError: (e) => notify.refused(e.message) })
+  }
+
+  /** Their ask, answered: the money dialog opens already holding the numbers they named. */
+  function payAsk(ask: PayAsk) {
+    const asset = (PAY_ASSETS as readonly string[]).includes(ask.symbol) ? (ask.symbol as PayAsset) : undefined
+    setAttaching({ kind: 'payment', seed: { ...(asset ? { asset } : {}), amount: ask.amount } })
+  }
+
+  const confirmPayment = async () => {
+    if (!room || !attachment || attachment.kind !== 'payment') return
+    const moved = await money.pay({ address: me.address, peer, room, attachment, note: draft.trim() })
+    setReviewing(false)
+    if (moved) clear()
   }
 
   return (
-    <section className="flex min-h-[60vh] flex-1 flex-col rounded-xl border bg-card lg:min-h-0">
-      {/* The name keeps a phone's width; the badges and the money button drop to a second line. */}
+    <section className="flex min-h-[60vh] flex-1 flex-col rounded-xl border bg-card @3xl:min-h-0">
+      {/* The name keeps a phone's width; the badges drop to a second line. Money lives in the composer. */}
       <header className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b px-3 py-2">
-        <Button size="icon-sm" variant="ghost" className="lg:hidden" render={<Link to="/chat" aria-label="All conversations" />}>
+        <Button size="icon-sm" variant="ghost" className="@3xl:hidden" render={<Link to="/chat" aria-label="All conversations" />}>
           <ArrowLeft aria-hidden />
         </Button>
         <PeerAvatar peer={peer} identity={identity} />
@@ -117,35 +150,67 @@ function ThreadView({ me, peer, connection }: { me: RoomInputs; peer: string; co
           {connection === 'connecting' || connection === 'retrying' ? <Spinner /> : null}
           {CONNECTION_LABEL[connection]}
         </Badge>
-        <Button size="sm" variant="outline" render={<Link to="/send" search={{ to: peer }} />}>
-          <Banknote data-icon="inline-start" aria-hidden />
-          Send money
-        </Button>
       </header>
 
       <div className="flex flex-1 flex-col gap-3 overflow-y-auto px-3 py-4">
         {bubbles.length === 0 ? (
           <p className="m-auto max-w-sm text-center text-body3 text-muted-foreground">{CHAT_THREAD_EMPTY}</p>
         ) : (
-          bubbles.map((entry) => <MessageBubble key={entry.id} entry={entry} reactions={reactions.get(entry.id) ?? []} peer={peer} />)
+          bubbles.map((entry) => (
+            <MessageBubble
+              key={entry.id}
+              entry={entry}
+              reactions={reactions.get(entry.id) ?? []}
+              peer={peer}
+              identity={identity}
+              onPay={payAsk}
+            />
+          ))
         )}
         <div ref={endRef} />
       </div>
 
-      <footer className="flex items-end gap-2 border-t p-3">
-        <Textarea
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          onKeyDown={onKey}
-          rows={1}
-          placeholder={room ? 'Write — it seals before it leaves' : 'This thread is not open'}
-          aria-invalid={blocker ? true : undefined}
-          className="min-h-9 resize-none"
+      <Composer
+        draft={draft}
+        onDraft={setDraft}
+        attachment={attachment}
+        onAttach={(kind) => setAttaching({ kind })}
+        onRemoveAttachment={() => setAttachment(null)}
+        onSubmit={submit}
+        blocker={blocker}
+        busy={busy}
+      />
+
+      {/* Keyed on the seed: the form's initial values are read once, so a new prefill needs a new form. */}
+      <AttachMoneyDialog
+        key={JSON.stringify(attaching?.seed ?? null)}
+        open={attaching !== null}
+        onOpenChange={(open) => (open ? undefined : setAttaching(null))}
+        kind={attaching?.kind ?? 'payment'}
+        peer={peer}
+        seed={attaching?.seed}
+        onAttach={setAttachment}
+      />
+
+      {attachment?.kind === 'payment' ? (
+        <ReviewSheet
+          open={reviewing}
+          onOpenChange={(open) => (open || money.busy ? undefined : setReviewing(false))}
+          title="Review payment"
+          description={`To ${peerLabel(peer, identity)}`}
+          boundary="shielded"
+          rows={[
+            { label: 'To', value: identity.name ? `@${identity.name}` : shortAddress(peer, 10, 6) },
+            { label: 'You send', value: <Amount wei={attachment.wei} decimals={attachment.decimals} symbol={attachment.symbol} /> },
+            { label: 'Message', value: draft.trim() || '—' },
+            { label: 'Lands as', value: 'A card in this thread, naming the transaction' },
+          ]}
+          disclosure={CHAT_PAYMENT_DISCLOSURE}
+          confirmLabel={`Send ${attachment.amountText} ${attachment.symbol}`}
+          onConfirm={() => void confirmPayment()}
+          busy={money.busy}
         />
-        <Button size="icon" onClick={submit} aria-disabled={blocker ? true : undefined} className={cn(blocker && 'opacity-60')} aria-label="Send">
-          {send.isPending ? <Spinner /> : <SendHorizontal aria-hidden />}
-        </Button>
-      </footer>
+      ) : null}
     </section>
   )
 }

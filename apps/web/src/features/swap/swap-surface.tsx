@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { toast } from 'sonner'
+import { notify } from '@/lib/notify'
 
 import { Page } from '@/components/layout/page'
 import { BoundaryBadge } from '@/components/money/boundary-badge'
@@ -57,15 +57,15 @@ export function SwapSurface({ seed }: { seed?: SwapSeed }) {
       minimum: `${formatWei(minOutWei, buy.decimals)} ${buy.symbol}`,
       route: routeLabel(quoted) ?? '—',
     })
-    toast.success(`Swapping ${sell.symbol} for ${buy.symbol}`, { description: SWAP_AWAY })
+    notify.settled(`Swapping ${sell.symbol} for ${buy.symbol}`, { description: SWAP_AWAY, hash: outcome.transactionHash })
   }
 
   const pending = s.buy !== null && s.parsed.wei !== null && s.parsed.wei > 0n && s.quoted === null && !s.parsed.problem
 
   return (
     <Page kicker="Money" title="Swap" description={SWAP_DESCRIPTION} actions={<BoundaryBadge kind="shieldedRound" />}>
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,30rem)_minmax(0,1fr)] lg:items-start">
-        <section className="flex flex-col gap-4" aria-label="Swap form">
+      <div className="grid gap-6 @4xl:grid-cols-[minmax(0,30rem)_minmax(0,1fr)] @4xl:items-start">
+        <section className="flex min-w-0 flex-col gap-4" aria-label="Swap form">
           <SellCard
             sell={s.sell}
             options={s.sellOptions}
@@ -101,7 +101,7 @@ export function SwapSurface({ seed }: { seed?: SwapSeed }) {
           </Button>
         </section>
 
-        <aside className="flex flex-col gap-4" aria-label="Quote and outcome">
+        <aside className="flex min-w-0 flex-col gap-4" aria-label="Quote and outcome">
           <SwapOutcome receipt={receipt} problem={confirm.problem} onDismissReceipt={() => setReceipt(null)} />
           <QuoteDetails
             sell={s.sell}

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { toast } from 'sonner'
+import { notify } from '@/lib/notify'
 import { parseAmountInput } from '@strk20/protocol/amount'
 
 import { BoundaryBadge } from '@/components/money/boundary-badge'
@@ -69,10 +69,10 @@ export function ProposeDialog({ house, open, onOpenChange }: DoorProps) {
       spend: spend && amount.wei !== null ? { amountWei: amount.wei, recipient } : null,
     })
     if (!outcome.ok) {
-      toast.error('The proposal was not made', { description: outcome.because })
+      notify.refused('The proposal was not made', { description: outcome.because })
       return
     }
-    toast.success('The box is open', {
+    notify.settled('The box is open', {
       description: permanent ? 'Permanently private: only the aggregate will ever surface.' : 'Sealed until close; the key goes on-chain when the box closes.',
     })
     setQuestion('')

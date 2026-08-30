@@ -76,7 +76,7 @@ export function SendForm({ initial }: { initial: SendSearch }) {
   const failed = !busy && send.data && !send.data.ok ? send.data : null
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,20rem)]">
+    <div className="grid gap-6 @3xl:grid-cols-[minmax(0,1fr)_minmax(0,20rem)]">
       <Card>
         <CardContent className="flex flex-col gap-5 pt-6">
           <p className="text-body4 text-muted-foreground">{HEADER_NOTE}</p>

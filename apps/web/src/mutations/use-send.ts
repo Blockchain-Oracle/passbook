@@ -3,10 +3,16 @@ import type { AppInvokeLeg, BridgeLeg, SendFailure, SendKind, SendResult, SwapLe
 import { SEND_STAGES, type SendStage } from '@strk20/protocol/pipeline-stage'
 import type { ActivitySurface } from '@strk20/protocol/transaction'
 
+import { STRK_TOKEN } from '@strk20/protocol/constants'
+import { feeFloor } from '@strk20/protocol/fee-ceiling'
+import { notEnoughPublicStrk } from '@strk20/protocol/pipeline'
+
 import { getSessionSnapshot } from '@/app/session'
 import { queryClient } from '@/app/query-client'
-import { explorerTx } from '@/lib/format'
+import { explorerTx, formatWei } from '@/lib/format'
 import { governanceWrites } from '@/queries/app'
+import { poolConstantsQuery } from '@/queries/pool'
+import { publicBalancesQuery } from '@/queries/public-balances'
 import { shieldedQuery } from '@/queries/shielded'
 import { describeSendFailure, failureTransactionHash, labelFor } from './describe'
 import { invalidateMoney, invalidateVenues } from './invalidate'
@@ -62,6 +68,34 @@ async function send(ask: SendAsk): Promise<SendResult> {
       kind: 'blocked-rpc-unknown',
       reason: 'Your balance could not be read, so nothing was sent. Try again in a moment.',
     })
+  }
+
+  // THE NOTE WALK ABOVE CANNOT SEE THIS. `sendShielded` is always `mode: 'self'`, so the pool fee
+  // and the gas the sequencer reserves are paid from PUBLIC STRK, while `shieldedShortfall` only
+  // weighs pool notes. A spend that is affordable in notes and unaffordable in public STRK was
+  // therefore proved, signed, and refused at `addInvokeTransaction` — the user paying attention in
+  // proving time to learn it. Read both numbers and refuse here, before the proof.
+  //
+  // A read that fails does NOT refuse: the sequencer's own rejection is still the backstop, and a
+  // flaky RPC must not block a spend the account can actually afford.
+  const [pool, publicStrk] = await Promise.all([
+    queryClient.fetchQuery(poolConstantsQuery()).catch(() => null),
+    queryClient.fetchQuery(publicBalancesQuery(address, [STRK_TOKEN])).catch(() => null),
+  ])
+  const haveWei = publicStrk?.[STRK_TOKEN] ?? null
+  if (pool && haveWei !== null) {
+    const floorWei = feeFloor(pool.feeWei, pool.gasPrices)
+    if (haveWei < floorWei) {
+      return refused({
+        kind: 'insufficient-fee-balance',
+        token: STRK_TOKEN,
+        symbol: 'STRK',
+        feeWei: pool.feeWei,
+        haveWei,
+        shortfallWei: floorWei - haveWei,
+        notice: notEnoughPublicStrk(formatWei(haveWei, 18), formatWei(floorWei, 18)),
+      })
+    }
   }
 
   // One pipeline at a time. A settled row clears; a live one keeps its transaction.

@@ -18,14 +18,16 @@ function Shell() {
     <TooltipProvider>
       <SidebarProvider>
         <AppSidebar />
-        {/* `min-w-0` + clip: a wide row inside a surface scrolls or wraps inside it; it never widens the page. */}
-        <SidebarInset className="min-w-0 overflow-x-clip pb-20 md:pb-0">
+        {/* `min-w-0` + clip: a wide row inside a surface scrolls or wraps inside it; it never widens the page.
+            `@container` is what stops that clip from EATING content: the surfaces below split on the
+            width they actually have, not on the window's, which is 200px of sidebar wider. */}
+        <SidebarInset className="@container min-w-0 overflow-x-clip pb-20 md:pb-0">
           <OnboardingGate />
           <TabBanner />
           <Outlet />
         </SidebarInset>
         <MobileTabs />
-        <Toaster position="top-center" />
+        <Toaster />
       </SidebarProvider>
     </TooltipProvider>
   )

@@ -4,7 +4,7 @@ import { PROVING_BLOCK_LAG } from '@strk20/protocol/constants'
 import { DIRECTORY_NAME_PATTERN } from '@strk20/protocol/directory-name'
 import { ONBOARDING_STAGE_NOTES, REGISTER_NEEDS_FUNDS, settleNote } from '@strk20/protocol/onboarding-copy'
 import { ONBOARDING_STAGES, type OnboardingStage } from '@strk20/protocol/pipeline-stage'
-import { toast } from 'sonner'
+import { notify } from '@/lib/notify'
 
 import { useDeployAccount, useDirectoryClaim, useRegister } from '@/mutations'
 import { accountProvableQuery, accountStatusQuery } from '@/queries'
@@ -116,8 +116,8 @@ export function useOnboardingLadder({ address, name, claimPublicly, backedUp }: 
 
       if (claimPublicly && name && DIRECTORY_NAME_PATTERN.test(name)) {
         const outcome = await claim.mutateAsync({ name })
-        if (outcome.ok) toast.success(`You are @${name}`, { description: 'Anyone can now find this address by that name.' })
-        else toast.info('Your account is ready', { description: `The name @${name} was not claimed: ${outcome.because} You can claim one in Settings.` })
+        if (outcome.ok) notify.settled(`You are @${name}`, { description: 'Anyone can now find this address by that name.' })
+        else notify.noted('Your account is ready', { description: `The name @${name} was not claimed: ${outcome.because} You can claim one in Settings.` })
       }
     }
     void finish().finally(() => {

@@ -47,12 +47,12 @@ export function ChatShell({ activePeer, children }: ChatShellProps) {
     <Page
       kicker="Venues"
       title="Chat"
-      className="max-w-6xl lg:h-svh lg:overflow-hidden"
+      className="max-w-6xl @3xl:h-svh @3xl:overflow-hidden"
       actions={me ? <NewMessageDialog address={me.address} /> : null}
     >
       {me ? (
-        <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[320px_minmax(0,1fr)]">
-          <aside className={cn('flex min-h-0 flex-col gap-3', threadOpen && 'hidden lg:flex')}>
+        <div className="grid min-h-0 flex-1 gap-4 @3xl:grid-cols-[minmax(240px,320px)_minmax(0,1fr)]">
+          <aside className={cn('flex min-h-0 flex-col gap-3', threadOpen && 'hidden @3xl:flex')}>
             <div className="min-h-0 flex-1 overflow-y-auto">
               <ConversationList conversations={conversations} identities={identities} activePeer={active} now={now} />
             </div>
@@ -62,7 +62,7 @@ export function ChatShell({ activePeer, children }: ChatShellProps) {
               {connection !== 'idle' ? <p>{CHAT_MULTIPLEX_DISCLOSURE}</p> : null}
             </div>
           </aside>
-          <div className={cn('flex min-h-0 flex-col', !threadOpen && 'hidden lg:flex')}>
+          <div className={cn('flex min-h-0 flex-col', !threadOpen && 'hidden @3xl:flex')}>
             <ChatContext.Provider value={{ me, connection }}>{children}</ChatContext.Provider>
           </div>
         </div>

@@ -18,7 +18,7 @@ import { useNow } from '@/hooks/use-now'
 import { cn } from '@/lib/utils'
 import { BetTicket } from './bet-ticket'
 import { isClosing, sideAgainst, sideLabel, takesBets } from './market-card'
-import { PositionsPanel } from './positions-panel'
+import { PositionsStrip } from '@/features/positions'
 import { LazyPriceChart } from './price-chart-lazy'
 import { Tape } from './tape'
 import { findMarket, useMarketFeed } from './use-market-feed'
@@ -182,10 +182,7 @@ export function MarketDetail({ id }: { id: number }) {
               </div>
             )}
           </section>
-          <section className="flex flex-col gap-3">
-            <h2 className="text-kicker uppercase text-muted-foreground">Your record</h2>
-            <PositionsPanel markets={feed.markets} marketId={market.id} stake={stake} now={now} />
-          </section>
+          <PositionsStrip venue="market" id={market.id} />
         </aside>
       </div>
       {side !== null ? <BetTicket key={side} market={market} spot={spot} initialSide={side} open onOpenChange={(next) => !next && setSide(null)} /> : null}

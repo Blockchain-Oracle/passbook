@@ -16,7 +16,7 @@ import { houseTitle } from './gov-send'
 import { FundDialog, JoinDialog } from './house-doors'
 import { useNow } from '@/hooks/use-now'
 import { HOUSE_CLOCK_MS, WritesBlocked } from './houses-list'
-import { PositionsPanel } from './positions-panel'
+import { PositionsStrip } from '@/features/positions'
 import { ProposalRow, proposalSettled } from './proposal-row'
 import { ProposeDialog } from './propose-dialog'
 import { useGovernanceRead } from './queries'
@@ -95,7 +95,7 @@ function Record({ house, proposals }: { house: OnChainHouse; proposals: readonly
         </CardContent>
       </Card>
 
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
+      <div className="grid gap-6 @3xl:grid-cols-[minmax(0,1fr)_320px]">
         <div className="flex min-w-0 flex-col gap-6">
           <section className="flex flex-col gap-2">
             <h2 className="text-kicker uppercase text-muted-foreground">Proposals</h2>
@@ -159,7 +159,7 @@ function Record({ house, proposals }: { house: OnChainHouse; proposals: readonly
               </dl>
             </CardContent>
           </Card>
-          <PositionsPanel houses={read.houses} proposals={read.proposals} houseId={house.id} />
+          <PositionsStrip venue="governance" id={house.id} />
         </aside>
       </div>
 

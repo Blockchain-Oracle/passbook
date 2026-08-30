@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
-import { Check, FileKey, FileUp, Lock, Pencil, Plus, Trash2 } from 'lucide-react'
+import { AtSign, Check, FileKey, FileUp, Lock, Pencil, Plus, Trash2 } from 'lucide-react'
 import { CREATE_BODY, EXPORT_ROW_DETAIL, EXPORT_ROW_LABEL, SWITCH_BODY, SWITCH_TITLE } from '@strk20/protocol/account-copy'
-import { toast } from 'sonner'
+import { notify } from '@/lib/notify'
 
 import { sessionActions, type Session } from '@/app/session'
 import { Button } from '@/components/ui/button'
@@ -11,12 +11,13 @@ import { Separator } from '@/components/ui/separator'
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { ImportPanel } from '@/features/onboarding/import-panel'
 import { shortAddress } from '@/lib/format'
+import { useIdentity } from '@/queries/identity'
 import { AccountAddress } from './account-address'
 import { AccountBalances } from './account-balances'
-import { ACTIVE_MARK, ADD_ACCOUNT_ACTION, IMPORT_ACCOUNT_ACTION, LOCK_ACTION } from './account-copy'
-import { ExportPanel, ForgetForm, LabelForm, LockControl } from './account-forms'
+import { ACTIVE_MARK, ADD_ACCOUNT_ACTION, IMPORT_ACCOUNT_ACTION, LOCK_ACTION, NO_NAME_MARK } from './account-copy'
+import { ExportPanel, ForgetForm, LabelForm, LockControl, NameForm } from './account-forms'
 
-type View = 'main' | 'label' | 'export' | 'import' | 'forget' | 'lock'
+type View = 'main' | 'label' | 'name' | 'export' | 'import' | 'forget' | 'lock'
 
 interface AccountDrawerProps {
   session: Session
@@ -45,6 +46,7 @@ function Verb({ icon: Icon, label, onClick, tone }: { icon: typeof Lock; label: 
 export function AccountDrawer({ session, open, onOpenChange }: AccountDrawerProps) {
   const [view, setView] = useState<View>('main')
   const address = session.address
+  const identity = useIdentity(address)
   const close = () => {
     setView('main')
     onOpenChange(false)
@@ -52,13 +54,13 @@ export function AccountDrawer({ session, open, onOpenChange }: AccountDrawerProp
   const switchTo = useMutation({
     mutationKey: ['switch-account'],
     mutationFn: sessionActions.switchAccount,
-    onError: (e) => toast.error('Could not switch', { description: e.message }),
+    onError: (e) => notify.refused('Could not switch', { description: e.message }),
   })
   const create = useMutation({
     mutationKey: ['create-account'],
     mutationFn: sessionActions.createAccount,
-    onSuccess: () => toast.success('New account', { description: CREATE_BODY }),
-    onError: (e) => toast.error('Could not create an account', { description: e.message }),
+    onSuccess: () => notify.settled('New account', { description: CREATE_BODY }),
+    onError: (e) => notify.refused('Could not create an account', { description: e.message }),
   })
 
   const body = () => {
@@ -66,6 +68,8 @@ export function AccountDrawer({ session, open, onOpenChange }: AccountDrawerProp
     switch (view) {
       case 'label':
         return <LabelForm address={address} current={session.label ?? null} onDone={() => setView('main')} />
+      case 'name':
+        return <NameForm current={identity.name} onDone={() => setView('main')} />
       case 'export':
         return <ExportPanel onDone={() => setView('main')} />
       case 'import':
@@ -86,6 +90,18 @@ export function AccountDrawer({ session, open, onOpenChange }: AccountDrawerProp
               <Verb icon={Plus} label={ADD_ACCOUNT_ACTION} onClick={() => !create.isPending && create.mutate()} />
               <Verb icon={FileUp} label={IMPORT_ACCOUNT_ACTION} onClick={() => setView('import')} />
             </div>
+            {/* Onboarding promises "you can claim one in Settings" when a claim fails; this is where. */}
+            <Item variant="outline" size="sm" render={<button type="button" onClick={() => setView('name')} />}>
+              <AtSign className="size-4" aria-hidden />
+              <ItemContent>
+                <ItemTitle>{identity.name ? `@${identity.name}` : NO_NAME_MARK}</ItemTitle>
+                <ItemDescription>
+                  {identity.name
+                    ? 'Your public name in the directory. Change it here.'
+                    : 'Claim a public name so people can reach you without the address.'}
+                </ItemDescription>
+              </ItemContent>
+            </Item>
             <Item variant="outline" size="sm" render={<button type="button" onClick={() => setView('export')} />}>
               <FileKey className="size-4" aria-hidden />
               <ItemContent>
@@ -136,7 +152,9 @@ export function AccountDrawer({ session, open, onOpenChange }: AccountDrawerProp
     <Sheet open={open} onOpenChange={(next) => (next ? onOpenChange(true) : close())}>
       <SheetContent side="right" className="overflow-y-auto">
         <SheetHeader>
-          <SheetTitle className="font-display text-display4 uppercase">{session.label ?? 'Account'}</SheetTitle>
+          <SheetTitle className="font-display text-display4 uppercase">
+            {identity.name ? `@${identity.name}` : (session.label ?? 'Account')}
+          </SheetTitle>
           <SheetDescription className="font-mono text-mono">{address ? shortAddress(address, 10, 8) : ''}</SheetDescription>
         </SheetHeader>
         <div className="px-4 pb-6">

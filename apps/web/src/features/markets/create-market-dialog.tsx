@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { toast } from 'sonner'
+import { notify } from '@/lib/notify'
 import { insufficient, parseAmountInput, toPlainText } from '@strk20/protocol/amount'
 import { strikeDisplay } from '@strk20/protocol/app-reads'
 import { disclosureFor } from '@strk20/protocol/disclosure'
@@ -18,7 +18,7 @@ import { Field, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { formatWei } from '@/lib/format'
-import { sendProblem, useSend } from '@/mutations'
+import { sendProblem, sendTransactionHash, useSend } from '@/mutations'
 import { appContracts, poolConstantsQuery } from '@/queries'
 import { addStoredPosition, relabelStoredPosition, removeStoredPosition } from '@/queries/positions'
 import { useStrkStake } from './use-stake'
@@ -86,7 +86,7 @@ export function CreateMarketDialog({ open, onOpenChange, prices }: CreateMarketD
       experimental: chosen.experimental,
     })
     if (payload.state === 'refused') {
-      toast.error(payload.because)
+      notify.refused(payload.because)
       return
     }
     // `-1`: the chain assigns the id; the position read names the market afterwards.
@@ -110,7 +110,7 @@ export function CreateMarketDialog({ open, onOpenChange, prices }: CreateMarketD
     })
     if (result.ok) {
       await relabelStoredPosition(minted.commitment, { txHash: result.transactionHash })
-      toast.success('Market open', { description: 'The first bet in it sets the odds.' })
+      notify.settled('Market open', { description: 'The first bet in it sets the odds.', hash: sendTransactionHash(result) })
       setReviewing(false)
       onOpenChange(false)
       setStrike('')
@@ -119,7 +119,7 @@ export function CreateMarketDialog({ open, onOpenChange, prices }: CreateMarketD
     }
     const mayHaveLanded = result.failure.kind === 'confirmation-unknown' || 'transactionHash' in result.failure
     if (!mayHaveLanded) await removeStoredPosition(minted.commitment)
-    toast.error(sendProblem(result) ?? 'The market could not be opened.')
+    notify.refused('The market could not be opened.', { description: sendProblem(result) ?? undefined, hash: sendTransactionHash(result) })
   }
 
   // Live from `readPoolConstants` — the fee is never a constant here.

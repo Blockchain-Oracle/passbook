@@ -114,6 +114,8 @@
   --ease-snap: cubic-bezier(0.17,0.67,0.45,1);
   --ease-glide: cubic-bezier(0.25,0.46,0.45,0.94);
   --ease-settle: cubic-bezier(0.25,0.1,0.25,1);
+  /* A notification's timer rail. The duration is set per toast, inline. */
+  --animate-notification-timer: notification-timer linear forwards;
 
   /* shadows — indirected so the dark block can swap them */
   --shadow-short: var(--sh-short, 0 1px 4px 0 rgba(40,40,36,0.08));
@@ -224,4 +226,63 @@ input:-webkit-autofill:focus {
   -webkit-text-fill-color: var(--color-neutral1);
   caret-color: var(--color-neutral1);
   transition: background-color 9999s ease-out;
+}
+
+/*
+ * An INVERTED surface: the OTHER theme's palette, scoped to a subtree.
+ *
+ * A toast painted `raised` (#F4F3EF) on a `ground` (#E7E6E1) page is a 6% luminance step with a
+ * hairline border — which is why notifications were invisible, in both themes. A floating surface
+ * has to contrast with the page it floats over, and inverting is the one treatment that does it
+ * without a second palette to maintain. It is a SCOPE rather than a component so the positions
+ * rollup can wear it too.
+ */
+[data-surface='inverted'] {
+  --color-ground: #0A0A0A;
+  --color-raised: #1D1D1D;
+  --color-raisedHovered: #2A2A2A;
+  --color-inset: #2A2A2A;
+  --color-surface3: rgba(240, 239, 234, 0.14);
+  --color-surface3Hovered: rgba(240, 239, 234, 0.24);
+  --color-neutral1: #F1F0EB;
+  --color-neutral2: #A3A29C;
+  --color-neutral3: #6D6C67;
+  --color-accent1: #E04708;
+  --color-accent2: rgba(224, 71, 8, 0.16);
+  --color-settled: #8FD9A6;
+  --color-settledTint: rgba(143, 217, 166, 0.14);
+  --color-exposed: #F2DC4E;
+  --color-exposedTint: rgba(242, 220, 78, 0.14);
+  --color-irreversible: #F2A0B4;
+  --color-irreversibleTint: rgba(242, 160, 180, 0.14);
+}
+
+:root[data-theme='dark'] [data-surface='inverted'] {
+  --color-ground: #F4F3EF;
+  --color-raised: #E7E6E1;
+  --color-raisedHovered: #DBDAD4;
+  --color-inset: #DBDAD4;
+  --color-surface3: rgba(10, 10, 10, 0.16);
+  --color-surface3Hovered: rgba(10, 10, 10, 0.26);
+  --color-neutral1: #0A0A0A;
+  --color-neutral2: #55544F;
+  --color-neutral3: #85847E;
+  --color-accent1: #B93404;
+  --color-accent2: rgba(185, 52, 4, 0.14);
+  --color-settled: #2F6B45;
+  --color-settledTint: rgba(47, 107, 69, 0.12);
+  --color-exposed: #6E5A05;
+  --color-exposedTint: rgba(110, 90, 5, 0.13);
+  --color-irreversible: #A33A55;
+  --color-irreversibleTint: rgba(163, 58, 85, 0.1);
+}
+
+/* A notification's own clock, drawn. Its duration is set inline, per toast. */
+@keyframes notification-timer {
+  from {
+    transform: scaleX(1);
+  }
+  to {
+    transform: scaleX(0);
+  }
 }

@@ -1,6 +1,6 @@
 import { useNavigate } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
-import { AtSign, Hash, SquarePen } from 'lucide-react'
+import { SquarePen } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import {
   CHAT_PEER_INVALID,
@@ -10,8 +10,9 @@ import {
   DIRECTORY_SEARCH_PLACEHOLDER,
 } from '@strk20/protocol/chat-copy'
 import type { DirectoryEntry } from '@strk20/protocol/directory-name'
-import { toast } from 'sonner'
+import { notify } from '@/lib/notify'
 
+import { IdentityAvatar } from '@/components/money/identity-avatar'
 import { Button } from '@/components/ui/button'
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
@@ -50,11 +51,11 @@ export function NewMessageDialog({ address }: { address: string }) {
 
   function start(peer: string) {
     if (!RAW_ADDRESS.test(peer)) {
-      toast.error(CHAT_PEER_INVALID)
+      notify.refused(CHAT_PEER_INVALID)
       return
     }
     if (sameFelt(peer, address)) {
-      toast.error(CHAT_PEER_SELF)
+      notify.refused(CHAT_PEER_SELF)
       return
     }
     const key = peerKey(peer)
@@ -88,7 +89,8 @@ export function NewMessageDialog({ address }: { address: string }) {
             {rawIsAddress ? (
               <CommandGroup heading="Address">
                 <CommandItem value={`addr:${raw}`} onSelect={() => start(raw)}>
-                  <Hash aria-hidden />
+                  {/* The face is derived from the address alone, so a pasted stranger still has one. */}
+                  <IdentityAvatar address={raw} size="sm" />
                   <span className="font-mono text-mono">{shortAddress(raw, 12, 8)}</span>
                 </CommandItem>
               </CommandGroup>
@@ -97,8 +99,9 @@ export function NewMessageDialog({ address }: { address: string }) {
               <CommandGroup heading="Directory">
                 {matches.map((entry) => (
                   <CommandItem key={entry.address} value={`name:${entry.name}`} onSelect={() => start(entry.address)}>
-                    <AtSign aria-hidden />
-                    <span>{entry.name}</span>
+                    {/* Identicon only, never the uploaded picture: twenty search hits must not be twenty fetches. */}
+                    <IdentityAvatar address={entry.address} name={entry.name} size="sm" />
+                    <span>@{entry.name}</span>
                     <span className="ml-auto font-mono text-mono text-muted-foreground">{shortAddress(entry.address)}</span>
                   </CommandItem>
                 ))}

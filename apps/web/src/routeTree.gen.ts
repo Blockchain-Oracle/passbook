@@ -15,6 +15,7 @@ import { Route as ChatRouteImport } from './routes/chat'
 import { Route as HousesRouteImport } from './routes/houses'
 import { Route as LaunchRouteImport } from './routes/launch'
 import { Route as MarketsRouteImport } from './routes/markets'
+import { Route as PositionsRouteImport } from './routes/positions'
 import { Route as SendRouteImport } from './routes/send'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as SwapRouteImport } from './routes/swap'
@@ -57,6 +58,11 @@ const LaunchRoute = LaunchRouteImport.update({
 const MarketsRoute = MarketsRouteImport.update({
   id: '/markets',
   path: '/markets',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PositionsRoute = PositionsRouteImport.update({
+  id: '/positions',
+  path: '/positions',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SendRoute = SendRouteImport.update({
@@ -132,6 +138,7 @@ export interface FileRoutesByFullPath {
   '/houses': typeof HousesRoute
   '/launch': typeof LaunchRoute
   '/markets': typeof MarketsRoute
+  '/positions': typeof PositionsRoute
   '/send': typeof SendRoute
   '/settings': typeof SettingsRoute
   '/swap': typeof SwapRoute
@@ -152,6 +159,7 @@ export interface FileRoutesByTo {
   '/houses': typeof HousesRoute
   '/launch': typeof LaunchRoute
   '/markets': typeof MarketsRoute
+  '/positions': typeof PositionsRoute
   '/send': typeof SendRoute
   '/settings': typeof SettingsRoute
   '/swap': typeof SwapRoute
@@ -174,6 +182,7 @@ export interface FileRoutesById {
   '/houses': typeof HousesRoute
   '/launch': typeof LaunchRoute
   '/markets': typeof MarketsRoute
+  '/positions': typeof PositionsRoute
   '/send': typeof SendRoute
   '/settings': typeof SettingsRoute
   '/swap': typeof SwapRoute
@@ -197,6 +206,7 @@ export interface FileRouteTypes {
     | '/houses'
     | '/launch'
     | '/markets'
+    | '/positions'
     | '/send'
     | '/settings'
     | '/swap'
@@ -217,6 +227,7 @@ export interface FileRouteTypes {
     | '/houses'
     | '/launch'
     | '/markets'
+    | '/positions'
     | '/send'
     | '/settings'
     | '/swap'
@@ -238,6 +249,7 @@ export interface FileRouteTypes {
     | '/houses'
     | '/launch'
     | '/markets'
+    | '/positions'
     | '/send'
     | '/settings'
     | '/swap'
@@ -260,6 +272,7 @@ export interface RootRouteChildren {
   HousesRoute: typeof HousesRoute
   LaunchRoute: typeof LaunchRoute
   MarketsRoute: typeof MarketsRoute
+  PositionsRoute: typeof PositionsRoute
   SendRoute: typeof SendRoute
   SettingsRoute: typeof SettingsRoute
   SwapRoute: typeof SwapRoute
@@ -315,6 +328,13 @@ declare module '@tanstack/react-router' {
       path: '/markets'
       fullPath: '/markets'
       preLoaderRoute: typeof MarketsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/positions': {
+      id: '/positions'
+      path: '/positions'
+      fullPath: '/positions'
+      preLoaderRoute: typeof PositionsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/send': {
@@ -430,6 +450,7 @@ const rootRouteChildren: RootRouteChildren = {
   HousesRoute: HousesRoute,
   LaunchRoute: LaunchRoute,
   MarketsRoute: MarketsRoute,
+  PositionsRoute: PositionsRoute,
   SendRoute: SendRoute,
   SettingsRoute: SettingsRoute,
   SwapRoute: SwapRoute,

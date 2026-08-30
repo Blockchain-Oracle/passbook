@@ -19,3 +19,14 @@ export const IMPORT_ACCOUNT_ACTION = 'Import'
 export const ACTIVE_MARK = 'active'
 export const NO_ACCOUNT = 'No account'
 export const LOCKED_MARK = 'Locked'
+
+// The PUBLIC name, which is a different thing from the label above it — and the sidebar was
+// showing the label with no `@`, so a claimed handle and a private nickname read identically.
+export const NAME_TITLE = 'Claim a public name'
+export const NAME_BODY =
+  'A public name puts @you over this address in the directory, so people can start a chat or pay you without pasting hex. ' +
+  'The directory is public: it maps the name to this address, and anyone can read that.'
+export const NAME_ACTION = 'Claim the name'
+export const NAME_RULE = '3–20 characters: lowercase letters, numbers, hyphen or underscore.'
+export const NO_NAME_MARK = 'No public name'
+export const NAME_TAKEN = 'That name is already claimed.'

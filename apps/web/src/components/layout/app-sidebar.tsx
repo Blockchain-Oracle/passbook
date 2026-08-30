@@ -2,6 +2,7 @@ import { Link, useLocation } from '@tanstack/react-router'
 
 import { GROUP_LABEL, NAV, isActivePath, type NavGroup } from '@/app/navigation'
 import { BrandLockup } from '@/components/brand/brand-mark'
+import { NotificationCenter } from '@/components/layout/notification-center'
 import {
   Sidebar,
   SidebarContent,
@@ -60,6 +61,7 @@ export function AppSidebar() {
 
       <SidebarFooter>
         <SidebarMenu>
+          <NotificationCenter />
           <SidebarAccount />
           {NAV.filter((item) => item.group === 'system').map((item) => (
             <SidebarMenuItem key={item.to}>

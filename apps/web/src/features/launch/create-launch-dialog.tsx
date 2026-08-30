@@ -2,7 +2,7 @@
 // that fails to pin aborts with the reason; a deployment with no pinning lane proceeds without one
 // and says so — the seeded disc is the designed fallback, not an error state.
 import { useRef, useState } from 'react'
-import { toast } from 'sonner'
+import { notify } from '@/lib/notify'
 import { Sparkles, Upload, X } from 'lucide-react'
 import { parseAmountInput } from '@strk20/protocol/amount'
 import { KNOWN_TOKEN_DECIMALS } from '@strk20/protocol/token-scale'
@@ -71,7 +71,7 @@ export function CreateLaunchDialog({ open, onOpenChange }: { open: boolean; onOp
     if (!file) return
     const scaled = await downscale.mutateAsync(file)
     if (!scaled.ok) {
-      toast.error('That image did not work', { description: scaled.because })
+      notify.refused('That image did not work', { description: scaled.because })
       return
     }
     setCandidates([])
@@ -80,13 +80,13 @@ export function CreateLaunchDialog({ open, onOpenChange }: { open: boolean; onOp
 
   const onGenerate = async () => {
     if (name.trim() === '' || symbolClean === '') {
-      toast('Name and symbol first — the generator prompts from them.')
+      notify.noted('Name and symbol first — the generator prompts from them.')
       return
     }
     const answer = await generate.mutateAsync({ name: name.trim(), symbol: symbolClean, ...(brief.trim() ? { brief: brief.trim() } : {}) })
     if (!answer.ok) {
       if (answer.unconfigured) setGenerationOff(true)
-      toast.error(answer.unconfigured ? 'Generation is not offered here' : 'No logo came back', {
+      notify.refused(answer.unconfigured ? 'Generation is not offered here' : 'No logo came back', {
         description: answer.unconfigured ? 'This deployment has no image key. Upload a logo, or let the seeded disc stand in.' : answer.because,
       })
       return
@@ -97,7 +97,7 @@ export function CreateLaunchDialog({ open, onOpenChange }: { open: boolean; onOp
 
   const onConfirm = async () => {
     if (blocker || price.wei === null || epochs === null || tokensPerEpoch === null) {
-      if (blocker) toast(blocker)
+      if (blocker) notify.noted(blocker)
       return
     }
     let logoUri = ''
@@ -105,9 +105,9 @@ export function CreateLaunchDialog({ open, onOpenChange }: { open: boolean; onOp
       setPinning(true)
       const pinned = await pinLogo(logo).finally(() => setPinning(false))
       if (pinned.ok) logoUri = pinned.value.uri
-      else if (pinned.unconfigured) toast.warning('Pinning is not offered here', { description: 'The logo was not stored — the seeded disc will represent this token.' })
+      else if (pinned.unconfigured) notify.warned('Pinning is not offered here', { description: 'The logo was not stored — the seeded disc will represent this token.' })
       else {
-        toast.error('The logo did not pin', { description: pinned.because })
+        notify.refused('The logo did not pin', { description: pinned.because })
         return
       }
     }
@@ -123,10 +123,10 @@ export function CreateLaunchDialog({ open, onOpenChange }: { open: boolean; onOp
       deadline: Math.floor(Date.now() / 1000) + window.seconds,
     })
     if (!outcome.ok) {
-      toast.error('The launch was not created', { description: outcome.because })
+      notify.refused('The launch was not created', { description: outcome.because })
       return
     }
-    toast.success(`${symbolClean} is live`, { description: 'The sale is open. Your creator claim is a bearer secret stored in this browser.' })
+    notify.settled(`${symbolClean} is live`, { description: 'The sale is open. Your creator claim is a bearer secret stored in this browser.' })
     onOpenChange(false)
   }
 

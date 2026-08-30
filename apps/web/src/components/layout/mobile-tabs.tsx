@@ -3,6 +3,7 @@ import { Link, useLocation } from '@tanstack/react-router'
 import { Ellipsis } from 'lucide-react'
 
 import { MOBILE_MORE, MOBILE_TABS, isActivePath, type NavItem } from '@/app/navigation'
+import { NotificationCenter } from '@/components/layout/notification-center'
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
 import { AccountRow } from '@/features/account'
 import { cn } from '@/lib/utils'
@@ -46,6 +47,7 @@ export function MobileTabs() {
           </SheetHeader>
           <div className="flex flex-col gap-4 px-4 pb-4">
             <AccountRow />
+            <NotificationCenter variant="row" />
             <div className="grid grid-cols-3 gap-2">
               {MOBILE_MORE.map((item) => (
                 <Link

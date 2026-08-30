@@ -2,7 +2,7 @@
 // bylines render as claimed, never as proven.
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { toast } from 'sonner'
+import { notify } from '@/lib/notify'
 import { MessageSquare, Send } from 'lucide-react'
 import { OPEN_ROOM_DISCLOSURE } from '@strk20/protocol/open-room-tags'
 
@@ -29,14 +29,14 @@ export function TalkThread({ tag, emptyLine }: { tag: string; emptyLine: string 
     const text = draft.trim()
     if (text === '' || post.isPending) return
     if (!canPost) {
-      toast('An account is needed to post.')
+      notify.noted('An account is needed to post.')
       return
     }
     try {
       await post.mutateAsync({ tag, text, name: myName })
       setDraft('')
     } catch (error) {
-      toast.error('The post did not send', { description: error instanceof Error ? error.message : String(error) })
+      notify.refused('The post did not send', { description: error instanceof Error ? error.message : String(error) })
     }
   }
 

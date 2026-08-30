@@ -1,15 +1,20 @@
 import { useState } from 'react'
-import { useMutation } from '@tanstack/react-query'
+import { useMutation, useQuery } from '@tanstack/react-query'
 import { Trash2 } from 'lucide-react'
 import { EXPORT_ROW_DETAIL, EXPORT_ROW_LABEL, LOCK_WHAT_IT_DOES, LOCK_WHAT_IT_DOES_SEALED } from '@strk20/protocol/account-copy'
+import { DIRECTORY_NAME_PATTERN, normalizeDirectoryName } from '@strk20/protocol/directory-name'
 import { MAX_ACCOUNT_LABEL_LENGTH } from '@strk20/protocol/session-accounts'
 
 import { sessionActions } from '@/app/session'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
-import { Field, FieldDescription, FieldLabel } from '@/components/ui/field'
+import { Field, FieldDescription, FieldError, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
+import { InputGroup, InputGroupAddon, InputGroupInput, InputGroupText } from '@/components/ui/input-group'
 import { BackupCeremony } from '@/features/onboarding/backup-ceremony'
+import { notify } from '@/lib/notify'
+import { useDirectoryClaim } from '@/mutations'
+import { directoryQuery } from '@/queries'
 import {
   FORGET_ACTION,
   FORGET_BODY,
@@ -18,6 +23,11 @@ import {
   LABEL_ACTION,
   LABEL_BODY,
   LABEL_TITLE,
+  NAME_ACTION,
+  NAME_BODY,
+  NAME_RULE,
+  NAME_TAKEN,
+  NAME_TITLE,
   forgetPrompt,
 } from './account-copy'
 
@@ -103,5 +113,69 @@ export function LockControl({ hasVault, onLocked }: { hasVault: boolean; onLocke
         Lock now
       </Button>
     </div>
+  )
+}
+
+/**
+ * Claiming the public handle.
+ *
+ * Onboarding has always offered this and then said "you can claim one in Settings" if it failed —
+ * where there was nothing to claim it with. This is that missing door, and it is also the only way
+ * an account created before the directory existed can get a name.
+ */
+export function NameForm({ current, onDone }: FormProps & { current: string | null }) {
+  const [name, setName] = useState(current ?? '')
+  const claim = useDirectoryClaim()
+  const directory = useQuery(directoryQuery())
+  const clean = normalizeDirectoryName(name)
+  const wellFormed = DIRECTORY_NAME_PATTERN.test(clean)
+  // Checked against the list we already hold, so a doomed claim never costs a round trip.
+  const taken = wellFormed && clean !== current && (directory.data ?? []).some((e) => e.name === clean)
+  const problem = name.trim() === '' ? null : !wellFormed ? NAME_RULE : taken ? NAME_TAKEN : null
+
+  return (
+    <form
+      className="flex flex-col gap-4"
+      onSubmit={(e) => {
+        e.preventDefault()
+        if (!wellFormed || taken || claim.isPending) return
+        void claim.mutateAsync({ name: clean }).then((outcome) => {
+          if (outcome.ok) {
+            notify.settled(`You are @${clean}`, { description: 'Anyone can now find this address by that name.' })
+            onDone()
+          } else {
+            notify.refused('The name was not claimed', { description: outcome.because })
+          }
+        })
+      }}
+    >
+      <div>
+        <h3 className="font-display text-display4 uppercase">{NAME_TITLE}</h3>
+        <p className="text-body4 text-muted-foreground">{NAME_BODY}</p>
+      </div>
+      <Field data-invalid={problem ? true : undefined}>
+        <FieldLabel htmlFor="public-name">Public name</FieldLabel>
+        <InputGroup>
+          <InputGroupAddon align="inline-start">
+            <InputGroupText>@</InputGroupText>
+          </InputGroupAddon>
+          <InputGroupInput
+            id="public-name"
+            autoFocus
+            autoCapitalize="none"
+            autoComplete="off"
+            spellCheck={false}
+            maxLength={20}
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            aria-invalid={problem ? true : undefined}
+          />
+        </InputGroup>
+        {problem ? <FieldError>{problem}</FieldError> : <FieldDescription>{NAME_RULE}</FieldDescription>}
+      </Field>
+      <Button type="submit" aria-disabled={!wellFormed || taken || claim.isPending || undefined}>
+        {claim.isPending ? 'Claiming…' : NAME_ACTION}
+      </Button>
+    </form>
   )
 }

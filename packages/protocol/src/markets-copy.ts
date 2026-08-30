@@ -75,6 +75,24 @@ export const POSITION_SECRETS_ARE_MONEY =
   'A position is held by a secret in this browser, not by your address — that is what keeps the ' +
   'bet from naming you. It is also the only way to collect, so it is worth backing up.'
 
+/**
+ * "Cash out" was a button with no sentence anywhere behind it. It is a SALE — the position goes
+ * back to the pool at the pool's current quote — and that is a different act from claiming a win,
+ * which the two buttons sitting side by side did nothing to say.
+ */
+export const CASHOUT_IS_A_SALE =
+  'Cashing out sells the position back to the market at its current price, before the result is ' +
+  'known. Claiming is different: it collects a result that has already been decided.'
+
+/**
+ * The quote can move between reading it and landing the transaction, so the calldata has always
+ * carried a floor 1% under it (`cashoutPayload`, `minOut`). It was enforced and never disclosed —
+ * the user was shown one number and silently agreed to another.
+ */
+export function cashoutFloorLine(floor: string): string {
+  return `The quote can move before this lands, so it will not go through below ${floor}.`
+}
+
 // ── Launch ────────────────────────────────────────────────────────────────────────────────
 
 export const LAUNCH_STANDING_LINE =

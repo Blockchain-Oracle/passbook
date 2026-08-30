@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTheme } from 'next-themes'
 import type { VisibilityContext } from '@strk20/protocol/visibility-matrix'
-import { toast } from 'sonner'
+import { notify } from '@/lib/notify'
 
 import { backupActions, sessionActions, useBackupCeremony, useSession } from '@/app/session'
 import { feeRecipientQuery, poolHealthQuery } from '@/queries'
@@ -47,12 +47,12 @@ export function SettingsSurface() {
   const setPassword = async (pw: string) => {
     const outcome = await sessionActions.setPassword(pw)
     if (!outcome.ok) throw new Error(outcome.error)
-    toast.success('Password set', { description: PASSWORD_SET_TOAST })
+    notify.settled('Password set', { description: PASSWORD_SET_TOAST })
   }
   const removePassword = async (pw: string) => {
     const outcome = await sessionActions.removePassword(pw)
     if (!outcome.ok) throw new Error(outcome.error)
-    toast.success('Password removed', { description: PASSWORD_REMOVED_TOAST })
+    notify.settled('Password removed', { description: PASSWORD_REMOVED_TOAST })
   }
   // The core has no atomic re-seal: unseal with the old password, then seal with the new one.
   // A failure on the second step is said loudly — the key is in plaintext until it is redone.
@@ -61,7 +61,7 @@ export function SettingsSurface() {
     if (!removed.ok) throw new Error(removed.error)
     const set = await sessionActions.setPassword(next)
     if (!set.ok) throw new Error(`${PASSWORD_CHANGE_HALF_DONE} (${set.error})`)
-    toast.success('Password changed', { description: PASSWORD_CHANGED_TOAST })
+    notify.settled('Password changed', { description: PASSWORD_CHANGED_TOAST })
   }
   const verifyBackup = async (file: string, code: string) => {
     try {
@@ -72,7 +72,7 @@ export function SettingsSurface() {
   }
   const forget = () => {
     sessionActions.forget()
-    toast.success('Forgotten', { description: FORGOTTEN_TOAST })
+    notify.settled('Forgotten', { description: FORGOTTEN_TOAST })
   }
 
   return (
@@ -102,7 +102,7 @@ export function SettingsSurface() {
         actions={backupActions}
         onComplete={() => {
           refreshCadence()
-          toast.success('Recovery file written')
+          notify.settled('Recovery file written')
         }}
       />
 

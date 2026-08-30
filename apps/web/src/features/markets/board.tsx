@@ -16,7 +16,7 @@ import { houseFloatQuery } from '@/queries/app'
 import { BetTicket } from './bet-ticket'
 import { CreateMarketDialog } from './create-market-dialog'
 import { MarketCard } from './market-card'
-import { PositionsPanel } from './positions-panel'
+import { PositionsStrip } from '@/features/positions'
 import { Tape } from './tape'
 import { useMarketFeed } from './use-market-feed'
 import { useStrkStake } from './use-stake'
@@ -132,13 +132,13 @@ export function MarketsBoard() {
         </section>
       ) : null}
 
-      <div className="grid gap-6 md:grid-cols-2">
+      {/* Claims live on /positions now; the board points at them rather than hosting a second list. */}
+      <PositionsStrip venue="market" />
+
+      <div className="grid gap-6">
+        {/* No heading: the tape is self-evidently the activity feed, and "Live" beside "Your
+            positions" read as a label for the wrong thing. Abu's call, 2026-08-30. */}
         <section className="flex flex-col gap-3">
-          <h2 className="text-kicker uppercase text-muted-foreground">Your positions</h2>
-          <PositionsPanel markets={feed.markets} stake={stake} now={now} />
-        </section>
-        <section className="flex flex-col gap-3">
-          <h2 className="text-kicker uppercase text-muted-foreground">Live</h2>
           <Tape
             items={feed.tape}
             markets={feed.markets}

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { toast } from 'sonner'
+import { notify } from '@/lib/notify'
 import { insufficient, parseAmountInput, toPlainText } from '@strk20/protocol/amount'
 import { MARKET_STATE, marketQuestion, type OnChainMarket } from '@strk20/protocol/app-reads'
 import { disclosureFor } from '@strk20/protocol/disclosure'
@@ -16,7 +16,7 @@ import { ReviewSheet } from '@/components/money/review-sheet'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
-import { sendProblem, useSend } from '@/mutations'
+import { sendProblem, sendTransactionHash, useSend } from '@/mutations'
 import { appContracts } from '@/queries'
 import { cn } from '@/lib/utils'
 import { formatWei } from '@/lib/format'
@@ -91,7 +91,7 @@ export function BetTicket({ market, spot = null, open, onOpenChange, initialSide
     const minted = mintPositionSecret()
     const payload = betPayload([{ marketId: market.id, side, amount: parsed.wei, commitment: minted.commitment }])
     if (payload.state === 'refused') {
-      toast.error(payload.because)
+      notify.refused(payload.because)
       return
     }
     // The secret IS the position. Written first, so a landed bet can never outrun its record.
@@ -115,7 +115,7 @@ export function BetTicket({ market, spot = null, open, onOpenChange, initialSide
     })
     if (result.ok) {
       await relabelStoredPosition(minted.commitment, { txHash: result.transactionHash })
-      toast.success('Position open', { description: POSITION_OPEN_DETAIL })
+      notify.settled('Position open', { description: POSITION_OPEN_DETAIL, hash: sendTransactionHash(result) })
       setReviewing(false)
       onOpenChange(false)
       setRaw('')
@@ -125,7 +125,7 @@ export function BetTicket({ market, spot = null, open, onOpenChange, initialSide
     // unknown confirmation means it may have landed, so the secret stays.
     const mayHaveLanded = result.failure.kind === 'confirmation-unknown' || 'transactionHash' in result.failure
     if (!mayHaveLanded) await removeStoredPosition(minted.commitment)
-    toast.error(sendProblem(result) ?? 'The bet could not be placed.')
+    notify.refused('The bet could not be placed.', { description: sendProblem(result) ?? undefined, hash: sendTransactionHash(result) })
   }
 
   return (

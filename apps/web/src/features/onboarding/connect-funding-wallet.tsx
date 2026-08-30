@@ -5,7 +5,7 @@ import { parseAmountInput } from '@strk20/protocol/amount'
 import { BRIDGE_USDC, BRIDGE_USDC_DECIMALS } from '@strk20/protocol/bridge'
 import { STRK_TOKEN } from '@strk20/protocol/constants'
 import { PUBLIC_FUNDING_NOTICE } from '@strk20/protocol/wallet-capability'
-import { toast } from 'sonner'
+import { notify } from '@/lib/notify'
 
 import { BoundaryBadge } from '@/components/money/boundary-badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -34,7 +34,7 @@ function WalletPicker() {
     mutationKey: ['connect-funding-wallet'],
     mutationFn: connectWallet,
     onSuccess: (outcome) =>
-      outcome.ok ? toast.success(`${outcome.wallet.name} connected`) : toast.error('Could not connect', { description: outcome.because }),
+      outcome.ok ? notify.settled(`${outcome.wallet.name} connected`) : notify.refused('Could not connect', { description: outcome.because }),
   })
   if (wallets.isPending) return <Spinner />
   if (!wallets.data?.length) return <p className="text-body4 text-muted-foreground">{NO_WALLET}</p>
@@ -65,10 +65,10 @@ function FundingRail({ embeddedAddress }: { embeddedAddress: string }) {
     mutationFn: (wei: bigint) => fundPublicAccount(ASSETS[asset].token, wei, embeddedAddress),
     onSuccess: (outcome) => {
       if (!outcome.ok) {
-        toast.error('Public funding was not sent', { description: outcome.because })
+        notify.refused('Public funding was not sent', { description: outcome.because })
         return
       }
-      toast.success(`${text} ${asset} on its way`, {
+      notify.settled(`${text} ${asset} on its way`, {
         description: `Signed in ${wallet?.name ?? 'your wallet'}. It lands at your embedded address as public ${asset}; shielding is a separate strk20.run transaction.`,
       })
       setText('')
@@ -87,7 +87,7 @@ function FundingRail({ embeddedAddress }: { embeddedAddress: string }) {
           <ItemTitle>{wallet.name}</ItemTitle>
           <span className="font-mono text-mono text-muted-foreground">{shortAddress(wallet.address, 8, 6)}</span>
         </ItemContent>
-        <Button variant="ghost" size="sm" onClick={() => { disconnectWallet(); toast(`${wallet.name} disconnected`) }}>
+        <Button variant="ghost" size="sm" onClick={() => { disconnectWallet(); notify.noted(`${wallet.name} disconnected`) }}>
           <Unplug data-icon="inline-start" />
           Disconnect
         </Button>

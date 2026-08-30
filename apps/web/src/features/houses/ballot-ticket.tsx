@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { toast } from 'sonner'
+import { notify } from '@/lib/notify'
 import { insufficient, parseAmountInput, toPlainText } from '@strk20/protocol/amount'
 import { disclosureFor } from '@strk20/protocol/disclosure'
 import { DISCLOSURE_HEADLINE, GOV_TELLER_PEEK } from '@strk20/protocol/disclosure-copy'
@@ -14,7 +14,7 @@ import { ReviewSheet } from '@/components/money/review-sheet'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
-import { sendProblem, useSend } from '@/mutations'
+import { sendProblem, sendTransactionHash, useSend } from '@/mutations'
 import { appContracts, governanceWrites } from '@/queries'
 import { cn } from '@/lib/utils'
 import { govLeg, mayHaveLanded, proposalTitle } from './gov-send'
@@ -59,7 +59,7 @@ export function BallotTicket({ house, proposal, open, onOpenChange, initialChoic
   const picked = options.find((o) => o.value === choice) ?? OPTIONS[0]
 
   const blocker = !writes.enabled
-    ? writes.because
+    ? writes.blocker
     : !contract
       ? 'The Governance deployment is missing from this build'
       : !token.sessionReady
@@ -92,7 +92,7 @@ export function BallotTicket({ house, proposal, open, onOpenChange, initialChoic
     const points = []
     for (const point of vector.vector) {
       if (point === null) {
-        toast.error('The ballot was refused', { description: 'A ballot commitment cannot be the identity point.' })
+        notify.refused('The ballot was refused', { description: 'A ballot commitment cannot be the identity point.' })
         return
       }
       points.push(point)
@@ -107,7 +107,7 @@ export function BallotTicket({ house, proposal, open, onOpenChange, initialChoic
       sealed,
     })
     if (payload.state === 'refused') {
-      toast.error('The ballot was refused', { description: payload.because })
+      notify.refused('The ballot was refused', { description: payload.because })
       return
     }
     if (escrow) {
@@ -135,14 +135,14 @@ export function BallotTicket({ house, proposal, open, onOpenChange, initialChoic
     })
     if (result.ok) {
       if (escrow) await relabelStoredPosition(escrow.commitment, { txHash: result.transactionHash })
-      toast.success('Ballot cast', { description: CAST_DETAIL })
+      notify.settled('Ballot cast', { description: CAST_DETAIL, hash: sendTransactionHash(result) })
       setReviewing(false)
       onOpenChange(false)
       setRaw('')
       return
     }
     if (escrow && !mayHaveLanded(result)) await removeStoredPosition(escrow.commitment)
-    toast.error(sendProblem(result) ?? 'The ballot could not be cast.')
+    notify.refused('The ballot could not be cast.', { description: sendProblem(result) ?? undefined, hash: sendTransactionHash(result) })
   }
 
   return (

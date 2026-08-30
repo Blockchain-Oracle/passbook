@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { ArrowUpRight } from 'lucide-react'
-import { toast } from 'sonner'
+import { notify } from '@/lib/notify'
 import { toPlainText } from '@strk20/protocol/amount'
 import { BRIDGE_USDC_DECIMALS, BRIDGE_USDC_SYMBOL } from '@strk20/protocol/bridge'
 import { STAGE_TITLES } from '@strk20/protocol/pipeline-stage'
@@ -45,7 +45,7 @@ export function BridgeSurface({ initialChain }: { initialChain?: string }) {
 
   const openReview = () => {
     if (form.formBlocker) {
-      toast(form.formBlocker)
+      notify.noted(form.formBlocker)
       return
     }
     setProblem(null)
