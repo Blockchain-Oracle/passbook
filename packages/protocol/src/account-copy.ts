@@ -168,7 +168,10 @@ export const IMPORT_TITLE = 'Import an account'
  * during a first run. Without this, a returning user on a second browser is walked through a fresh
  * key and a second backup ceremony with no way to say they already have one.
  */
-export const IMPORT_ENTRY_CTA = 'I already have an account'
+// Four words, sat beside a three-word "Create an account". It says KEY rather than account
+// because a key is the thing they actually have in a file — an account they may well believe they
+// have on a device they are not holding, and this button cannot help with that.
+export const IMPORT_ENTRY_CTA = 'I have a key'
 
 export const IMPORT_BODY =
   'Choose the recovery file you saved, then type the recovery code that opens it. You need both — ' +

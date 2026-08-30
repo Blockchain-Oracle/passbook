@@ -286,3 +286,44 @@ input:-webkit-autofill:focus {
     transform: scaleX(0);
   }
 }
+
+/*
+ * A rule that writes itself under the last line of the first screen.
+ *
+ * A scaled pseudo-element, not `text-decoration` or a border: neither of those can animate their
+ * LENGTH, and a line that simply appears is a line nobody notices arriving. `transform-origin:
+ * left` makes it read as written rather than as grown from the middle, and the delay lets the
+ * three lines land before anything moves under them.
+ *
+ * Reduced motion gets the finished state at once — emphasis a reader asked not to see move is
+ * still emphasis, and removing it would quietly take the emphasis away with the animation.
+ */
+@keyframes underline-draw {
+  to {
+    transform: scaleX(1);
+  }
+}
+
+.underline-draw {
+  position: relative;
+  display: inline-block;
+}
+
+.underline-draw::after {
+  content: '';
+  position: absolute;
+  inset-inline: 0;
+  bottom: -0.08em;
+  height: 3px;
+  background-color: currentColor;
+  transform: scaleX(0);
+  transform-origin: left;
+  animation: underline-draw 620ms var(--ease-snap) 520ms forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .underline-draw::after {
+    animation: none;
+    transform: scaleX(1);
+  }
+}

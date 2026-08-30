@@ -45,8 +45,23 @@ export function ForkScreen({ onCreate, onImport }: { onCreate: () => void; onImp
     <div className="flex flex-col gap-6">
       <div>
         <p className="font-mono text-kicker uppercase tracking-[0.16em] text-muted-foreground">Start here</p>
-        <h1 className="mt-2 font-display text-display2 uppercase md:text-display1">{FORK_TITLE}</h1>
-        <p className="mt-3 max-w-prose text-body2 text-muted-foreground">{FORK_BODY}</p>
+        {/*
+          Three lines, and the rule draws itself under the last one. The seed phrase is the thing a
+          newcomer most expects to be handed and most dreads — so it is the beat that gets the
+          emphasis, and the only one in the accent.
+        */}
+        <h1 className="mt-2 font-display text-display2 uppercase md:text-display1">
+          {FORK_TITLE.map((line, i) => (
+            <span key={line} className="block">
+              {i === FORK_TITLE.length - 1 ? (
+                <span className="underline-draw text-primary">{line}</span>
+              ) : (
+                line
+              )}
+            </span>
+          ))}
+        </h1>
+        <p className="mt-4 text-body2 text-muted-foreground">{FORK_BODY}</p>
       </div>
       <div className="flex flex-col gap-3 sm:flex-row">
         <Button size="lg" className="h-12 flex-1 text-buttonLabel2" onClick={onCreate}>

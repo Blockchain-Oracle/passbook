@@ -11,19 +11,22 @@
 // ── Screen 0 — The fork ───────────────────────────────────────────────────────────────────
 
 /**
- * The first sentence anyone reads, and it is the motto rather than a variation on it.
+ * The very first screen, and it is NOT the pitch.
  *
- * It used to be "Private money that behaves like money", which sounds like a claim and is not one:
- * it names no thing the reader gets, no thing they can do, and "behaves like money" is true of
- * money and of nothing else worth saying. Abu's ruling — the product is not a wallet, and the app's
- * first screen has to say the same thing the landing page does. One sentence, one place it lives.
+ * It carried the motto and then a sentence explaining it, which was wrong twice over. The stage
+ * beside this card already reads "Everything / on Starknet, / one account.", so the motto was on
+ * screen twice; and anyone reading this has already pressed "open the app" — they are sold, and
+ * selling them again is three seconds of reading between them and the thing they came for.
+ *
+ * So it answers the only question a first-timer actually has here: what do I need before I can
+ * start? Three words, three answers, none of them a claim about privacy. It is the refusal
+ * ticker's move — say what we do not need — at the one moment a reader is deciding whether this
+ * will be a hassle.
  */
-export const FORK_TITLE = 'Everything on Starknet, from one private account.'
+export const FORK_TITLE = ['No wallet.', 'No email.', 'No seed phrase.'] as const
 
-/** Under it: what actually happens when they press the button, and what does not. */
-export const FORK_BODY =
-  'Send, swap, bridge, bet, launch a token, run a House — all from one account. The key that ' +
-  'reads your balance and signs your spending is made here, in this browser. Nothing signs you in.'
+/** Six words on what the button does. Anything longer is a page, and this is a door. */
+export const FORK_BODY = 'One key, made in this browser.'
 
 /** Three words, per the CTA rule. It creates an ACCOUNT; a wallet is the thing we do not need. */
 export const FORK_CREATE_CTA = 'Create an account'
