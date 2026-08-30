@@ -1,6 +1,7 @@
 import { useMutation } from '@tanstack/react-query'
 import { SEND_STAGES, type SendStage } from '@strk20/protocol/pipeline-stage'
 import type { ShieldResult } from '@strk20/protocol/shield'
+import type { MeasuredGas } from '@strk20/protocol/fee-ceiling'
 
 import { getSessionSnapshot } from '@/app/session'
 import { explorerTx } from '@/lib/format'
@@ -24,6 +25,12 @@ export interface ShieldAsk {
   /** Public balances the caller already read. `shield.ts` does not read them itself. */
   publicTokenWei: bigint
   publicStrkWei: bigint
+  /**
+   * The measured gas the DIALOG quoted. Passed through rather than re-read so the floor
+   * `planShield` enforces is the one the user was shown — a re-read between render and confirm
+   * could refuse a shield on a number that never appeared on screen.
+   */
+  measuredGas?: MeasuredGas
   onStage?: (stage: SendStage) => void
 }
 
@@ -71,6 +78,7 @@ async function shield(ask: ShieldAsk): Promise<ShieldResult> {
         amount: ask.amount,
         publicTokenWei: ask.publicTokenWei,
         publicStrkWei: ask.publicStrkWei,
+        ...(ask.measuredGas ? { measuredGas: ask.measuredGas } : {}),
       },
       { selfSubmit: makeSelfSubmit(accountKey, address), onStage },
     )

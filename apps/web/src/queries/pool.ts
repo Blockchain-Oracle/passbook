@@ -1,6 +1,7 @@
 import { queryOptions } from '@tanstack/react-query'
 import type { PoolConstants, PoolHealth } from '@strk20/protocol/pool'
 import type { Allowance, AllowanceBody } from '@strk20/protocol/relayer-wire'
+import type { MeasuredGas } from '@strk20/protocol/fee-ceiling'
 
 import { relayerGet } from '@/lib/relayer'
 
@@ -75,5 +76,34 @@ export function allowanceQuery(address: string | undefined) {
       }
     },
     staleTime: 15_000,
+  })
+}
+
+/**
+ * What a proven pool transaction has actually been costing, measured by the relayer.
+ *
+ * ── NULL FALLS BACK TO THE CONSTANT, WHICH IS THE POINT ───────────────────────────────────
+ *
+ * Every consumer passes this straight into `resourceBoundsFor` / `feeFloor` / `expectedGasWei`,
+ * all of which take it as optional and fall back to `GAS_UNITS` when it is absent. So a relayer
+ * that has not sampled yet, or cannot be reached, costs accuracy and nothing else — never a
+ * blocked transaction. Resolving rather than throwing is what keeps that true.
+ *
+ * Refreshed lazily: the relayer re-measures every fifteen minutes because the number tracks a
+ * circuit's cost, not a price, and prices are read separately and live.
+ */
+export function measuredGasQuery() {
+  return queryOptions({
+    queryKey: ['relayer', 'gas'],
+    queryFn: async (): Promise<MeasuredGas | null> => {
+      try {
+        const b = await relayerGet<{ l2Gas?: string; l1Gas?: string; l1DataGas?: string }>('/api/chain/gas')
+        if (!b.l2Gas || !b.l1Gas || !b.l1DataGas) return null
+        return { l2Gas: BigInt(b.l2Gas), l1Gas: BigInt(b.l1Gas), l1DataGas: BigInt(b.l1DataGas) }
+      } catch {
+        return null
+      }
+    },
+    staleTime: 5 * 60_000,
   })
 }

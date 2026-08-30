@@ -7,6 +7,7 @@ import type { DailyQuoteCounter } from './quote-proxy.js'
 import type { RoomHub } from './rooms.js'
 import type { Directory } from './directory.js'
 import type { ChainFeed } from './chain-feed.js'
+import type { GasCalibration } from './gas-calibration.js'
 import type { LogoService } from './logo.js'
 import type { Teller } from './teller.js'
 
@@ -26,6 +27,8 @@ export interface RelayerContext {
   rooms?: RoomHub
   directory?: Directory
   chainFeed?: ChainFeed
+  /** Measured gas units for a proven pool transaction. Absent until the first sample lands. */
+  gasCalibration?: GasCalibration
   logos?: LogoService
   teller?: Teller
 }

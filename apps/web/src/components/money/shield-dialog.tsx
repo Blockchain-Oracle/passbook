@@ -20,7 +20,7 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { formatWei } from '@/lib/format'
-import { poolConstantsQuery } from '@/queries'
+import { measuredGasQuery, poolConstantsQuery } from '@/queries'
 
 // The mutation's own ask, so `onShield={shield.mutate}` needs no adapter.
 export type { ShieldAsk }
@@ -73,15 +73,18 @@ export function ShieldDialog({ open, onOpenChange, token, symbol, decimals, logo
 
   // Fee and gas from one live read, the same numbers `planShield` will enforce.
   const pool = useQuery(poolConstantsQuery())
+  // Measured units where the relayer has them; `undefined` falls back to the constant in
+  // `fee-ceiling.ts`, so an unreachable relayer costs accuracy and never a blocked shield.
+  const measured = useQuery(measuredGasQuery()).data ?? undefined
   const feeWei = pool.data?.feeWei ?? (pool.isError ? null : undefined)
   // `gasPrices` is checked, not assumed: a cached read from before this field existed must render `—`, not throw.
   const prices = pool.data?.gasPrices
-  const gasWei = prices ? gasBoundWei(resourceBoundsFor(prices)) : pool.isError ? null : undefined
+  const gasWei = prices ? gasBoundWei(resourceBoundsFor(prices, measured)) : pool.isError ? null : undefined
   // TWO GAS NUMBERS, BECAUSE THEY ANSWER DIFFERENT QUESTIONS. `gasWei` is the bound — what must be
   // HELD for the mempool to take the transaction. `expectedWei` is what it will actually be
   // charged. The floor uses the bound; the "what will this leave me" arithmetic uses the expected,
   // because a user is left with what they spent, not with what they had to prove they could spend.
-  const expectedWei = prices ? expectedGasWei(prices) : null
+  const expectedWei = prices ? expectedGasWei(prices, measured) : null
   const floorWei = feeWei && gasWei ? feeWei + gasWei : null
 
   // Fee + gas come out of public STRK, so an STRK shield can only spend what is left above them.
@@ -159,7 +162,7 @@ export function ShieldDialog({ open, onOpenChange, token, symbol, decimals, logo
 
   const confirm = () => {
     if (parsed.wei === null || publicWei === null || publicStrkWei === null) return
-    onShield({ token, symbol, amount: parsed.wei, publicTokenWei: publicWei, publicStrkWei })
+    onShield({ token, symbol, amount: parsed.wei, publicTokenWei: publicWei, publicStrkWei, ...(measured ? { measuredGas: measured } : {}) })
   }
 
   // TWO NUMBERS, BECAUSE THEY ARE DIFFERENT KINDS OF NUMBER. The pool fee above is exact — read

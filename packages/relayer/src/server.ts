@@ -29,6 +29,7 @@ import {
   openSendBudgetLedger,
   openSponsorshipLedger,
 } from './ledger.js'
+import { createGasCalibration, GAS_CALIBRATION_INTERVAL_MS } from './gas-calibration.js'
 import type { LogoService } from './logo.js'
 import { createQuoteCounter } from './quote-proxy.js'
 import { ROOM_IDLE_MS, RoomHub } from './rooms.js'
@@ -78,6 +79,14 @@ async function main(): Promise<void> {
   const { nodeUrl, provider, execute, address } = await openSigner(env.address, env.privateKey)
   const callContract = (contractAddress: string, entrypoint: string, calldata: string[]) =>
     provider.callContract({ contractAddress, entrypoint, calldata })
+
+  // Measured gas, refreshed on a timer. Sampled rather than estimated because the fallback RPC is
+  // pinned to a spec that cannot carry a proof, and because every screen that quotes a cost needs
+  // the number before there is a proof to estimate against. First sample is fired now, not awaited:
+  // the constant covers the seconds before it lands, and a slow public node must not delay boot.
+  const gasCalibration = createGasCalibration(provider)
+  void gasCalibration.sample()
+  every(GAS_CALIBRATION_INTERVAL_MS, () => void gasCalibration.sample())
 
   const directory = openDirectory({
     file: env.directoryStore,
@@ -159,6 +168,7 @@ async function main(): Promise<void> {
     rooms,
     directory,
     chainFeed,
+    gasCalibration,
     logos,
     teller,
   }

@@ -126,10 +126,20 @@ export interface MeasuredGas {
  * or calibrated from recent receipts. Given them, the bound tracks what the pool currently costs
  * instead of what it cost the day somebody wrote the constant down.
  *
- * A measured value is never trusted BELOW the observed floor it came from: `max` against the
- * constant is deliberate on the l1 lanes, where the measured numbers are small and noisy and the
- * constant is already tiny — there is nothing to win by shaving them and a refused bound costs a
- * whole transaction. The l2 lane is where the money is, so that one follows the measurement down.
+ * ── THE L1 LANES KEEP THE CONSTANT AS A FLOOR, AND IT IS NOT FREE ─────────────────────────
+ *
+ * Measured over 20 mainnet pool receipts, l1 gas is ZERO at the 90th percentile and l1 data is
+ * 1,600 against a constant of 30,000. Trusting those down would drop the bound from 5.64 to 4.92
+ * STRK — so the `max` below costs about 0.72 STRK of HELD balance, which is real and worth naming
+ * rather than waving at.
+ *
+ * It stays because the two errors are not the same size. Held is not spent: only what a
+ * transaction uses is charged, so an over-wide bound costs a user the use of that balance for the
+ * length of one transaction. A bound of zero on a lane that later turns out to need something
+ * rejects the transaction outright, and keeps rejecting every one after it until somebody
+ * re-measures — an outage, not a cost. Twenty samples of a quiet pool is thin evidence for
+ * "this lane is always zero", and the l2 lane, which is where the money actually is, follows the
+ * measurement down regardless.
  */
 export function resourceBoundsFor(prices: GasPrices, measured?: MeasuredGas): ResourceBounds {
   const price = (fri: bigint) => (fri * (100n + GAS_PRICE_HEADROOM_PERCENT)) / 100n
