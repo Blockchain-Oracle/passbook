@@ -77,24 +77,49 @@ export function ShieldDialog({ open, onOpenChange, token, symbol, decimals, logo
   // `gasPrices` is checked, not assumed: a cached read from before this field existed must render `—`, not throw.
   const prices = pool.data?.gasPrices
   const gasWei = prices ? gasBoundWei(resourceBoundsFor(prices)) : pool.isError ? null : undefined
+  // TWO GAS NUMBERS, BECAUSE THEY ANSWER DIFFERENT QUESTIONS. `gasWei` is the bound — what must be
+  // HELD for the mempool to take the transaction. `expectedWei` is what it will actually be
+  // charged. The floor uses the bound; the "what will this leave me" arithmetic uses the expected,
+  // because a user is left with what they spent, not with what they had to prove they could spend.
+  const expectedWei = prices ? expectedGasWei(prices) : null
   const floorWei = feeWei && gasWei ? feeWei + gasWei : null
 
-  // Fee + gas come out of public STRK, so an STRK shield can only spend what is left above them —
-  // and it must be left above them TWICE.
+  // Fee + gas come out of public STRK, so an STRK shield can only spend what is left above them.
   //
-  // Reserving one floor was the bug: the shield's own fee and gas then SPEND that floor, so taking
-  // the offered maximum landed exactly on empty and the next shielded action was refused by the
-  // sequencer. Shielded value is unspendable without public STRK to pay for spending it, so a
-  // shield that consumes the last floor does not move money, it strands it. Observed on mainnet
-  // 2026-08-29: 20.22 public, floor 11.93, offered max 8.28 taken in full, 2.92 left, every
-  // following bet refused. One floor for this transaction, one for the next.
+  // ── ONE FLOOR, NOT TWO, AND WHY THAT REVERSES AN EARLIER FIX ──────────────────────────────
+  //
+  // This reserved TWO floors, and the incident behind that was real: on mainnet 2026-08-29, with
+  // one floor reserved, 20.22 public offered a max of 8.28, the shield's own fee and gas then spent
+  // the reserved floor, 2.92 was left, and every following bet was refused. Shielded value is
+  // unspendable without public STRK to pay for spending it. The conclusion drawn was "one floor for
+  // this transaction, one for the next".
+  //
+  // THE PREMISE OF THAT SECOND FLOOR WAS THAT THE NEXT TRANSACTION IS SELF-PAID. It is not any
+  // more: the next three go through the relayer, which pays their pool fee and needs nothing public
+  // from the holder at all. Reserving for them charges a user twice for a bill nobody sends — and
+  // it charges them hard, because two floors is ~23.5 STRK, so an account holding 20 was offered
+  // nothing and the door simply did not open.
+  //
+  // So the reserve is one floor and the shortfall is a SENTENCE rather than a locked door: below
+  // it, `leaves` says what will be left and what that means. Abu's ruling, and the general rule
+  // this file was the worst offender against — warn, name the numbers, let them decide.
   const tokenIsStrk = BigInt(token) === BigInt(STRK_TOKEN)
-  const reserveWei = floorWei === null ? null : floorWei * 2n
+  const reserveWei = floorWei
   const shieldable =
     tokenIsStrk && publicWei !== null && reserveWei !== null ? (publicWei > reserveWei ? publicWei - reserveWei : 0n) : publicWei
   const starved = tokenIsStrk && shieldable === 0n
   const short = starved || insufficient(parsed.wei, shieldable)
   const strkShort = !tokenIsStrk && publicStrkWei !== null && reserveWei !== null && publicStrkWei < reserveWei
+
+  // What this shield leaves behind, and whether that is enough to self-pay the NEXT one. Not a
+  // blocker — the sponsored transactions cover what comes next, and a user who wants to shield
+  // deep and lean on them is making a reasonable choice we should not overrule.
+  const spentByShield = feeWei !== null && feeWei !== undefined && expectedWei ? feeWei + expectedWei : null
+  const leftAfterWei =
+    tokenIsStrk && publicWei !== null && parsed.wei !== null && spentByShield !== null
+      ? publicWei - parsed.wei - spentByShield
+      : null
+  const leavesThin = leftAfterWei !== null && floorWei !== null && leftAfterWei < floorWei && !short
 
   // The CTA carries a few words; the sentence goes in the alert under the field.
   const blocker =
@@ -113,18 +138,24 @@ export function ShieldDialog({ open, onOpenChange, token, symbol, decimals, logo
                 : short
                   ? `Not enough ${symbol}`
                   : null
-  // Every sentence quotes the RESERVE, not one floor: the number shown has to be the number
-  // enforced, and it has to say why it is twice the fee — one shield, one spend afterwards.
+  // Every sentence quotes the RESERVE, and the reserve is now one floor — this shield's own fee
+  // and gas. The number shown has to be the number enforced.
+  //
+  // `leavesThin` is the one that is NOT a refusal: the amount is affordable, it just spends down to
+  // where the next SELF-PAID transaction could not be afforded. Sponsored ones are unaffected, so
+  // it names what is left and what it does not cover, and the button stays live.
   const explain =
     reserveWei === null
       ? null
       : starved
-        ? `This shield and one spend afterwards need ${formatWei(reserveWei, 18, 2)} STRK for fee and gas; this address holds ${formatWei(publicWei ?? 0n, 18, 4)}. Receive STRK here first.`
+        ? `This shield needs ${formatWei(reserveWei, 18, 2)} STRK for its fee and gas; this address holds ${formatWei(publicWei ?? 0n, 18, 4)}. Receive STRK here first.`
         : strkShort
-          ? `This shield and one spend afterwards need ${formatWei(reserveWei, 18, 2)} public STRK here; it holds ${formatWei(publicStrkWei ?? 0n, 18, 4)}.`
+          ? `This shield needs ${formatWei(reserveWei, 18, 2)} public STRK here for its fee and gas; it holds ${formatWei(publicStrkWei ?? 0n, 18, 4)}.`
           : short && tokenIsStrk
-            ? `Keep ${formatWei(reserveWei, 18, 2)} STRK back — one fee and gas for this shield, one for spending what it shields. Up to ${formatWei(shieldable ?? 0n, 18, 4)} STRK can be shielded.`
-            : null
+            ? `Keep ${formatWei(reserveWei, 18, 2)} STRK back for this shield's own fee and gas. Up to ${formatWei(shieldable ?? 0n, 18, 4)} STRK can be shielded.`
+            : leavesThin
+              ? `This leaves about ${formatWei(leftAfterWei ?? 0n, 18, 2)} public STRK — under the ${formatWei(floorWei ?? 0n, 18, 2)} a transaction you pay for yourself has to hold. The transactions we cover are unaffected; past those, top this address up.`
+              : null
 
   const confirm = () => {
     if (parsed.wei === null || publicWei === null || publicStrkWei === null) return
@@ -135,7 +166,6 @@ export function ShieldDialog({ open, onOpenChange, token, symbol, decimals, logo
   // from `get_fee_amount` at render. Gas is an estimate with a padded ceiling behind it, and only
   // what is used gets charged. Showing one blended figure and calling it gas was wrong twice over:
   // most of it is not gas, and the part that is gas is not the ceiling.
-  const expectedWei = prices ? expectedGasWei(prices) : null
   const gasLabel =
     expectedWei && gasWei
       ? `~${formatWei(expectedWei, 18, 2)} expected, ${formatWei(gasWei, 18, 2)} held`
@@ -186,8 +216,18 @@ export function ShieldDialog({ open, onOpenChange, token, symbol, decimals, logo
                 <PopoverContent className="max-w-xs text-body4">{COST_NOTE}</PopoverContent>
               </Popover>
             </div>
+            {/* Tone follows consequence: a refusal is irreversible-red, a caution is exposed-yellow.
+                Painting the caution red would make "this leaves you thin" look like "this is not
+                allowed", which is the confusion the whole change exists to remove. */}
             {explain ? (
-              <p role="alert" className="rounded-lg border border-irreversible/40 bg-irreversibleTint px-3 py-2 text-body4 text-irreversible">
+              <p
+                role="alert"
+                className={
+                  leavesThin
+                    ? 'rounded-lg border border-exposed/40 bg-exposedTint px-3 py-2 text-body4 text-exposed'
+                    : 'rounded-lg border border-irreversible/40 bg-irreversibleTint px-3 py-2 text-body4 text-irreversible'
+                }
+              >
                 {explain}
               </p>
             ) : null}
