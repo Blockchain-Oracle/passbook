@@ -18,6 +18,8 @@ import Link from 'next/link'
 import { FORBIDDEN_CLAIMS } from '@strk20/protocol/forbidden-claims'
 
 import { EXTERNAL, PAGES, SitePage } from './SiteChrome'
+import { Faq, HowItWorks, Offer } from './Sections'
+import { MockScreen } from './MockScreen'
 import { APP_URL } from '@/lib/shared'
 import { MAINNET_RECORD, NETWORK, VERIFIED_AT_BLOCK } from '@/data/deployment'
 import { SURFACE_STATUS, type SurfaceState } from '@/data/surfaces'
@@ -34,8 +36,11 @@ export function Landing() {
     <SitePage current="landing">
       <Hero />
       <RefusalTicker />
+      <Offer />
+      <HowItWorks />
       <Thesis />
       <Surfaces />
+      <Faq />
       <Proof />
     </SitePage>
   )
@@ -57,11 +62,19 @@ function Hero() {
         </h1>
 
         <div className="mt-s32 flex flex-wrap items-end justify-between gap-s24">
-          <p className="m-0 max-w-[46ch] text-body1 text-neutral2">
-            Open strk20.run and you have an account on Starknet&rsquo;s STRK20 pool. The key is
-            generated in your browser on first load. Hold and send shielded value, chat, swap,
-            bridge out, bet, launch.
-          </p>
+          <div className="max-w-[46ch]">
+            <p className="m-0 text-body1 text-neutral2">
+              Open strk20.run and you have an account on Starknet&rsquo;s STRK20 pool. The key is
+              generated in your browser on first load. Hold and send shielded value, chat, swap,
+              bridge out, bet, launch.
+            </p>
+            {/* The acquisition hook, one line under the pitch and above the buttons — it is the
+                reason to click, so it goes where the click is. */}
+            <p className="m-0 pt-s16 text-body2 text-neutral1">
+              <span className="text-accent1">Your first three transactions are on us.</span> Real
+              STRK, on mainnet.
+            </p>
+          </div>
           <div className="flex flex-wrap items-center gap-s12">
             <a
               href={APP_URL}
@@ -85,6 +98,27 @@ function Hero() {
         than typed as "SN_MAIN", so a site built against anything else says so here instead of
         lying quietly.
       */}
+      {/*
+        THE PRODUCT, ABOVE THE FOLD, CROPPED ON PURPOSE.
+
+        A landing page for a wallet that shows no wallet until the third section is asking to be
+        taken on trust — which is the one thing this product does not do anywhere else. It is
+        cropped rather than fitted because a screen that peeks reads as a real surface continuing
+        past the edge, where a whole one shrunk to fit reads as a picture of a surface. `maxHeight`
+        does the cropping; the mask fades the cut so it is a horizon and not a slice.
+
+        Hidden below `lg`: at phone widths this scales to an unreadable smudge, and an illustration
+        nobody can read is weight with no argument in it. The section that owns the full screen is
+        further down and shows it uncropped.
+      */}
+      <div className="mx-auto hidden w-full max-w-[1500px] lg:block">
+        <div className="[mask-image:linear-gradient(to_bottom,black_60%,transparent)]">
+          <div className="overflow-hidden rounded-t-[12px] border-x border-t border-surface3 bg-raised">
+            <MockScreen src="/mock-wallet.html" width={1180} height={760} maxHeight={300} />
+          </div>
+        </div>
+      </div>
+
       <div className="mx-auto mt-s32 flex w-full max-w-[1500px] flex-wrap items-center justify-between gap-s12 border-t border-surface3 py-s20">
         <span className="kicker flex items-center gap-s8">
           <span

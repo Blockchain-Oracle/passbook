@@ -1,0 +1,162 @@
+<!doctype html>
+<!--
+  A drawing of the wallet, not a screenshot and not a live read.
+
+  THE NUMBERS ARE THE ONES A REAL NEW ACCOUNT HOLDS: 3.00 STRK shielded is the starter that arrives
+  with registration (protocol `constants.ts`, STARTER_WEI), and 1.94 public is the 2 STRK drip minus
+  a measured 0.059 account deploy. Inventing rounder, larger numbers would make a better picture and
+  a worse claim — this page's whole argument is that the product does not overstate itself, so the
+  illustration on it should not either.
+
+  Transparent background and `color-scheme: dark` so it composites over the hero band rather than
+  sitting in its own rectangle.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title></title>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&family=Archivo:wght@400;600&family=Space+Mono:wght@400;700&display=swap" />
+    <style>
+      /* Lifted from apps/site/app/studio.css, which lifts them from apps/web/design/tokens.yaml. */
+      :root {
+        color-scheme: dark;
+        --ground: #0a0a0a;
+        --raised: #151515;
+        --inset: #1d1d1d;
+        --line: rgba(240, 239, 234, 0.1);
+        --ink: #f1f0eb;
+        --ink2: #a3a29c;
+        --ink3: #6d6c67;
+        --accent: #e04708;
+        --onAccent: #fbf4ec;
+        --shielded: #7fd4a8;
+        --public: #a3a29c;
+      }
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      body {
+        width: 1180px; height: 760px;
+        background: transparent;
+        font-family: 'Archivo', system-ui, sans-serif;
+        color: var(--ink);
+        padding: 28px 32px;
+      }
+      .kicker { font-family: 'Space Mono', monospace; font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink3); }
+      .display { font-family: 'Anton', sans-serif; text-transform: uppercase; letter-spacing: 0.004em; }
+      .row { display: flex; align-items: center; }
+
+      header { display: flex; align-items: flex-end; justify-content: space-between; padding-bottom: 20px; }
+      h1 { font-family: 'Anton', sans-serif; font-size: 44px; line-height: 40px; text-transform: uppercase; }
+      .badge { font-family: 'Space Mono', monospace; font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase;
+               border: 1px solid var(--line); border-radius: 999px; padding: 6px 12px; color: var(--ink2); }
+
+      /* The sponsored-transaction banner, exactly as the app's shell renders it. */
+      .banner { display: flex; gap: 12px; align-items: flex-start; border: 1px solid var(--line);
+                border-radius: 10px; padding: 14px 16px; background: var(--raised); margin-bottom: 20px; }
+      .banner .dot { width: 8px; height: 8px; border-radius: 999px; background: var(--accent); margin-top: 6px; flex: none; }
+      .banner b { font-size: 14px; font-weight: 600; display: block; }
+      .banner span { font-size: 12px; color: var(--ink2); }
+
+      .cards { display: flex; align-items: stretch; gap: 0; }
+      .card { flex: 1; border: 2px solid var(--line); border-radius: 12px; padding: 20px; background: var(--raised); }
+      .card.public { border-style: dashed; }
+      .card h2 { font-family: 'Anton', sans-serif; font-size: 24px; text-transform: uppercase; display: flex; align-items: center; gap: 8px; }
+      .card .sub { font-size: 12px; color: var(--ink3); margin: 6px 0 18px; }
+      .asset { display: flex; align-items: center; justify-content: space-between; padding: 12px 0; border-top: 1px solid var(--line); }
+      .asset:first-of-type { border-top: 0; }
+      .sym { display: flex; align-items: center; gap: 10px; font-size: 14px; }
+      .mark { width: 26px; height: 26px; border-radius: 999px; background: var(--inset); display: grid; place-items: center;
+              font-family: 'Space Mono', monospace; font-size: 10px; color: var(--ink2); }
+      .amt { font-family: 'Space Mono', monospace; font-size: 15px; }
+      .amt.shielded { color: var(--shielded); }
+      .dash { color: var(--ink3); }
+
+      /* The crossing rail — the boundary, named, between the two balances. */
+      .rail { width: 118px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px;
+              border-left: 1px solid var(--line); border-right: 1px solid var(--line); margin: 0 -1px; }
+      .rail .label { writing-mode: vertical-rl; font-family: 'Space Mono', monospace; font-size: 10px;
+                     letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink3); }
+      .btn { width: 88px; text-align: center; font-size: 12px; padding: 8px 0; border-radius: 8px;
+             border: 1px solid var(--line); color: var(--ink); }
+      .btn.primary { background: var(--accent); color: var(--onAccent); border-color: var(--accent); font-weight: 600; }
+
+      .feed { margin-top: 22px; border-top: 1px solid var(--line); padding-top: 16px; }
+      .feed .head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 4px; }
+      .tx { display: flex; align-items: center; justify-content: space-between; padding: 11px 0; border-bottom: 1px solid var(--line); font-size: 13px; }
+      .tx .what { display: flex; align-items: center; gap: 12px; }
+      .tag { font-family: 'Space Mono', monospace; font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase;
+             padding: 3px 7px; border-radius: 4px; border: 1px solid var(--line); color: var(--ink3); }
+      .tag.paid { color: var(--accent); border-color: var(--accent); }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div>
+        <div class="kicker">Money</div>
+        <h1>Wallet</h1>
+      </div>
+      <div class="badge">Shielded in → out</div>
+    </header>
+
+    <div class="banner">
+      <div class="dot"></div>
+      <div>
+        <b>2 of 3 sponsored transactions left</b>
+        <span>The pool fee on these is on us. After that, each transaction pays it from your shielded balance.</span>
+      </div>
+    </div>
+
+    <div class="cards">
+      <div class="card">
+        <h2>Shielded</h2>
+        <div class="sub">Notes in the pool · as of block 14,112,826</div>
+        <div class="asset">
+          <div class="sym"><div class="mark">STRK</div> Starknet Token</div>
+          <div class="amt shielded">3.0000</div>
+        </div>
+        <div class="asset">
+          <div class="sym"><div class="mark">USDC</div> USD Coin</div>
+          <div class="amt dash">—</div>
+        </div>
+      </div>
+
+      <div class="rail">
+        <div class="label">Cross the boundary</div>
+        <div class="btn primary">Shield</div>
+        <div class="btn">Unshield</div>
+        <div class="btn">Send</div>
+      </div>
+
+      <div class="card public">
+        <h2>Public</h2>
+        <div class="sub">ERC-20 balances at your Starknet address</div>
+        <div class="asset">
+          <div class="sym"><div class="mark">STRK</div> Starknet Token</div>
+          <div class="amt">1.9410</div>
+        </div>
+        <div class="asset">
+          <div class="sym"><div class="mark">USDC</div> USD Coin</div>
+          <div class="amt">0.0000</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="feed">
+      <div class="head">
+        <div class="kicker">Activity</div>
+        <div class="kicker">This account only</div>
+      </div>
+      <div class="tx">
+        <div class="what"><span class="tag paid">Fee on us</span> Account registered · starter shielded</div>
+        <div class="amt shielded">+3.0000 STRK</div>
+      </div>
+      <div class="tx">
+        <div class="what"><span class="tag">Both public</span> Starter STRK received</div>
+        <div class="amt">+2.0000 STRK</div>
+      </div>
+      <div class="tx" style="border-bottom: 0">
+        <div class="what"><span class="tag">Both public</span> Account deployed</div>
+        <div class="amt dash">−0.0590 STRK</div>
+      </div>
+    </div>
+  </body>
+</html>
