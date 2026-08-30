@@ -98,7 +98,7 @@ export function BootingScreen() {
   return (
     <div className="flex items-center gap-3 text-body3 text-muted-foreground">
       <Spinner />
-      Opening this browser’s wallet…
+      Opening this browser’s account…
     </div>
   )
 }
@@ -107,7 +107,7 @@ export function NoStorageScreen({ reason }: { reason: string | undefined }) {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h2 className="font-display text-display3 uppercase">This browser cannot hold a wallet</h2>
+        <h2 className="font-display text-display3 uppercase">This browser cannot hold a key</h2>
         <p className="mt-1 text-body3 text-muted-foreground">
           {reason ?? 'Storage could not be read, and this app will not write over what it cannot read.'}
         </p>

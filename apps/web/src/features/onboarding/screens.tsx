@@ -1,11 +1,14 @@
 import { useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
-import { Eye, FileKey, KeyRound, ShieldCheck, Wallet } from 'lucide-react'
+import { Eye, FileKey, KeyRound, ShieldCheck, UserPlus } from 'lucide-react'
 import { IMPORT_ENTRY_CTA, PASSWORD_BODY, PASSWORD_MISMATCH, PASSWORD_NO_RESET } from '@strk20/protocol/account-copy'
 import {
   CUSTODY_BODY,
   CUSTODY_CTA,
   CUSTODY_TITLE,
+  FORK_BODY,
+  FORK_CREATE_CTA,
+  FORK_TITLE,
   NAME_CAPTION,
   NAME_CLAIM_NOTE,
   NAME_CLAIM_OPT_IN,
@@ -36,21 +39,19 @@ function Heading({ title, body }: { title: string; body?: string }) {
   )
 }
 
-/** Screen one: a private wallet is activated here, or an existing one is brought in. */
+/** Screen one: an account is created here, or an existing key is brought back in. */
 export function ForkScreen({ onCreate, onImport }: { onCreate: () => void; onImport: () => void }) {
   return (
     <div className="flex flex-col gap-6">
       <div>
         <p className="font-mono text-kicker uppercase tracking-[0.16em] text-muted-foreground">Start here</p>
-        <h1 className="mt-2 font-display text-display2 uppercase md:text-display1">Private money that behaves like money</h1>
-        <p className="mt-3 max-w-prose text-body2 text-muted-foreground">
-          The key that reads your balance and signs your spending is made in this browser. Nothing here signs you in.
-        </p>
+        <h1 className="mt-2 font-display text-display2 uppercase md:text-display1">{FORK_TITLE}</h1>
+        <p className="mt-3 max-w-prose text-body2 text-muted-foreground">{FORK_BODY}</p>
       </div>
       <div className="flex flex-col gap-3 sm:flex-row">
         <Button size="lg" className="h-12 flex-1 text-buttonLabel2" onClick={onCreate}>
-          <Wallet data-icon="inline-start" />
-          Create a new wallet
+          <UserPlus data-icon="inline-start" />
+          {FORK_CREATE_CTA}
         </Button>
         <Button size="lg" variant="outline" className="h-12 flex-1 text-buttonLabel2" onClick={onImport}>
           <FileKey data-icon="inline-start" />
@@ -61,11 +62,11 @@ export function ForkScreen({ onCreate, onImport }: { onCreate: () => void; onImp
   )
 }
 
-/** "Two balances. One wallet." — the one idea a new user must hold before anything else. */
+/** "Two balances. One account." — the one idea a new user must hold before anything else. */
 export function TeachScreen({ onNext }: { onNext: () => void }) {
   return (
     <div className="flex flex-col gap-6">
-      <Heading title="Two balances. One wallet." />
+      <Heading title="Two balances. One account." />
       <div className="grid gap-3 sm:grid-cols-2">
         <Card className="border-2 border-shielded">
           <CardHeader>

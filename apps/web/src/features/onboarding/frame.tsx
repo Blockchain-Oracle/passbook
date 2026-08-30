@@ -43,7 +43,7 @@ export function Frame({ screen, step, address = null, onBack, onSkip, children }
         showCloseButton={false}
         className="inset-0 top-0 left-0 z-[60] grid h-dvh max-h-none w-full max-w-none translate-x-0 translate-y-0 grid-cols-1 gap-0 overflow-hidden rounded-none border-0 p-0 ring-0 sm:max-w-none lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]"
       >
-        <DialogTitle className="sr-only">Set up your wallet</DialogTitle>
+        <DialogTitle className="sr-only">Set up your account</DialogTitle>
 
         <div className="hidden min-h-0 lg:block">
           <Stage screen={screen} done={done} address={address} />

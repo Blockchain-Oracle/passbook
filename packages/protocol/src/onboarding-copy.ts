@@ -8,6 +8,26 @@
 // — the fee is read from `get_fee_amount()` at render and passed in.
 //
 
+// ── Screen 0 — The fork ───────────────────────────────────────────────────────────────────
+
+/**
+ * The first sentence anyone reads, and it is the motto rather than a variation on it.
+ *
+ * It used to be "Private money that behaves like money", which sounds like a claim and is not one:
+ * it names no thing the reader gets, no thing they can do, and "behaves like money" is true of
+ * money and of nothing else worth saying. Abu's ruling — the product is not a wallet, and the app's
+ * first screen has to say the same thing the landing page does. One sentence, one place it lives.
+ */
+export const FORK_TITLE = 'Everything on Starknet, from one private account.'
+
+/** Under it: what actually happens when they press the button, and what does not. */
+export const FORK_BODY =
+  'Send, swap, bridge, bet, launch a token, run a House — all from one account. The key that ' +
+  'reads your balance and signs your spending is made here, in this browser. Nothing signs you in.'
+
+/** Three words, per the CTA rule. It creates an ACCOUNT; a wallet is the thing we do not need. */
+export const FORK_CREATE_CTA = 'Create an account'
+
 // ── Screen 1 — Name ───────────────────────────────────────────────────────────────────────
 
 export const NAME_TITLE = 'Pick a name'
@@ -218,7 +238,7 @@ export const STAGE_LINES: Record<StageKey, readonly [string, string, string]> = 
   'no-storage': ['This browser', 'cannot', 'hold a key.'],
   locked: ['Locked.', 'Your key', 'is still here.'],
   checking: ['Reading', 'the chain.', ''],
-  fork: ['Private', 'account.', 'No wallet.'],
+  fork: ['Everything', 'on Starknet,', 'one account.'],
   import: ['Your key,', 'back.', 'Same address.'],
   teach: ['Two balances.', 'Never', 'summed.'],
   name: ['A name is', 'optional.', 'Public if claimed.'],
