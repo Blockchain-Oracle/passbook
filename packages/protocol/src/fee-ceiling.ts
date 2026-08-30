@@ -93,14 +93,24 @@ export interface GasPrices {
  *
  * Measured rather than guessed — recent mainnet pool proofs used 81–101M l2 gas, 0 l1 gas and
  * ≤ 1.9k l1 data gas (receipts, 2026-08-29) — but measured ONCE, in this file, on a day that is
- * already in the past. It over-provisions l2 by ~40 % against the ~85M a pool transaction actually
- * burns, and that inflation is not free: it is what lifts `feeFloor` to ~11.7 STRK and refuses
- * accounts holding 10 for a transaction that would have cost 8.9 and succeeded.
+ * already in the past.
+ *
+ * ── THE L1 LANES USED TO CONTRADICT THE SENTENCE ABOVE THEM ───────────────────────────────
+ *
+ * They were 5,000 and 30,000, against observations of ZERO and 1.9k in the very same comment.
+ * That is not headroom, it is a number nobody derived, and on the l1 gas lane it cost 0.72 STRK of
+ * balance a user had to HOLD — 13 % of the whole bound — to insure a lane that has never been seen
+ * to consume anything. A second measurement (20 pool receipts, p90) agreed: still zero, and 1,600.
+ *
+ * So they are sized to the evidence now. 1,000 l1 gas is a premium against an event neither
+ * measurement has ever recorded, priced at about 0.14 STRK rather than 0.72. 5,000 l1 data is ~2.6x
+ * the highest reading. The l2 lane keeps 120M, which IS derived: ~19 % over the 101M ceiling
+ * observed, and close to what the live measurement plus its own headroom produces anyway.
  *
  * So it is the FLOOR OF LAST RESORT, not the normal path. `resourceBoundsFor` takes measured units
  * when the caller has them; this is what it falls back to when nobody could measure.
  */
-export const GAS_UNITS = { l2_gas: 120_000_000n, l1_gas: 5_000n, l1_data_gas: 30_000n } as const
+export const GAS_UNITS = { l2_gas: 120_000_000n, l1_gas: 1_000n, l1_data_gas: 5_000n } as const
 
 /** Price headroom over the block: the L2 price moved < 2 % across the blocks read; a refused bound costs nothing. */
 export const GAS_PRICE_HEADROOM_PERCENT = 25n
