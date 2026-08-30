@@ -18,7 +18,6 @@ import { houseTitle } from '@/features/houses/gov-send'
 import { launchStateWord } from '@/features/launch/phase'
 import { shortAddress } from '@/lib/format'
 import {
-  appContracts,
   findToken,
   governanceWrites,
   housesQuery,
@@ -26,7 +25,6 @@ import {
   launchesQuery,
   marketPositionQuery,
   marketsQuery,
-  legacyMarketsQuery,
   proposalsQuery,
   tokenListQuery,
 } from '@/queries'
@@ -115,6 +113,20 @@ const FOUNDER_CLAIM: PositionLifecycle = {
   amount: null,
 }
 
+/**
+ * A claim on a contract this build no longer reads.
+ *
+ * Markets was migrated once and the old deployment was left behind. A position opened on it is not
+ * loading and is not running — it is stranded, and the honest row says so and offers the one action
+ * that remains: forget it. `settled` is the tone precisely because nothing further can happen.
+ */
+const RETIRED_CLAIM: PositionLifecycle = {
+  tone: 'settled',
+  label: 'Retired',
+  detail: 'Opened on an earlier deployment this build no longer reads. Nothing here can settle it — forget it to clear the row.',
+  amount: null,
+}
+
 /** Insertion-ordered buckets, so settling one claim never reshuffles the board. */
 function bucket<T>(rows: readonly T[], keyOf: (row: T) => string): Map<string, T[]> {
   const out = new Map<string, T[]>()
@@ -130,8 +142,6 @@ function bucket<T>(rows: readonly T[], keyOf: (row: T) => string): Map<string, T
 export function usePositionGroups(now: number): PositionsRead {
   const stored = useQuery(storedPositionsQuery())
   const markets = useQuery(marketsQuery())
-  // Pre-migration bets: their market's state lives on the retired contract, and the door needs it.
-  const legacyMarkets = useQuery(legacyMarketsQuery())
   const launches = useQuery(launchesQuery())
   const houses = useQuery(housesQuery())
   const proposals = useQuery(proposalsQuery())
@@ -149,8 +159,7 @@ export function usePositionGroups(now: number): PositionsRead {
 
   // Narrowed before the memo so its dependencies are the values it reads, not five query objects.
   const marketList = markets.data?.markets
-  const legacyMarketList = legacyMarkets.data?.markets
-  const legacyContract = appContracts().marketsLegacy
+  const marketsPending = markets.isPending
   const launchList = launches.data?.launches
   const houseList = houses.data?.houses
   const proposalList = proposals.data?.proposals
@@ -166,12 +175,7 @@ export function usePositionGroups(now: number): PositionsRead {
     // the chain assigns an id — so grouping has to wait for the reading, not the stored row.
     const marketClaims = marketHeld.map((position, i): Claim & { marketId: number } => {
       const read = marketReads[i]
-      // Look in the list belonging to the contract that actually answered for this position.
-      const wanted = read?.data?.marketId ?? position.id
-      const onLegacy = read?.data?.contract !== undefined && read.data.contract === legacyContract
-      const market = onLegacy
-        ? legacyMarketList?.find((m) => m.id === wanted)
-        : (marketList?.find((m) => m.id === wanted) ?? legacyMarketList?.find((m) => m.id === wanted))
+      const market = marketList?.find((m) => m.id === (read?.data?.marketId ?? position.id))
       const action =
         read?.data && market
           ? marketPositionAction({
@@ -186,17 +190,18 @@ export function usePositionGroups(now: number): PositionsRead {
       return {
         position,
         action,
-        life: positionLifecycle(action),
+        // A commitment the live contract has never heard of, once the registry has actually been
+        // read, is from a deployment this build no longer follows. Saying "Reading" about it is a
+        // question that never gets answered; it is retired, and the only thing left is to clear it.
+        life: !marketsPending && !market && !read?.isPending ? RETIRED_CLAIM : positionLifecycle(action),
         pending: read?.isPending ?? true,
         failed: read?.isError ?? false,
         payout: payoutFor(list, market?.token ?? '0x0'),
-        // Whichever Markets contract answered for it — see `marketPositionQuery`.
-        ...(read?.data?.contract ? { contract: read.data.contract } : {}),
         marketId: market?.id ?? position.id,
       }
     })
     for (const [id, claims] of bucket(marketClaims, (c) => String(c.marketId))) {
-      const market = marketList?.find((m) => m.id === Number(id)) ?? legacyMarketList?.find((m) => m.id === Number(id))
+      const market = marketList?.find((m) => m.id === Number(id))
       out.push(
         assemble(
           `market:${id}`,
@@ -299,7 +304,7 @@ export function usePositionGroups(now: number): PositionsRead {
     // Ready first — the only ordering that answers "what can I do right now" without reading it all.
     const rank: Record<PositionTone, number> = { ready: 0, waiting: 1, settled: 2 }
     return out.sort((a, b) => rank[a.tone] - rank[b.tone])
-  }, [marketHeld, launchHeld, govHeld, marketReads, launchReads, marketList, legacyMarketList, legacyContract, launchList, houseList, proposalList, tokenList, govPending, govFailed, writes, now])
+  }, [marketHeld, launchHeld, govHeld, marketReads, launchReads, marketList, marketsPending, launchList, houseList, proposalList, tokenList, govPending, govFailed, writes, now])
 
   if (stored.isPending) return { status: 'pending', because: null, groups: [], ready: 0, running: 0, finished: 0, claimable: [] }
   if (stored.data?.state === 'corrupt') {

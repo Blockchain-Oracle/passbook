@@ -5,7 +5,6 @@ interface ImportMetaEnv {
   readonly VITE_APP_MARKETS_ADDRESS?: string
   readonly VITE_APP_LAUNCH_ADDRESS?: string
   readonly VITE_APP_PRAGMA_ADDRESS?: string
-  readonly VITE_APP_MARKETS_LEGACY_ADDRESS?: string
   readonly VITE_APP_GOVERNANCE_ADDRESS?: string
   readonly VITE_APP_GOVERNANCE_CLASS_HASH?: string
 }

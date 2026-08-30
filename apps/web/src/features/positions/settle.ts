@@ -73,8 +73,7 @@ function build(claim: Claim, group: PositionGroup, door: SettleDoor): Built {
   const payout = claim.payout
 
   if (group.venue === 'market') {
-    // The contract the position was read from, so a pre-migration bet settles where it was opened.
-    const contract = claim.contract ?? contracts.markets
+    const contract = contracts.markets
     if (!contract) return { ok: false, because: 'The Markets contract is not configured in this build.' }
     const floor = cashoutFloor(claim)
     if (door === 'cashout' && floor === null) return { ok: false, because: 'This position has no quote to sell back at.' }

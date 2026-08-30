@@ -42,8 +42,6 @@ function contractDefines(): Record<string, string> {
     }
   }
   wire('VITE_APP_MARKETS_ADDRESS', field('MarketsV2', 'contractAddress') ?? field('Markets', 'contractAddress'))
-  // The superseded Markets contract: positions opened on it are still claimable.
-  wire('VITE_APP_MARKETS_LEGACY_ADDRESS', field('Markets', 'contractAddress'))
   wire('VITE_APP_LAUNCH_ADDRESS', field('Launch', 'contractAddress'))
   wire('VITE_APP_PRAGMA_ADDRESS', evidence.pragma)
   wire('VITE_APP_GOVERNANCE_ADDRESS', field('Governance', 'contractAddress'))

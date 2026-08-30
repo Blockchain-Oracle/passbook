@@ -41,12 +41,6 @@ export interface Claim {
   failed: boolean
   /** What this claim's open door pays. A launch redeem and a launch refund pay different tokens. */
   payout: Payout
-  /**
-   * The contract this claim was actually FOUND on. A market position opened before the v2
-   * migration lives on the superseded address, and its settlement has to go back there — sending
-   * it to the current contract would be a call about a commitment that contract never recorded.
-   */
-  contract?: string
 }
 
 /** Everything held in one market, one launch, or one House. */
