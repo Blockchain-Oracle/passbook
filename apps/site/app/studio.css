@@ -244,6 +244,7 @@
     --ink2: var(--color-neutral2);
     --ink3: var(--color-neutral3);
     --line: var(--color-surface3);
+    --warn: var(--color-exposed);
     background-color: var(--color-ground);
     color: var(--ink);
   }
@@ -253,8 +254,62 @@
     --ink2: color-mix(in oklab, var(--color-ground) 62%, transparent);
     --ink3: color-mix(in oklab, var(--color-ground) 42%, transparent);
     --line: color-mix(in oklab, var(--color-ground) 14%, transparent);
+    /*
+     * The warn colour, and it CANNOT be the same value in both bands.
+     *
+     * `exposed` (#f2dc4e) is a bright yellow sized to glow against near-black. On bone-white it is
+     * a pale wash — roughly 1.4:1, which is not a low-contrast style choice, it is text a reader
+     * cannot see. And the lines it carries are the ones naming what becomes PUBLIC, so on a page
+     * about not overstating privacy they are the last sentences that may be hard to read.
+     *
+     * This is that hue taken down to a dark amber that clears 4.5:1 on the light band, rather than
+     * a different colour: it has to stay recognisably the same warning between the two tones or
+     * the page teaches two vocabularies.
+     */
+    --warn: #6f5300;
     background-color: var(--color-neutral1);
     color: var(--ink);
+  }
+
+  /*
+   * A rule that draws itself under the offer, once, on load.
+   *
+   * A pseudo-element scaled on the X axis rather than a `text-decoration` or a border: those two
+   * cannot animate their length, and a line that simply appears is a line nobody notices arriving.
+   * `transform-origin: left` makes it read as written rather than as grown from the middle.
+   *
+   * `prefers-reduced-motion` gets the finished state immediately — the underline is emphasis, and
+   * emphasis a reader has asked not to see move must still be emphasis.
+   */
+  .site-underline {
+    position: relative;
+    white-space: nowrap;
+  }
+
+  .site-underline::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: -2px;
+    height: 2px;
+    background-color: currentColor;
+    transform: scaleX(0);
+    transform-origin: left;
+    animation: site-underline-draw 700ms var(--ease-out, cubic-bezier(0.2, 0, 0, 1)) 400ms forwards;
+  }
+
+  @keyframes site-underline-draw {
+    to {
+      transform: scaleX(1);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .site-underline::after {
+      animation: none;
+      transform: scaleX(1);
+    }
   }
 
   .site-ticker-track {
@@ -307,7 +362,48 @@
      * strip opens with a word cut in half against the left edge. Reset to 0 and the first copy
      * reads from its start, which is a legible static list.
      */
-    .site-ticker-track {
+    /*
+   * A rule that draws itself under the offer, once, on load.
+   *
+   * A pseudo-element scaled on the X axis rather than a `text-decoration` or a border: those two
+   * cannot animate their length, and a line that simply appears is a line nobody notices arriving.
+   * `transform-origin: left` makes it read as written rather than as grown from the middle.
+   *
+   * `prefers-reduced-motion` gets the finished state immediately — the underline is emphasis, and
+   * emphasis a reader has asked not to see move must still be emphasis.
+   */
+  .site-underline {
+    position: relative;
+    white-space: nowrap;
+  }
+
+  .site-underline::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: -2px;
+    height: 2px;
+    background-color: currentColor;
+    transform: scaleX(0);
+    transform-origin: left;
+    animation: site-underline-draw 700ms var(--ease-out, cubic-bezier(0.2, 0, 0, 1)) 400ms forwards;
+  }
+
+  @keyframes site-underline-draw {
+    to {
+      transform: scaleX(1);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .site-underline::after {
+      animation: none;
+      transform: scaleX(1);
+    }
+  }
+
+  .site-ticker-track {
       animation-name: none;
       transform: none;
     }

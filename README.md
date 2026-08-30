@@ -4,7 +4,7 @@
 
 <h1 align="center">strk20.run</h1>
 
-<p align="center"><strong>A private account on Starknet's STRK20 pool.</strong></p>
+<p align="center"><strong>Everything on Starknet, from one private account.</strong></p>
 
 <p align="center">
   Open the app and you have an account — no wallet to connect, nothing to install, nothing to paste.<br/>

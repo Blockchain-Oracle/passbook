@@ -64,18 +64,23 @@ function Hero() {
           <span className="block pl-s36 text-accent1 lg:pl-s60">private account.</span>
         </h1>
 
+        {/*
+          NO SUB-HEADLINE. There was a paragraph here explaining the account and listing the
+          surfaces, and it was doing work the page does better elsewhere: the surfaces have their
+          own band, the walkthrough shows the account being used, and saying "not a wallet" in
+          prose is weaker than a headline that simply is not about one. ZK Freighter's hero is H1
+          plus two buttons for the same reason — a first screen that argues has already lost.
+        */}
         <div className="mt-s32 flex flex-wrap items-end justify-between gap-s24">
           <div className="max-w-[46ch]">
-            <p className="m-0 text-body1 text-neutral2">
-              Not a wallet — an account on Starknet&rsquo;s STRK20 pool, with no wallet in front of
-              it and no seed phrase to write down. Send, swap, bridge out, bet, launch a token, run
-              a House. One key, generated in your browser on first load.
-            </p>
-            {/* The acquisition hook, one line under the pitch and above the buttons — it is the
-                reason to click, so it goes where the click is. */}
-            <p className="m-0 pt-s16 text-body2 text-neutral1">
-              <span className="text-accent1">Your first three transactions are on us.</span> Real
-              STRK, on mainnet.
+            {/*
+              The offer, and the only line left standing here — it is the reason to click, so it
+              sits where the click is. The underline draws itself once on load rather than sitting
+              there: it is a rule under a promise about money, and a rule that arrives is read.
+            */}
+            <p className="m-0 text-body1 text-neutral1">
+              <span className="site-underline text-accent1">Your first three transactions are on us.</span>{' '}
+              Real STRK, on mainnet.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-s12">

@@ -11,9 +11,11 @@ import type { Metadata } from 'next'
 import './global.css'
 
 export const metadata: Metadata = {
-  title: { default: 'strk20.run — a private account on Starknet', template: '%s — strk20.run' },
+  title: { default: 'strk20.run — everything on Starknet, from one private account', template: '%s — strk20.run' },
+  // Mechanism claims live HERE rather than in the H1 — the pattern Aztec and Miden both use, and
+  // the reason our headline can be short without being vague.
   description:
-    'Open strk20.run and you have an account on Starknet’s STRK20 pool. No wallet, no login, no seed phrase — and a straight answer about what that does and does not hide.',
+    'Send, swap, bridge, bet, launch a token and run a House from one private account on Starknet’s STRK20 pool. No wallet, no seed phrase. Your first three transactions are on us, on mainnet.',
   themeColor: '#0A0A0A',
 }
 

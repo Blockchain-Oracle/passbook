@@ -63,9 +63,15 @@ function StepBand({ step }: { readonly step: Step }) {
           <span className="kicker text-[color:var(--ink3)]">Step {step.n}</span>
           <h2 className="display m-0 text-display2 xl:text-display1">{step.title}</h2>
           <p className="m-0 text-body2 text-[color:var(--ink2)]">{step.body}</p>
-          {/* The exposure line gets the warn colour in BOTH tones — it is the same fact either
-              way, and a claim that changed colour with the background would read as decoration. */}
-          <p className="m-0 border-l-2 border-exposed pl-s12 text-body4 text-exposed">{step.seen}</p>
+          {/*
+            `--warn`, not `exposed`. It is the same warning in both bands and has to LOOK like the
+            same warning, but the literal token is a bright yellow sized for near-black: measured
+            against the light band it lands at 1.22:1, which is not a soft style, it is text nobody
+            can read. The band publishes a darkened amber for that side at 6.32:1.
+          */}
+          <p className="m-0 border-l-2 border-[color:var(--warn)] pl-s12 text-body4 text-[color:var(--warn)]">
+            {step.seen}
+          </p>
         </div>
         <div className="overflow-hidden rounded-[12px] border border-[color:var(--line)] bg-ground shadow-[0_24px_64px_rgba(0,0,0,0.35)]">
           <MockScreen src={step.src} width={step.w} height={step.h} />

@@ -112,14 +112,42 @@ export function Faq() {
           <span className="kicker">Questions</span>
           <span className="kicker">Answered straight</span>
         </div>
+        {/*
+          NATIVE `<details>`, not a JS accordion.
+          
+          It is open/closed state the browser already owns: keyboard, screen readers, and
+          find-in-page all work without a line of script, and find-in-page matters more here than
+          anywhere — a reader looking for "auditor" should land on the answer whether or not
+          somebody thought to open that row. A Base UI accordion would need this file to become a
+          client component to add behaviour the platform ships.
+
+          The FIRST one is open. Nine collapsed rows read as a wall of questions with no answers,
+          which is the wrong first impression for the section that exists to prove we answer them.
+        */}
         <div className="flex flex-col border-t border-[color:var(--line)]">
-          {FAQ.map((item) => (
-            /* Open by default and not a disclosure widget: a page arguing that it does not hide
-               things should not make a reader click seven times to find out what they are. */
-            <div key={item.q} className="grid gap-s8 border-b border-[color:var(--line)] py-s24 md:grid-cols-[minmax(0,22ch)_minmax(0,1fr)] md:gap-s32">
-              <h3 className="m-0 text-body1 font-medium">{item.q}</h3>
-              <p className="m-0 max-w-[70ch] text-body3 text-[color:var(--ink2)]">{item.a}</p>
-            </div>
+          {FAQ.map((item, i) => (
+            <details
+              key={item.q}
+              open={i === 0}
+              className="group border-b border-[color:var(--line)] py-s16"
+            >
+              <summary className="focus-ring flex cursor-pointer list-none items-baseline gap-s16 py-s8 text-body1 font-medium [&::-webkit-details-marker]:hidden">
+                <span className="font-mono text-body4 text-[color:var(--ink3)]">
+                  {String(i + 1).padStart(2, '0')}
+                </span>
+                <span className="flex-1">{item.q}</span>
+                {/* Rotates rather than swaps glyphs: one element, and the motion says which way. */}
+                <span
+                  aria-hidden="true"
+                  className="shrink-0 text-[color:var(--ink3)] transition-transform duration-200 group-open:rotate-45"
+                >
+                  +
+                </span>
+              </summary>
+              <p className="m-0 max-w-[70ch] pb-s12 pl-s36 pt-s4 text-body3 text-[color:var(--ink2)]">
+                {item.a}
+              </p>
+            </details>
           ))}
         </div>
       </Inner>

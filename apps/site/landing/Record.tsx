@@ -15,7 +15,8 @@ import { SURFACE_STATUS, type SurfaceState } from '@/data/surfaces'
 const STATE_INK: Record<SurfaceState, string> = {
   live: 'text-accent1',
   partial: 'text-[color:var(--ink2)]',
-  coming: 'text-exposed',
+  // `--warn`, not the raw token: this row sits on a LIGHT band, where #f2dc4e reads at 1.22:1.
+  coming: 'text-[color:var(--warn)]',
 }
 
 /**
