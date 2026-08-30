@@ -28,6 +28,7 @@ import { readPoolHealth, type PoolHealth } from './pool.js'
 import { healthFailure, preflightSend, type OkHealth } from './send-preflight.js'
 import { proveFailureFrom, proveSend, type ProveSendInput, type ProvedSend } from './send-prove.js'
 import type { SendInput } from './send-plan.js'
+import type { Allowance } from './relayer-wire.js'
 import { withFallback } from './rpc.js'
 import { resourceBoundsFor } from './fee-ceiling.js'
 import {
@@ -54,6 +55,8 @@ export interface SendDeps {
   readBlockNumber?: () => Promise<number>
   readRecipientKey?: (address: string) => Promise<bigint>
   readFeeRecipient?: (relayerUrl: string) => Promise<string>
+  /** Never throws; `null` means "assume nothing is covered". */
+  readAllowance?: (relayerUrl: string, account: string) => Promise<Allowance | null>
   prove?: (input: ProveSendInput) => Promise<ProvedSend>
   /** Relayer mode's submitter; defaults to `relayerSubmitter(relayerUrl)`. */
   submit?: Submitter
@@ -81,7 +84,6 @@ export async function sendShielded(input: SendInput, deps: SendDeps = {}): Promi
     onStage,
   } = deps
   const relayerUrl = input.relayerUrl ?? DEFAULT_RELAYER_URL
-  const submit = deps.submit ?? relayerSubmitter(relayerUrl, deadlineTimer)
   const account = input.account as { execute?: unknown }
   const selfSubmit = deps.selfSubmit ?? (typeof account.execute === 'function' ? selfSubmitter(account as never) : refusingSelfSubmit)
 
@@ -90,9 +92,21 @@ export async function sendShielded(input: SendInput, deps: SendDeps = {}): Promi
   const fail = (failure: SendFailure): SendResult => ({ ok: false, stages, failure, ...selfSubmitted })
   const self = `0x${BigInt(input.account.address).toString(16)}`
 
-  const pre = await preflightSend(input, self, relayerUrl, { readHealth, readRecipientKey: deps.readRecipientKey, readFeeRecipient: deps.readFeeRecipient })
+  const pre = await preflightSend(input, self, relayerUrl, {
+    readHealth,
+    readRecipientKey: deps.readRecipientKey,
+    readFeeRecipient: deps.readFeeRecipient,
+    readAllowance: deps.readAllowance,
+  })
   if ('failure' in pre) return fail(pre.failure)
   const { health, request, fee, feeRow, offer } = pre
+
+  // Built AFTER the preflight, because only it knows whether this one is covered: the address
+  // meters it against this account rather than its network, and `request.sponsored` tells the
+  // relayer no reimbursement leg was folded, so it should charge the allowance rather than expect
+  // its fee back. Passing the wrong one here is the difference between a free transaction and a
+  // user paying for one we promised.
+  const submit = deps.submit ?? relayerSubmitter(relayerUrl, deadlineTimer, self, request.sponsored)
 
   // From here the notes are committed to: the lock goes on before proving and stays on through the submission.
   let release: () => void

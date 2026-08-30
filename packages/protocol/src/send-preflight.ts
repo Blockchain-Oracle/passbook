@@ -12,7 +12,8 @@ import { preflightRecipient } from './recipient.js'
 import { DEFAULT_APP_NAME, type FeeRow } from './register.js'
 import { shieldedShortfall, validateCommon, type FeeLeg, type SendInput, type SendLeg, type SendRequest } from './send-plan.js'
 import { legFor } from './send-prove.js'
-import { RelayerMisconfigured, readFeeRecipient } from './submit.js'
+import { RelayerMisconfigured, readAllowance, readFeeRecipient } from './submit.js'
+import type { Allowance } from './relayer-wire.js'
 
 export type OkHealth = Extract<PoolHealth, { state: 'ok' }>
 
@@ -20,13 +21,32 @@ export interface PreflightReads {
   readHealth?: () => Promise<PoolHealth>
   readRecipientKey?: (address: string) => Promise<bigint>
   readFeeRecipient?: (relayerUrl: string) => Promise<string>
+  /** Never throws; `null` means "assume nothing is covered". See `readAllowance`. */
+  readAllowance?: (relayerUrl: string, account: string) => Promise<Allowance | null>
+}
+
+/**
+ * Whether this account still has a sponsored transaction, as a plain boolean.
+ *
+ * Its own function because the fallback matters more than the happy path: anything other than a
+ * positive remaining count — no allowance, a null read, a deployment that does not meter — means
+ * NOT covered, and the user pays their own fee. Erring that way costs a user a fee they might have
+ * avoided; erring the other way spends our wallet on a promise nobody made.
+ */
+async function readAllowanceFor(
+  input: SendInput,
+  relayerUrl: string,
+  read: (relayerUrl: string, account: string) => Promise<Allowance | null>,
+): Promise<boolean> {
+  const allowance = await read(relayerUrl, String(input.account.address))
+  return (allowance?.remaining ?? 0) > 0
 }
 
 export interface Preflighted {
   health: OkHealth
   request: SendRequest
   leg: SendLeg
-  /** `null` in self mode. */
+  /** `null` in self mode, and also when the relayer is covering the fee (no reimbursement leg). */
   fee: FeeLeg | null
   feeRow: FeeRow
   /** What a relayer-side refusal offers instead. */
@@ -70,7 +90,23 @@ export async function preflightSend(
   const unhealthy = healthFailure(raw)
   if (unhealthy) return { failure: unhealthy }
   const health = raw as OkHealth
-  const feeRow: FeeRow = { submitter: input.appName?.trim() || DEFAULT_APP_NAME, feeWei: health.feeWei, paidByUs: input.mode === 'relayer' }
+  // ── WHO PAYS THE POOL FEE, DECIDED ONCE AND RENDERED HONESTLY ─────────────────────────────
+  //
+  // `paidByUs` used to be `mode === 'relayer'`, and that was WRONG for every relayed send: a
+  // relayer-mode send folds a reimbursement `Withdraw` into its own proof (`send-prove.ts`), so
+  // the 6 STRK leaves the USER'S notes and returns to us in the same transaction. The receipt said
+  // "paid by strk20.run" while the balance dropped by exactly that amount.
+  //
+  // It is true only when the account has a sponsored transaction left, because that is the case
+  // where no reimbursement leg is folded at all. A read that fails resolves to "not covered",
+  // which charges a fee we might have absorbed rather than claiming one we did not.
+  const covered =
+    input.mode === 'relayer' && (await readAllowanceFor(input, relayerUrl, reads.readAllowance ?? readAllowance))
+  const feeRow: FeeRow = {
+    submitter: input.appName?.trim() || DEFAULT_APP_NAME,
+    feeWei: health.feeWei,
+    paidByUs: covered,
+  }
   const offer: SelfSubmitOffer = { mode: 'self', feeRow: { ...feeRow, paidByUs: false }, disclosure: SELF_SUBMIT_DISCLOSURE, gasNotice: SELF_SUBMIT_GAS_LOSS }
 
   // 2. The recipient — only a shielded transfer needs a registered one; a withdraw names a public address.
@@ -81,8 +117,10 @@ export async function preflightSend(
   }
 
   // 3. Where the fee goes, read live: the relayer's signing wallet rotates without a release.
+  //    Skipped entirely when the transaction is covered — there is no reimbursement to address,
+  //    and asking for one would make a misconfigured fee recipient fail a send we were paying for.
   let fee: FeeLeg | null = null
-  if (input.mode === 'relayer') {
+  if (input.mode === 'relayer' && !covered) {
     try {
       fee = { recipient: await readFee(relayerUrl), feeWei: health.feeWei }
     } catch (e) {
@@ -100,6 +138,7 @@ export async function preflightSend(
     symbol: input.symbol,
     amount: input.amount,
     mode: input.mode,
+    sponsored: covered,
     swap: input.swap,
     bridge: input.bridge,
     app: input.app,

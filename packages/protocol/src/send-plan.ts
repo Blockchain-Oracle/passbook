@@ -92,6 +92,20 @@ export interface SendRequest {
   symbol: string
   amount: bigint
   mode: SubmitMode
+  /**
+   * True when the relayer is COVERING the pool fee rather than fronting it — so no reimbursement
+   * leg is folded into the proof and the user's shielded balance is not touched by the fee.
+   *
+   * ── WHY THIS IS A FIELD AND NOT `fee === null` ────────────────────────────────────────────
+   *
+   * Relayer mode with no fee leg has two meanings that must never be confused: "we are paying for
+   * this one" and "we failed to read where the reimbursement goes". The second used to be
+   * impossible, so `validateCommon` could treat a missing fee in relayer mode as a bug and refuse.
+   * Now that the first exists, the intent has to be stated rather than inferred — otherwise a
+   * failed `readFeeRecipient` would silently become a free transaction at our expense, which is
+   * the exact failure the old guard was written to catch.
+   */
+  sponsored?: boolean
   swap?: SwapLeg
   bridge?: BridgeLeg
   app?: AppInvokeLeg
@@ -175,8 +189,15 @@ export function validateCommon(request: SendRequest, self: string, fee: FeeLeg |
     return bad(`refusing to send ${amount}: an amount must be positive`)
   }
   if (mode === 'relayer') {
-    if (!fee) return bad('relayer mode needs the advertised fee recipient and the live fee, and got neither')
-    if (fee.feeWei <= 0n) return bad(`the relayer advertised a fee of ${fee.feeWei} wei`)
+    if (request.sponsored) {
+      // A covered transaction must carry NO reimbursement leg. One folded in anyway would take the
+      // fee out of the user's notes AND leave the relayer paying `collect_fee` — charged twice,
+      // once to each party, for a transaction advertised as free.
+      if (fee) return bad('a sponsored submission must not carry a reimbursement leg: it would charge the fee twice')
+    } else {
+      if (!fee) return bad('relayer mode needs the advertised fee recipient and the live fee, and got neither')
+      if (fee.feeWei <= 0n) return bad(`the relayer advertised a fee of ${fee.feeWei} wei`)
+    }
   }
   const recipient = feltOrNull(request.recipient)
   if (recipient === null) return bad(`the recipient ${JSON.stringify(request.recipient)} is not a felt address`)
