@@ -41,6 +41,26 @@ export interface AppOptions {
   authToken?: string
 }
 
+/**
+ * Which address a request is metered under.
+ *
+ * Its own function because the rule is a security decision and deserves to be readable and
+ * testable on its own: the forwarded header counts ONLY when the request also carries a valid
+ * token, because the token is known to our proxy and to nothing else. An attacker may write the
+ * header all they like; without the token it is ignored and they are metered on the socket they
+ * actually opened.
+ */
+export function resolveClientIp(input: {
+  claimed: string | undefined
+  presentedToken: string | undefined
+  authToken: string | undefined
+  socket: () => string | undefined
+}): string {
+  const proxied = input.authToken !== undefined && tokenMatches(input.authToken, input.presentedToken)
+  if (proxied && input.claimed) return input.claimed
+  return input.socket() || 'unknown'
+}
+
 /** Constant-time compare over equal-length digests, so neither length nor bytes leak. */
 function tokenMatches(expected: string, presented: string | undefined): boolean {
   if (typeof presented !== 'string') return false
@@ -98,9 +118,43 @@ export function createApp(context: RelayerContext, options: AppOptions = {}): Ho
   app.use(
     createMiddleware<AppEnv>(async (c, next) => {
       c.set('ctx', ctx)
-      // The socket's address, never x-forwarded-for: behind a proxy everyone shares one bucket,
-      // which refuses too much and never too little.
-      c.set('clientIp', getConnInfo(c).remote.address || 'unknown')
+      //
+      // ── WHOSE ADDRESS THIS IS, AND WHY IT IS NOT ALWAYS THE SOCKET'S ─────────────────────
+      //
+      // This used to be the socket address unconditionally, on the grounds that
+      // `x-forwarded-for` is a header anyone can write — true, and the right rule for a relayer
+      // reachable directly. It became wrong the moment a proxy went in front: every request then
+      // arrives from ONE Vercel egress address, so every user shares one bucket, and a
+      // per-visitor cap of 1 means the first person to use the app each day locks out everyone
+      // else until 00:00 UTC. A control that refuses "too much and never too little" stops being
+      // conservative when too much is everybody.
+      //
+      // `x-strk20-client-ip` is trusted, but only alongside a valid `x-relayer-auth`, and the
+      // gate below is what enforces that ordering. The token is known to our proxy and to nothing
+      // else, so a request carrying one demonstrably came through it. An unauthenticated caller
+      // can still write the header; it is ignored, and they are metered on the socket they
+      // actually connected from.
+      //
+      // WITH NO TOKEN CONFIGURED the header is never trusted, whatever it says. A deployment that
+      // forgot its token is exactly the one that must not accept a caller's word for who they are.
+      //
+      c.set(
+        'clientIp',
+        resolveClientIp({
+          claimed: c.req.header('x-strk20-client-ip'),
+          presentedToken: c.req.header('x-relayer-auth'),
+          authToken,
+          // Read lazily: a valid proxy header answers without touching the socket, and a socket
+          // that cannot be read is an 'unknown' bucket rather than a 500 on every request.
+          socket: () => {
+            try {
+              return getConnInfo(c).remote.address
+            } catch {
+              return undefined
+            }
+          },
+        }),
+      )
       await next()
     }),
   )

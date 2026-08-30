@@ -80,6 +80,29 @@ export default async function handler(req, res) {
   // one. Sending an empty header instead would be a token, and the wrong one.
   if (RELAYER_AUTH_TOKEN) headers['x-relayer-auth'] = RELAYER_AUTH_TOKEN
 
+  //
+  // ── WHO IS ASKING, CARRIED ACROSS THE HOP ─────────────────────────────────────────────────
+  //
+  // The relayer meters per visitor on the SOCKET address, deliberately, because
+  // `x-forwarded-for` is a header anyone can write. That rule is right for a directly reachable
+  // relayer and wrong once this proxy exists: every request now arrives from one Vercel egress
+  // address, so every user on the internet shares one bucket. With `RELAYER_FAUCET_PER_VISITOR`
+  // at 1 that does not merely fail to stop an attacker — the first person to use the app each
+  // day consumes the only unit and everyone after them is refused until 00:00 UTC.
+  //
+  // So the real client address rides in a header of our own, and the relayer trusts it for one
+  // reason: this hop is the only party that knows `RELAYER_AUTH_TOKEN`. A request that carries a
+  // valid token demonstrably came through here, and a request without one is not trusted with
+  // it. That is why the relayer keys the trust to the token rather than to the header's presence
+  // — see `packages/relayer/src/app.ts`.
+  //
+  // `x-forwarded-for` is a LIST, appended to by each hop, and the client is the first entry.
+  // Taking the last would take Vercel's own address and rebuild the bug this fixes.
+  //
+  const forwarded = req.headers['x-forwarded-for']
+  const clientIp = (Array.isArray(forwarded) ? forwarded[0] : forwarded)?.split(',')[0]?.trim()
+  if (RELAYER_AUTH_TOKEN && clientIp) headers['x-strk20-client-ip'] = clientIp
+
   // `req.body` is already parsed by the runtime for JSON, so the raw stream is spent — it is
   // re-serialised rather than piped. Every route here is small JSON except the submission, which
   // carries a ~300 kB proof, comfortably inside the platform's request limit.
