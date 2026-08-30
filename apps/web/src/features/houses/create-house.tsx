@@ -16,7 +16,7 @@ import { Spinner } from '@/components/ui/spinner'
 import { useCopy } from '@/hooks/use-copy'
 import { useCreateHouse } from './create-mutations'
 import { useDoorGate } from './house-doors'
-import { SwitchRow } from './propose-dialog'
+import { SwitchRow } from './switch-row'
 import { useSession } from '@/app/session'
 
 export interface CreateHouseProps {

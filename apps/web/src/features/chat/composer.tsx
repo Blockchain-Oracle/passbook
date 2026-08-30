@@ -6,7 +6,7 @@
 // chat-composer one (21st's Input Bar): staged chips over an auto-sizing field, actions either side.
 //
 import { useRef, type KeyboardEvent } from 'react'
-import { HandCoins, Paperclip, Send, SendHorizontal } from 'lucide-react'
+import { HandCoins, Landmark, Paperclip, Send, SendHorizontal } from 'lucide-react'
 
 import { Amount } from '@/components/money/amount'
 import { Button } from '@/components/ui/button'
@@ -29,12 +29,14 @@ export interface ComposerProps {
   onAttach: (kind: MoneyAttachment['kind']) => void
   onRemoveAttachment: () => void
   onSubmit: () => void
+  /** Offers the voter handle. Absent where there is nothing to delegate with. */
+  onShareHandle?: () => void
   /** Why sending is blocked, in a sentence. The button stays pressable and says why. */
   blocker: string | null
   busy: boolean
 }
 
-export function Composer({ draft, onDraft, attachment, onAttach, onRemoveAttachment, onSubmit, blocker, busy }: ComposerProps) {
+export function Composer({ draft, onDraft, attachment, onAttach, onRemoveAttachment, onSubmit, onShareHandle, blocker, busy }: ComposerProps) {
   const field = useRef<HTMLTextAreaElement>(null)
 
   // Money is a decision, never a keystroke: Enter sends text, but a staged amount needs the button.
@@ -69,6 +71,12 @@ export function Composer({ draft, onDraft, attachment, onAttach, onRemoveAttachm
               <HandCoins aria-hidden />
               Ask for money
             </DropdownMenuItem>
+            {onShareHandle ? (
+              <DropdownMenuItem onClick={onShareHandle}>
+                <Landmark aria-hidden />
+                Share my voter handle
+              </DropdownMenuItem>
+            ) : null}
           </DropdownMenuContent>
         </DropdownMenu>
 

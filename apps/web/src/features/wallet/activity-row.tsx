@@ -12,11 +12,14 @@ import {
 } from '@strk20/protocol/transaction'
 
 import { Amount } from '@/components/money/amount'
+import { IdentityAvatar } from '@/components/money/identity-avatar'
 import { Badge } from '@/components/ui/badge'
 import { Item, ItemActions, ItemContent, ItemDescription, ItemTitle } from '@/components/ui/item'
 import { Spinner } from '@/components/ui/spinner'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { shortAddress } from '@/lib/format'
 import { cn } from '@/lib/utils'
+import type { Identity } from '@/queries/identity'
 import type { WalletToken } from './rows'
 
 const CHIP_CLASS = {
@@ -76,18 +79,43 @@ export interface ActivityRowProps {
   /** The clock, passed in — `rightSlot` never reads it. */
   now: number
   tokens: readonly WalletToken[]
+  /** The counterparty's directory identity, resolved once for the page. */
+  identity?: Identity
+}
+
+/**
+ * The counterparty, as a person rather than 66 characters of hex.
+ *
+ * `activityRowModel` puts the raw address in the subtitle, which on a phone was the row's whole
+ * width. A face and a handle say more in a third of the space, and the address stays legible
+ * underneath when the directory has no name for it.
+ */
+function Counterparty({ address, identity }: { address: string; identity: Identity | undefined }) {
+  return (
+    <span className="flex min-w-0 items-center gap-1.5">
+      <IdentityAvatar address={address} name={identity?.name} avatar={identity?.avatar} size="sm" />
+      {identity?.name ? (
+        <span className="truncate">@{identity.name}</span>
+      ) : (
+        <span className="truncate font-mono text-mono">{shortAddress(address, 8, 6)}</span>
+      )}
+    </span>
+  )
 }
 
 /**
  * One row of the record. The whole row is the door to its receipt — hover lifts it, a chevron says
  * so. A `role="link"` div rather than an anchor, so the slot's explorer link stays valid inside it.
  */
-export function ActivityRow({ transaction, now, tokens }: ActivityRowProps) {
+export function ActivityRow({ transaction, now, tokens, identity }: ActivityRowProps) {
   const model = activityRowModel(transaction, now)
   const slot = rightSlot(transaction, now)
   const wei = rowAmountWei(transaction)
   const direction = amountDirection(transaction)
   const token = transaction.chain.state === 'settled' ? transaction.chain.entry.token : null
+  // The model puts the counterparty in the subtitle; when that is what it is, render it as one.
+  const counterparty = transaction.chain.state === 'settled' ? transaction.chain.entry.counterparty : null
+  const subtitleIsCounterparty = counterparty !== null && model.subtitle === counterparty
   const known = token ? tokens.find((row) => sameFelt(row.token, token)) : undefined
   const navigate = useNavigate()
   const openReceipt = () => void navigate({ to: '/activity/$id', params: { id: transaction.id } })
@@ -117,11 +145,16 @@ export function ActivityRow({ transaction, now, tokens }: ActivityRowProps) {
           ) : null}
           {model.tag ? <Badge variant="secondary">{model.tag}</Badge> : null}
         </ItemTitle>
-        {model.subtitle ? (
+        {subtitleIsCounterparty ? (
+          <ItemDescription className="min-w-0">
+            <Counterparty address={counterparty} identity={identity} />
+          </ItemDescription>
+        ) : model.subtitle ? (
           <ItemDescription className={cn('truncate', model.subtitleIsMono && 'font-mono text-mono')}>{model.subtitle}</ItemDescription>
         ) : null}
       </ItemContent>
-      <ItemActions className="flex-col items-end gap-0.5">
+      {/* A fixed column, so amounts line up down the page instead of jittering with the label beside them. */}
+      <ItemActions className="w-24 shrink-0 flex-col items-end gap-0.5 @sm:w-36">
         {transaction.chain.state === 'settled' && direction !== 'none' ? (
           wei === null ? (
             <Tooltip>

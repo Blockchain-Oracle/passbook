@@ -25,8 +25,9 @@ import { useHouseToken } from './use-house-token'
  * Delegate weight to another member's handle. The tokens escrow behind a bearer commitment, so
  * the position is stored first and revoked later through `gov-revoke`.
  */
-export function DelegateDialog({ house, open, onOpenChange }: DoorProps) {
-  const [delegate, setDelegate] = useState('')
+export function DelegateDialog({ house, open, onOpenChange, initialDelegate }: DoorProps & { initialDelegate?: string }) {
+  // Seeded once: the handle arrives from a chat card through the route, and is then just the field's value.
+  const [delegate, setDelegate] = useState(initialDelegate ?? '')
   const [raw, setRaw] = useState('')
   const [reviewing, setReviewing] = useState(false)
   const token = useHouseToken(house)
@@ -46,7 +47,7 @@ export function DelegateDialog({ house, open, onOpenChange }: DoorProps) {
     (token.memberMode
       ? 'A one-member-one-vote House has no weight to delegate'
       : handle === ''
-        ? 'Paste the delegate’s handle'
+        ? 'Enter their handle'
         : !handleOk
           ? 'That is not a handle'
           : parsed.problem
@@ -115,7 +116,10 @@ export function DelegateDialog({ house, open, onOpenChange }: DoorProps) {
             <Field>
               <FieldLabel htmlFor="house-delegate">Delegate’s handle</FieldLabel>
               <Input id="house-delegate" value={delegate} onChange={(e) => setDelegate(e.target.value)} placeholder="0x…" className="font-mono" autoFocus />
-              <FieldDescription>The pool-derived handle on the roll — not an address.</FieldDescription>
+              <FieldDescription>
+                Not an address — the pool-derived handle on this roll. Ask them for it: they read it on this House’s page,
+                under “Your handle on this roll”.
+              </FieldDescription>
             </Field>
             <AssetIdentity symbol={token.symbol} logoUri={token.logoUri} boundary="shielded" />
             <MoneyField

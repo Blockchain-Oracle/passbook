@@ -21,6 +21,7 @@ import { ProposalRow, proposalSettled } from './proposal-row'
 import { ProposeDialog } from './propose-dialog'
 import { useGovernanceRead } from './queries'
 import { useHouseToken } from './use-house-token'
+import { VoterHandleRow } from './voter-handle-row'
 import { Verification } from './verification'
 
 type Door = 'propose' | 'fund' | 'join' | 'delegate' | null
@@ -60,12 +61,13 @@ function Rule({ label, value }: { label: string; value: React.ReactNode }) {
 }
 
 /** The room behind the card: rules, every proposal with receipts, verification, and the doors. */
-function Record({ house, proposals }: { house: OnChainHouse; proposals: readonly OnChainProposal[] }) {
+function Record({ house, proposals, delegate }: { house: OnChainHouse; proposals: readonly OnChainProposal[]; delegate?: string }) {
   const read = useGovernanceRead()
   const token = useHouseToken(house)
   const now = useNow(HOUSE_CLOCK_MS)
   const [ballot, setBallot] = useState<{ proposal: OnChainProposal; choice: number } | null>(null)
-  const [door, setDoor] = useState<Door>(null)
+  // A shared handle in the URL is a request to open that door; anything else starts closed.
+  const [door, setDoor] = useState<Door>(delegate ? 'delegate' : null)
   const invite = house.membership === HOUSE_MEMBERSHIP.invite
   const settled = proposals.filter(proposalSettled)
   const writesEnabled = read.writes.enabled
@@ -155,6 +157,8 @@ function Record({ house, proposals }: { house: OnChainHouse; proposals: readonly
                 <Rule label="Passes above" value={`${house.thresholdBps / 100}% of the vote`} />
                 <Rule label="Counting" value={token.memberMode ? 'one member, one vote' : `weight in ${token.symbol}`} />
                 <Rule label="Membership" value={invite ? 'invite only — the roll stores derived handles, not addresses' : 'open to any holder'} />
+                {/* The handle a delegation actually names. It had no home anywhere in the app. */}
+                <Rule label="Your handle on this roll" value={<VoterHandleRow houseId={house.id} />} />
                 <Rule label="Governor" value={shortAddress(appContracts().governance ?? '0x0', 8, 6)} />
               </dl>
             </CardContent>
@@ -169,13 +173,14 @@ function Record({ house, proposals }: { house: OnChainHouse; proposals: readonly
       <ProposeDialog house={house} open={door === 'propose'} onOpenChange={(o) => !o && setDoor(null)} />
       <FundDialog house={house} open={door === 'fund'} onOpenChange={(o) => !o && setDoor(null)} />
       {invite ? <JoinDialog house={house} open={door === 'join'} onOpenChange={(o) => !o && setDoor(null)} /> : null}
-      <DelegateDialog house={house} open={door === 'delegate'} onOpenChange={(o) => !o && setDoor(null)} />
+      {/* A handle arriving in the URL opens the door holding it — the chat card's destination. */}
+      <DelegateDialog house={house} open={door === 'delegate'} onOpenChange={(o) => !o && setDoor(null)} initialDelegate={delegate} />
     </div>
   )
 }
 
 /** Resolves the id against the read window; the route passes the raw param. */
-export function HouseRecord({ id }: { id: string }) {
+export function HouseRecord({ id, delegate }: { id: string; delegate?: string }) {
   const read = useGovernanceRead()
   const houseId = /^\d+$/.test(id) ? Number(id) : null
   const house = houseId === null ? undefined : read.houses.find((h) => h.id === houseId)
@@ -197,7 +202,7 @@ export function HouseRecord({ id }: { id: string }) {
       </div>
     )
   }
-  return <Record house={house} proposals={read.proposals.filter((p) => p.houseId === house.id)} />
+  return <Record house={house} proposals={read.proposals.filter((p) => p.houseId === house.id)} delegate={delegate} />
 }
 
 export { houseTitle }

@@ -8,7 +8,8 @@
 // And a payment card is a CLAIM (`room-message.ts`), never a proof. The card says so and puts the
 // transaction next to the claim so it can be checked, rather than asking to be believed.
 //
-import { ArrowUpRight, CircleAlert, HandCoins } from 'lucide-react'
+import { Link } from '@tanstack/react-router'
+import { ArrowUpRight, CircleAlert, HandCoins, Landmark } from 'lucide-react'
 import type { ChatLogEntry } from '@strk20/protocol/chat-log'
 import type { RoomMessage } from '@strk20/protocol/room-message'
 
@@ -95,6 +96,34 @@ function MoneyCard({
   )
 }
 
+/**
+ * A voter handle somebody handed over. The button is the point: it opens the House's own delegate
+ * door with the handle already in it, so nobody retypes a felt.
+ */
+function HandleCard({ message, mine }: { message: RoomMessage & { kind: 'handle' }; mine: boolean }) {
+  return (
+    <div className="flex min-w-56 flex-col gap-2">
+      <div className="flex items-center gap-2">
+        <Landmark className="size-4 text-muted-foreground" aria-hidden />
+        <span className="text-kicker uppercase text-muted-foreground">{mine ? 'You shared your handle' : 'Their voter handle'}</span>
+      </div>
+      <p className="text-body3">{message.houseName ?? `House #${message.houseId}`}</p>
+      <p className="break-all font-mono text-mono text-muted-foreground">{message.handle}</p>
+      {mine ? null : (
+        <Button
+          size="sm"
+          render={
+            <Link to="/houses/$id" params={{ id: String(message.houseId) }} search={{ delegate: message.handle }} />
+          }
+        >
+          Delegate to them
+        </Button>
+      )}
+      <p className="text-body4 text-muted-foreground">Holding a handle delegates nothing. You still sign your own escrow.</p>
+    </div>
+  )
+}
+
 function Body({
   message,
   mine,
@@ -115,6 +144,8 @@ function Body({
     case 'payment':
     case 'request':
       return <MoneyCard message={message} mine={mine} peer={peer} identity={identity} onPay={onPay} />
+    case 'handle':
+      return <HandleCard message={message} mine={mine} />
     default:
       return <p className="text-body3 text-muted-foreground">A message this version cannot show yet.</p>
   }
@@ -131,7 +162,8 @@ export interface MessageBubbleProps {
 
 /** One entry. Reactions to it (folded by the caller) render as chips under the bubble. */
 export function MessageBubble({ entry, reactions, peer, identity, onPay }: MessageBubbleProps) {
-  const money = entry.message.kind === 'payment' || entry.message.kind === 'request'
+  // A card, not a bubble: money and handles are objects in the thread, not somebody typing.
+  const money = entry.message.kind === 'payment' || entry.message.kind === 'request' || entry.message.kind === 'handle'
   return (
     <div className={cn('flex max-w-[85%] flex-col gap-1', entry.mine ? 'items-end self-end' : 'items-start self-start')}>
       <div

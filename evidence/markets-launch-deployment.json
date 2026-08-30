@@ -27,13 +27,18 @@
   "verifiedAtBlock": 13962406,
   "deployedAt": "2026-08-27T21:08:13.229Z",
   "Governance": {
-    "classHash": "0x7240c52656a0a5250649b4db768fbe6ad43e794b11d036ebb19904ff4bb8f20",
-    "compiledClassHash": "0x83b49839bd01f5904e891928af9410161bc15094a49dd9af4dcece44302edc",
-    "declareTx": "0x3d5c9706487579cbcfee867f00813e5af78b63f71bf661470d546cd3e579f03",
-    "deployTx": "0x493d1c0058c2f6caa83f3d63deb90ce3e3d309344fac7163d0f996ebbbf75ef",
-    "contractAddress": "0xdbe265829e0f1c859f3a8c1bd8fcfb0a774836b9e07191c6a624a59e37f9bf",
-    "blockNumber": 13989253,
-    "deployedAt": "2026-08-28T09:46:17.288Z"
+    "classHash": "0x61bd2b40dd4dbf1fb9620023854e834dbd4e87cc84bc60839fcb4dc76f78c40",
+    "compiledClassHash": "0x28d16e4b003c74a3bf59dc03d4a910fb2bc1b8a4f095454723dd9ca39f84379",
+    "declareTx": "0x494adb6ca08719b8bbb74a7d341c1efd03ce33119248800b3fdb6c2b920d242",
+    "deployTx": "0x40c19af8bd30bdc64a0283c3e0c51eb91f0b7d019964fe940fa6c417ede2ef7",
+    "contractAddress": "0x731207e62d01d80632e9d6e911072bb5a3eeaf86232123d2ab9fc50654babc5",
+    "blockNumber": 14103862,
+    "deployedAt": "2026-08-30T15:19:09.841Z",
+    "supersedes": {
+      "classHash": "0x7240c52656a0a5250649b4db768fbe6ad43e794b11d036ebb19904ff4bb8f20",
+      "contractAddress": "0xdbe265829e0f1c859f3a8c1bd8fcfb0a774836b9e07191c6a624a59e37f9bf",
+      "because": "predates the tally-key and exclusion fixes; writes were disabled against it"
+    }
   },
   "MarketsV2": {
     "classHash": "0x608d688d7b1d037718fb351ed28ed84dc6471ee4b772245d4d7735267737650",

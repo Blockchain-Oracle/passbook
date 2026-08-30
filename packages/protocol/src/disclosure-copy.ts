@@ -175,6 +175,22 @@ export const GOV_FUND_GIVEN =
   'The treasury grows by this amount, in public, and the gift has no way back — a treasury that ' +
   'could be clawed back one donor at a time would not be a treasury.'
 
+/**
+ * The voter handle, said honestly.
+ *
+ * The POOL's own comment calls it reproducible "only by the user". That is true of the pool in the
+ * abstract and false of this deployment, where the auditor escrow reaches the same key — and
+ * "only you can" is on `FORBIDDEN_CLAIMS` for exactly that reason. What survives is the useful
+ * half: the roll holds this instead of an address.
+ */
+export const GOV_HANDLE_IS_YOURS =
+  'The pool derives this from your account and this contract, so the roll carries it instead of ' +
+  'your address. Give it to anyone who wants to delegate their weight to you. This is privacy, ' +
+  'not anonymity from the protocol — StarkWare’s auditor escrow applies here as everywhere.'
+
+export const GOV_HANDLE_UNCONFIRMED =
+  'Not on this roll — join the House and your handle appears here.'
+
 export const GOV_RECLAIM_BEARER =
   'The escrow comes back as a fresh note to whoever presents the bearer secret. The settlement ' +
   'transaction and its submitter remain visible.'

@@ -23,6 +23,7 @@ import { setActiveThread, useThread } from './chat-log-store'
 import { MessageBubble } from './message-bubble'
 import type { PayAsk } from './message-bubble'
 import { AttachMoneyDialog, type MoneyAttachment } from './money-attachment'
+import { ShareHandleDialog } from './share-handle-dialog'
 import { PeerAvatar, peerLabel } from './peer-avatar'
 import { peerRoomQuery, statusLine, type RoomInputs } from './queries'
 import { useChatMoney } from './use-chat-money'
@@ -72,6 +73,7 @@ function ThreadView({ me, peer, connection }: { me: RoomInputs; peer: string; co
   // What the money dialog should open as, and prefilled with what. `seed` only arrives from an ask.
   const [attaching, setAttaching] = useState<{ kind: MoneyAttachment['kind']; seed?: { asset?: PayAsset; amount?: string } } | null>(null)
   const [reviewing, setReviewing] = useState(false)
+  const [sharing, setSharing] = useState(false)
   const endRef = useRef<HTMLDivElement>(null)
   const { bubbles, reactions } = useMemo(() => fold(entries), [entries])
   const room = status.data?.kind === 'open' ? status.data.room : null
@@ -112,6 +114,16 @@ function ThreadView({ me, peer, connection }: { me: RoomInputs; peer: string; co
     if (!text) return
     setDraft('')
     send.mutate({ address: me.address, peer, room, message: { kind: 'text', text } }, { onError: (e) => notify.refused(e.message) })
+  }
+
+  /** A handle carries no value, so it posts straight into the thread — nothing to review. */
+  function shareHandle(share: { handle: string; houseId: number; houseName: string }) {
+    if (!room) return
+    setSharing(false)
+    send.mutate(
+      { address: me.address, peer, room, message: { kind: 'handle', ...share } },
+      { onError: (e) => notify.refused(e.message) },
+    )
   }
 
   /** Their ask, answered: the money dialog opens already holding the numbers they named. */
@@ -175,6 +187,7 @@ function ThreadView({ me, peer, connection }: { me: RoomInputs; peer: string; co
         onDraft={setDraft}
         attachment={attachment}
         onAttach={(kind) => setAttaching({ kind })}
+        onShareHandle={() => setSharing(true)}
         onRemoveAttachment={() => setAttachment(null)}
         onSubmit={submit}
         blocker={blocker}
@@ -191,6 +204,8 @@ function ThreadView({ me, peer, connection }: { me: RoomInputs; peer: string; co
         seed={attaching?.seed}
         onAttach={setAttachment}
       />
+
+      <ShareHandleDialog open={sharing} onOpenChange={setSharing} onShare={shareHandle} />
 
       {attachment?.kind === 'payment' ? (
         <ReviewSheet

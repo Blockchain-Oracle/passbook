@@ -69,11 +69,29 @@ export type RoomMessage =
       readonly text: string
       readonly name?: string
     }
+  | {
+      /**
+       * A VOTER HANDLE, offered so somebody can delegate their weight to you.
+       *
+       * A delegation names a handle rather than an address (`governance-calldata.ts`), and a handle
+       * is derived per contract — so there is no way to look one up and no way to guess it. It has
+       * to be handed over, and this is the handing over. Carrying it in a card rather than as typed
+       * text means the recipient gets a button instead of a felt to copy by eye.
+       *
+       * Public by nature: the roll already carries it, and giving it away delegates nothing on its
+       * own. The recipient still signs their own escrow.
+       */
+      readonly kind: 'handle'
+      readonly handle: string
+      readonly houseId: number
+      /** The House's name as the sender saw it — a byline for the card, never used to resolve it. */
+      readonly houseName?: string
+    }
   /** A message from a client that speaks a type this one does not. Rendered, never thrown. */
   | { readonly kind: 'unsupported'; readonly received: string }
 
 /** The wire discriminators. Single letters: every byte here is inside the message size cap. */
-const WIRE_KIND = { text: 't', payment: 'p', post: 'o', request: 'r', reaction: 'e' } as const
+const WIRE_KIND = { text: 't', payment: 'p', post: 'o', request: 'r', reaction: 'e', handle: 'h' } as const
 
 export function encodeRoomMessage(message: RoomMessage): string {
   switch (message.kind) {
@@ -104,6 +122,13 @@ export function encodeRoomMessage(message: RoomMessage): string {
       })
     case 'reaction':
       return JSON.stringify({ k: WIRE_KIND.reaction, e: message.emoji, t: message.target })
+    case 'handle':
+      return JSON.stringify({
+        k: WIRE_KIND.handle,
+        h: message.handle,
+        i: message.houseId,
+        ...(message.houseName === undefined ? {} : { n: message.houseName }),
+      })
     case 'unsupported':
       // Re-encoding something we could not read would forward a payload we never validated. A
       // client that received an unsupported message has nothing to say back in its shape.
@@ -177,6 +202,21 @@ export function decodeRoomMessage(plaintext: string): RoomMessage {
     wire.t.length > 0
   ) {
     return { kind: 'reaction', emoji: wire.e, target: wire.t }
+  }
+  if (
+    wire.k === WIRE_KIND.handle &&
+    typeof wire.h === 'string' &&
+    wire.h.length > 0 &&
+    typeof wire.i === 'number' &&
+    Number.isInteger(wire.i) &&
+    wire.i >= 0
+  ) {
+    return {
+      kind: 'handle',
+      handle: wire.h,
+      houseId: wire.i,
+      ...(typeof wire.n === 'string' && wire.n.length > 0 ? { houseName: wire.n } : {}),
+    }
   }
   if (wire.k === WIRE_KIND.post && typeof wire.b === 'string' && wire.b.length > 0) {
     return {

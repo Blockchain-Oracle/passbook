@@ -205,6 +205,23 @@ export async function readAccumulators(
   return out
 }
 
+/**
+ * Is this handle on the House's roll?
+ *
+ * A free public view, and the only authority on whether a locally derived voter handle is the one
+ * the pool actually injects — `voter-handle.ts` produces candidates, this settles which is real.
+ * A handle that cannot be confirmed here is never shown and never spent against.
+ */
+export async function readIsMember(
+  contract: string,
+  houseId: number,
+  identityKey: string,
+  transport: Transport = defaultTransport,
+): Promise<boolean> {
+  const felts = await call(contract, GOV_SELECTOR.is_member, [hex(houseId), identityKey], transport)
+  return felts[0] !== undefined && BigInt(felts[0]) !== 0n
+}
+
 // ── Derivations the surfaces share ────────────────────────────────────────────────────────
 
 /** The quorum bar, 0–100. Live participation is public while the direction stays sealed (§4.2). */
@@ -214,14 +231,3 @@ export function quorumPct(proposal: OnChainProposal): number {
   return Math.min(100, pct)
 }
 
-/** The lifecycle word a card renders — Tally's vocabulary, ours to keep honest. */
-export function proposalPhase(proposal: OnChainProposal, nowMs: number): string {
-  if (proposal.state === PROPOSAL_STATE.active) {
-    return proposal.deadline * 1000 > nowMs ? 'Sealed Ballot Box' : 'Closed · tallying'
-  }
-  if (proposal.state === PROPOSAL_STATE.succeeded) return 'Succeeded'
-  if (proposal.state === PROPOSAL_STATE.defeated) return 'Defeated'
-  if (proposal.state === PROPOSAL_STATE.executed) return 'Executed'
-  if (proposal.state === PROPOSAL_STATE.voided) return 'Voided'
-  return 'Unknown'
-}
