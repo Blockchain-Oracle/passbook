@@ -45,7 +45,7 @@ export function DelegateDialog({ house, open, onOpenChange, initialDelegate }: D
   const blocker =
     gate.blocker ??
     (token.memberMode
-      ? 'A one-member-one-vote House has no weight to delegate'
+      ? 'A one-member-one-vote DAO has no weight to delegate'
       : handle === ''
         ? 'Enter their handle'
         : !handleOk

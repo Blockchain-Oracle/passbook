@@ -38,7 +38,7 @@ export function useGovernanceRead(): GovernanceRead {
   const proposals = useQuery(proposalsQuery())
   const deployed = Boolean(appContracts().governance)
   const problems = [
-    houses.error ? `The Houses could not be read: ${houses.error.message}` : houses.data?.problem,
+    houses.error ? `The DAOs could not be read: ${houses.error.message}` : houses.data?.problem,
     proposals.error ? `The proposals could not be read: ${proposals.error.message}` : proposals.data?.problem,
   ].filter((p): p is string => typeof p === 'string' && p.length > 0)
   return {

@@ -70,7 +70,7 @@ async function createHouse(ask: CreateHouseAsk): Promise<CreateHouseOutcome> {
     g.accountKey,
     g.address,
     { contractAddress: g.contract, entrypoint: 'create_house', calldata },
-    `Create House ${name}`,
+    `Create DAO ${name}`,
   )
   if (outcome.ok) {
     await relabelStoredPosition(creator.commitment, { txHash: outcome.transactionHash })

@@ -34,7 +34,7 @@ const TABS: readonly { value: PositionTab; label: string }[] = [
   { value: 'all', label: 'All' },
   { value: 'market', label: 'Markets' },
   { value: 'token', label: 'Tokens' },
-  { value: 'house', label: 'Houses' },
+  { value: 'house', label: 'DAOs' },
 ]
 
 const DISCLOSURE = {

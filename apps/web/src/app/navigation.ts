@@ -31,7 +31,7 @@ export const NAV: readonly NavItem[] = [
   { to: '/chat', label: 'Chat', icon: MessageCircle, group: 'venues' },
   { to: '/markets', label: 'Markets', icon: ChartCandlestick, group: 'venues' },
   { to: '/launch', label: 'Launch', icon: Rocket, group: 'venues' },
-  { to: '/houses', label: 'Houses', icon: Landmark, group: 'venues' },
+  { to: '/houses', label: 'DAOs', icon: Landmark, group: 'venues' },
   // Claims outlive the venue that made them, so they get a home of their own rather than three.
   { to: '/positions', label: 'Positions', icon: Trophy, group: 'venues' },
   { to: '/settings', label: 'Settings', icon: Settings, group: 'system' },

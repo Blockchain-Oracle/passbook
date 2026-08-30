@@ -22,7 +22,7 @@ export function WritesBlocked({ because }: { because: string }) {
       <ShieldAlert />
       <AlertTitle>Writes are closed on this class</AlertTitle>
       <AlertDescription>
-        {because} Existing Houses and their records remain visible, but creating, proposing, voting, joining and funding are
+        {because} Existing DAOs and their records remain visible, but creating, proposing, voting, joining and funding are
         unavailable.
       </AlertDescription>
     </Alert>
@@ -77,7 +77,7 @@ export function HousesList() {
             <EmptyMedia variant="icon">
               <Landmark />
             </EmptyMedia>
-            <EmptyTitle>No House is standing yet</EmptyTitle>
+            <EmptyTitle>No DAO is standing yet</EmptyTitle>
             <EmptyDescription>Any token can raise one — including one launched next door.</EmptyDescription>
           </EmptyHeader>
           <EmptyContent>

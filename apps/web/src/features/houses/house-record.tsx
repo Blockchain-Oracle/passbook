@@ -102,7 +102,7 @@ function Record({ house, proposals, delegate }: { house: OnChainHouse; proposals
           <section className="flex flex-col gap-2">
             <h2 className="text-kicker uppercase text-muted-foreground">Proposals</h2>
             {proposals.length === 0 ? (
-              <p className="text-body3 text-muted-foreground">No question has been put to this House yet. The box is ready — propose the first.</p>
+              <p className="text-body3 text-muted-foreground">No question has been put to this DAO yet. The box is ready — propose the first.</p>
             ) : (
               proposals.map((proposal) => (
                 <div key={proposal.id} className="flex flex-col gap-1">
@@ -126,7 +126,7 @@ function Record({ house, proposals, delegate }: { house: OnChainHouse; proposals
           <Card>
             <CardHeader>
               <CardTitle className="font-display text-display4 uppercase">The doors</CardTitle>
-              <CardDescription>Every door is a real transaction through the pool. The House stores derived handles or commitments, while the transaction submitter remains visible.</CardDescription>
+              <CardDescription>Every door is a real transaction through the pool. The DAO stores derived handles or commitments, while the transaction submitter remains visible.</CardDescription>
             </CardHeader>
             <CardContent className="flex flex-col gap-2">
               <Button aria-disabled={!writesEnabled || undefined} onClick={() => writesEnabled && setDoor('propose')}>
@@ -191,10 +191,10 @@ export function HouseRecord({ id, delegate }: { id: string; delegate?: string })
       <div className="flex flex-col gap-3">
         <p className="text-body3 text-muted-foreground">
           {houseId === null
-            ? 'That is not a House id.'
+            ? 'That is not a DAO id.'
             : !read.deployed
               ? 'No Governance deployment is recorded for this build.'
-              : `House ${houseId} is not in the read window — the list carries the newest Houses, and this one is either older than that or not created yet.`}
+              : `DAO ${houseId} is not in the read window — the list carries the newest DAOs, and this one is either older than that or not created yet.`}
         </p>
         <Button variant="outline" className="w-fit" render={<Link to="/houses" />}>
           Back to the Houses

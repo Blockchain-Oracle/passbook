@@ -134,11 +134,11 @@ export function labelFor(kind: SendKind, symbol: string): string {
     case 'launch-redeem': return 'Redeem launch position'
     case 'launch-refund': return 'Refund launch position'
     case 'gov-ballot': return 'Cast sealed ballot'
-    case 'gov-join': return 'Join House'
-    case 'gov-delegate': return 'Delegate House vote'
-    case 'gov-fund': return `Fund House with ${symbol}`
-    case 'gov-reclaim': return 'Reclaim House escrow'
-    case 'gov-revoke': return 'Revoke House delegation'
+    case 'gov-join': return 'Join DAO'
+    case 'gov-delegate': return 'Delegate DAO vote'
+    case 'gov-fund': return `Fund DAO with ${symbol}`
+    case 'gov-reclaim': return 'Reclaim DAO escrow'
+    case 'gov-revoke': return 'Revoke DAO delegation'
   }
 }
 

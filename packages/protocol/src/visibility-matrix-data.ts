@@ -53,9 +53,9 @@ export const CONTEXT_LABELS = {
   'launch-buy': 'Buying into a launch',
   'launch-sell': 'Selling before graduation',
   'gov-ballot': 'Casting a sealed ballot',
-  'gov-join': 'Joining a House',
+  'gov-join': 'Joining a DAO',
   'gov-delegate': 'Delegating voting weight',
-  'gov-fund': 'Funding a House treasury',
+  'gov-fund': 'Funding a DAO treasury',
   'gov-reclaim': 'Reclaiming ballot escrow',
 } as const satisfies Record<VisibilityContext, string>
 
@@ -94,11 +94,11 @@ const GOV_BALLOT_SEALED =
   'before a tally can publish. Your identity is neither on the ballot nor derivable from it.'
 
 const GOV_JOIN_COUNT_ONLY =
-  'The public sees the House’s member COUNT move; the roll stores pool-derived handles instead ' +
+  'The public sees the DAO’s member COUNT move; the roll stores pool-derived handles instead ' +
   'of addresses. The transaction submitter remains visible.'
 
 const GOV_DELEGATE_SOURCE =
-  'The pot grew by this amount in public. The House stores a derived delegator handle, and the ' +
+  'The pot grew by this amount in public. The DAO stores a derived delegator handle, and the ' +
   'transaction submitter remains visible.'
 
 // ── The matrices ──────────────────────────────────────────────────────────────────────────

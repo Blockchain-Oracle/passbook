@@ -153,7 +153,7 @@ export async function readHouses(
       ])
       houses.push(decodeHouse(id, info, decodeByteArray(meta).text))
     } catch (error) {
-      problem = `House ${id} could not be read: ${error instanceof Error ? error.message : String(error)}`
+      problem = `DAO ${id} could not be read: ${error instanceof Error ? error.message : String(error)}`
     }
   }
   return { houses, total, problem }

@@ -117,7 +117,7 @@ function build(claim: Claim, group: PositionGroup, door: SettleDoor): Built {
   }
 
   const contract = contracts.governance
-  if (!contract) return { ok: false, because: 'The Houses contract is not configured in this build.' }
+  if (!contract) return { ok: false, because: 'The DAO contract is not configured in this build.' }
   const reclaiming = door === 'reclaim'
   const payload = reclaiming ? reclaimPayload([secret]) : revokePayload([secret])
   if (payload.state === 'refused') return { ok: false, because: payload.because }
@@ -130,7 +130,7 @@ function build(claim: Claim, group: PositionGroup, door: SettleDoor): Built {
       symbol: payout.symbol,
       amount: 0n,
       surface: 'houses',
-      label: reclaiming ? 'Reclaim House escrow' : 'Revoke House delegation',
+      label: reclaiming ? 'Reclaim DAO escrow' : 'Revoke DAO delegation',
       app: govLeg(contract, reclaiming ? GOV_OP.reclaim : GOV_OP.revoke, payload, { payoutToken: payout.token }),
     },
   }

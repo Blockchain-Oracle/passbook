@@ -24,16 +24,16 @@ function HouseRoute() {
   const { delegate } = Route.useSearch()
   const read = useGovernanceRead()
   const house = read.houses.find((h) => String(h.id) === id)
-  const name = house ? houseTitle(house) : `House ${id}`
+  const name = house ? houseTitle(house) : `DAO ${id}`
   return (
     <Page
-      kicker="Venues · Houses"
+      kicker="Venues · DAOs"
       title={name}
       description={
         <Breadcrumb>
           <BreadcrumbList>
             <BreadcrumbItem>
-              <BreadcrumbLink render={<Link to="/houses" />}>Houses</BreadcrumbLink>
+              <BreadcrumbLink render={<Link to="/houses" />}>DAOs</BreadcrumbLink>
             </BreadcrumbItem>
             <BreadcrumbSeparator />
             <BreadcrumbItem>

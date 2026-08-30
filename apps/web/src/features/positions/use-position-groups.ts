@@ -263,7 +263,7 @@ export function usePositionGroups(now: number): PositionsRead {
           'governance',
           'house',
           house ? houseTitle(house) : `House #${id}`,
-          'House',
+          'DAO',
           house ? { to: '/houses/$id', id: String(house.id) } : null,
           null,
           claims,

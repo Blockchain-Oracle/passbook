@@ -45,7 +45,7 @@ export const NEVER_CLAIM_BODY =
   'Each of these is false about the pool as deployed. If you read one of them anywhere in strk20.run, it is a bug.'
 export const RECIPIENT_SEES = 'The recipient of a private transfer sees who sent it. Private is not anonymous to your counterparty.'
 export const OPEN_NOTE_PUBLIC =
-  'An open-note leg makes its amount public. Markets, Launch and Houses can record a bearer commitment instead of your account, but the transaction submitter remains visible on-chain.'
+  'An open-note leg makes its amount public. Markets, Launch and DAOs can record a bearer commitment instead of your account, but the transaction submitter remains visible on-chain.'
 export const MATRIX_PICKER_LABEL = 'Show the matrix for'
 
 // ── Network ─────────────────────────────────────────────────────────────────────────────────

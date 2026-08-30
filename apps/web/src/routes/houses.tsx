@@ -12,7 +12,7 @@ function HousesRoute() {
   return (
     <Page
       kicker="Venues"
-      title="Houses"
+      title="DAOs"
       actions={
         <>
           <BoundaryBadge kind="bearer" />

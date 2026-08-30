@@ -164,11 +164,11 @@ export const GOV_NOT_ANONYMITY =
   'StarkWare’s auditor escrow applies here as everywhere.'
 
 export const GOV_JOIN_ROLL =
-  'Joining puts a pool-derived handle, not your address, on the House’s roll. The submitting ' +
+  'Joining puts a pool-derived handle, not your address, on the DAO’s roll. The submitting ' +
   'account remains visible on the transaction.'
 
 export const GOV_DELEGATE_POT =
-  'The delegate’s pot grows by this amount in public. The House stores a derived delegator handle, ' +
+  'The delegate’s pot grows by this amount in public. The DAO stores a derived delegator handle, ' +
   'while the transaction submitter remains visible.'
 
 export const GOV_FUND_GIVEN =
@@ -189,7 +189,7 @@ export const GOV_HANDLE_IS_YOURS =
   'not anonymity from the protocol — StarkWare’s auditor escrow applies here as everywhere.'
 
 export const GOV_HANDLE_UNCONFIRMED =
-  'Not on this roll — join the House and your handle appears here.'
+  'Not on this roll — join the DAO and your handle appears here.'
 
 export const GOV_RECLAIM_BEARER =
   'The escrow comes back as a fresh note to whoever presents the bearer secret. The settlement ' +

@@ -119,7 +119,7 @@ export function Verification({ house, proposals, decimals, unit, className }: Ve
         {proposals.map((proposal) => (
           <ProposalEvidence key={proposal.id} proposal={proposal} decimals={decimals} unit={unit} />
         ))}
-        <p className="font-mono text-mono text-muted-foreground">House token {shortAddress(house.token, 6, 4)}</p>
+        <p className="font-mono text-mono text-muted-foreground">DAO token {shortAddress(house.token, 6, 4)}</p>
       </CardContent>
     </Card>
   )

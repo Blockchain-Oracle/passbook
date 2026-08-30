@@ -73,7 +73,7 @@ export function FundDialog({ house, open, onOpenChange }: DoorProps) {
     })
     if (result.ok) {
       notify.settled('The treasury grew', {
-        description: `${amountText} ${token.symbol} is now the House's, in public.`,
+        description: `${amountText} ${token.symbol} is now the DAO's, in public.`,
         hash: sendTransactionHash(result),
       })
       setReviewing(false)
@@ -205,7 +205,7 @@ export function JoinDialog({ house, open, onOpenChange }: DoorProps) {
         description={houseTitle(house)}
         boundary="readOnly"
         rows={[
-          { label: 'House', value: `#${house.id}` },
+          { label: 'DAO', value: `#${house.id}` },
           { label: 'Members now', value: String(house.memberCount) },
         ]}
         disclosure={disclosureFor('gov-join')}

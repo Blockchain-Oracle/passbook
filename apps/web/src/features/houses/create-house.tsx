@@ -48,7 +48,7 @@ export function CreateHouse({ open, onOpenChange }: CreateHouseProps) {
   const blocker =
     gate.blocker ??
     (trimmed === ''
-      ? 'Name the House'
+      ? 'Name the DAO'
       : trimmed.length > 64
         ? 'Sixty-four characters at most'
         : memberVotes && !invite
@@ -63,7 +63,7 @@ export function CreateHouse({ open, onOpenChange }: CreateHouseProps) {
     if (blocker !== null) return
     const outcome = await create.mutateAsync({ name: trimmed, quorumWei: quorum.wei ?? 0n, thresholdPct, invite, memberVotes })
     if (!outcome.ok) {
-      notify.refused('The House was not created', { description: outcome.because })
+      notify.refused('The DAO was not created', { description: outcome.because })
       return
     }
     if (outcome.inviteSecret) {
@@ -114,7 +114,7 @@ export function CreateHouse({ open, onOpenChange }: CreateHouseProps) {
           <>
             <DialogHeader>
               <BoundaryBadge kind="bearer" className="w-fit" />
-              <DialogTitle className="font-display text-display3 uppercase">Create a House</DialogTitle>
+              <DialogTitle className="font-display text-display3 uppercase">Create a DAO</DialogTitle>
               <DialogDescription>
                 A House is governance on a token: sealed ballots, a treasury funded through the pool, and tallies the chain
                 refuses to get wrong.

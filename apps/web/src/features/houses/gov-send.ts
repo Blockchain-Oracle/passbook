@@ -34,5 +34,5 @@ export function proposalTitle(p: { id: number; metadata: string }): string {
 }
 
 export function houseTitle(h: { id: number; metadata: string }): string {
-  return h.metadata || `House ${h.id}`
+  return h.metadata || `DAO ${h.id}`
 }
