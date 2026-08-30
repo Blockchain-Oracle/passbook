@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link } from '@tanstack/react-router'
-import { ArrowUpRight, QrCode, Send, ShieldPlus } from 'lucide-react'
+import { ArrowDownLeft, ArrowUpRight, QrCode, Send, ShieldPlus } from 'lucide-react'
 
 import { ShieldDialog } from '@/components/money/shield-dialog'
 import { Button } from '@/components/ui/button'
@@ -98,6 +98,12 @@ export function CrossingActions({ data }: { data: WalletData }) {
   return (
     <>
       <ShieldDoor data={data} className="w-full md:w-auto" />
+      {/* The other half of the shield door, and it sits beside it for that reason: value going in
+          and value coming back out are one round trip, not a feature and a setting. */}
+      <Button variant="outline" className="w-full md:w-auto" render={<Link to="/send" search={{ out: true }} />}>
+        <ArrowDownLeft data-icon="inline-start" />
+        Unshield
+      </Button>
       <Button variant="outline" className="w-full md:w-auto" render={<Link to="/bridge" />}>
         <ArrowUpRight data-icon="inline-start" />
         Exit

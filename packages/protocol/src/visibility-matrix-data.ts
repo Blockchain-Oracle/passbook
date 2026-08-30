@@ -27,6 +27,7 @@ export const VISIBILITY_CONTEXTS = [
   'registration',
   'chat-payment',
   'swap',
+  'unshield',
   'bridge-exit',
   'markets-bet',
   'markets-exit',
@@ -47,6 +48,7 @@ export const CONTEXT_LABELS = {
   registration: 'Registering with the pool',
   'chat-payment': 'Paying inside a chat room',
   swap: 'Swapping',
+  unshield: 'Moving value back out to a public address',
   'bridge-exit': 'Crossing to another chain',
   'markets-bet': 'Placing a bet',
   'markets-exit': 'Selling a position early',
@@ -194,6 +196,21 @@ export const MATRICES = {
     },
   },
   // 09-bridge §4: hides which note funded it; not the amount, destination, chain or timing.
+  // Unshielding is the bridge exit without the crossing, so it is the same row of claims: the note
+  // that funded it stays hidden, and everything the `Withdrawal` event writes down does not.
+  // The destination address is a KEY on that event, so `recipient` is public — and when it is the
+  // user's own public address, they have just linked it to this withdrawal themselves.
+  unshield: {
+    authored: true,
+    context: 'unshield',
+    cells: {
+      amount: ALL_SEE,
+      sender: row(SEES, HIDDEN, HIDDEN, SEES),
+      recipient: ALL_SEE,
+      timing: ALL_SEE,
+      ip: BASELINE_IP,
+    },
+  },
   'bridge-exit': {
     authored: true,
     context: 'bridge-exit',

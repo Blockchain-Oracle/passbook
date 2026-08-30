@@ -1,5 +1,5 @@
 import { useId, useState } from 'react'
-import { ArrowUpRight } from 'lucide-react'
+import { ArrowUpRight, Landmark, ShieldCheck } from 'lucide-react'
 import { toPlainText } from '@strk20/protocol/amount'
 import { disclosureFor } from '@strk20/protocol/disclosure'
 import { PAY_NOTE_MAX_CHARS, type PayLinkSearch } from '@strk20/protocol/pay-link'
@@ -14,6 +14,7 @@ import { TokenPicker } from '@/components/money/token-picker'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Field, FieldDescription, FieldLabel } from '@/components/ui/field'
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { Textarea } from '@/components/ui/textarea'
 import { formatWei, shortAddress } from '@/lib/format'
 import { sendProblem, useSend } from '@/mutations/use-send'
@@ -24,6 +25,8 @@ import { useSendForm, type SendSearch } from './use-send-form'
 
 const HEADER_NOTE =
   'A private transfer to another pool account. The recipient sees who sent it — private is not anonymous to the person you are paying.'
+const WITHDRAW_NOTE =
+  'Move shielded value back out to an ordinary Starknet address. The address and the amount are written on chain; which note paid is not.'
 const NOTE_HINT = 'Context for the request link only. It is not written into the transaction.'
 
 /** The whole Send surface below the page header. Route composes it; nothing here is a route. */
@@ -36,7 +39,9 @@ export function SendForm({ initial }: { initial: SendSearch }) {
   const [sent, setSent] = useState<{ result: Extract<SendResult, { ok: true }>; summary: SentSummary } | null>(null)
   const noteId = useId()
 
-  const { asset, parsed, recipient } = form
+  const { asset, parsed, recipient, destination } = form
+  const withdrawing = destination === 'public'
+  const headerNote = withdrawing ? WITHDRAW_NOTE : HEADER_NOTE
   const request: PayLinkSearch = {
     ...(asset.symbol === 'STRK' || asset.symbol === 'USDC' ? { asset: asset.symbol } : {}),
     ...(parsed.wei && asset.decimals !== null ? { amount: toPlainText(parsed.wei, asset.decimals) } : {}),
@@ -51,7 +56,8 @@ export function SendForm({ initial }: { initial: SendSearch }) {
       : null
 
   const confirm = () => {
-    if (recipient.state !== 'registered' || parsed.wei === null) return
+    const addressed = recipient.state === 'registered' || recipient.state === 'public'
+    if (!addressed || parsed.wei === null) return
     const summary: SentSummary = {
       amount: parsed.wei,
       decimals: asset.decimals,
@@ -59,7 +65,16 @@ export function SendForm({ initial }: { initial: SendSearch }) {
       recipient: recipient.name ? `@${recipient.name} · ${shortAddress(recipient.address)}` : shortAddress(recipient.address, 10, 6),
     }
     send.mutate(
-      { kind: 'transfer', recipient: recipient.address, token: asset.address, symbol: asset.symbol, amount: parsed.wei, label: recipient.name ? `Pay @${recipient.name}` : `Send ${asset.symbol}` },
+      {
+        // The protocol has carried `withdraw` all along (`send-transfer.ts`); this is the surface
+        // that finally names it. A withdraw leaves the pool; a transfer stays inside it.
+        kind: withdrawing ? 'withdraw' : 'transfer',
+        recipient: recipient.address,
+        token: asset.address,
+        symbol: asset.symbol,
+        amount: parsed.wei,
+        label: withdrawing ? `Unshield ${asset.symbol}` : recipient.name ? `Pay @${recipient.name}` : `Send ${asset.symbol}`,
+      },
       {
         onSuccess: (result) => {
           if (result.ok) {
@@ -79,7 +94,30 @@ export function SendForm({ initial }: { initial: SendSearch }) {
     <div className="grid gap-6 @3xl:grid-cols-[minmax(0,1fr)_minmax(0,20rem)]">
       <Card>
         <CardContent className="flex flex-col gap-5 pt-6">
-          <p className="text-body4 text-muted-foreground">{HEADER_NOTE}</p>
+          <Field>
+            <FieldLabel>Destination</FieldLabel>
+            <ToggleGroup
+              variant="outline"
+              value={[destination]}
+              onValueChange={(next) => {
+                // Single-select reports an empty group on a re-press; the chosen destination stays.
+                const picked = next[0]
+                if (picked === 'shielded' || picked === 'public') form.setDestination(picked)
+              }}
+              aria-label="Where the money lands"
+            >
+              <ToggleGroupItem value="shielded" className="gap-2 px-3 aria-pressed:border-foreground">
+                <ShieldCheck size={16} />
+                strk20 account
+              </ToggleGroupItem>
+              <ToggleGroupItem value="public" className="gap-2 px-3 aria-pressed:border-foreground">
+                <Landmark size={16} />
+                Public address
+              </ToggleGroupItem>
+            </ToggleGroup>
+          </Field>
+
+          <p className="text-body4 text-muted-foreground">{headerNote}</p>
 
           <Field>
             <FieldLabel>Asset</FieldLabel>
@@ -150,17 +188,26 @@ export function SendForm({ initial }: { initial: SendSearch }) {
       <ReviewSheet
         open={reviewing}
         onOpenChange={setReviewing}
-        title={`Send ${asset.symbol}`}
-        description={HEADER_NOTE}
-        boundary="shielded"
+        title={withdrawing ? `Unshield ${asset.symbol}` : `Send ${asset.symbol}`}
+        description={headerNote}
+        boundary={withdrawing ? 'publicExit' : 'shielded'}
         rows={[
           { label: 'Amount', value: <Amount wei={parsed.wei} decimals={asset.decimals} symbol={asset.symbol} /> },
           { label: 'From', value: `Shielded ${asset.symbol}` },
-          { label: 'To', value: recipient.state === 'registered' ? (recipient.name ? `@${recipient.name}` : shortAddress(recipient.address, 10, 6)) : '—' },
+          ...(withdrawing ? [{ label: 'Lands as', value: `Public ${asset.symbol}` }] : []),
+          {
+            label: 'To',
+            value:
+              recipient.state === 'registered' || recipient.state === 'public'
+                ? recipient.name
+                  ? `@${recipient.name}`
+                  : shortAddress(recipient.address, 10, 6)
+                : '—',
+          },
           { label: 'Pool fee', value: <Amount wei={form.feeWei} decimals={18} symbol="STRK" /> },
         ]}
-        disclosure={disclosureFor('pool-send')}
-        confirmLabel={`Send ${asset.symbol}`}
+        disclosure={disclosureFor(withdrawing ? 'unshield' : 'pool-send')}
+        confirmLabel={withdrawing ? 'Unshield' : `Send ${asset.symbol}`}
         onConfirm={confirm}
         busy={busy}
         blocker={busy ? null : (form.blocker ?? sendProblem(send.data))}

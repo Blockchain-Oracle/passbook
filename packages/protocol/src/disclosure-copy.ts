@@ -105,6 +105,27 @@ export const SWAP_RETURNS_TO_YOU =
 
 // ── Bridge ────────────────────────────────────────────────────────────────────────────────
 
+/**
+ * Unshielding, scoped exactly. Not paraphrasable — the scope IS the claim.
+ *
+ * The `Withdrawal` event writes the destination address and the amount into its own keys and data
+ * (`pool-event-decoders.ts`), so both are public the moment it lands. What the pool does not write
+ * down is WHICH note paid for it. Saying only the first half would understate the exposure; saying
+ * only the second would overstate the protection.
+ */
+export const UNSHIELD_SCOPE =
+  'Leaving the pool hides which shielded note funded this. It does not hide the amount, the ' +
+  'destination address, or the timing.'
+
+/**
+ * The line a user needs when the destination is their own public address, which is the ordinary
+ * case. It is not a warning about our product; it is the consequence of the withdrawal they are
+ * about to make, and they can only weigh it before it lands.
+ */
+export const UNSHIELD_SELF_LINK =
+  'If this address is yours and holds funds people can already tie to you, this withdrawal ties ' +
+  'them to your shielded balance too.'
+
 /** Mandatory phrasing. Not paraphrasable — the scope is the claim. */
 export const BRIDGE_SCOPE =
   'The crossing hides which shielded note funded the withdrawal. It does not hide the amount, the ' +
@@ -206,6 +227,7 @@ export const DISCLOSURE_HEADLINE = {
   registration: REGISTRATION_PUBLIC,
   'chat-payment': CHAT_RELAY_METADATA,
   swap: SWAP_VISIBLE,
+  unshield: UNSHIELD_SCOPE,
   'bridge-exit': BRIDGE_SCOPE,
   'markets-bet': MARKETS_BET_VISIBLE,
   'launch-buy': LAUNCH_IDENTITY,

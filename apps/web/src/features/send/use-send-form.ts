@@ -18,6 +18,8 @@ export interface SendSearch {
   asset?: PayAsset
   amount?: string
   note?: string
+  /** `?out` opens the form on the withdrawal side — the Unshield door links straight here. */
+  out?: boolean
 }
 
 export interface SendAsset {
@@ -47,6 +49,9 @@ export function useSendForm(initial: SendSearch) {
   const [raw, setRaw] = useState(initial.amount ?? '')
   const [recipientRaw, setRecipientRaw] = useState(initial.to ?? '')
   const [note, setNote] = useState(initial.note ?? '')
+  // Where the money lands. `shielded` is a transfer to another pool account; `public` is a
+  // withdrawal out of the pool to an ordinary Starknet address — the reverse of shielding.
+  const [destination, setDestination] = useState<'shielded' | 'public'>(initial.out ? 'public' : 'shielded')
 
   const health = useQuery(poolHealthQuery())
   const shielded = useQuery(shieldedBalanceQuery(ready?.address, ready?.accountKey))
@@ -95,7 +100,7 @@ export function useSendForm(initial: SendSearch) {
   const parsed = parseAmountInput(raw, asset.decimals)
   const short = insufficient(parsed.wei, asset.shieldedWei)
   const shortfallWei = short && parsed.wei !== null && asset.shieldedWei !== null ? parsed.wei - asset.shieldedWei : null
-  const recipient = useRecipient(recipientRaw, ready?.address)
+  const recipient = useRecipient(recipientRaw, ready?.address, destination)
   const publicStrkWei = assets.find((a) => sameAddress(a.address, STRK_TOKEN))?.publicWei ?? null
 
   const blocker = reviewBlocker({
@@ -123,6 +128,8 @@ export function useSendForm(initial: SendSearch) {
     recipient,
     recipientRaw,
     setRecipientRaw,
+    destination,
+    setDestination,
     note,
     setNote,
     publicStrkWei,
@@ -173,6 +180,7 @@ function reviewBlocker(i: BlockerInput): string | null {
       return 'The recipient has no account here yet'
     case 'unreadable':
       return 'The recipient could not be checked'
+    case 'public':
     case 'registered':
       return null
   }

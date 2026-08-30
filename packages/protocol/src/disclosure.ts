@@ -17,6 +17,7 @@ import {
   BRIDGE_WAY_OUT,
   CHAT_AUDITOR_DERIVES,
   DISCLOSURE_HEADLINE,
+  UNSHIELD_SELF_LINK,
   GOV_NOT_ANONYMITY,
   GOV_TELLER_PEEK,
   LAUNCH_CROWD,
@@ -161,6 +162,21 @@ const TABLE = {
       leaves(SWAP_OBSERVER, 'low'),
       leaves(SWAP_RELAY_QUOTE, 'low'),
       stays(SWAP_RETURNS_TO_YOU),
+    ],
+    wayOut: null,
+  },
+
+  // Irreversible like the bridge, but WITHOUT the "only arrives at the destination" line: an
+  // unshield lands on Starknet, so the money is not stranded if the address is wrong — it is simply
+  // somebody else's. The self-link line is the one this context adds that no other has.
+  unshield: {
+    authored: true,
+    context: 'unshield',
+    lines: [
+      leaves(DISCLOSURE_HEADLINE.unshield, 'medium'),
+      leaves(UNSHIELD_SELF_LINK, 'medium'),
+      leaves(RELAYER_SEES, 'low'),
+      leaves(AUDITOR_ESCROW, 'low'),
     ],
     wayOut: null,
   },
