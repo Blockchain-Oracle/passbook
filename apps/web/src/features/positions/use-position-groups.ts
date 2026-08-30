@@ -179,6 +179,8 @@ export function usePositionGroups(now: number): PositionsRead {
         pending: read?.isPending ?? true,
         failed: read?.isError ?? false,
         payout: payoutFor(list, market?.token ?? '0x0'),
+        // Whichever Markets contract answered for it — see `marketPositionQuery`.
+        ...(read?.data?.contract ? { contract: read.data.contract } : {}),
         marketId: market?.id ?? position.id,
       }
     })

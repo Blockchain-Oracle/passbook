@@ -9,6 +9,7 @@ let contracts: AppContracts | null = null
 export function appContracts(): AppContracts {
   contracts ??= appContractsFromEnv({
     APP_MARKETS_ADDRESS: import.meta.env.VITE_APP_MARKETS_ADDRESS,
+    APP_MARKETS_LEGACY_ADDRESS: import.meta.env.VITE_APP_MARKETS_LEGACY_ADDRESS,
     APP_LAUNCH_ADDRESS: import.meta.env.VITE_APP_LAUNCH_ADDRESS,
     APP_PRAGMA_ADDRESS: import.meta.env.VITE_APP_PRAGMA_ADDRESS,
     APP_GOVERNANCE_ADDRESS: import.meta.env.VITE_APP_GOVERNANCE_ADDRESS,
@@ -98,15 +99,29 @@ export function proposalsQuery() {
 }
 
 /** A bearer position on the Markets contract, by its commitment. Absent contract → skipped. */
+/**
+ * One market position, read from the contract it actually lives on.
+ *
+ * A bet opened before the v2 migration is recorded on the OLD Markets address. Asking only the
+ * current one returns an empty position, which `marketPositionAction` reads as "not open yet" and
+ * the board renders as STILL RUNNING — on a market that resolved days ago, hiding a payout its
+ * holder can no longer reach. So a miss on the current contract falls back to the superseded one,
+ * and the answer carries the address it came from because the claim has to go back to the same
+ * place.
+ */
 export function marketPositionQuery(commitment: string | undefined) {
-  const contract = appContracts().markets
+  const { markets, marketsLegacy } = appContracts()
   return queryOptions({
     queryKey: ['position', 'market', commitment ?? null],
     queryFn:
-      contract && commitment
+      markets && commitment
         ? async () => {
             const { readMarketPosition } = await import('@strk20/protocol/position-reads')
-            return readMarketPosition(contract, commitment)
+            const current = await readMarketPosition(markets, commitment)
+            // `state === 0` is "this contract has never heard of that commitment".
+            if (current.state !== 0 || !marketsLegacy) return { ...current, contract: markets }
+            const legacy = await readMarketPosition(marketsLegacy, commitment).catch(() => null)
+            return legacy && legacy.state !== 0 ? { ...legacy, contract: marketsLegacy } : { ...current, contract: markets }
           }
         : skipToken,
     staleTime: APP_MS,

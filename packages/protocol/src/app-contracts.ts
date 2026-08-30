@@ -28,6 +28,15 @@
 export interface AppContracts {
   /** The Markets contract. Absent until deployed. */
   markets?: string
+  /**
+   * The Markets contract this deployment REPLACED, when there is one.
+   *
+   * A bet opened before the v2 migration lives on the old address forever, and its secret is still
+   * money. Reading only the current contract reports a resolved market as "still running" and hides
+   * a payout the holder can no longer reach — so the old address stays known, for reads and for the
+   * settlement that follows them.
+   */
+  marketsLegacy?: string
   /** The Launch contract. Absent until deployed. */
   launch?: string
   /**
@@ -135,8 +144,12 @@ export function parseAppContracts(raw: string | null | undefined): AppContracts 
   const contracts: AppContracts = {}
 
   // v2 (standing series) when it has been deployed; the v1 record stays for its history.
-  const markets = nested(record, 'MarketsV2', 'contractAddress') ?? nested(record, 'Markets', 'contractAddress')
+  const v2 = nested(record, 'MarketsV2', 'contractAddress')
+  const v1 = nested(record, 'Markets', 'contractAddress')
+  const markets = v2 ?? v1
   if (markets) contracts.markets = markets
+  // Only when v2 actually superseded a v1: otherwise there is nothing legacy about it.
+  if (v2 && v1 && v1 !== v2) contracts.marketsLegacy = v1
 
   const launch = nested(record, 'Launch', 'contractAddress')
   if (launch) contracts.launch = launch
@@ -166,6 +179,8 @@ export function appContractsFromEnv(env: Record<string, string | undefined>): Ap
   const contracts: AppContracts = {}
   const markets = address(env.APP_MARKETS_ADDRESS)
   if (markets) contracts.markets = markets
+  const marketsLegacy = address(env.APP_MARKETS_LEGACY_ADDRESS)
+  if (marketsLegacy && marketsLegacy !== markets) contracts.marketsLegacy = marketsLegacy
   const launch = address(env.APP_LAUNCH_ADDRESS)
   if (launch) contracts.launch = launch
   const pragma = address(env.APP_PRAGMA_ADDRESS)
