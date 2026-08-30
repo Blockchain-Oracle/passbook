@@ -5,7 +5,7 @@ import { insufficient, parseAmountInput, toPlainText } from '@strk20/protocol/am
 import { STRK_TOKEN } from '@strk20/protocol/constants'
 import type { Disclosure } from '@strk20/protocol/disclosure'
 import { AUDITOR_ESCROW, NOTES_STAY, SELF_SUBMIT_NO_RELAYER } from '@strk20/protocol/disclosure-copy'
-import { gasBoundWei, resourceBoundsFor } from '@strk20/protocol/fee-ceiling'
+import { expectedGasWei, gasBoundWei, resourceBoundsFor } from '@strk20/protocol/fee-ceiling'
 import { STAGE_TITLES } from '@strk20/protocol/pipeline-stage'
 
 import { Amount } from '@/components/money/amount'
@@ -131,7 +131,15 @@ export function ShieldDialog({ open, onOpenChange, token, symbol, decimals, logo
     onShield({ token, symbol, amount: parsed.wei, publicTokenWei: publicWei, publicStrkWei })
   }
 
-  const gasLabel = gasWei ? `up to ${formatWei(gasWei, 18, 2)} STRK` : '—'
+  // TWO NUMBERS, BECAUSE THEY ARE DIFFERENT KINDS OF NUMBER. The pool fee above is exact — read
+  // from `get_fee_amount` at render. Gas is an estimate with a padded ceiling behind it, and only
+  // what is used gets charged. Showing one blended figure and calling it gas was wrong twice over:
+  // most of it is not gas, and the part that is gas is not the ceiling.
+  const expectedWei = prices ? expectedGasWei(prices) : null
+  const gasLabel =
+    expectedWei && gasWei
+      ? `~${formatWei(expectedWei, 18, 2)} expected, ${formatWei(gasWei, 18, 2)} held`
+      : '—'
 
   // Only the CTA's stage word is read here now — `ReviewSheet` draws the ladder itself for every venue.
   const pipeline = usePipeline()
@@ -165,7 +173,7 @@ export function ShieldDialog({ open, onOpenChange, token, symbol, decimals, logo
               <span>
                 Pool fee <Amount wei={feeWei} decimals={18} symbol="STRK" size="sm" />
               </span>
-              <span>Gas held {gasLabel}</span>
+              <span>Gas {gasLabel}</span>
               {tokenIsStrk ? (
                 <span>
                   Shieldable <Amount wei={shieldable} decimals={decimals} symbol="STRK" size="sm" />
@@ -215,8 +223,9 @@ export function ShieldDialog({ open, onOpenChange, token, symbol, decimals, logo
           { label: 'Amount', value: <Amount wei={parsed.wei} decimals={decimals} symbol={symbol} /> },
           { label: 'From', value: `Public ${symbol}` },
           { label: 'To', value: 'One shielded note to yourself' },
-          { label: 'Pool fee', value: <Amount wei={feeWei} decimals={18} symbol="STRK" /> },
-          { label: 'Gas held', value: gasLabel },
+          // The last screen before signing says which number is exact and which is not.
+          { label: 'Pool fee (exact)', value: <Amount wei={feeWei} decimals={18} symbol="STRK" /> },
+          { label: 'Gas (estimated)', value: gasLabel },
           { label: 'Submitted by', value: 'Embedded strk20.run account' },
         ]}
         disclosure={SHIELD_DISCLOSURE}

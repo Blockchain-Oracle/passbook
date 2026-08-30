@@ -18,7 +18,16 @@ import { NET, PROVING_BLOCK_LAG, STRK_TOKEN } from './constants.js'
 import { createPoolClient } from './client.js'
 import { contractDiscoveryFor, poolContractFor } from './discovery.js'
 import { approveCall, type Submitter } from './submit.js'
-import { approveCeiling, feeFloor, resourceBoundsFor, type ResourceBounds } from './fee-ceiling.js'
+import {
+  approveCeiling,
+  expectedGasWei,
+  feeFloor,
+  fundingBand,
+  resourceBoundsFor,
+  type FundingBand,
+  type MeasuredGas,
+  type ResourceBounds,
+} from './fee-ceiling.js'
 import { noteExists, readPoolHealth, type PoolHealth } from './pool.js'
 import { getProvider } from './rpc.js'
 import { assertProvenShieldCall, assertShieldActionSpan, shieldPoolModeForClassHash, type ShieldPoolMode } from './shield-guards.js'
@@ -44,6 +53,11 @@ export interface ShieldRequest {
   publicTokenWei: bigint
   /** Public STRK there, for the pool fee and gas. */
   publicStrkWei: bigint
+  /**
+   * Units this transaction is expected to burn, when the caller could measure them. Absent falls
+   * back to the constant in `fee-ceiling.ts`, which over-provisions and therefore over-refuses.
+   */
+  measuredGas?: MeasuredGas
 }
 
 export interface ShieldPlan {
@@ -54,6 +68,18 @@ export interface ShieldPlan {
   approvalCalls: readonly Call[]
   /** Priced from the block the plan was read against; ride as v3 details because estimation cannot see the proof. */
   resourceBounds: ResourceBounds
+  /**
+   * How comfortably the account covers this, so the surface can WARN rather than refuse.
+   *
+   * `tight` is a plan that will probably work: the balance covers the fee and the expected gas, but
+   * not the padded bound. It used to be a refusal, and that refused real transactions — the pad is
+   * 30 % on units over a 25 % price cushion, and none of it is charged unless it is used. The
+   * decision belongs to the person whose money it is, so the plan is returned and the band travels
+   * with it.
+   */
+  band: FundingBand
+  /** What the gas is expected to cost at today's prices — for the warning to name a number. */
+  expectedGasWei: bigint
 }
 
 export type ShieldFailure =
@@ -131,14 +157,30 @@ export function planShield(request: ShieldRequest, health: Extract<PoolHealth, {
 
   const feeCeilingWei = approveCeiling(health.feeWei)
   const tokenIsStrk = token === BigInt(STRK_TOKEN)
-  // The balance must hold the fee floor (fee + the live gas bound), not the allowance ceiling.
-  const floorWei = feeFloor(health.feeWei, health.gasPrices)
-  const publicTokenRequired = tokenIsStrk ? request.amount + floorWei : request.amount
-  if (request.publicTokenWei < publicTokenRequired) {
-    return { kind: 'insufficient-public-token', symbol: request.symbol, requiredWei: publicTokenRequired, availableWei: request.publicTokenWei }
+  const floorWei = feeFloor(health.feeWei, health.gasPrices, request.measuredGas)
+
+  // ── THE AMOUNT IS A HARD REFUSAL; THE GAS IS A JUDGEMENT ──────────────────────────────────
+  //
+  // These two used to be one check against `feeFloor`, and merging them was the bug. Not holding
+  // the tokens you are shielding is arithmetic — the deposit cannot happen and no warning makes it
+  // possible. Not holding the full padded gas bound is a probability, and one the holder is
+  // entitled to take: the pad is headroom, not a charge.
+  //
+  // So the STRK side is split. The amount must be there. The gas is banded.
+  const strkForGas = tokenIsStrk ? request.publicTokenWei - request.amount : request.publicStrkWei
+  if (tokenIsStrk && request.publicTokenWei < request.amount) {
+    return { kind: 'insufficient-public-token', symbol: request.symbol, requiredWei: request.amount, availableWei: request.publicTokenWei }
   }
-  if (!tokenIsStrk && request.publicStrkWei < floorWei) {
-    return { kind: 'insufficient-public-strk', requiredWei: floorWei, availableWei: request.publicStrkWei }
+  if (!tokenIsStrk && request.publicTokenWei < request.amount) {
+    return { kind: 'insufficient-public-token', symbol: request.symbol, requiredWei: request.amount, availableWei: request.publicTokenWei }
+  }
+  const band = fundingBand(strkForGas < 0n ? 0n : strkForGas, health.feeWei, health.gasPrices, request.measuredGas)
+  if (band === 'short') {
+    // Below one pool fee, so `collect_fee` cannot be collected. Nothing to weigh.
+    const requiredWei = tokenIsStrk ? request.amount + floorWei : floorWei
+    return tokenIsStrk
+      ? { kind: 'insufficient-public-token', symbol: request.symbol, requiredWei, availableWei: request.publicTokenWei }
+      : { kind: 'insufficient-public-strk', requiredWei, availableWei: request.publicStrkWei }
   }
   return {
     request,
@@ -146,7 +188,9 @@ export function planShield(request: ShieldRequest, health: Extract<PoolHealth, {
     feeCeilingWei,
     poolMode: shieldPoolModeForClassHash(NET.poolClassHash),
     approvalCalls: shieldApprovalCalls(request.token, request.amount, feeCeilingWei),
-    resourceBounds: resourceBoundsFor(health.gasPrices),
+    resourceBounds: resourceBoundsFor(health.gasPrices, request.measuredGas),
+    band,
+    expectedGasWei: expectedGasWei(health.gasPrices, request.measuredGas),
   }
 }
 

@@ -89,23 +89,62 @@ export interface GasPrices {
 }
 
 /**
- * Units a proven pool transaction may consume. Measured, not guessed: recent mainnet pool proofs
- * used 81–101M l2 gas, 0 l1 gas and ≤ 1.9k l1 data gas (receipts, 2026-08-29); l2 keeps ~20 %.
+ * THE FALLBACK units a proven pool transaction may consume, when nothing better is available.
+ *
+ * Measured rather than guessed — recent mainnet pool proofs used 81–101M l2 gas, 0 l1 gas and
+ * ≤ 1.9k l1 data gas (receipts, 2026-08-29) — but measured ONCE, in this file, on a day that is
+ * already in the past. It over-provisions l2 by ~40 % against the ~85M a pool transaction actually
+ * burns, and that inflation is not free: it is what lifts `feeFloor` to ~11.7 STRK and refuses
+ * accounts holding 10 for a transaction that would have cost 8.9 and succeeded.
+ *
+ * So it is the FLOOR OF LAST RESORT, not the normal path. `resourceBoundsFor` takes measured units
+ * when the caller has them; this is what it falls back to when nobody could measure.
  */
 export const GAS_UNITS = { l2_gas: 120_000_000n, l1_gas: 5_000n, l1_data_gas: 30_000n } as const
 
 /** Price headroom over the block: the L2 price moved < 2 % across the blocks read; a refused bound costs nothing. */
 export const GAS_PRICE_HEADROOM_PERCENT = 25n
 
-/** Fee estimation cannot see a proof, so the bounds are built here: measured units × the live price plus headroom. */
-export function resourceBoundsFor(prices: GasPrices): ResourceBounds {
+/**
+ * Headroom over MEASURED units. Wider than the price headroom because it absorbs a different risk:
+ * a proof that compiles a few more actions than the one we measured, not a price that moved.
+ */
+export const GAS_UNITS_HEADROOM_PERCENT = 30n
+
+/** Units a proven transaction is expected to burn, from wherever we could actually observe them. */
+export interface MeasuredGas {
+  l2Gas: bigint
+  l1Gas: bigint
+  l1DataGas: bigint
+}
+
+/**
+ * The bounds a proven pool transaction is submitted with.
+ *
+ * Fee estimation traditionally could not see a proof — so these were built by hand from a constant.
+ * `measured` is the way out of that: units observed from a live estimate that DID carry the proof,
+ * or calibrated from recent receipts. Given them, the bound tracks what the pool currently costs
+ * instead of what it cost the day somebody wrote the constant down.
+ *
+ * A measured value is never trusted BELOW the observed floor it came from: `max` against the
+ * constant is deliberate on the l1 lanes, where the measured numbers are small and noisy and the
+ * constant is already tiny — there is nothing to win by shaving them and a refused bound costs a
+ * whole transaction. The l2 lane is where the money is, so that one follows the measurement down.
+ */
+export function resourceBoundsFor(prices: GasPrices, measured?: MeasuredGas): ResourceBounds {
   const price = (fri: bigint) => (fri * (100n + GAS_PRICE_HEADROOM_PERCENT)) / 100n
+  const pad = (units: bigint) => (units * (100n + GAS_UNITS_HEADROOM_PERCENT)) / 100n
+  const l2 = measured ? pad(measured.l2Gas) : GAS_UNITS.l2_gas
+  const l1 = measured ? bigger(pad(measured.l1Gas), GAS_UNITS.l1_gas) : GAS_UNITS.l1_gas
+  const l1d = measured ? bigger(pad(measured.l1DataGas), GAS_UNITS.l1_data_gas) : GAS_UNITS.l1_data_gas
   return {
-    l2_gas: { max_amount: GAS_UNITS.l2_gas, max_price_per_unit: price(prices.l2GasFri) },
-    l1_gas: { max_amount: GAS_UNITS.l1_gas, max_price_per_unit: price(prices.l1GasFri) },
-    l1_data_gas: { max_amount: GAS_UNITS.l1_data_gas, max_price_per_unit: price(prices.l1DataGasFri) },
+    l2_gas: { max_amount: l2, max_price_per_unit: price(prices.l2GasFri) },
+    l1_gas: { max_amount: l1, max_price_per_unit: price(prices.l1GasFri) },
+    l1_data_gas: { max_amount: l1d, max_price_per_unit: price(prices.l1DataGasFri) },
   }
 }
+
+const bigger = (a: bigint, b: bigint) => (a > b ? a : b)
 
 /** The STRK a sender must HOLD for the bounds to be accepted by the mempool; only what is used is charged. */
 export function gasBoundWei(bounds: ResourceBounds): bigint {
@@ -121,6 +160,50 @@ export function gasBoundWei(bounds: ResourceBounds): bigint {
  * approve ceiling above is allowance, not balance — a fee jump between read and execution
  * reverts rather than demanding a second fee parked forever.
  */
-export function feeFloor(liveFeeWei: bigint, prices: GasPrices): bigint {
-  return liveFeeWei + gasBoundWei(resourceBoundsFor(prices))
+export function feeFloor(liveFeeWei: bigint, prices: GasPrices, measured?: MeasuredGas): bigint {
+  return liveFeeWei + gasBoundWei(resourceBoundsFor(prices, measured))
+}
+
+// ── What a balance can actually do, in three bands ────────────────────────────────────────
+
+/**
+ * `clear` — above the bound, nothing to say. `tight` — above what the transaction is expected to
+ * cost but below the padded bound, so it will probably work and might not. `short` — it cannot.
+ */
+export type FundingBand = 'clear' | 'tight' | 'short'
+
+/**
+ * Which band a public STRK balance falls in for one proven pool write.
+ *
+ * ── THE MIDDLE BAND IS THE POINT, AND IT USED TO BE A REFUSAL ─────────────────────────────
+ *
+ * The old test was a single boolean against `feeFloor`, and `feeFloor` is a deliberate CEILING —
+ * padded units at a padded price. A balance between the expected cost and that ceiling was refused
+ * outright, which is a refusal of transactions that would have succeeded. Roughly half of them: the
+ * pad is 30 % on units and 25 % on price, and the fee itself is exact.
+ *
+ * So the bands are drawn where the facts change, not where the caution does:
+ *   - below one fee, nothing can happen — `collect_fee` cannot even be collected.
+ *   - above fee + EXPECTED gas, the transaction is affordable at today's prices.
+ *   - above fee + the BOUND, it is affordable at the worst price the bound admits.
+ *
+ * Only the middle one is a judgement call, and it belongs to the user: warn, name the numbers, and
+ * let them decide. `expected` comes from the measured units where we have them; without a
+ * measurement the middle band is narrower, which is the honest consequence of knowing less.
+ */
+export function fundingBand(
+  balanceWei: bigint,
+  liveFeeWei: bigint,
+  prices: GasPrices,
+  measured?: MeasuredGas,
+): FundingBand {
+  if (balanceWei < liveFeeWei) return 'short'
+  if (balanceWei >= feeFloor(liveFeeWei, prices, measured)) return 'clear'
+  return balanceWei >= liveFeeWei + expectedGasWei(prices, measured) ? 'tight' : 'short'
+}
+
+/** What the gas is expected to cost at today's prices — the measurement, unpadded. */
+export function expectedGasWei(prices: GasPrices, measured?: MeasuredGas): bigint {
+  const units = measured ?? { l2Gas: 85_000_000n, l1Gas: 0n, l1DataGas: 2_000n }
+  return units.l2Gas * prices.l2GasFri + units.l1Gas * prices.l1GasFri + units.l1DataGas * prices.l1DataGasFri
 }
