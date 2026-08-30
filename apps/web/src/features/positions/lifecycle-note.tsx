@@ -33,12 +33,23 @@ const STEPS: Record<PositionVenue, readonly Step[]> = {
   ],
 }
 
+/**
+ * The fact the whole surface assumed and never stated.
+ *
+ * "Running" does not become "Completed" on its own, and nobody reading the board could tell whether
+ * they were waiting for a payment or holding an uncollected one.
+ */
+const NOTHING_ARRIVES =
+  'Nothing is ever sent to you. A claim waits until you collect it here, and collecting is a transaction you sign — ' +
+  'which is why a claim goes Running → Ready → Finished, and never straight to Finished by itself.'
+
 const SECRET_IS_MONEY =
   'The claim secret lives in this browser. Whoever holds it can settle the position, so a Recovery File is the only way back to it.'
 
 export function LifecycleNote({ venue }: { venue: PositionVenue }) {
   return (
     <div className="flex flex-col gap-2 rounded-lg border bg-inset/40 p-3">
+      <p className="text-body4">{NOTHING_ARRIVES}</p>
       {STEPS[venue].map((step) => (
         <div key={step.when} className="flex gap-3 text-body4">
           <span className="w-24 shrink-0 font-medium">{step.when}</span>

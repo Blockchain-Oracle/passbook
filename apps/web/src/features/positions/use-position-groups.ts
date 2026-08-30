@@ -11,7 +11,7 @@ import { useMemo } from 'react'
 import { MARKET_STATE, marketQuestion, timeLeft, type OnChainLaunch, type OnChainMarket } from '@strk20/protocol/app-reads'
 import { PROPOSAL_STATE, type OnChainHouse } from '@strk20/protocol/governance-reads'
 import { governancePositionAction, launchPositionAction, marketPositionAction } from '@strk20/protocol/position-actions'
-import { positionLifecycle, type PositionTone } from '@strk20/protocol/position-lifecycle'
+import { positionLifecycle, type PositionLifecycle, type PositionTone } from '@strk20/protocol/position-lifecycle'
 import type { StoredPosition } from '@strk20/protocol/session-position-store'
 
 import { houseTitle } from '@/features/houses/gov-send'
@@ -99,6 +99,18 @@ function assemble(
     claimable: claimableOf(claims),
     tone: groupTone(claims),
   }
+}
+
+/**
+ * A founder's claim has no chain read and no door, so `positionLifecycle(null)` — which means
+ * "the chain has not answered yet" — reported it as READING, forever. It is not being read. It is
+ * a credential you hold, and the row now says that instead of spinning on a question nobody asked.
+ */
+const FOUNDER_CLAIM: PositionLifecycle = {
+  tone: 'waiting',
+  label: 'Held',
+  detail: 'Your founder claim on this DAO. It is a credential, not a payout — there is no door until the DAO needs one.',
+  amount: null,
 }
 
 /** Insertion-ordered buckets, so settling one claim never reshuffles the board. */
@@ -249,8 +261,8 @@ export function usePositionGroups(now: number): PositionsRead {
       return {
         position,
         action,
-        life: positionLifecycle(action),
-        pending: govPending,
+        life: position.kind === 'gov-founder' ? FOUNDER_CLAIM : positionLifecycle(action),
+        pending: position.kind === 'gov-founder' ? false : govPending,
         failed: govFailed,
         payout: payoutFor(list, house?.token ?? '0x0'),
       }

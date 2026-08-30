@@ -22,6 +22,13 @@ import { LifecycleNote } from './lifecycle-note'
 import { DOOR_VERB, settleDoor, type SettleDoor } from './settle'
 import type { Claim, PositionGroup } from './types'
 
+/** The venue this position lives in, named the way people say it. Not `kicker.toLowerCase()`. */
+const OPEN_LABEL: Record<PositionGroup['venue'], string> = {
+  market: 'Open the market',
+  launch: 'Open the token',
+  governance: 'Open the DAO',
+}
+
 export interface GroupDialogProps {
   group: PositionGroup | null
   onOpenChange: (open: boolean) => void
@@ -84,7 +91,22 @@ export function GroupDialog({ group, onOpenChange, onSettle }: GroupDialogProps)
         {group ? (
           <>
             <DialogHeader>
-              <DialogTitle className="font-display text-display4 uppercase">{group.title}</DialogTitle>
+              <div className="flex items-start justify-between gap-3">
+                <DialogTitle className="font-display text-display4 uppercase">{group.title}</DialogTitle>
+                {/* The door to the venue itself, at the top where it is looked for — it used to sit
+                    at the bottom of the modal reading "Open the dao". */}
+                {group.href ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="shrink-0"
+                    render={<Link to={group.href.to} params={{ id: group.href.id }} />}
+                  >
+                    {OPEN_LABEL[group.venue]}
+                    <ArrowUpRight data-icon="inline-end" aria-hidden />
+                  </Button>
+                ) : null}
+              </div>
               <DialogDescription>
                 {group.kicker}
                 {group.clock ? ` · ${group.clock}` : ''} · {group.claims.length} claim{group.claims.length === 1 ? '' : 's'}
@@ -123,19 +145,10 @@ export function GroupDialog({ group, onOpenChange, onSettle }: GroupDialogProps)
               </CollapsibleContent>
             </Collapsible>
 
-            <div className="flex items-center justify-between gap-2">
-              {group.href ? (
-                <Button variant="outline" size="sm" render={<Link to={group.href.to} params={{ id: group.href.id }} />}>
-                  Open the {group.kicker.toLowerCase()}
-                </Button>
-              ) : (
-                <span />
-              )}
-              {ready.length > 1 ? (
-                // The review that opens covers every ready claim at once when they share a door.
-                <span className="text-body4 text-muted-foreground">{ready.length} ready — settling one offers all of them.</span>
-              ) : null}
-            </div>
+            {ready.length > 1 ? (
+              // The review that opens covers every ready claim at once when they share a door.
+              <p className="text-body4 text-muted-foreground">{ready.length} ready — settling one offers all of them.</p>
+            ) : null}
           </>
         ) : null}
       </DialogContent>

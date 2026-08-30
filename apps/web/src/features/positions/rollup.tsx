@@ -29,7 +29,7 @@ export function PositionsRollup({ read }: { read: PositionsRead }) {
     >
       <div className="flex flex-wrap items-start justify-between gap-x-8 gap-y-4">
         <div className="flex flex-col gap-1">
-          <span className="text-kicker uppercase text-neutral3">Ready to settle</span>
+          <span className="text-kicker uppercase text-neutral3">Claims ready to settle</span>
           <span className="font-display text-display2 tabular-nums leading-none">{read.ready}</span>
           <span className="text-body4 text-neutral2">
             {nothing ? 'Nothing held in this browser' : read.ready === 1 ? 'one claim can be collected now' : `claims can be collected now`}
@@ -51,11 +51,17 @@ export function PositionsRollup({ read }: { read: PositionsRead }) {
         ) : null}
       </div>
 
+      {/* THE UNIT IS PART OF THE NUMBER. Three of these count CLAIMS and one counts POSITIONS, and
+          unlabelled that reads as a contradiction — "4 positions, 5 running" is a correct sentence
+          about two different things, which is indistinguishable from a bug. */}
       <div className="flex flex-wrap gap-x-8 gap-y-3 border-t border-surface3 pt-3">
-        <Stat label="Still running" value={String(read.running)} muted />
-        <Stat label="Finished" value={String(read.finished)} muted />
-        <Stat label="Positions" value={String(read.groups.length)} muted />
+        <Stat label="Claims running" value={String(read.running)} muted />
+        <Stat label="Claims finished" value={String(read.finished)} muted />
+        <Stat label="Positions held" value={String(read.groups.length)} muted />
       </div>
+      <p className="text-body4 text-neutral3">
+        One position can hold several claims — nine buys on one token is one position, nine claims.
+      </p>
     </section>
   )
 }
