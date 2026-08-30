@@ -13,7 +13,7 @@ import { appContracts, useChainFeed } from '@/queries'
 import { BallotTicket } from './ballot-ticket'
 import { DelegateDialog } from './delegate-dialog'
 import { houseTitle } from './gov-send'
-import { FundDialog, JoinDialog } from './house-doors'
+import { FundDialog, JoinDialog, shutDoor } from './house-doors'
 import { useNow } from '@/hooks/use-now'
 import { HOUSE_CLOCK_MS, WritesBlocked } from './houses-list'
 import { PositionsStrip } from '@/features/positions'
@@ -129,19 +129,19 @@ function Record({ house, proposals, delegate }: { house: OnChainHouse; proposals
               <CardDescription>Every door is a real transaction through the pool. The DAO stores derived handles or commitments, while the transaction submitter remains visible.</CardDescription>
             </CardHeader>
             <CardContent className="flex flex-col gap-2">
-              <Button aria-disabled={!writesEnabled || undefined} onClick={() => writesEnabled && setDoor('propose')}>
+              <Button aria-disabled={!writesEnabled || undefined} onClick={() => (read.writes.enabled ? setDoor('propose') : shutDoor(read.writes.because))}>
                 Propose
               </Button>
-              <Button variant="outline" aria-disabled={!writesEnabled || undefined} onClick={() => writesEnabled && setDoor('fund')}>
+              <Button variant="outline" aria-disabled={!writesEnabled || undefined} onClick={() => (read.writes.enabled ? setDoor('fund') : shutDoor(read.writes.because))}>
                 Fund the treasury
               </Button>
               {invite ? (
-                <Button variant="outline" aria-disabled={!writesEnabled || undefined} onClick={() => writesEnabled && setDoor('join')}>
+                <Button variant="outline" aria-disabled={!writesEnabled || undefined} onClick={() => (read.writes.enabled ? setDoor('join') : shutDoor(read.writes.because))}>
                   Join with an invite
                 </Button>
               ) : null}
               {!token.memberMode ? (
-                <Button variant="ghost" aria-disabled={!writesEnabled || undefined} onClick={() => writesEnabled && setDoor('delegate')}>
+                <Button variant="ghost" aria-disabled={!writesEnabled || undefined} onClick={() => (read.writes.enabled ? setDoor('delegate') : shutDoor(read.writes.because))}>
                   Delegate weight
                 </Button>
               ) : null}

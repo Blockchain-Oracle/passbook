@@ -26,6 +26,20 @@ export interface DoorProps {
   onOpenChange: (open: boolean) => void
 }
 
+/**
+ * A door that is shut still has to say so.
+ *
+ * Every governance button was written `onClick={() => enabled && open()}` with a label that did not
+ * change when `enabled` was false — so a blocked door looked live, swallowed the click, and said
+ * nothing at all. "I click Create and nothing happens" is that bug, and silence is the worst
+ * possible reading of a refusal: it is indistinguishable from the app being broken.
+ *
+ * The rule now: a blocked door raises its reason. It never just declines to act.
+ */
+export function shutDoor(because: string): void {
+  notify.warned('That door is closed right now', { description: because })
+}
+
 /** Common gate for every door: writes verified, contract present, an account to sign. */
 export function useDoorGate(sessionReady: boolean): { contract: string | null; blocker: string | null } {
   const writes = governanceWrites()

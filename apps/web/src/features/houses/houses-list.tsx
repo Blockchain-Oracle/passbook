@@ -8,6 +8,7 @@ import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTi
 import { Skeleton } from '@/components/ui/skeleton'
 import { useNow } from '@/hooks/use-now'
 import { CreateHouse } from './create-house'
+import { shutDoor } from './house-doors'
 import { HouseCard } from './house-card'
 import { PositionsStrip } from '@/features/positions'
 import { useGovernanceRead } from './queries'
@@ -83,7 +84,7 @@ export function HousesList() {
           <EmptyContent>
             <Button
               aria-disabled={!writesEnabled || undefined}
-              onClick={() => writesEnabled && setCreating(true)}
+              onClick={() => (read.writes.enabled ? setCreating(true) : shutDoor(read.writes.because))}
             >
               {writesEnabled ? 'Create the first one' : 'Creating is disabled on this class'}
             </Button>
@@ -124,8 +125,13 @@ export function CreateHouseButton() {
   const enabled = read.writes.enabled
   return (
     <>
-      <Button aria-disabled={!enabled || undefined} onClick={() => enabled && setCreating(true)}>
-        Create a House
+      {/* The label follows the state and the click always answers — this one used to say
+          "Create a House" while blocked and then do nothing at all. */}
+      <Button
+        aria-disabled={!enabled || undefined}
+        onClick={() => (read.writes.enabled ? setCreating(true) : shutDoor(read.writes.because))}
+      >
+        {read.writes.enabled ? 'Create a DAO' : read.writes.blocker}
       </Button>
       <CreateHouse open={creating} onOpenChange={setCreating} />
     </>
