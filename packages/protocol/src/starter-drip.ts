@@ -1,27 +1,25 @@
 //
-// The starter drip: the shielded balance a new account is given, as its OWN transaction.
+// The starter drip: the shielded balance a new account is given.
 //
-// ── WHY IT IS NOT FOLDED INTO REGISTRATION ANY MORE ───────────────────────────────────────
+// ── WHO THE DEPOSITOR IS, WHICH IS THE WHOLE STORY ────────────────────────────────────────
 //
-// It used to be. `proveRegistration` still takes a `starterWei` that compiles SetViewingKey +
-// self-channel setup + Deposit + CreateEncNote into one span, and on mainnet the pool refused it:
-// tx 0x2ef58d17…42cb, block 14149266, REVERTED on `Result::unwrap failed.` at 77.4M of a 120M l2
-// bound — not gas. A deposit whose note-owner is the account being registered, inside the
-// transaction that registers it, is one thing too many. The registration that has ever landed
-// (`evidence/sponsored-registration.json`) is zero-deposit.
+// A Deposit is paid by THE ACCOUNT THAT PROVED IT, never by the account that submits the
+// transaction. The SDK says so plainly: "the prover reads the depositor's token balance at its
+// base block… the deposit fails on-chain due to insufficient balance" (README, "Sequencing after
+// transparent state changes"), and our own shield approves `amount + fee` from the shielding
+// account for the same reason.
 //
-// Registered first, the same deposit is ordinary: the owner exists, `get_public_key` answers, and
-// `autoSetup` opens the channel the note lands in. That is this file. It costs one extra
-// `collect_fee` — the fee is per submission, not per action — and that is the price of the ordering
-// the pool actually accepts.
+// TWO MAINNET REVERTS WERE THAT ONE FACT, and both were read as something else first:
 //
-// ── WHOSE MONEY, AND WHO SIGNS ────────────────────────────────────────────────────────────
+//   - tx 0x2ef58d17…42cb — registration with a folded starter, REVERTED `Result::unwrap failed.`
+//     Diagnosed as "a deposit cannot ride inside a registration". It was not.
+//   - tx 0x671add5d… — the standalone drip, proven in the recipient's browser, submitted and paid
+//     by the relayer. Same panic, and registration was nowhere near it. The account being given
+//     3 STRK held 1.94, the proof asserted it could pay, and the pool checked.
 //
-// A Deposit pulls `transferFrom(caller)`, and the caller is the RELAYER, so this is our public STRK
-// becoming a private note owned by the user. We never hold or move a private balance to do it — the
-// pool mints the note from a public transfer, which is the same mechanic as a shield with someone
-// else's STRK. The proof, though, can only be built by the RECIPIENT's client: the note is theirs
-// and the channel is theirs. So the browser builds and proves; the relayer signs and pays.
+// So the relayer cannot buy someone else a note by submitting their proof. It has to BE the
+// depositor: it proves with its own key, its own balance is what the pool checks, and the note is
+// created in the recipient's name. That is this file — the recipient never signs anything.
 //
 import type { Call } from 'starknet'
 import { createEmptyRegistry, type PrivateTransfersUser } from '@starkware-libs/starknet-privacy-sdk'
@@ -43,10 +41,16 @@ const toFelt = (v: bigint) => `0x${v.toString(16)}`
 const FELT = /^(0x[0-9a-fA-F]{1,64}|[0-9]{1,78})$/
 
 export interface ProveStarterDripInput {
+  /** THE DEPOSITOR'S key — the relayer's. Its balance is what the pool checks. */
   accountKey: string
   account: PrivateTransfersUser
   provingBlockId: number
-  /** What lands in the note, in wei. Our principal, not the user's — bounded by the approve ceiling. */
+  /**
+   * Who ends up owning the note. Defaults to the depositor, which is an ordinary self-shield;
+   * a gift names someone else, and they need to be registered so a channel can be opened to them.
+   */
+  recipient?: string
+  /** What lands in the note, in wei. Our principal — bounded by the approve ceiling. */
   amountWei: bigint
 }
 
@@ -67,6 +71,7 @@ export interface ProveStarterDripInput {
  */
 export function assertStarterDripSpan(
   span: readonly bigint[],
+  /** `self` is the note's OWNER — the recipient of a gift, or the depositor on a self-shield. */
   expect: { self: bigint; token: bigint; amount: bigint },
 ): void {
   const actions = decodeClientActions(span, 'starter drip')
@@ -120,7 +125,8 @@ export async function proveStarterDrip(input: ProveStarterDripInput): Promise<Pr
   if (input.amountWei <= 0n) {
     throw new Error(`refusing a starter drip of ${input.amountWei} wei: it must be positive`)
   }
-  const self = BigInt(String(input.account.address))
+  // The note's owner. The depositor is `input.account` either way — see the header.
+  const owner = BigInt(String(input.recipient ?? input.account.address))
   const { transfers } = createPoolClient(
     { accountKey: input.accountKey, account: input.account },
     { discovery: starterDiscovery() },
@@ -133,12 +139,12 @@ export async function proveStarterDrip(input: ProveStarterDripInput): Promise<Pr
       provingBlockId: input.provingBlockId,
     })
     .with(STRK_TOKEN, (t) => {
-      t.deposit({ recipient: toFelt(self), amount: input.amountWei })
+      t.deposit({ recipient: toFelt(owner), amount: input.amountWei })
     })
     .createProofInvocation({ provingBlockId: input.provingBlockId })
 
   assertStarterDripSpan(extractClientActionSpan(invocation.invocation.calldata), {
-    self,
+    self: owner,
     token: BigInt(STRK_TOKEN),
     amount: input.amountWei,
   })

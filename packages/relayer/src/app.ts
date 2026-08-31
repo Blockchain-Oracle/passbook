@@ -24,6 +24,7 @@ import { submitRoutes } from './routes/submit.js'
 import { quoteRoutes } from './routes/quote.js'
 import { feeRecipientRoutes } from './routes/fee-recipient.js'
 import { faucetRoutes } from './routes/faucet.js'
+import { starterRoutes } from './routes/starter.js'
 import { directoryRoutes } from './routes/directory.js'
 import { roomRoutes } from './routes/rooms.js'
 import { chainRoutes } from './routes/chain.js'
@@ -104,6 +105,7 @@ const MOUNTS = [
   ['quote', quoteRoutes],
   ['fee-recipient', feeRecipientRoutes],
   ['faucet', faucetRoutes],
+  ['starter', starterRoutes],
   ['directory', directoryRoutes],
   ['room', roomRoutes],
   ['chain', chainRoutes],

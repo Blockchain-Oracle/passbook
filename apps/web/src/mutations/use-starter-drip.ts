@@ -1,153 +1,71 @@
 import { useMutation } from '@tanstack/react-query'
-import type { StarterFailure } from '@strk20/protocol/starter'
-import { REGISTRATION_STAGES, type RegistrationStage } from '@strk20/protocol/pipeline-stage'
+import { RELAYER_PATHS } from '@strk20/protocol/relayer-wire'
 
 import { getSessionSnapshot } from '@/app/session'
 import { queryClient } from '@/app/query-client'
-import { explorerTx } from '@/lib/format'
-import { faucetOfferQuery } from '@/queries/pool'
+import { RelayerError, relayerPost } from '@/lib/relayer'
 import { invalidateAccount, invalidateMoney } from './invalidate'
-import {
-  clearSettledPipeline,
-  failPipeline,
-  finishPipeline,
-  getPipeline,
-  reachStage,
-  setPipelineSubmission,
-  startPipeline,
-} from './pipeline-store'
-import { acquireSubmitLock, currentRoute, embeddedAccount, operationId } from './self-submit'
 
 export interface StarterDripAsk {
-  onStage?: (stage: RegistrationStage) => void
+  /** Unused; kept so callers can pass `{}` the way every other mutation here is called. */
+  readonly _?: never
 }
 
-export type StarterDripOutcome =
-  | { ok: true; transactionHash: string; amountWei: bigint }
-  | { ok: false; because: string }
+export type StarterDripOutcome = { ok: true; transactionHash: string } | { ok: false; because: string }
 
 /**
- * Every failure in a sentence. EXHAUSTIVE WITH NO DEFAULT ARM, like `describeRegisterFailure`: a
- * new `StarterFailure` kind should be a build error here rather than a raw token on a screen.
- */
-export function describeStarterFailure(failure: StarterFailure): string {
-  switch (failure.kind) {
-    case 'not-registered':
-      return 'Register this account first — a shielded note has to belong to a registered key.'
-    case 'already-claimed':
-      return failure.notice || 'This account already has its starting balance.'
-    case 'unavailable':
-      return failure.notice || 'Starting balances are not being handed out right now.'
-    case 'pool-paused':
-      return 'The pool is paused by its operator. This can be claimed once it resumes.'
-    case 'proof-expired':
-      return `The proof was built at block ${failure.provedAtBlock} and the chain is at ${failure.currentBlock}, past its ${failure.validityBlocks}-block window. Nothing was spent — try again.`
-    case 'prover-failed':
-      return `The proof could not be built: ${failure.reason}`
-    case 'lock-unavailable':
-      return failure.reason
-    case 'bad-input':
-      return failure.reason
-    case 'blocked-rpc-unknown':
-      return `The chain could not be read: ${failure.reason}`
-    case 'relay-refused':
-      return `The relayer refused this: ${failure.reason}`
-    case 'reverted':
-      return `The pool refused this deposit: ${failure.message}`
-    case 'confirmation-unknown':
-      // The claim is NOT released here — the relayer watches its own hash and gives it back only
-      // on a receipt that says REVERTED. Telling someone to retry could mint a second note.
-      return 'This may have landed. Check your balance in a minute rather than trying again.'
-  }
-}
-
-/**
- * Claims this account's starting balance: the relayer's public STRK becomes the account's first
- * shielded note.
+ * Claims this account's shielded starting balance.
  *
- * ── IT IS A GIFT, SO IT NEVER FALLS BACK TO SELF-PAY ──────────────────────────────────────
+ * ── THE BROWSER DOES NOT BUILD THIS TRANSACTION, AND THAT IS THE WHOLE FIX ────────────────
  *
- * `useRegister` picks between the relayer and the user's own key depending on what they hold. This
- * one has no such branch: an account paying for its own starting balance is just a shield, and the
- * shield door already exists. If the relayer will not pay, there is nothing to offer — the failure
- * says so and the screen stops asking.
+ * It used to. This file proved a deposit with the USER's key and asked the relayer to sign and pay
+ * for it, and the pool refused it twice on mainnet — a deposit is paid by whoever PROVED it, and
+ * the account being given 3 STRK held 1.94. The proof asserted it could pay; the pool checked.
+ * (0x671add5d…, and 0x2ef58d17…42cb before it.)
+ *
+ * So the relayer proves it with its own key, out of its own balance, and creates the note in this
+ * account's name. Nothing here signs anything: one POST, one hash back. All the deleted machinery —
+ * the client pipeline, the `drip` wire flag, the meter it routed around — went with it.
  */
-async function claimStarter(ask: StarterDripAsk): Promise<StarterDripOutcome> {
+async function claimStarter(): Promise<StarterDripOutcome> {
   const session = getSessionSnapshot()
-  if (session.status !== 'ready' || !session.address || !session.accountKey) {
+  if (session.status !== 'ready' || !session.address) {
     return { ok: false, because: 'This browser has no account yet.' }
   }
-  const { address, accountKey } = session
-
-  clearSettledPipeline()
-  if (getPipeline() !== null) return { ok: false, because: 'Another transaction is still running in this tab.' }
-
-  // The amount is the RELAYER'S to state — it is paying — so it is read, never assumed here.
-  const offer = await queryClient.fetchQuery(faucetOfferQuery(address))
-  if (!offer?.starter) return { ok: false, because: 'Starting balances are not being handed out right now.' }
-  if (offer.starter.claimed) return { ok: false, because: 'This account already has its starting balance.' }
-  const amountWei = offer.starter.wei
-
-  startPipeline({
-    id: operationId('starter'),
-    operation: 'starter',
-    route: currentRoute(),
-    label: 'Starting balance',
-    stages: REGISTRATION_STAGES,
-    startedAt: Date.now(),
-    cancel: null,
-  })
-  let lastStage: RegistrationStage = 'build'
-  const onStage = (stage: RegistrationStage) => {
-    lastStage = stage
-    reachStage(stage)
-    ask.onStage?.(stage)
-  }
-
   try {
-    const [{ runStarterDrip }, { account }] = await Promise.all([
-      import('@strk20/protocol/starter'),
-      embeddedAccount(accountKey, address),
-    ])
-    const result = await runStarterDrip(
-      { accountKey, account: account as never, amountWei },
-      { acquireSubmitLock, onStage },
+    const body = await relayerPost<{ transactionHash?: unknown }>(
+      RELAYER_PATHS.starter,
+      { address: session.address },
+      // Proving happens on the relayer and is the slow part; a shield takes tens of seconds.
+      AbortSignal.timeout(180_000),
     )
-    if (result.ok) {
-      setPipelineSubmission({
-        transactionHash: result.transactionHash,
-        explorerUrl: explorerTx(result.transactionHash),
-        submittedBy: 'relayer',
-      })
-      finishPipeline('confirmed')
-      return { ok: true, transactionHash: result.transactionHash, amountWei: result.amountWei }
+    if (typeof body.transactionHash !== 'string') {
+      return { ok: false, because: 'The relayer reported success without a transaction.' }
     }
-    if (result.failure.kind === 'confirmation-unknown') {
-      if (result.failure.transactionHash) {
-        setPipelineSubmission({
-          transactionHash: result.failure.transactionHash,
-          explorerUrl: explorerTx(result.failure.transactionHash),
-          submittedBy: 'relayer',
-        })
-      }
-      finishPipeline('confirmation-unknown')
-    } else {
-      failPipeline(lastStage)
-    }
-    return { ok: false, because: describeStarterFailure(result.failure) }
+    return { ok: true, transactionHash: body.transactionHash }
   } catch (error) {
-    failPipeline(lastStage)
-    return { ok: false, because: error instanceof Error ? error.message : 'The starting balance could not be claimed.' }
+    if (error instanceof RelayerError) {
+      if (error.status === 404) return { ok: false, because: 'This deployment does not hand out starting balances.' }
+      // Every other status carries the relayer's own sentence. It is written for a person and is
+      // never a chain payload — see `relayer/src/starter.ts`, where each refusal is authored.
+      return {
+        ok: false,
+        because: error.message.startsWith('relayer answered')
+          ? 'The starting balance could not be sent just now. Try again in a moment.'
+          : error.message,
+      }
+    }
+    return { ok: false, because: 'The relayer could not be reached. Try again in a moment.' }
   }
 }
 
 export function useStarterDrip() {
   return useMutation({
     mutationKey: ['starter-drip'],
-    mutationFn: claimStarter,
+    mutationFn: (_ask: StarterDripAsk = {}) => claimStarter(),
     onSettled: async () => {
-      // The claim state moved whichever way this went, so the offer must be re-read before any
-      // screen decides to show it again.
+      // The claim state moved whichever way this went, so the offer is re-read before any screen
+      // decides to show it again.
       await queryClient.invalidateQueries({ queryKey: ['relayer', 'faucet-claim'] })
       await invalidateMoney()
       void invalidateAccount()

@@ -27,6 +27,17 @@ primary_region = "iad"
 [env]
   PORT = "8080"
   RELAYER_HOST = "0.0.0.0"
+  # ONE JOURNEY MUST FIT. This was 1, and 1 is what a per-connection-per-day cap costs: a visitor
+  # registers (one sponsored submission) and then cannot claim their starting balance (a second
+  # one) until 00:00 UTC. The flow the product describes could not be completed in a day.
+  #
+  # It is set level with the daily budget rather than to 2, because the per-connection cap was
+  # never the control that mattered. Two stronger ones already bound the same spend and neither
+  # resets: a sponsored registration is metered per ACCOUNT (three, once, `lifetime` in ledger.ts)
+  # and the starting balance is a once-per-account claim that never comes back. What is left is
+  # RELAYER_SPONSOR_DAILY — OUR spending limit for the day, across everyone — and that is the
+  # honest brake, because it is a fact about our wallet rather than a rule about a person.
+  RELAYER_SPONSOR_PER_VISITOR = "20"
   RELAYER_SPONSOR_STORE = "/data/sponsorship.json"
   RELAYER_SEND_STORE = "/data/send-budget.json"
   # The name directory is a PUBLIC ledger, and it was writing inside the container — so every

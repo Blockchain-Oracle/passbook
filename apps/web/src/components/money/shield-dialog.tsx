@@ -89,6 +89,13 @@ export function ShieldDialog({ open, onOpenChange, token, symbol, decimals, logo
 
   // Fee + gas come out of public STRK, so an STRK shield can only spend what is left above them.
   //
+  // ── AND THE COVERED TRANSACTIONS CANNOT PAY FOR THIS ONE, WHICH THE COPY MUST SAY ─────────
+  //
+  // A deposit pulls `transferFrom(caller)`. If our relayer submitted a shield, OUR STRK would go
+  // into the pool rather than the user's — that transaction exists and is the starter drip. So a
+  // shield is self-submitted by construction, and a user staring at "2 of 3 sponsored transactions
+  // left" while being refused for funds is owed the reason rather than "receive STRK here first".
+  //
   // ── ONE FLOOR, NOT TWO, AND WHY THAT REVERSES AN EARLIER FIX ──────────────────────────────
   //
   // This reserved TWO floors, and the incident behind that was real: on mainnet 2026-08-29, with
@@ -151,9 +158,9 @@ export function ShieldDialog({ open, onOpenChange, token, symbol, decimals, logo
     reserveWei === null
       ? null
       : starved
-        ? `This shield needs ${formatWei(reserveWei, 18, 2)} STRK for its fee and gas; this address holds ${formatWei(publicWei ?? 0n, 18, 4)}. Receive STRK here first.`
+        ? `Shielding is sent by your own account, so it pays its own fee and gas — the transactions we cover cannot. Needs ${formatWei(reserveWei, 18, 2)} STRK here; you hold ${formatWei(publicWei ?? 0n, 18, 4)}.`
         : strkShort
-          ? `This shield needs ${formatWei(reserveWei, 18, 2)} public STRK here for its fee and gas; it holds ${formatWei(publicStrkWei ?? 0n, 18, 4)}.`
+          ? `Shielding is sent by your own account, so it pays its own fee and gas — the transactions we cover cannot. Needs ${formatWei(reserveWei, 18, 2)} public STRK here; you hold ${formatWei(publicStrkWei ?? 0n, 18, 4)}.`
           : short && tokenIsStrk
             ? `Keep ${formatWei(reserveWei, 18, 2)} STRK back for this shield's own fee and gas. Up to ${formatWei(shieldable ?? 0n, 18, 4)} STRK can be shielded.`
             : leavesThin

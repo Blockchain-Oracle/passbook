@@ -3,7 +3,7 @@
 import { Hono } from 'hono'
 import type { Call } from 'starknet'
 
-import { RELAYER_DOWN_NOTICE, STARTER_CLAIMED_NOTICE } from '../../../protocol/src/relayer-wire.js'
+import { RELAYER_DOWN_NOTICE } from '../../../protocol/src/relayer-wire.js'
 import { cairoPanic, rpcMethod, stripRpcParams } from '../../../protocol/src/rpc-error.js'
 import { assertResourceBounds, assertSubmittable, needsApproveCeiling } from '../allowlist.js'
 import type { AppEnv } from '../context.js'
@@ -64,9 +64,8 @@ submitRoutes.post('/', async (c) => {
   let sponsored: boolean
   let covered: boolean
   let account: string | undefined
-  let drip: boolean
   try {
-    ;({ calls, details, sponsored, covered, account, drip } = parseSubmitBody(await c.req.json()))
+    ;({ calls, details, sponsored, covered, account } = parseSubmitBody(await c.req.json()))
   } catch (e) {
     return jsonError(c, 400, String(e))
   }
@@ -116,33 +115,9 @@ submitRoutes.post('/', async (c) => {
   const kind = sponsored ? 'sponsorship' : 'send'
   // ONLY a covered batch spends the allowance. A reimbursed send costs us gas alone and must not
   // burn one of the transactions we said we would pay for — see `SubmitBody.covered`.
-  //
-  // A DRIP IS EXEMPT, and that is the whole point of the flag: it is principal we hand over, not a
-  // transaction we cover for someone, so the number a user watches must not move when they receive
-  // one. Its ceiling is the once-per-account claim below plus the IP budget above, not the three.
-  const allowance = account && covered && !drip ? ctx.accountAllowance : undefined
-  // The key a drip's one-time claim is burned under. Distinct from the faucet's `drip:` prefix:
-  // the public drip that buys a deploy and this shielded starter are separate gifts, each once.
-  const claimKey = drip && account ? `starter:${account}` : null
+  const allowance = account && covered ? ctx.accountAllowance : undefined
   const now = Date.now()
   const visitor = budget ? visitorOf(c, budget.salt, now) : ''
-
-  if (claimKey) {
-    // No claim ledger means this deployment hands out no drips. Saying so is better than signing
-    // an unmetered gift: the claim set IS the once-per-account limit.
-    if (!ctx.faucet) {
-      return reply(c, 403, { error: 'this relayer hands out no starting balances', reason: 'drip-unavailable' })
-    }
-    // Read first, burn later. A read here costs a refused caller nothing; burning before the
-    // budgets have agreed would spend an account's one chance on a submission we then refuse.
-    if (ctx.faucet.hasClaimed(claimKey)) {
-      return reply(c, 403, {
-        error: 'this account already has its starting balance',
-        reason: 'starter-claimed',
-        notice: STARTER_CLAIMED_NOTICE,
-      })
-    }
-  }
 
   if (budget) {
     const d = budget.decide(visitor, now)
@@ -175,26 +150,11 @@ submitRoutes.post('/', async (c) => {
   // something nobody recorded — see `SponsorshipLedger.spend`.
   let budgetSpent = false
   let allowanceSpent = false
-  let claimBurned = false
   try {
     // From the DECISION, not from the call: `spend` commits nothing when it refuses, so a flag set
     // by reaching the line would later refund a unit this request never took.
     if (budget) budgetSpent = budget.spend(visitor, now).allow
     if (allowance && account) allowanceSpent = allowance.spend(account, now).allow
-    // LAST, and atomic. `tryClaim` is the real once-per-account limit — the read above only makes a
-    // refusal cheap. False here means a concurrent request took it between the two, which is
-    // exactly the race the atomic claim exists to settle: this one gets nothing back but its meters.
-    if (claimKey && ctx.faucet) {
-      claimBurned = ctx.faucet.tryClaim(claimKey)
-      if (!claimBurned) {
-        if (budgetSpent && budget) budget.refund(visitor, now)
-        return reply(c, 403, {
-          error: 'this account already has its starting balance',
-          reason: 'starter-claimed',
-          notice: STARTER_CLAIMED_NOTICE,
-        })
-      }
-    }
   } catch (e) {
     console.warn(`relayer: ${kind} ledger write failed: ${String(e)}`)
     // Nothing is signed past this point, so a unit the FIRST ledger recorded bought nothing. Half
@@ -216,7 +176,7 @@ submitRoutes.post('/', async (c) => {
     //
     // WRAPPED, because the transaction is already gone. A watch that cannot be recorded costs a
     // refund; throwing here would cost the caller their hash for a transaction that is on its way.
-    if (ctx.revertWatch && (budgetSpent || allowanceSpent || claimBurned)) {
+    if (ctx.revertWatch && (budgetSpent || allowanceSpent)) {
       try {
         ctx.revertWatch.watch({
           hash: transactionHash,
@@ -225,7 +185,6 @@ submitRoutes.post('/', async (c) => {
           utcDay: utcDayKey(now),
           ...(budgetSpent ? { visitor, meter: kind } : {}),
           ...(allowanceSpent && account ? { account } : {}),
-          ...(claimBurned && claimKey ? { claim: claimKey } : {}),
           submittedAt: now,
         })
       } catch (e) {
@@ -258,15 +217,6 @@ submitRoutes.post('/', async (c) => {
           allowance.refund(account, now)
         } catch (r) {
           console.warn(`relayer: allowance unit stays spent, its refund could not be written: ${String(r)}`)
-        }
-      }
-      // The gift never happened either, so the one chance to receive it goes back. Without this a
-      // drip refused inside fee estimation would leave the account permanently unable to ask again.
-      if (claimBurned && claimKey && ctx.faucet) {
-        try {
-          ctx.faucet.releaseClaim(claimKey)
-        } catch (r) {
-          console.warn(`relayer: the starter claim stays burned, its release could not be written: ${String(r)}`)
         }
       }
     } else {

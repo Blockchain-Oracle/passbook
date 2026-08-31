@@ -25,14 +25,12 @@ export function parseSubmitBody(raw: unknown): {
   sponsored: boolean
   covered: boolean
   account?: string
-  drip: boolean
 } {
   const body = (raw ?? {}) as {
     calls?: unknown
     sponsored?: unknown
     covered?: unknown
     account?: unknown
-    drip?: unknown
     proofFacts?: unknown
     proof?: unknown
     resourceBounds?: unknown
@@ -105,21 +103,5 @@ export function parseSubmitBody(raw: unknown): {
         'and a blob with no facts is not a proven submission',
     )
   }
-  // The starter drip: principal we give away, not a transaction we cover. Same exactly-true-or-
-  // absent rule; it changes which meters run, so it must mean one thing.
-  let drip = false
-  if (body.drip !== undefined) {
-    if (body.drip !== true) {
-      throw new Error(
-        `refusing drip=${JSON.stringify(body.drip)}: the only accepted value is true, ` +
-          'and an ordinary submission omits the field entirely',
-      )
-    }
-    if (!sponsored) throw new Error('refusing a drip that is not sponsored: our own key pays a drip, so it must say so')
-    if (account === undefined) {
-      throw new Error('refusing a drip with no account: the address the note is minted to is also the key its one-time claim burns')
-    }
-    drip = true
-  }
-  return { calls, details, sponsored, covered, account, drip }
+  return { calls, details, sponsored, covered, account }
 }

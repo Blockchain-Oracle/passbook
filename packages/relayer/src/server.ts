@@ -21,7 +21,7 @@ import { printBanner } from './banner.js'
 import { ChainFeed } from './chain-feed.js'
 import type { RelayerContext } from './context.js'
 import { openDirectory } from './directory.js'
-import { faucetDripWei, resolveEnv } from './env.js'
+import { faucetDripWei, resolveEnv, starterDripWei } from './env.js'
 import { createFundingMonitor } from './funding-monitor.js'
 import { createChainKeeperDeps, scheduleKeeper, type KeeperSchedule } from './keeper.js'
 import {
@@ -34,6 +34,7 @@ import { createGasCalibration, GAS_CALIBRATION_INTERVAL_MS } from './gas-calibra
 import type { LogoService } from './logo.js'
 import { createQuoteCounter } from './quote-proxy.js'
 import { openRevertWatch, REVERT_WATCH_INTERVAL_MS } from './revert-watch.js'
+import { sendShieldedStarter } from './starter.js'
 import { ROOM_IDLE_MS, RoomHub } from './rooms.js'
 import { makeOpsPager, openSigner, readStrkBalance, tellerSubmitters } from './signer.js'
 import { openTeller, tellerChainDeps, TELLER_INTERVAL_MS } from './teller.js'
@@ -78,7 +79,7 @@ async function main(): Promise<void> {
   const faucet = env.faucetOn ? openFaucetLedger(env.sponsor, sponsorship.salt) : undefined
   const accountAllowance = openAccountAllowanceLedger(env.sponsor, sponsorship.salt)
 
-  const { nodeUrl, provider, execute, address } = await openSigner(env.address, env.privateKey)
+  const { nodeUrl, provider, account: signerAccount, execute, address } = await openSigner(env.address, env.privateKey)
 
   // The meters' second half: units spent on a transaction that lands and REVERTS come back.
   // Opened with the ledgers because it holds the same money; swept on a timer like every other job.
@@ -161,24 +162,44 @@ async function main(): Promise<void> {
     every(TELLER_INTERVAL_MS, () => void teller.tick(deps).catch((e) => console.warn(`teller: sweep failed — ${String(e)}`)))
   }
 
+  // Hoisted so the context and the starter share ONE resolver rather than two that can drift.
+  const resolveResourceBounds = async () => {
+    const { gasPrices } = await readHead()
+    const m = gasCalibration?.current()
+    return resourceBoundsFor(gasPrices, m ? { l2Gas: m.l2Gas, l1Gas: m.l1Gas, l1DataGas: m.l1DataGas } : undefined)
+  }
+  // Through the signer's queue, never `account.execute`: this key has four writers sharing one
+  // nonce, and the queue is the only thing keeping them from colliding under load.
+  const submitThroughQueue: RelayerContext['submit'] = async (calls, details) =>
+    (await execute(calls, details)).transaction_hash
+
   const ctx: RelayerContext = {
-    // Through the signer's queue, never `account.execute`: this key has four writers sharing one
-    // nonce, and the queue is the only thing keeping them from colliding under load.
-    submit: async (calls, details) => (await execute(calls, details)).transaction_hash,
+    submit: submitThroughQueue,
     policy: { messageBook, markets: app.markets, launch: app.launch, governance: writableGovernance },
     resolveApproveCeiling: async () => approveCeiling((await readPoolConstants()).feeWei),
     // Prices live, units measured — `gasCalibration` reads the pool's own recent receipts, so this
     // is a better bound than any client could build. Falls back to the constant before the first sample.
-    resolveResourceBounds: async () => {
-      const { gasPrices } = await readHead()
-      const m = gasCalibration?.current()
-      return resourceBoundsFor(gasPrices, m ? { l2Gas: m.l2Gas, l1Gas: m.l1Gas, l1DataGas: m.l1DataGas } : undefined)
-    },
+    resolveResourceBounds,
     sponsorship,
     sendBudget,
     faucet,
     accountAllowance,
     revertWatch,
+    // The gift. THIS PROCESS IS THE DEPOSITOR — its key proves it and its balance is what the pool
+    // checks — and the recipient signs nothing. Only offered where a claim ledger exists to bound
+    // it to once per account.
+    ...(faucet
+      ? {
+          starter: (recipient: string) =>
+            sendShieldedStarter(recipient, {
+              accountKey: env.privateKey,
+              account: signerAccount,
+              amountWei: starterDripWei(),
+              submit: submitThroughQueue,
+              resolveResourceBounds,
+            }),
+        }
+      : {}),
     feeRecipient: address,
     visitorSalt: sponsorship.salt,
     quoteCounter: createQuoteCounter(env.sponsor.quoteDailyPerVisitor, env.sponsor.quoteDailyGlobal),

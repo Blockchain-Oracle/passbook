@@ -12,6 +12,7 @@ import type { GasCalibration } from './gas-calibration.js'
 import type { LogoService } from './logo.js'
 import type { Teller } from './teller.js'
 import type { RevertWatch } from './revert-watch.js'
+import type { StarterOutcome } from './starter.js'
 
 export interface RelayerContext {
   submit: (calls: Call[], details?: { proofFacts: string[]; proof: string; resourceBounds?: ResourceBounds }) => Promise<string>
@@ -36,6 +37,11 @@ export interface RelayerContext {
    * `/submit` hands it one entry per submission that spent something; it reads the receipt itself.
    */
   revertWatch?: RevertWatch
+  /**
+   * Sends one shielded starting balance to `recipient`, funded and PROVEN by this relayer.
+   * Absent when the deployment hands none out, which `/starter` answers as 404.
+   */
+  starter?: (recipient: string) => Promise<StarterOutcome>
   feeRecipient: string
   visitorSalt: string
   quoteCounter: DailyQuoteCounter

@@ -125,24 +125,6 @@ export interface SubmitBody {
    * an unverifiable flag acceptable here at all.
    */
   sponsored?: true
-  /**
-   * Present, and `true`, only on a STARTER DRIP — the shielded balance we GIVE a new account.
-   *
-   * ── A DRIP IS NOT A SPONSORED TRANSACTION, AND THE COUNTER MUST NOT SAY IT IS ─────────────
-   *
-   * The two words name different money. A sponsored transaction is us paying the pool fee and gas
-   * so a user can do something THEY wanted; that is what the three covered transactions are, and
-   * spending one is the user spending a unit of their own. A drip is us handing over principal —
-   * the 2 STRK that buys a deploy, and this, the first shielded note. Nobody spends a covered
-   * transaction to receive a gift, so this flag routes AROUND the account allowance: the drip still
-   * costs the IP-keyed sponsorship budget (it is a real submission our key pays for) and is gated
-   * once per account by the faucet ledger's claim set, but the number on the user's screen does not
-   * move.
-   *
-   * Requires `sponsored: true` and an `account`: the address the note is minted to is also the key
-   * the one-time claim is burned under. `true` is the only accepted value, like `sponsored`.
-   */
-  drip?: true
 }
 
 /** What `POST /submit` answers, whatever the status. */
@@ -272,4 +254,5 @@ export interface FeeRecipientBody {
 export const RELAYER_PATHS = {
   submit: '/api/submit',
   faucet: '/api/faucet',
+  starter: '/api/starter',
 } as const
