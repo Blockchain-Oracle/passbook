@@ -54,3 +54,6 @@ apps/web/.tanstack/
 # scheme demonstrated rather than asserted. Anything still claimable lives here instead, and
 # `evidence/` points at it by name.
 .secrets/
+
+# Local working notes — scripts and drafts, kept out of the history.
+.thoughts/
