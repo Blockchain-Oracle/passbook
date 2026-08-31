@@ -83,6 +83,25 @@ export function commitSponsorship(state: BudgetState, visitorId: string, now: nu
 }
 
 /**
+ * Returns the state after UNDOING one recorded action for `visitorId`. Pure.
+ *
+ * DELIBERATELY DOES NOT ROLL THE DAY, unlike every other function here. `rolledToDay` moves state
+ * FORWARD to `now`; handed a state that has already advanced past `now` it answers with an empty
+ * budget stamped in the past, which as a refund would silently zero the day's counters for
+ * everyone. The caller checks the day instead and declines to refund across the boundary.
+ *
+ * Floors at zero on both counters rather than trusting its input: a refund is only ever issued
+ * against a spend made moments earlier, so a negative would mean something else already unwound it.
+ */
+function revertSponsorship(state: BudgetState, visitorId: string): BudgetState {
+  const had = state.perVisitor[visitorId] ?? 0
+  const perVisitor = { ...state.perVisitor }
+  if (had <= 1) delete perVisitor[visitorId]
+  else perVisitor[visitorId] = had - 1
+  return { utcDay: state.utcDay, dailyCount: Math.max(0, state.dailyCount - 1), perVisitor }
+}
+
+/**
  * A stateful budget with an atomic single-claim set (the faucet's once-per-address keys),
  * durable across restarts.
  *
@@ -165,6 +184,43 @@ export class SponsorshipLedger {
       this.state = next
     }
     return d
+  }
+
+  /**
+   * Gives one spent unit back, for a submission that provably never reached the chain.
+   *
+   * ── WHY THE SPEND STILL HAPPENS FIRST ─────────────────────────────────────────────────────
+   *
+   * Recording before the broadcast is what stops two concurrent requests sharing one check, and
+   * that property is worth keeping. What it cost was a user paying for a refusal: a batch that
+   * died inside fee estimation never existed, and the counter had already been decremented, so
+   * the next attempt was told its covered transactions were used up. This unwinds exactly that
+   * case — never an ambiguous one, where a transaction may be in flight and the unit is owed.
+   *
+   * Persists before mutating, like `spend`: a failed write leaves the unit spent, which is the
+   * safe direction. A refund that cannot be durably recorded must not exist only in memory.
+   */
+  refund(visitorId: string, now: number = Date.now()): void {
+    // A spend recorded before a UTC rollover went with the day it belonged to — the counters it
+    // moved have already been zeroed, so there is nothing left to give back and reaching for it
+    // would rewrite the NEW day's totals. Declining costs one unit at one instant per day.
+    if (utcDayKey(now) !== this.state.utcDay) return
+    const next = revertSponsorship(this.state, visitorId)
+    this.store.save({ salt: this.salt, budget: next, claimed: [...this.claimed] })
+    this.state = next
+  }
+
+  /**
+   * Whether `code` has already been burned. Read-only — `tryClaim` remains the only thing that
+   * spends one.
+   *
+   * It exists so a screen can stop OFFERING something that will be refused. Without it the only
+   * way to learn a drip was already taken is to ask for it and read a 429, which means the button
+   * has to be shown, pressed, and then fail — and a user cannot tell that apart from a broken
+   * faucet. Asking is free; being refused is not.
+   */
+  hasClaimed(code: string): boolean {
+    return this.claimed.has(code)
   }
 
   /** Atomic one-time claim of a key (the faucet's `drip:<felt>`). True the first time, false forever after. */

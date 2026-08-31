@@ -13,6 +13,35 @@ const LEDGER_UNWRITABLE = 'the faucet ledger could not be written; refusing to s
 
 export const faucetRoutes = new Hono<AppEnv>()
 
+/**
+ * Whether this address can still take the starter drip.
+ *
+ * `claimed` is the once-ever per-account key; `available` is whether this deployment hands one out
+ * at all. Both are needed to decide whether to SHOW the offer, and they fail differently: a
+ * deployment with no faucet answers 404 like every other absent feature, while a claimed address
+ * answers 200 with `claimed: true`. A screen that cannot reach this shows no offer rather than a
+ * broken one — see the client query, which resolves null on every failure.
+ *
+ * Unauthenticated and read-only, like `/allowance`: it spends nothing and reveals only what the
+ * caller already knows about their own address.
+ */
+faucetRoutes.get('/:address', (c) => {
+  const faucet = c.var.ctx.faucet
+  if (!faucet) return notFound(c)
+  let claimKey: string
+  try {
+    claimKey = `drip:${toFeltHex(asAddress(c.req.param('address')))}`
+  } catch {
+    return jsonError(c, 400, DRIP_BAD_ADDRESS)
+  }
+  // `available` is COMPUTED, not asserted. Hardcoding it true meant the screen kept offering a
+  // drip after the daily budget was spent, and the press answered 429 — the failure this endpoint
+  // exists to remove, reintroduced by the one field that was supposed to prevent it.
+  const now = Date.now()
+  const available = c.var.ctx.relayerState() === 'ok' && faucet.remaining(visitorOf(c, faucet.salt, now), now).remaining > 0
+  return reply(c, 200, { claimed: faucet.hasClaimed(claimKey), available })
+})
+
 faucetRoutes.post('/', async (c) => {
   const ctx = c.var.ctx
   const faucet = ctx.faucet

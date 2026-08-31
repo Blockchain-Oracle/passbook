@@ -76,18 +76,46 @@ function isPreSendFailure(e: unknown): boolean {
   return code === 'ECONNREFUSED' || code === 'ENOTFOUND' || code === 'EAI_AGAIN'
 }
 
+/**
+ * The submit body as JSON, with every bigint rendered as a felt decimal.
+ *
+ * ── `JSON.stringify` THROWS ON A BIGINT, AND THIS BODY CARRIES THREE PAIRS OF THEM ────────
+ *
+ * `resourceBounds` is built by `resourceBoundsFor`, which returns bigints because that is what
+ * `Account.execute` consumes — hex strings throw before signing. Handing the same object to
+ * `JSON.stringify` raises `TypeError: Do not know how to serialize a BigInt`, and because that
+ * happens inside the fetch's own try it was reported as `RelayDeliveryUnknown`: "a transaction may
+ * already be in flight", for a request that never reached the network. The scariest sentence this
+ * client owns, for the one failure where nothing whatsoever had happened.
+ *
+ * Converting HERE rather than at each call site is deliberate. Two pipelines build bounds and a
+ * third is one commit away; a rule that has to be remembered per caller is a rule that gets
+ * forgotten, and the symptom it produces points at the chain instead of at the serialiser.
+ *
+ * Decimal, not hex: the relayer parses felts with `/^(0x[0-9a-fA-F]{1,64}|[0-9]{1,78})$/`, so both
+ * are accepted, and decimal survives a human reading it in a log.
+ */
+function submitBodyJson(body: SubmitBody): string {
+  return JSON.stringify(body, (_key, value) => (typeof value === 'bigint' ? value.toString(10) : value))
+}
+
 /** POSTs a submission. Pre-send failures rethrow as-is (retry is free); anything else is `RelayDeliveryUnknown`. */
 export async function postSubmitToRelayer(
   url: string,
   body: SubmitBody,
   timeoutMs: number = RELAY_TIMEOUT_MS,
 ): Promise<RelayResponse> {
+  // OUTSIDE the try below, and that placement is the point. Everything inside it is mapped to
+  // `RelayDeliveryUnknown` — "a transaction may already be in flight" — which is true of a failed
+  // fetch and a lie about a body that could not be serialised. Serialising here makes that throw
+  // what it actually is: a bug in this process, before anything was sent.
+  const payload = submitBodyJson(body)
   let res: Response
   try {
     res = await fetch(url, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(body),
+      body: payload,
       signal: AbortSignal.timeout(timeoutMs),
     })
   } catch (e) {

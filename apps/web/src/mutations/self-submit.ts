@@ -18,6 +18,8 @@ export function acquireSubmitLock(): Promise<() => void> {
 export interface SubmitDetails {
   proofFacts: string[]
   proof: string
+  /** Ceilings, not charges. Present means `execute` skips the estimate — which cannot see the proof. */
+  resourceBounds?: unknown
 }
 
 export interface SubmitCall {
@@ -55,13 +57,19 @@ export function makeSelfSubmitRegistration(accountKey: string, address: string) 
   const sign = makeSelfSubmit(accountKey, address)
   return async (
     _url: string,
-    body: { calls: unknown[]; proofFacts?: string[]; proof?: string },
+    body: { calls: unknown[]; proofFacts?: string[]; proof?: string; resourceBounds?: unknown },
   ): Promise<{ status: number; body: SubmitResponseBody }> => {
     if (!body.proofFacts?.length || !body.proof) {
       return { status: 400, body: { error: 'refusing to submit without both the proof facts and the proof blob' } }
     }
     try {
-      const transactionHash = await sign(body.calls as SubmitCall[], { proofFacts: body.proofFacts, proof: body.proof })
+      // The bounds ride through, or this path estimates — and an estimate reverts on a proven
+      // batch that moves value. Self-pay registration folds no starter, but the pool fee is value.
+      const transactionHash = await sign(body.calls as SubmitCall[], {
+        proofFacts: body.proofFacts,
+        proof: body.proof,
+        ...(body.resourceBounds === undefined ? {} : { resourceBounds: body.resourceBounds }),
+      })
       return { status: 200, body: { transactionHash } }
     } catch (error) {
       return { status: 502, body: { error: error instanceof Error ? error.message : 'the browser could not sign this' } }

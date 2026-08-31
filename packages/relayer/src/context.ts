@@ -16,6 +16,15 @@ export interface RelayerContext {
   submit: (calls: Call[], details?: { proofFacts: string[]; proof: string; resourceBounds?: ResourceBounds }) => Promise<string>
   policy: AllowlistPolicy
   resolveApproveCeiling: () => Promise<bigint>
+  /**
+   * Bounds for a proven batch that arrived without any, from live prices and our own calibration.
+   *
+   * NOT A CONVENIENCE. `Account.execute` estimates when bounds are absent, and an estimate cannot
+   * execute the proof, so every proven batch that moves value dies inside `starknet_estimateFee`
+   * instead of being signed. Backfilling here means one forgetful client cannot turn that into an
+   * outage — and this side holds the better number anyway, measured off the pool's own receipts.
+   */
+  resolveResourceBounds: () => Promise<ResourceBounds>
   sponsorship?: SponsorshipLedger
   sendBudget?: SponsorshipLedger
   faucet?: SponsorshipLedger

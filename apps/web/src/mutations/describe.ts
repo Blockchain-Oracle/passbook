@@ -1,3 +1,7 @@
+import { toPlainText } from '@strk20/protocol/amount-format'
+import { cairoPanic, isEstimateFailure, stripRpcParams } from '@strk20/protocol/rpc-error'
+import { ACCOUNT_OPEN_IN_ANOTHER_TAB } from '@strk20/protocol/session-copy'
+import type { RegisterFailure } from '@strk20/protocol/register'
 import type { SendFailure, SendKind, SendResult } from '@strk20/protocol/send'
 import type { ShieldFailure } from '@strk20/protocol/shield'
 
@@ -23,10 +27,11 @@ function sequencerReason(raw: string): { sentence: string; refused: boolean } {
   // The params blob is the payload we were signing, never the reason. Drop it — along with the
   // `RpcError: RPC: <method>` prefix, which is our call, not the node's explanation — before
   // matching, so neither can be mistaken for a cause.
-  const text = raw
-    .replace(/\s*with params[\s\S]*/i, '')
-    .replace(/^\s*\w*Error:\s*RPC:\s*\S+/i, '')
-    .trim()
+  //
+  // `stripRpcParams` matches braces rather than cutting to the end of the string, and that is the
+  // whole difference between this saying something and saying nothing: the node puts its message
+  // AFTER the params object, so the cut that removed the payload used to remove the message too.
+  const text = stripRpcParams(raw).replace(/^\s*\w*Error:\s*RPC:\s*\S+/i, '').trim()
   if (CANNOT_PAY.test(raw)) {
     return {
       sentence:
@@ -40,11 +45,17 @@ function sequencerReason(raw: string): { sentence: string; refused: boolean } {
   if (/validate|signature/i.test(text)) {
     return { sentence: 'The account refused to sign this transaction. Nothing was submitted.', refused: true }
   }
-  // Unrecognised: one clause of the node's own words, never the calldata. Whether it ran is unknown,
-  // so `refused` stays false and the caller keeps its own gas sentence.
+  // A fee estimate runs BEFORE the broadcast, so a throw naming it is a transaction that never
+  // existed — nothing ran and nothing was charged, whatever else the string says.
+  const refused = isEstimateFailure(raw)
+  // The Cairo panic beside the felt bytes is the only part of a revert that reads as words, and it
+  // beats any clause guessed out of the surrounding JSON.
+  const panic = cairoPanic(text)
+  if (panic) return { sentence: `The pool refused the transaction: ${panic}`, refused }
+  // Unrecognised: one clause of the node's own words, never the calldata.
   const clause = text.split(/[:\n]/).map((s) => s.trim()).filter(Boolean).pop() ?? ''
   const short = clause.length > 160 ? `${clause.slice(0, 157)}…` : clause
-  return { sentence: short ? `The network refused the transaction: ${short}` : 'The network refused the transaction, without saying why.', refused: false }
+  return { sentence: short ? `The network refused the transaction: ${short}` : 'The network refused the transaction, without saying why.', refused }
 }
 
 export function describeSendFailure(failure: SendFailure): string {
@@ -59,7 +70,9 @@ export function describeSendFailure(failure: SendFailure): string {
     case 'blocked-rpc-unknown':
       return `The chain could not be read, so nothing was sent: ${failure.reason}`
     case 'lock-unavailable':
-      return 'Another strk20.run tab holds the right to sign. Press "Use this tab" in the banner above, or close the other tab, then try again.'
+      // The authored sentence, not a second copy of it: this one travels three hops from
+      // `session-copy.ts` and a hand-typed twin here is a sentence that drifts out of step.
+      return ACCOUNT_OPEN_IN_ANOTHER_TAB
     case 'pool-paused':
       return 'The pool is paused, so nothing can move right now. Nothing was spent.'
     case 'pool-upgraded':
@@ -103,7 +116,20 @@ export function describeShieldFailure(failure: ShieldFailure): string {
   }
 }
 
-export function describeRegisterFailure(failure: { kind: string; reason?: string }): string {
+/**
+ * One sentence per registration failure, and NOT ONE OF THEM IS A KIND TOKEN.
+ *
+ * This function used to end in `return failure.reason ?? \`Registration stopped at ${kind}\``, and
+ * both halves of that were wrong in front of a person. The fallback printed the internal token —
+ * "Registration stopped at `pay-your-own-way`" is what a user actually read when the subsidy ran
+ * out. And `reason` on the relay arms is the sequencer's throw, which echoes the whole signed
+ * transaction back: a wall of hex where a reason should be. `describeSendFailure` has cleaned that
+ * through `sequencerReason` since it was written; this one never did.
+ *
+ * Exhaustive over `RegisterFailure` on purpose. A new kind added to the pipeline stops the build
+ * here rather than shipping its token to a screen.
+ */
+export function describeRegisterFailure(failure: RegisterFailure): string {
   switch (failure.kind) {
     case 'backup-not-confirmed':
       return 'The recovery file has not been saved yet, so registration is still closed.'
@@ -112,12 +138,46 @@ export function describeRegisterFailure(failure: { kind: string; reason?: string
     case 'collision':
       return 'The pool already holds a different viewing key for this address, and it cannot be replaced.'
     case 'blocked-rpc-unknown':
-      return `The chain could not be read, so nothing was submitted: ${failure.reason ?? 'no reason given'}`
+      return `The chain could not be read, so nothing was submitted. ${sequencerReason(failure.reason).sentence}`
     case 'bad-input':
-      return `Registration was refused before anything was spent: ${failure.reason ?? 'no reason given'}`
-    default:
-      return failure.reason ?? `Registration stopped at \`${failure.kind}\`.`
+      return `Registration was refused before anything was spent. ${sequencerReason(failure.reason).sentence}`
+    case 'lock-unavailable':
+      return ACCOUNT_OPEN_IN_ANOTHER_TAB
+    case 'pool-paused':
+      return 'The pool is paused, so nothing was submitted. Nothing was spent.'
+    case 'prover-failed':
+      return `The proof could not be built, so nothing was submitted and nothing was spent. ${sequencerReason(failure.reason).sentence}`
+    case 'proof-expired':
+      return (
+        `The proof was built at block ${failure.provedAtBlock} and is only good for ` +
+        `${failure.validityBlocks} blocks; the chain is at ${failure.currentBlock}. ` +
+        'Nothing was submitted and nothing was spent — try again.'
+      )
+    case 'pay-your-own-way':
+      // The relayer's own notice when it sent one: it knows whether the daily budget or this
+      // account's three covered transactions ran out, and this side does not.
+      return `${failure.notice.trim() || COVERED_USED_UP} ${payYourOwnWayCost(failure.feeRow.feeWei)}`.trim()
+    case 'relay-refused':
+      return `Registration was refused before anything was signed, so nothing was spent. ${sequencerReason(failure.reason).sentence}`
+    case 'reverted':
+      return `The registration transaction reverted: ${failure.message}`
+    case 'confirmation-unknown':
+      // NEVER "nothing was spent": the transaction may have landed. The hash is the only thing
+      // that settles it, and the caller renders it beside this sentence.
+      return `The registration was submitted but could not be confirmed. ${sequencerReason(failure.reason).sentence}`
   }
+}
+
+/** When the relayer refused without copy of its own. Never blames the user's balance. */
+const COVERED_USED_UP =
+  'The covered registrations for this account are used up, so this one is paid from your own balance.'
+
+/** What self-paying costs, in the two numbers a person can check against their balance. */
+function payYourOwnWayCost(feeWei: bigint): string {
+  return (
+    `The pool charges ${toPlainText(feeWei, 18)} STRK, and the network holds gas on top of it ` +
+    'until the transaction settles.'
+  )
 }
 
 export function labelFor(kind: SendKind, symbol: string): string {

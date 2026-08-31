@@ -6,7 +6,8 @@ import { fileURLToPath } from 'node:url'
 import { serve } from '@hono/node-server'
 import { NET } from '../../protocol/src/constants.js'
 import { loadDotEnv } from '../../protocol/src/env.js'
-import { readPoolConstants } from '../../protocol/src/pool.js'
+import { readHead, readPoolConstants } from '../../protocol/src/pool.js'
+import { resourceBoundsFor } from '../../protocol/src/fee-ceiling.js'
 import { readAllMedians } from '../../protocol/src/pragma.js'
 import {
   governanceWriteSafety,
@@ -156,6 +157,13 @@ async function main(): Promise<void> {
     submit: async (calls, details) => (await execute(calls, details)).transaction_hash,
     policy: { messageBook, markets: app.markets, launch: app.launch, governance: writableGovernance },
     resolveApproveCeiling: async () => approveCeiling((await readPoolConstants()).feeWei),
+    // Prices live, units measured — `gasCalibration` reads the pool's own recent receipts, so this
+    // is a better bound than any client could build. Falls back to the constant before the first sample.
+    resolveResourceBounds: async () => {
+      const { gasPrices } = await readHead()
+      const m = gasCalibration?.current()
+      return resourceBoundsFor(gasPrices, m ? { l2Gas: m.l2Gas, l1Gas: m.l1Gas, l1DataGas: m.l1DataGas } : undefined)
+    },
     sponsorship,
     sendBudget,
     faucet,

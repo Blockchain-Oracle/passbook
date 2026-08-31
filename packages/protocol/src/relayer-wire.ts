@@ -184,6 +184,23 @@ export const ALLOWANCE_SPENT_NOTICE =
   'You have used the transactions we cover. Your account still works — ' +
   'each transaction now pays the pool fee from your own balance.'
 
+/**
+ * What `GET /faucet/:address` answers: whether this address can still take the starter drip.
+ *
+ * TWO FIELDS BECAUSE THERE ARE TWO WAYS TO HAVE NOTHING TO OFFER, and a screen must not confuse
+ * them. `claimed: true` means this address already took its one drip — say so, do not offer.
+ * `available: false` means this deployment hands none out to anybody — say nothing at all, because
+ * "you have used it" would be a lie told to someone who never had one.
+ *
+ * An unreachable relayer answers neither, and the client resolves `null`: also say nothing. The
+ * offer only appears when the ledger that will actually be spent says it is there.
+ */
+export interface FaucetClaimBody {
+  claimed?: boolean
+  available?: boolean
+  error?: string
+}
+
 /** What `GET /fee-recipient` answers: the address a reimbursement `Withdraw` must name. */
 export interface FeeRecipientBody {
   /**

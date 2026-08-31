@@ -10,7 +10,8 @@
 import type { Call } from 'starknet'
 import type { PrivateTransfersUser } from '@starkware-libs/starknet-privacy-sdk'
 import { PROVING_BLOCK_LAG } from './constants.js'
-import { readPoolConstants, type PoolConstants } from './pool.js'
+import { resourceBoundsFor, type GasPrices } from './fee-ceiling.js'
+import { readHead, readPoolConstants, type PoolConstants } from './pool.js'
 import {
   assembleRegistrationCalls,
   proveRegistration,
@@ -110,7 +111,13 @@ export interface RegisterDeps {
   acquireSubmitLock?: () => Promise<() => void>
   preflight?: (accountKey: string, address: string) => Promise<PreflightRoute>
   readConstants?: () => Promise<PoolConstants>
-  readBlockNumber?: () => Promise<number>
+  /**
+   * The head, read AFTER proving. Both halves are used and both must be current: the block number
+   * decides whether the proof is still inside its validity window, and the gas prices become the
+   * resource bounds. Reading prices before the prover ran — which is minutes, not seconds — is how
+   * a bound gets built against a price that has since moved.
+   */
+  readHead?: () => Promise<{ blockNumber: number; gasPrices: GasPrices }>
   /** True when the account contract exists at `blockNumber` — the prover SRC5-probes it there. */
   isDeployedAt?: (address: string, blockNumber: number) => Promise<boolean>
   prove?: (input: ProveRegistrationInput) => Promise<ProvedRegistration>
@@ -153,7 +160,7 @@ export async function registerSponsored(input: RegisterInput, deps: RegisterDeps
     acquireSubmitLock = async () => () => {},
     preflight = preflightRegistration,
     readConstants = readPoolConstants,
-    readBlockNumber = () => withFallback((p) => p.getBlockNumber()),
+    readHead: head = readHead,
     isDeployedAt = deployedAt,
     prove = proveRegistration,
     submit = postSubmitToRelayer,
@@ -245,11 +252,13 @@ export async function registerSponsored(input: RegisterInput, deps: RegisterDeps
     } catch (e) {
       return fail({ kind: 'prover-failed', reason: String(e) })
     }
+    let prices: GasPrices
     try {
-      const currentBlock = await readBlockNumber()
+      const { blockNumber: currentBlock, gasPrices } = await head()
       if (currentBlock - proved.provingBlockId >= live.proofValidityBlocks) {
         return fail({ kind: 'proof-expired', provedAtBlock: proved.provingBlockId, currentBlock, validityBlocks: live.proofValidityBlocks })
       }
+      prices = gasPrices
     } catch (e) {
       return fail({ kind: 'blocked-rpc-unknown', reason: String(e) })
     }
@@ -271,13 +280,22 @@ export async function registerSponsored(input: RegisterInput, deps: RegisterDeps
         account: address,
         proofFacts: proved.proofFacts,
         proof: proved.proof,
+        // Bounds, so the submitter SKIPS fee estimation. A bare registration mints nothing and
+        // estimated cleanly, which is why this rode without them; the starter deposit made it
+        // value-moving, and an estimate cannot see the proof, so it now reverts on
+        // `Result::unwrap failed.` before anything is signed. Send and shield have always sent these.
+        resourceBounds: resourceBoundsFor(prices),
         sponsored: true,
       })
     } catch (e) {
       if (e instanceof RelayDeliveryUnknown) return fail({ kind: 'confirmation-unknown', transactionHash: '', reason: String(e) })
       return fail({ kind: 'relay-refused', status: 0, reason: String(e) })
     }
-    if (response.status === 403 && response.body.reason === 'sponsorship-paused') {
+    // Both 403s mean the same thing to a person: the subsidy is gone and this costs their own
+    // STRK. `sponsorship-paused` is the shared daily budget, `allowance-spent` is this account's
+    // own three — different meters, one door. Leaving the second unmapped sent it out as a bare
+    // relay refusal, which is how "used its sponsored transactions" reached a screen as an error.
+    if (response.status === 403 && (response.body.reason === 'sponsorship-paused' || response.body.reason === 'allowance-spent')) {
       return fail({ kind: 'pay-your-own-way', notice: response.body.notice ?? '', feeRow: { ...feeRow, paidByUs: false } })
     }
     if (response.status === 200 && response.bodyUnreadable) {
