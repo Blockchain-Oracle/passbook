@@ -1,6 +1,5 @@
 import { useMutation } from '@tanstack/react-query'
 import { REGISTRATION_STAGES, type RegistrationStage } from '@strk20/protocol/pipeline-stage'
-import { STARTER_WEI } from '@strk20/protocol/constants'
 
 import { getSessionSnapshot } from '@/app/session'
 import { queryClient } from '@/app/query-client'
@@ -95,10 +94,18 @@ async function register(ask: RegisterAsk): Promise<RegisterOutcome> {
         accountKey,
         account: account as never,
         appName: 'strk20.run',
-        // The starter rides only on the sponsored door. On the self-paid path the pool would pull
-        // it from the USER, so folding it in would silently ask them for 3 STRK more than the
-        // screen said — and they took that path precisely because they are funding themselves.
-        ...(selfPays ? {} : { starterWei: STARTER_WEI }),
+        // ── NO STARTER, ON EITHER DOOR ────────────────────────────────────────────────────
+        //
+        // A registration that also deposits is a deposit whose PAYER (the relayer) is not the
+        // note's OWNER (the account being registered), inside the very transaction that registers
+        // that owner. `evidence/tx-a-attempt-1-reverted.json` and the funding-model note both say
+        // that shape was never verified on chain, and it does not work: the pool answers
+        // `Result::unwrap failed.` and the transaction is thrown away before `collect_fee` runs.
+        //
+        // A bare zero-deposit registration IS proven — `evidence/sponsored-registration.json`,
+        // block 13805277, this same relayer. So registration takes the path that lands. The
+        // starter becomes a separate deposit afterwards, which is what that note already named as
+        // the fallback, and which one of the three covered transactions pays for.
       },
       {
         canRegister: () => ask.backedUp,

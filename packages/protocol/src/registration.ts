@@ -3,6 +3,7 @@
 // where an attempt goes before anything is proven or posted.
 //
 
+import { cairoPanic } from './rpc-error.js'
 import { ec } from 'starknet'
 import { NET } from './constants.js'
 import { getPublicKey } from './pool.js'
@@ -56,8 +57,16 @@ export async function preflightRegistration(
 
 /**
  * Maps a raw pool revert string to honest user copy. The pool has no dedicated "already
- * registered" error — re-registration surfaces as the generic `NON_ZERO_VALUE`. Unknown codes
- * pass through unchanged rather than being mistranslated.
+ * registered" error — re-registration surfaces as the generic `NON_ZERO_VALUE`.
+ *
+ * ── NOTHING RAW LEAVES HERE ANY MORE ──────────────────────────────────────────────────────
+ *
+ * Unknown codes used to `return raw`, and raw is a sequencer revert: the same contract address,
+ * class hash and selector printed twice inside nested "Error in the called contract" framing,
+ * with the one readable clause at the very end. On screen it reads as four stacked errors that
+ * say nothing a person can act on. The felt-encoded panic beside it is the only part written in
+ * words, so that is what comes out — and when there is not even one, this says so in a sentence
+ * rather than pasting the payload and hoping.
  */
 export function mapRegistrationError(raw: string): string {
   const table: Record<string, string> = {
@@ -70,5 +79,16 @@ export function mapRegistrationError(raw: string): string {
   for (const [code, msg] of Object.entries(table)) {
     if (raw.includes(code)) return msg
   }
-  return raw
+  const panic = cairoPanic(raw)
+  // The pool unwinding an inner call it would not run. It is about the ACTION LIST, never the
+  // key, so it must not read as "your account is wrong" — and the fee is not charged, because
+  // `collect_fee` sits behind the call that failed.
+  if (panic === 'Result::unwrap failed.') {
+    return (
+      'The pool would not accept this registration, so nothing was written and the pool fee was ' +
+      'not charged. Your key and balance are unchanged. Try again.'
+    )
+  }
+  if (panic) return `The pool refused this registration: ${panic} Nothing was written.`
+  return 'The pool refused this registration and gave no reason. Nothing was written.'
 }

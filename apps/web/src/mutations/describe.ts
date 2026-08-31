@@ -160,7 +160,10 @@ export function describeRegisterFailure(failure: RegisterFailure): string {
     case 'relay-refused':
       return `Registration was refused before anything was signed, so nothing was spent. ${sequencerReason(failure.reason).sentence}`
     case 'reverted':
-      return `The registration transaction reverted: ${failure.message}`
+      // `mapRegistrationError` already returns a whole sentence, including what was and was not
+      // charged. Prefixing it with "the transaction reverted" restated the machine's word for it
+      // and pushed the part a person can act on off the end of the line.
+      return failure.message
     case 'confirmation-unknown':
       // NEVER "nothing was spent": the transaction may have landed. The hash is the only thing
       // that settles it, and the caller renders it beside this sentence.
