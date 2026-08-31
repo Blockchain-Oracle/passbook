@@ -97,10 +97,29 @@ primary_region = "iad"
     soft_limit = 200
     hard_limit = 250
 
-# A TCP check, not an HTTP one, and that is a consequence of the auth gate rather than laziness:
-# every route on this server sits behind `x-relayer-auth`, so an unauthenticated HTTP probe gets a
-# correct 401 that a health checker reads as a dead host. Putting the token in a check config would
-# spread the secret to keep a green tick.
+# An HTTP check against `/health`, which is the ONE route that answers an unauthenticated caller.
+#
+# This was a TCP check, because every other route sits behind `x-relayer-auth` and an
+# unauthenticated HTTP probe gets a correct 401 that a health checker reads as a dead host — and
+# putting the token in a check config would spread the secret to keep a green tick. That reasoning
+# still holds for every other path; what changed is that there is now a public one, so the check can
+# ask a real question instead of "is a socket open". A TCP check passes while the process cannot
+# reach the chain and cannot pay a fee, which are the two ways this service actually fails.
+#
+# `/health` returns 200 whenever the process can serve, INCLUDING when it is out of STRK — a restart
+# cannot add funds, so failing the check there would buy a restart loop that fixes nothing and takes
+# the in-memory chat rooms down with it. Funding is reported in the body and paged by the monitor
+# (`funding-monitor.ts`); it is deliberately not this check's business.
+#
+# The TCP check is kept alongside it: it catches a process wedged before the router is up, which an
+# HTTP check on a 5 s timeout would report the same way but slower.
+[[http_service.checks]]
+  interval = "30s"
+  timeout = "5s"
+  grace_period = "20s"
+  method = "GET"
+  path = "/health"
+
 [[services.tcp_checks]]
   interval = "30s"
   timeout = "5s"

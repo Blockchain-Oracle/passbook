@@ -165,6 +165,8 @@ async function main(): Promise<void> {
     quoteCounter: createQuoteCounter(env.sponsor.quoteDailyPerVisitor, env.sponsor.quoteDailyGlobal),
     // `unknown` health reports ok: a failed read must not turn an RPC blip into an outage.
     relayerState: () => monitor.userState(),
+    // Read by `/health` only, and never on a request path that could block on the chain.
+    fundingObserved: () => monitor.observed(),
     rooms,
     directory,
     chainFeed,

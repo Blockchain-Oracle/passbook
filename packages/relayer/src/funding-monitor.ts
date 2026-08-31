@@ -110,6 +110,24 @@ export { RELAYER_DOWN_NOTICE } from '../../protocol/src/relayer-wire.js'
 /** `unknown` until the first read lands — see the note in `check()` about why it is not a fault. */
 export type MonitorHealth = FundingHealth | 'unknown'
 
+/**
+ * One successful measurement, kept so something can REPORT the funding without reading the chain.
+ *
+ * `/health` is the caller, and the separation matters: a health endpoint that reads the chain per
+ * request turns a slow RPC host into a failed check, and a failed check restarts a machine that was
+ * fine. The monitor already polls on a timer; the endpoint answers from what it last saw, and says
+ * WHEN it saw it so a stale reading is visible as a stale reading rather than as current truth.
+ */
+export interface FundingObservation {
+  readonly health: FundingHealth
+  readonly balanceWei: bigint
+  readonly feeWei: bigint
+  readonly floorWei: bigint
+  readonly warnWei: bigint
+  /** Epoch ms the reading landed. Never a duration — the reader computes staleness against now. */
+  readonly at: number
+}
+
 export interface FundingMonitorOptions {
   /** Live `STRK.balanceOf(relayer)`. Injected so the classifier stays testable offline. */
   readBalance: () => Promise<bigint>
@@ -135,6 +153,11 @@ export interface FundingMonitor {
   health(): MonitorHealth
   /** What the submit path and, through it, the user is allowed to know. */
   userState(): 'ok' | 'relayer-down'
+  /**
+   * The last SUCCESSFUL measurement, or `null` before one lands. Pure accessor: it never reads the
+   * chain, so a caller on the request path cannot turn a slow RPC into a slow response.
+   */
+  observed(): FundingObservation | null
 }
 
 /**
@@ -175,6 +198,8 @@ export function createFundingMonitor(opts: FundingMonitorOptions): FundingMonito
   let current: MonitorHealth = 'unknown'
   /** The most recent SUCCESSFUL measurement. Null only before the first one lands. */
   let lastDefinite: FundingHealth | null = null
+  /** The numbers behind `lastDefinite`, for reporting. Written in the same step, never separately. */
+  let lastObservation: FundingObservation | null = null
   let paged: MonitorHealth | null = null
   let timer: NodeJS.Timeout | null = null
   let inFlight: Promise<MonitorHealth> | null = null
@@ -222,6 +247,14 @@ export function createFundingMonitor(opts: FundingMonitorOptions): FundingMonito
     const { floor, warn } = fundingThresholds(feeWei, { burst, warnBurst })
     current = classifyFunding(balance, floor, warn)
     lastDefinite = current
+    lastObservation = {
+      health: current,
+      balanceWei: balance,
+      feeWei,
+      floorWei: floor,
+      warnWei: warn,
+      at: Date.now(),
+    }
     if (shouldPageOps(current)) {
       pageOnce(
         current,
@@ -276,6 +309,7 @@ export function createFundingMonitor(opts: FundingMonitorOptions): FundingMonito
       timer = null
     },
     health: () => current,
+    observed: () => lastObservation,
     // Driven by the last DEFINITE measurement, never by `current`. Before anything has been
     // measured there is nothing to act on, so the gate stays open; after that it reflects what
     // was actually seen, and a later failed read leaves it exactly where the measurement put it.

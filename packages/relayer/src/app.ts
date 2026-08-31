@@ -29,6 +29,7 @@ import { roomRoutes } from './routes/rooms.js'
 import { chainRoutes } from './routes/chain.js'
 import { logoRoutes } from './routes/logo.js'
 import { governRoutes } from './routes/govern.js'
+import { healthRoutes } from './routes/health.js'
 
 // A proven submission carries a ~309 KB base64 proof blob; one megabyte is ~3x headroom. Raise
 // it knowingly if a legitimate prove ever outgrows it — never soften the refusal.
@@ -158,6 +159,23 @@ export function createApp(context: RelayerContext, options: AppOptions = {}): Ho
       await next()
     }),
   )
+
+  //
+  // ── /health, MOUNTED BEFORE THE GATES, DELIBERATELY ──────────────────────────────────────
+  //
+  // Hono composes matched handlers in REGISTRATION order, and this one answers without calling
+  // `next()` — so the gate below is never reached for this path. That is the exemption, expressed
+  // as position rather than as a list of public paths inside the gate: a list is a second place to
+  // keep in sync, and the failure mode of forgetting an entry is a health check that 401s and a
+  // deployment that looks dead. Position cannot drift from itself.
+  //
+  // It sits AFTER the context middleware above, which is what puts `ctx` on the request — moving
+  // this block above that one would hand the route an undefined context.
+  //
+  // Public on purpose, and it carries nothing that is not already public: see `routes/health.ts`.
+  //
+  app.route('/health', healthRoutes)
+  app.route('/api/health', healthRoutes)
 
   // GATE ORDER IS THE CONTROL: route exists → content-type → Origin → auth → handler.
   app.use(async (c, next) => {

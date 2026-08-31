@@ -7,6 +7,7 @@ import type { DailyQuoteCounter } from './quote-proxy.js'
 import type { RoomHub } from './rooms.js'
 import type { Directory } from './directory.js'
 import type { ChainFeed } from './chain-feed.js'
+import type { FundingObservation } from './funding-monitor.js'
 import type { GasCalibration } from './gas-calibration.js'
 import type { LogoService } from './logo.js'
 import type { Teller } from './teller.js'
@@ -24,6 +25,11 @@ export interface RelayerContext {
   visitorSalt: string
   quoteCounter: DailyQuoteCounter
   relayerState: () => 'ok' | 'relayer-down'
+  /**
+   * The funding monitor's last measurement, for `/health`. A pure accessor — never a chain read.
+   * Absent when no monitor is attached, which `/health` reports as `unknown` rather than as zero.
+   */
+  fundingObserved?: () => FundingObservation | null
   rooms?: RoomHub
   directory?: Directory
   chainFeed?: ChainFeed
