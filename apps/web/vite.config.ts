@@ -53,8 +53,17 @@ function contractDefines(): Record<string, string> {
 const ALLOWED_WARNING_PATTERNS = [/Module "async_hooks" has been externalized/]
 
 // `vite dev` forwards `/api` to a relayer. Point `RELAYER_ORIGIN` at the deployed app to develop
-// against the live relayer without holding its auth token locally.
+// against the live relayer; a local one usually runs without an auth token and needs nothing more.
+//
+// Every route but `/health` is behind `x-relayer-auth`, which in production the Vercel shim adds.
+// So developing against a DEPLOYED relayer needs that header too, and without it every read 401s
+// and the app renders as if the relayer were down. `RELAYER_AUTH_TOKEN` is forwarded when set and
+// omitted when not, so a local relayer with no token behaves exactly as before.
+//
+// The alternative — running the relayer locally — is worse than it looks: it signs with the same
+// key as the deployed one, and two processes issuing nonces for one account collide.
 const relayerOrigin = process.env.RELAYER_ORIGIN ?? 'http://127.0.0.1:8787'
+const relayerAuth = process.env.RELAYER_AUTH_TOKEN
 
 export default defineConfig(({ command }) => {
   // A production artifact may only exist against mainnet. `vite dev` is unaffected.
@@ -83,6 +92,7 @@ export default defineConfig(({ command }) => {
         '/api': {
           target: relayerOrigin,
           changeOrigin: relayerOrigin.startsWith('https://'),
+          ...(relayerAuth ? { headers: { 'x-relayer-auth': relayerAuth } } : {}),
           configure: (proxy) => {
             proxy.on('proxyReq', (proxyReq) => proxyReq.removeHeader('origin'))
           },
