@@ -34,13 +34,15 @@ export type AccountNeed =
   | { kind: 'drip' }
   /** No STRK and no drip left — the only way forward is their own wallet. */
   | { kind: 'fund' }
+  /** Registered, and the shielded starting balance has not been claimed yet. */
+  | { kind: 'starter'; amountWei: bigint }
   /** Finished. Purely informational, and the only kind that reports a number. */
   | { kind: 'sponsored'; remaining: number; of: number }
   /** The chain did not answer, so nothing is known — including whether anything is wrong. */
   | { kind: 'unknown' }
 
 /** Which needs an × may hide. `register` is absent on purpose — see `NEEDS_REGISTER_TITLE`. */
-export const DISMISSIBLE: ReadonlySet<AccountNeed['kind']> = new Set(['drip', 'fund', 'sponsored'])
+export const DISMISSIBLE: ReadonlySet<AccountNeed['kind']> = new Set(['drip', 'fund', 'sponsored', 'starter'])
 
 /** Everything the decision depends on, so the decision itself can be read — and checked — alone. */
 interface NeedInputs {
@@ -83,6 +85,12 @@ function pickNeed(i: NeedInputs): AccountNeed | null {
     if (i.faucetLoading) return null
     return unless(i.faucet && !i.faucet.claimed ? { kind: 'drip' } : { kind: 'fund' })
   }
+
+  // BEFORE the count, because it is a thing to DO and the count is only news. An account that has
+  // never claimed its starting balance holds nothing shielded, so every screen it opens shows a
+  // dash — the offer is the answer to the question it is already asking itself.
+  const starter = i.faucet?.starter
+  if (starter && !starter.claimed) return unless({ kind: 'starter', amountWei: starter.wei })
 
   if (!i.allowance) return null
   return unless({ kind: 'sponsored', remaining: i.allowance.remaining, of: i.allowance.of })

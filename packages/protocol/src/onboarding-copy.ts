@@ -92,12 +92,18 @@ export function deadlockFeeRow(appName: string, feeStrk: string | null): string 
 export const SPONSORED_OFFER = 'Your first three transactions are on us — real STRK, on mainnet.'
 
 /**
- * The honest footnote under the offer. Two things a user is owed before they rely on it: the pool
- * charges a fee on every transaction, which comes out of their own balance once ours runs out, and
- * the budget is finite and shared.
+ * The footnote under the count. TWO SHORT CLAUSES, and it took three rewrites to get there.
+ *
+ * It used to say "resets daily", which was true of the code and wrong as an offer — the account
+ * ledger cleared its per-account counts at midnight, so three covered transactions quietly renewed
+ * forever. That is fixed (relayer `ledger.ts` opens it `lifetime`). The replacement then said the
+ * same thing in twenty-two words with a clause about busy days, which is a footnote nobody finishes.
+ *
+ * So: what they are (once, not daily) and what they are FOR. The second half matters more than it
+ * looks — these are not shield/unshield credits. They cover the pool fee on ANY pool transaction,
+ * which is most of this app, and a user who thinks otherwise leaves two of them unspent.
  */
-export const SPONSORED_OFFER_NOTE =
-  'After that, each transaction costs the pool fee from your shielded balance. The budget is shared and resets daily.'
+export const SPONSORED_OFFER_NOTE = 'Once per account, not per day. Use them for anything — send, swap, chat, launch.'
 
 // ── The ladder — creating the account ─────────────────────────────────────────────────────
 //
@@ -110,9 +116,26 @@ export const ONBOARDING_STAGE_NOTES = {
   drip: 'enough STRK to put your account on chain — the receipt below is its record',
   deploy: 'your address goes live on Starknet',
   settle: 'the proof is checked a few blocks behind the head, so a fresh deploy waits for the chain to pass it',
-  register: 'we pay this one — your key and your starting balance land together',
+  // NOT "your key and your starting balance land together" any more. They did, in a build that
+  // never landed on chain: the pool refuses a deposit whose owner is the account being registered
+  // in that same transaction. Registration is bare, and the balance is the rung after it.
+  register: 'we pay this one — your viewing key goes to the pool, and nothing else rides with it',
   confirm: 'the pool accepts your viewing key',
+  starter: 'your first private note — on us, and it costs none of your three',
 } as const
+
+// ── The last rung, and the standing offer behind it ───────────────────────────────────────
+
+export const NEEDS_STARTER_TITLE = 'Claim your starting balance'
+
+/** The amount is a parameter, never a literal — the relayer paying for it is the one that states it. */
+export function needsStarterBody(amountStrk: string | null): string {
+  const amount = amountStrk === null ? 'A shielded starting balance' : `${amountStrk} STRK, shielded,`
+  return `${amount} is yours to claim. It does not use one of your three.`
+}
+
+/** Three words at most — it is a gift, not a form. */
+export const NEEDS_STARTER_CTA = 'Claim it'
 
 /** The live settle note. Blocks are counted, never turned into seconds; `null` when the deploy block is unknown. */
 export function settleNote(lag: number, blocksToGo: number | null): string {

@@ -1,4 +1,4 @@
-import { CloudOff, Sparkles, TriangleAlert, Wallet, X } from 'lucide-react'
+import { CloudOff, Gift, Sparkles, TriangleAlert, Wallet, X } from 'lucide-react'
 import { ALLOWANCE_SPENT_NOTICE } from '@strk20/protocol/relayer-wire'
 import {
   NEEDS_DRIP_BODY,
@@ -10,8 +10,11 @@ import {
   NEEDS_REGISTER_BODY,
   NEEDS_REGISTER_CTA,
   NEEDS_REGISTER_TITLE,
+  NEEDS_STARTER_CTA,
+  NEEDS_STARTER_TITLE,
   NEEDS_UNKNOWN_BODY,
   NEEDS_UNKNOWN_TITLE,
+  needsStarterBody,
   SPONSORED_OFFER,
   SPONSORED_OFFER_NOTE,
 } from '@strk20/protocol/onboarding-copy'
@@ -22,6 +25,8 @@ import { useSession } from '@/app/session'
 import { Alert, AlertAction, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { DISMISSIBLE, useAccountNeed, type AccountNeed } from '@/features/onboarding'
+import { formatWei } from '@/lib/format'
+import { useStarterDrip } from '@/mutations'
 import { cn } from '@/lib/utils'
 
 /**
@@ -42,23 +47,38 @@ export function AccountBanner() {
   const session = useSession()
   const address = session.status === 'ready' ? session.address : undefined
   const need = useAccountNeed()
+  // Declared before the early return: hooks may not sit behind a condition, and this one is only
+  // ever USED by the starter case.
+  const starter = useStarterDrip()
   if (!need) return null
 
   const view = describe(need)
+  const failed = starter.data && !starter.data.ok ? starter.data.because : null
   return (
     <div className="px-4 pt-3 md:px-8">
       <Alert className={cn((need.kind === 'register' || need.kind === 'unknown') && 'border-exposed bg-exposedTint')}>
         <view.Icon />
         <AlertTitle>{view.title}</AlertTitle>
-        <AlertDescription>{view.body}</AlertDescription>
+        <AlertDescription>{failed && need.kind === 'starter' ? failed : view.body}</AlertDescription>
         <AlertAction>
           <div className="flex items-center gap-1">
             {view.cta ? (
-              // Every action is the same door: hand this address back to the gate, which reads the
-              // rung and opens on the step it is actually missing. The banner never runs a
-              // pipeline of its own — one register path, not two that can drift.
-              <Button size="sm" onClick={() => setEntered(null)}>
-                {view.cta}
+              // Two doors, and the difference is whether a step already exists behind the gate.
+              // Register/drip/fund hand the address back to the gate, which reads the rung and
+              // opens on the step it is missing — one register path, not two that can drift.
+              //
+              // The starter has no gate step to hand back to once onboarding is over, and it is
+              // one mutation with no branches, so pressing it here runs exactly what the ladder's
+              // last rung runs. Nothing can drift because there is only one of it.
+              <Button
+                size="sm"
+                aria-disabled={starter.isPending || undefined}
+                onClick={() => {
+                  if (need.kind !== 'starter') return setEntered(null)
+                  if (!starter.isPending) starter.mutate({})
+                }}
+              >
+                {need.kind === 'starter' && starter.isPending ? 'Claiming…' : view.cta}
               </Button>
             ) : null}
             {DISMISSIBLE.has(need.kind) ? (
@@ -92,6 +112,14 @@ function describe(need: AccountNeed): View {
       return { Icon: Wallet, title: NEEDS_DRIP_TITLE, body: NEEDS_DRIP_BODY, cta: NEEDS_DRIP_CTA }
     case 'fund':
       return { Icon: Wallet, title: NEEDS_FUND_TITLE, body: NEEDS_FUND_BODY, cta: NEEDS_FUND_CTA }
+    case 'starter':
+      return {
+        Icon: Gift,
+        title: NEEDS_STARTER_TITLE,
+        // Two decimals: it is an amount to recognise, not one to reconcile.
+        body: needsStarterBody(formatWei(need.amountWei, 18, 2)),
+        cta: NEEDS_STARTER_CTA,
+      }
     case 'sponsored': {
       const { remaining, of } = need
       // The whole offer before anything is spent; the count once it is being drawn down. Not

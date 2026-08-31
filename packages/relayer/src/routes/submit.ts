@@ -3,113 +3,13 @@
 import { Hono } from 'hono'
 import type { Call } from 'starknet'
 
-import { RELAYER_DOWN_NOTICE } from '../../../protocol/src/relayer-wire.js'
-import { asAddress, toFeltHex } from '../../../protocol/src/address.js'
+import { RELAYER_DOWN_NOTICE, STARTER_CLAIMED_NOTICE } from '../../../protocol/src/relayer-wire.js'
 import { cairoPanic, rpcMethod, stripRpcParams } from '../../../protocol/src/rpc-error.js'
-import {
-  assertProofFacts,
-  assertResourceBounds,
-  assertSubmittable,
-  isPoolApplyActions,
-  needsApproveCeiling,
-  type ResourceBounds,
-} from '../allowlist.js'
+import { assertResourceBounds, assertSubmittable, needsApproveCeiling } from '../allowlist.js'
 import type { AppEnv } from '../context.js'
+import { utcDayKey } from '../sponsorship.js'
 import { jsonError, reply, visitorOf } from './shared.js'
-
-interface SubmitDetails {
-  proofFacts: string[]
-  proof: string
-  resourceBounds?: ResourceBounds
-}
-
-/** Validates the wire body by hand — every refusal string here is a shipped contract. */
-function parseSubmitBody(raw: unknown): {
-  calls: Call[]
-  details?: SubmitDetails
-  sponsored: boolean
-  covered: boolean
-  account?: string
-} {
-  const body = (raw ?? {}) as {
-    calls?: unknown
-    sponsored?: unknown
-    covered?: unknown
-    account?: unknown
-    proofFacts?: unknown
-    proof?: unknown
-    resourceBounds?: unknown
-  }
-  if (!Array.isArray(body.calls) || body.calls.length === 0) {
-    throw new Error('body must carry a non-empty `calls` array')
-  }
-  const calls = body.calls as Call[]
-  let sponsored = false
-  if (body.sponsored !== undefined) {
-    // Exactly `true` or absent — a flag that picks the budget must mean one thing.
-    if (body.sponsored !== true) {
-      throw new Error(
-        `refusing sponsored=${JSON.stringify(body.sponsored)}: the only accepted value is true, ` +
-          'and a submission that is not sponsored omits the field entirely',
-      )
-    }
-    sponsored = true
-  }
-  // Whether this batch expects NO reimbursement, so our own STRK pays the fee for good. Same
-  // exactly-true-or-absent rule as `sponsored`, for the same reason: a flag that picks a meter must
-  // mean one thing. A sponsored registration is never reimbursed, so it implies this.
-  let covered = sponsored
-  if (body.covered !== undefined) {
-    if (body.covered !== true) {
-      throw new Error(
-        `refusing covered=${JSON.stringify(body.covered)}: the only accepted value is true, ` +
-          'and a reimbursed submission omits the field entirely',
-      )
-    }
-    covered = true
-  }
-  // The account this submission is FOR, so its allowance can be counted down. Optional: a body
-  // without one is metered by IP alone, exactly as before this field existed.
-  //
-  // NORMALISED, NEVER PASSED THROUGH — `0x123` and `0x0123` are one account, and a client that
-  // varied the padding would otherwise mint itself a fresh allowance per spelling. Unparseable is
-  // refused rather than ignored: silently dropping it would hand out an uncounted transaction.
-  let account: string | undefined
-  if (body.account !== undefined) {
-    try {
-      account = toFeltHex(asAddress(body.account as string))
-    } catch {
-      throw new Error(`refusing account=${JSON.stringify(body.account)}: it is not a Starknet address`)
-    }
-  }
-  let details: SubmitDetails | undefined
-  if (body.proofFacts !== undefined) {
-    if (!calls.some(isPoolApplyActions)) {
-      throw new Error(
-        'refusing proofFacts on a batch with no pool apply_actions: facts belong to a ' +
-          'proven pool submission, and on any other batch they are arbitrary felts',
-      )
-    }
-    // Both-or-neither: the sequencer would refuse it after signing and spending a budget unit.
-    if (typeof body.proof !== 'string' || body.proof.length === 0) {
-      throw new Error(
-        'refusing proofFacts without their proof: the sequencer takes both or neither, ' +
-          'so facts alone would be signed, broadcast, and rejected at our expense',
-      )
-    }
-    details = { proofFacts: assertProofFacts(body.proofFacts), proof: body.proof }
-    // Bounds ride only with a proof: an unproven batch estimates cleanly and should keep doing so.
-    if (body.resourceBounds !== undefined) {
-      details.resourceBounds = assertResourceBounds(body.resourceBounds)
-    }
-  } else if (body.proof !== undefined) {
-    throw new Error(
-      'refusing a proof without its proofFacts: the sequencer takes both or neither, ' +
-        'and a blob with no facts is not a proven submission',
-    )
-  }
-  return { calls, details, sponsored, covered, account }
-}
+import { parseSubmitBody, type SubmitDetails } from './submit-body.js'
 
 /**
  * The RPC methods that run BEFORE `starknet_addInvokeTransaction`. A throw from one of these is a
@@ -164,8 +64,9 @@ submitRoutes.post('/', async (c) => {
   let sponsored: boolean
   let covered: boolean
   let account: string | undefined
+  let drip: boolean
   try {
-    ;({ calls, details, sponsored, covered, account } = parseSubmitBody(await c.req.json()))
+    ;({ calls, details, sponsored, covered, account, drip } = parseSubmitBody(await c.req.json()))
   } catch (e) {
     return jsonError(c, 400, String(e))
   }
@@ -215,9 +116,33 @@ submitRoutes.post('/', async (c) => {
   const kind = sponsored ? 'sponsorship' : 'send'
   // ONLY a covered batch spends the allowance. A reimbursed send costs us gas alone and must not
   // burn one of the transactions we said we would pay for — see `SubmitBody.covered`.
-  const allowance = account && covered ? ctx.accountAllowance : undefined
+  //
+  // A DRIP IS EXEMPT, and that is the whole point of the flag: it is principal we hand over, not a
+  // transaction we cover for someone, so the number a user watches must not move when they receive
+  // one. Its ceiling is the once-per-account claim below plus the IP budget above, not the three.
+  const allowance = account && covered && !drip ? ctx.accountAllowance : undefined
+  // The key a drip's one-time claim is burned under. Distinct from the faucet's `drip:` prefix:
+  // the public drip that buys a deploy and this shielded starter are separate gifts, each once.
+  const claimKey = drip && account ? `starter:${account}` : null
   const now = Date.now()
   const visitor = budget ? visitorOf(c, budget.salt, now) : ''
+
+  if (claimKey) {
+    // No claim ledger means this deployment hands out no drips. Saying so is better than signing
+    // an unmetered gift: the claim set IS the once-per-account limit.
+    if (!ctx.faucet) {
+      return reply(c, 403, { error: 'this relayer hands out no starting balances', reason: 'drip-unavailable' })
+    }
+    // Read first, burn later. A read here costs a refused caller nothing; burning before the
+    // budgets have agreed would spend an account's one chance on a submission we then refuse.
+    if (ctx.faucet.hasClaimed(claimKey)) {
+      return reply(c, 403, {
+        error: 'this account already has its starting balance',
+        reason: 'starter-claimed',
+        notice: STARTER_CLAIMED_NOTICE,
+      })
+    }
+  }
 
   if (budget) {
     const d = budget.decide(visitor, now)
@@ -250,11 +175,26 @@ submitRoutes.post('/', async (c) => {
   // something nobody recorded — see `SponsorshipLedger.spend`.
   let budgetSpent = false
   let allowanceSpent = false
+  let claimBurned = false
   try {
     // From the DECISION, not from the call: `spend` commits nothing when it refuses, so a flag set
     // by reaching the line would later refund a unit this request never took.
     if (budget) budgetSpent = budget.spend(visitor, now).allow
     if (allowance && account) allowanceSpent = allowance.spend(account, now).allow
+    // LAST, and atomic. `tryClaim` is the real once-per-account limit — the read above only makes a
+    // refusal cheap. False here means a concurrent request took it between the two, which is
+    // exactly the race the atomic claim exists to settle: this one gets nothing back but its meters.
+    if (claimKey && ctx.faucet) {
+      claimBurned = ctx.faucet.tryClaim(claimKey)
+      if (!claimBurned) {
+        if (budgetSpent && budget) budget.refund(visitor, now)
+        return reply(c, 403, {
+          error: 'this account already has its starting balance',
+          reason: 'starter-claimed',
+          notice: STARTER_CLAIMED_NOTICE,
+        })
+      }
+    }
   } catch (e) {
     console.warn(`relayer: ${kind} ledger write failed: ${String(e)}`)
     // Nothing is signed past this point, so a unit the FIRST ledger recorded bought nothing. Half
@@ -271,6 +211,27 @@ submitRoutes.post('/', async (c) => {
 
   try {
     const transactionHash = await ctx.submit(calls, details)
+    // Broadcast. From here the meters are held against a receipt: a transaction that lands and
+    // REVERTS gave the user nothing, and the units it spent are owed back. See revert-watch.ts.
+    //
+    // WRAPPED, because the transaction is already gone. A watch that cannot be recorded costs a
+    // refund; throwing here would cost the caller their hash for a transaction that is on its way.
+    if (ctx.revertWatch && (budgetSpent || allowanceSpent || claimBurned)) {
+      try {
+        ctx.revertWatch.watch({
+          hash: transactionHash,
+          // The day the SPEND was stamped with, not today's — they differ across a rollover, and
+          // the refund declines rather than rewriting a fresh day's counters.
+          utcDay: utcDayKey(now),
+          ...(budgetSpent ? { visitor, meter: kind } : {}),
+          ...(allowanceSpent && account ? { account } : {}),
+          ...(claimBurned && claimKey ? { claim: claimKey } : {}),
+          submittedAt: now,
+        })
+      } catch (e) {
+        console.warn(`relayer: ${transactionHash} is unwatched, a revert will not be refunded: ${String(e)}`)
+      }
+    }
     return reply(c, 200, {
       transactionHash,
       ...(allowance && account ? { sponsorship: allowance.remaining(account, now) } : {}),
@@ -297,6 +258,15 @@ submitRoutes.post('/', async (c) => {
           allowance.refund(account, now)
         } catch (r) {
           console.warn(`relayer: allowance unit stays spent, its refund could not be written: ${String(r)}`)
+        }
+      }
+      // The gift never happened either, so the one chance to receive it goes back. Without this a
+      // drip refused inside fee estimation would leave the account permanently unable to ask again.
+      if (claimBurned && claimKey && ctx.faucet) {
+        try {
+          ctx.faucet.releaseClaim(claimKey)
+        } catch (r) {
+          console.warn(`relayer: the starter claim stays burned, its release could not be written: ${String(r)}`)
         }
       }
     } else {

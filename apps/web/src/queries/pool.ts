@@ -82,6 +82,26 @@ export function allowanceQuery(address: string | undefined) {
 /** Whether the starter drip is still there for this address, or `null` when we cannot say. */
 export interface FaucetOffer {
   claimed: boolean
+  /**
+   * The SHIELDED starting balance, when this deployment hands one out. Absent is not zero: a
+   * relayer that offers none has nothing to show, and `0n` would read as an offer withdrawn.
+   *
+   * `wei` arrives as a decimal string on the wire (JSON has no bigint) and is parsed here so no
+   * screen has to remember to. A string that does not parse drops the offer rather than showing
+   * an amount nobody can verify.
+   */
+  starter?: { wei: bigint; claimed: boolean }
+}
+
+/** Parses the shielded starter off the wire, or nothing at all when it cannot be trusted. */
+function starterOf(raw: { wei: string; claimed: boolean } | undefined): { starter: { wei: bigint; claimed: boolean } } | null {
+  if (!raw || typeof raw.wei !== 'string' || typeof raw.claimed !== 'boolean') return null
+  try {
+    const wei = BigInt(raw.wei)
+    return wei > 0n ? { starter: { wei, claimed: raw.claimed } } : null
+  } catch {
+    return null
+  }
 }
 
 /**
@@ -100,7 +120,7 @@ export function faucetOfferQuery(address: string | undefined) {
       try {
         const body = await relayerGet<FaucetClaimBody>(`${RELAYER_PATHS.faucet}/${address}`)
         if (body.available === false || typeof body.claimed !== 'boolean') return null
-        return { claimed: body.claimed }
+        return { claimed: body.claimed, ...(starterOf(body.starter) ?? {}) }
       } catch {
         return null
       }

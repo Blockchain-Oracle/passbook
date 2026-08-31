@@ -4,7 +4,7 @@ import { Hono } from 'hono'
 
 import { asAddress, toFeltHex } from '../../../protocol/src/address.js'
 import type { AppEnv } from '../context.js'
-import { faucetDripWei } from '../env.js'
+import { faucetDripWei, starterDripWei } from '../env.js'
 import { DRIP_ALREADY_CLAIMED, DRIP_BAD_ADDRESS, DRIP_BUDGET_SPENT, dripCall, isDrippableAddress } from '../faucet.js'
 import type { SponsorDecision } from '../sponsorship.js'
 import { isPlainObject, jsonError, notFound, readJson, reply, visitorOf } from './shared.js'
@@ -39,7 +39,15 @@ faucetRoutes.get('/:address', (c) => {
   // exists to remove, reintroduced by the one field that was supposed to prevent it.
   const now = Date.now()
   const available = c.var.ctx.relayerState() === 'ok' && faucet.remaining(visitorOf(c, faucet.salt, now), now).remaining > 0
-  return reply(c, 200, { claimed: faucet.hasClaimed(claimKey), available })
+  // The SHIELDED starter rides on the same read, because a screen deciding what to offer a new
+  // account needs both answers at once and neither is worth a second round trip. `wei` is a string:
+  // JSON has no bigint, and a number would silently lose precision above 2^53.
+  const starterKey = claimKey.replace(/^drip:/, 'starter:')
+  return reply(c, 200, {
+    claimed: faucet.hasClaimed(claimKey),
+    available,
+    starter: { wei: starterDripWei().toString(), claimed: faucet.hasClaimed(starterKey) },
+  })
 })
 
 faucetRoutes.post('/', async (c) => {

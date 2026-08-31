@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Item, ItemActions, ItemContent } from '@/components/ui/item'
 import { explorerAddress, shortAddress } from '@/lib/format'
-import { ShieldDoor } from './crossing-actions'
+import { ShieldDoor, UnshieldDoor } from './crossing-actions'
 import { walletTokenFor } from './rows'
 import { useWalletData } from './use-wallet-data'
 
@@ -79,6 +79,7 @@ export function TokenPage({ address }: { address: string }) {
 
       <div className="flex flex-wrap gap-2">
         <ShieldDoor data={data} token={token} />
+        <UnshieldDoor data={data} token={token} />
         <Button
           variant="outline"
           render={<Link to="/send" search={token.symbol === 'STRK' || token.symbol === 'USDC' ? { asset: token.symbol } : {}} />}

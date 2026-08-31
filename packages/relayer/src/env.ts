@@ -102,6 +102,28 @@ export function faucetDripWei(env: NodeJS.ProcessEnv = process.env): bigint {
   }
 }
 
+/**
+ * The SHIELDED starter, in wei — the first private note a registered account is given.
+ *
+ * A separate number from `faucetDripWei`, which buys a deploy in public STRK. This one is
+ * principal that becomes a note inside the pool, and it is bounded above by the approve ceiling:
+ * the pool pulls the fee AND the deposit from the relayer in one batch, so `fee + starter` must fit
+ * under `approveCeiling(fee)`. At a 6 STRK fee that leaves 6, and 3 keeps a wide margin while
+ * still covering the pool fee of the user's own first self-paid transaction.
+ */
+const STARTER_WEI = 3_000_000_000_000_000_000n
+
+export function starterDripWei(env: NodeJS.ProcessEnv = process.env): bigint {
+  const raw = env.RELAYER_STARTER_DRIP_WEI
+  if (!raw) return STARTER_WEI
+  try {
+    const parsed = BigInt(raw)
+    return parsed > 0n ? parsed : STARTER_WEI
+  } catch {
+    return STARTER_WEI
+  }
+}
+
 /** What must be true before running off-loopback, or null when it is loopback. */
 export function offHostWarning(host: string): string | null {
   if (host === '127.0.0.1' || host === 'localhost' || host === '::1') return null
@@ -132,6 +154,11 @@ export interface SponsorshipConfig {
   /** `daily` × the drip is a literal STRK amount handed out per day, not a rate limit. */
   faucetCaps: BudgetCaps
   faucetStorePath: string
+  /**
+   * Where the hashes awaiting a receipt are kept, so a restart still refunds a revert.
+   * Not a ledger — it spends nothing and grants nothing; it only remembers what to check.
+   */
+  revertWatchStore: string
   opsWebhook: string | undefined
   salt: string | undefined
   /** Zero = startup check only. Bounded so Node's timer clamp cannot turn "monthly" into 1ms. */
@@ -167,6 +194,7 @@ export function resolveSponsorshipCaps(env: NodeJS.ProcessEnv = process.env): Sp
       daily: positiveInt(env, 'RELAYER_FAUCET_DAILY', 20),
     },
     faucetStorePath: env.RELAYER_FAUCET_STORE || relayerFile('faucet.json'),
+    revertWatchStore: env.RELAYER_REVERT_WATCH_STORE || relayerFile('revert-watch.json'),
     opsWebhook: env.RELAYER_OPS_WEBHOOK || undefined,
     salt: resolveVisitorSalt(env),
     fundingIntervalMs: nonNegativeInt(env, 'RELAYER_FUNDING_INTERVAL_MS', 300_000, MAX_TIMER_MS),

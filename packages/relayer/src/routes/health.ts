@@ -49,7 +49,7 @@ function networkName(chainId: string): string {
 export const healthRoutes = new Hono<AppEnv>()
 
 healthRoutes.get('/', (c) => {
-  const { relayerState, feeRecipient, fundingObserved } = c.var.ctx
+  const { relayerState, feeRecipient, fundingObserved, revertWatch } = c.var.ctx
   const canSign = relayerState() === 'ok'
   const seen = fundingObserved?.() ?? null
 
@@ -83,5 +83,9 @@ healthRoutes.get('/', (c) => {
     feeRecipient: feeRecipient || null,
     uptimeSeconds: Math.round(process.uptime()),
     funding,
+    // How many broadcast hashes are still awaiting a receipt. A count of transactions this
+    // relayer sent, which the chain already shows — and the only way to see from outside that
+    // the revert refund is armed on this deployment.
+    ...(revertWatch ? { revertWatch: { pending: revertWatch.size() } } : {}),
   })
 })

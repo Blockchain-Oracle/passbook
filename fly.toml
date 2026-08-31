@@ -49,6 +49,10 @@ primary_region = "iad"
   # The per-account sponsored allowance — the number the app shows counting down. On the volume
   # for the same reason as the others: without it every deploy hands every account a fresh three.
   RELAYER_ACCOUNT_STORE = "/data/account-allowance.json"
+  # The hashes still awaiting a receipt, so the revert refund survives a deploy. Not a ledger —
+  # losing it costs a refund nobody can see, never a cap. On the volume because a restart in the
+  # thirty seconds after a broadcast is exactly when a watch is worth having.
+  RELAYER_REVERT_WATCH_STORE = "/data/revert-watch.json"
   # After `deploy-governance.ts --execute`, set this to the blockNumber it prints — the Teller's
   # event-scan floor:
   #   fly secrets set RELAYER_GOVERNANCE_FROM_BLOCK=<block>

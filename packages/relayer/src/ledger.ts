@@ -47,14 +47,17 @@ export function openFaucetLedger(config: SponsorshipConfig, salt: string): Spons
  * inert. It is written anyway, because `FileSponsorshipStore` records own a salt and a file whose
  * salt disagreed with its siblings would look like a re-key rather than a design choice.
  *
- * The consequence to hold in mind: these keys are NOT day-scoped the way a visitor id is, so the
- * per-account count survives until `rolledToDay` clears the whole map at 00:00 UTC. That is the
- * behaviour we want — an allowance is a daily grant, not a lifetime one — but it means the number
- * a user sees resets overnight, and the copy must not promise otherwise.
+ * The consequence to hold in mind: these keys are NOT day-scoped the way a visitor id is, AND this
+ * ledger is opened `lifetime`, so the per-account count does not reset at 00:00 UTC either. Three
+ * covered transactions per account, once. That is the offer the onboarding screens make, and it was
+ * briefly not the offer the code kept — the map used to be cleared with the day, which quietly
+ * renewed everyone's three every midnight.
  */
 export function openAccountAllowanceLedger(config: SponsorshipConfig, salt: string): SponsorshipLedger {
   const store = new FileSponsorshipStore(config.accountStorePath)
   const record = store.load()
   if (record.salt !== salt) store.save({ ...record, salt })
-  return new SponsorshipLedger(config.accountCaps, store, Date.now(), ALLOWANCE_SPENT_NOTICE)
+  // `lifetime`: three per account ONCE. See `rolledToDay` — the daily brake still resets, the
+  // per-account count does not. The offer the screen makes is "your first three", not "three a day".
+  return new SponsorshipLedger(config.accountCaps, store, Date.now(), ALLOWANCE_SPENT_NOTICE, true)
 }

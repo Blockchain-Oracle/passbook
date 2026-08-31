@@ -41,10 +41,20 @@ export function emptyBudget(t: number): BudgetState {
   return { utcDay: utcDayKey(t), dailyCount: 0, perVisitor: {} }
 }
 
-/** Rolls the state to `now`'s UTC day, zeroing the counters if the day changed. Pure. */
-export function rolledToDay(state: BudgetState, now: number): BudgetState {
+/**
+ * Rolls the state to `now`'s UTC day, zeroing the counters if the day changed. Pure.
+ *
+ * `keepPerKey` is what separates a DAILY budget from a ONCE-PER-ACCOUNT grant. An IP-keyed budget
+ * is a rate limit and must reset — tomorrow's visitor is not today's. The account allowance is not
+ * a rate limit at all: it is the three transactions we said we would cover for an account, and an
+ * offer that quietly renews every midnight is a different, much larger offer than the one the
+ * screen makes. So that ledger keeps its per-account counts across the boundary and rolls only the
+ * shared daily brake, which really is per-day.
+ */
+export function rolledToDay(state: BudgetState, now: number, keepPerKey = false): BudgetState {
   const day = utcDayKey(now)
-  return day === state.utcDay ? state : emptyBudget(now)
+  if (day === state.utcDay) return state
+  return keepPerKey ? { utcDay: day, dailyCount: 0, perVisitor: state.perVisitor } : emptyBudget(now)
 }
 
 /**
@@ -60,8 +70,9 @@ export function decideSponsorship(
   visitorId: string,
   now: number,
   notice: string = BUDGET_EXHAUSTED_NOTICE,
+  keepPerKey = false,
 ): SponsorDecision {
-  const s = rolledToDay(state, now)
+  const s = rolledToDay(state, now, keepPerKey)
   // THE DAILY BUDGET IS CHECKED FIRST: it is the relayer's solvency floor and not a courtesy.
   if (s.dailyCount >= caps.daily) {
     return { allow: false, reason: 'daily-budget', notice }
@@ -73,8 +84,8 @@ export function decideSponsorship(
 }
 
 /** Returns the state after recording one sponsored action for `visitorId` at `now`. Pure. */
-export function commitSponsorship(state: BudgetState, visitorId: string, now: number): BudgetState {
-  const s = rolledToDay(state, now)
+export function commitSponsorship(state: BudgetState, visitorId: string, now: number, keepPerKey = false): BudgetState {
+  const s = rolledToDay(state, now, keepPerKey)
   return {
     utcDay: s.utcDay,
     dailyCount: s.dailyCount + 1,
@@ -99,6 +110,27 @@ function revertSponsorship(state: BudgetState, visitorId: string): BudgetState {
   if (had <= 1) delete perVisitor[visitorId]
   else perVisitor[visitorId] = had - 1
   return { utcDay: state.utcDay, dailyCount: Math.max(0, state.dailyCount - 1), perVisitor }
+}
+
+/**
+ * Returns the state after giving ONE KEY its unit back while leaving the day's total alone. Pure.
+ *
+ * ── THE DAY'S COUNT RECORDS WHAT WE BROADCAST; THE PER-KEY COUNT RECORDS WHAT A USER GOT ──
+ *
+ * `revertSponsorship` unwinds a spend that bought nothing at all, so it takes both counters down.
+ * This one is for a transaction that DID reach the chain and then reverted: the user got nothing,
+ * but the gas left our wallet for good. Returning the day's unit too would uncap us — every revert
+ * would hand the daily budget back, and a caller able to make transactions revert could spend the
+ * wallet at a few STRK a time with no ceiling anywhere. The per-visitor cap is a courtesy and can
+ * be given back; the daily budget is the solvency floor `decideSponsorship` checks first, and it
+ * must keep counting what we actually paid for.
+ */
+function refundVisitorUnit(state: BudgetState, visitorId: string): BudgetState {
+  const had = state.perVisitor[visitorId] ?? 0
+  const perVisitor = { ...state.perVisitor }
+  if (had <= 1) delete perVisitor[visitorId]
+  else perVisitor[visitorId] = had - 1
+  return { utcDay: state.utcDay, dailyCount: state.dailyCount, perVisitor }
 }
 
 /**
@@ -135,17 +167,23 @@ export class SponsorshipLedger {
      * registration — so `createRelayerServer` reads it back and refuses to start on a mismatch.
      */
     readonly notice: string = BUDGET_EXHAUSTED_NOTICE,
+    /**
+     * ONCE PER KEY, NOT PER DAY. Set for the account allowance, whose three transactions are a
+     * one-time grant: the per-account counts survive midnight and only the shared daily brake
+     * resets. Left false for every IP-keyed budget, which is a rate limit and must reset.
+     */
+    readonly lifetime: boolean = false,
   ) {
     const loaded = store.load()
     this.salt = loaded.salt
     // Roll on the way in, so a ledger last written yesterday does not spend today's first
     // request against yesterday's exhausted counters.
-    this.state = rolledToDay(loaded.budget, now)
+    this.state = rolledToDay(loaded.budget, now, lifetime)
     this.claimed = new Set(loaded.claimed)
   }
 
   decide(visitorId: string, now: number = Date.now()): SponsorDecision {
-    return decideSponsorship(this.state, this.caps, visitorId, now, this.notice)
+    return decideSponsorship(this.state, this.caps, visitorId, now, this.notice, this.lifetime)
   }
 
   /**
@@ -159,7 +197,7 @@ export class SponsorshipLedger {
    * Read-only. `spend` remains the only thing that moves a number.
    */
   remaining(visitorId: string, now: number = Date.now()): { remaining: number; of: number } {
-    const s = rolledToDay(this.state, now)
+    const s = rolledToDay(this.state, now, this.lifetime)
     const personal = Math.max(0, this.caps.perVisitor - (s.perVisitor[visitorId] ?? 0))
     const shared = Math.max(0, this.caps.daily - s.dailyCount)
     return { remaining: Math.min(personal, shared), of: this.caps.perVisitor }
@@ -179,7 +217,7 @@ export class SponsorshipLedger {
   spend(visitorId: string, now: number = Date.now()): SponsorDecision {
     const d = this.decide(visitorId, now)
     if (d.allow) {
-      const next = commitSponsorship(this.state, visitorId, now)
+      const next = commitSponsorship(this.state, visitorId, now, this.lifetime)
       this.store.save({ salt: this.salt, budget: next, claimed: [...this.claimed] })
       this.state = next
     }
@@ -201,11 +239,34 @@ export class SponsorshipLedger {
    * safe direction. A refund that cannot be durably recorded must not exist only in memory.
    */
   refund(visitorId: string, now: number = Date.now()): void {
-    // A spend recorded before a UTC rollover went with the day it belonged to — the counters it
-    // moved have already been zeroed, so there is nothing left to give back and reaching for it
-    // would rewrite the NEW day's totals. Declining costs one unit at one instant per day.
-    if (utcDayKey(now) !== this.state.utcDay) return
-    const next = revertSponsorship(this.state, visitorId)
+    // A spend recorded before a UTC rollover went with the day it belonged to — the DAY'S counters
+    // have already been zeroed, so decrementing them would rewrite the new day's totals.
+    //
+    // A lifetime ledger is the exception, and has to be: its per-account count did NOT reset at
+    // midnight, so the unit it is owed is still sitting there. It gets the per-key half back and
+    // not the daily half, which is the courtesy refund by another name.
+    const sameDay = utcDayKey(now) === this.state.utcDay
+    if (!sameDay && !this.lifetime) return
+    const rolled = rolledToDay(this.state, now, this.lifetime)
+    const next = sameDay ? revertSponsorship(rolled, visitorId) : refundVisitorUnit(rolled, visitorId)
+    this.store.save({ salt: this.salt, budget: next, claimed: [...this.claimed] })
+    this.state = next
+  }
+
+  /**
+   * Gives one key its unit back after a transaction that WAS broadcast and then reverted.
+   *
+   * A revert is the case the plain `refund` cannot serve: the transaction reached a block, so it is
+   * not true that nothing happened — the network charged us for everything it executed before the
+   * failure — and it is also not true that the user got what they paid a unit for. They got
+   * nothing. So the unit goes back and the day's total stays put; see `refundVisitorUnit` for why
+   * that asymmetry is the thing keeping the wallet bounded.
+   *
+   * Same day guard and same persist-before-mutate order as `refund`, for the same reasons.
+   */
+  refundCourtesy(visitorId: string, now: number = Date.now()): void {
+    if (utcDayKey(now) !== this.state.utcDay && !this.lifetime) return
+    const next = refundVisitorUnit(rolledToDay(this.state, now, this.lifetime), visitorId)
     this.store.save({ salt: this.salt, budget: next, claimed: [...this.claimed] })
     this.state = next
   }
@@ -221,6 +282,33 @@ export class SponsorshipLedger {
    */
   hasClaimed(code: string): boolean {
     return this.claimed.has(code)
+  }
+
+  /**
+   * Hands a burned claim back, for a transaction that provably did not deliver what the claim paid
+   * for.
+   *
+   * ── THE ONLY LEGITIMATE CALLER IS A REFUND PATH ───────────────────────────────────────────
+   *
+   * `tryClaim` is permanent on purpose: a starter amount is for starting, and a second one is a
+   * withdrawal. But permanence is only fair if the claim BOUGHT something. A drip whose transaction
+   * never reached the chain, or reached it and reverted, left the account with nothing and its one
+   * chance burned — the same injustice the meters' revert refund exists to undo, and worse, because
+   * this one never comes back at midnight.
+   *
+   * So this exists, and it must stay reachable only from a place that has a receipt (or a proven
+   * absence of one). Calling it anywhere a request can steer would turn a once-per-account gift
+   * into an unmetered one.
+   */
+  releaseClaim(code: string): void {
+    if (!this.claimed.has(code)) return
+    const next: PersistedLedger = {
+      salt: this.salt,
+      budget: this.state,
+      claimed: [...this.claimed].filter((c) => c !== code),
+    }
+    this.store.save(next)
+    this.claimed.delete(code)
   }
 
   /** Atomic one-time claim of a key (the faucet's `drip:<felt>`). True the first time, false forever after. */

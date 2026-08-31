@@ -103,9 +103,10 @@ async function register(ask: RegisterAsk): Promise<RegisterOutcome> {
         // `Result::unwrap failed.` and the transaction is thrown away before `collect_fee` runs.
         //
         // A bare zero-deposit registration IS proven — `evidence/sponsored-registration.json`,
-        // block 13805277, this same relayer. So registration takes the path that lands. The
-        // starter becomes a separate deposit afterwards, which is what that note already named as
-        // the fallback, and which one of the three covered transactions pays for.
+        // block 13805277, this same relayer. So registration takes the path that lands, and the
+        // starter is the separate deposit that note already named as the fallback: `useStarterDrip`,
+        // the ladder's last rung. It does NOT spend one of the three — a drip is principal we give
+        // away, not a transaction we cover, and the wire's `drip` flag is what keeps the two apart.
       },
       {
         canRegister: () => ask.backedUp,

@@ -125,6 +125,24 @@ export interface SubmitBody {
    * an unverifiable flag acceptable here at all.
    */
   sponsored?: true
+  /**
+   * Present, and `true`, only on a STARTER DRIP — the shielded balance we GIVE a new account.
+   *
+   * ── A DRIP IS NOT A SPONSORED TRANSACTION, AND THE COUNTER MUST NOT SAY IT IS ─────────────
+   *
+   * The two words name different money. A sponsored transaction is us paying the pool fee and gas
+   * so a user can do something THEY wanted; that is what the three covered transactions are, and
+   * spending one is the user spending a unit of their own. A drip is us handing over principal —
+   * the 2 STRK that buys a deploy, and this, the first shielded note. Nobody spends a covered
+   * transaction to receive a gift, so this flag routes AROUND the account allowance: the drip still
+   * costs the IP-keyed sponsorship budget (it is a real submission our key pays for) and is gated
+   * once per account by the faucet ledger's claim set, but the number on the user's screen does not
+   * move.
+   *
+   * Requires `sponsored: true` and an `account`: the address the note is minted to is also the key
+   * the one-time claim is burned under. `true` is the only accepted value, like `sponsored`.
+   */
+  drip?: true
 }
 
 /** What `POST /submit` answers, whatever the status. */
@@ -185,6 +203,16 @@ export const ALLOWANCE_SPENT_NOTICE =
   'each transaction now pays the pool fee from your own balance.'
 
 /**
+ * Shown when this account has already taken its starting balance.
+ *
+ * ITS OWN SENTENCE, like every other refusal here. "The budget is spent" would be false — the drip
+ * is refused because this account already HAS one, which is a fact about them rather than about us,
+ * and someone who reads a budget message will simply come back tomorrow and be refused again.
+ */
+export const STARTER_CLAIMED_NOTICE =
+  'This account already has its starting balance. The pool fee for what you do next comes from that balance.'
+
+/**
  * What `GET /faucet/:address` answers: whether this address can still take the starter drip.
  *
  * TWO FIELDS BECAUSE THERE ARE TWO WAYS TO HAVE NOTHING TO OFFER, and a screen must not confuse
@@ -197,6 +225,15 @@ export const ALLOWANCE_SPENT_NOTICE =
  */
 export interface FaucetClaimBody {
   claimed?: boolean
+  /**
+   * The SHIELDED starter: how much a registered account is given as its first note, and whether
+   * this one already took it. Absent from a deployment that hands none out.
+   *
+   * `wei` IS A STRING because JSON has no bigint and a number would lose precision above 2^53. It
+   * is read rather than hardcoded in the browser for the same reason the pool fee is: the amount
+   * our relayer will actually pay for is the relayer's to state.
+   */
+  starter?: { wei: string; claimed: boolean }
   available?: boolean
   error?: string
 }

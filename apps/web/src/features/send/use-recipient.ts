@@ -16,8 +16,6 @@ export type RecipientStatus =
   | { state: 'unregistered'; address: string; name: string | null; door: DoorAInvite }
   | { state: 'unreadable'; address: string; name: string | null; because: string }
   | { state: 'registered'; address: string; name: string | null }
-  /** A valid public Starknet address, for a withdrawal. Registration is not consulted. */
-  | { state: 'public'; address: string; name: string | null }
 
 /** The directory is not searched per keystroke; the typed value settles for a beat first. */
 const SETTLE_MS = 300
@@ -26,19 +24,7 @@ const SETTLE_MS = 300
  * Address or `@name` → resolved address → registration route. Every step is a state of the form,
  * not an error: an unregistered recipient becomes the Door-A invitation, not a red field.
  */
-export function useRecipient(
-  raw: string,
-  ownAddress: string | undefined,
-  /**
-   * `'public'` for a withdrawal, where the destination is an ordinary Starknet address.
-   *
-   * IT CHANGES TWO ANSWERS, and both would be wrong the other way round. Registration is not
-   * consulted — a withdrawal pays an address, so "they have no account here yet" is not a fact
-   * about the transaction. And your OWN address stops being a refusal: unshielding to yourself is
-   * the ordinary reason to unshield, while transferring to yourself moves nothing.
-   */
-  destination: 'shielded' | 'public' = 'shielded',
-): RecipientStatus {
+export function useRecipient(raw: string, ownAddress: string | undefined): RecipientStatus {
   const settled = useDebounced(raw, SETTLE_MS)
   const trimmed = settled.trim()
   const wantsName = trimmed.startsWith('@')
@@ -50,8 +36,7 @@ export function useRecipient(
   const name = resolved?.ok ? resolved.name : null
   const isSelf = address !== null && ownAddress !== undefined && sameAddress(address, ownAddress)
 
-  const wantsRoute = destination === 'shielded'
-  const route = useQuery(recipientRouteQuery(wantsRoute && !isSelf ? address : null))
+  const route = useQuery(recipientRouteQuery(isSelf ? null : address))
 
   if (trimmed === '' || raw.trim() !== trimmed) return trimmed === '' ? { state: 'idle' } : { state: 'checking', address: null, name: null }
   if (resolved && !resolved.ok) {
@@ -65,8 +50,6 @@ export function useRecipient(
     return { state: 'invalid', because: resolved.because }
   }
   if (address === null) return { state: 'idle' }
-  // A withdrawal is done with the address the moment it parses: no registration, and self is fine.
-  if (!wantsRoute) return { state: 'public', address, name }
   if (isSelf) return { state: 'self', address }
   if (route.isPending) return { state: 'checking', address, name }
   if (route.isError || !route.data) {

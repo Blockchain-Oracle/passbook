@@ -6,7 +6,7 @@ import { ONBOARDING_STAGE_NOTES, REGISTER_NEEDS_FUNDS, settleNote } from '@strk2
 import { ONBOARDING_STAGES, type OnboardingStage } from '@strk20/protocol/pipeline-stage'
 import { notify } from '@/lib/notify'
 
-import { useDeployAccount, useDirectoryClaim, useRegister } from '@/mutations'
+import { useDeployAccount, useDirectoryClaim, useRegister, useStarterDrip } from '@/mutations'
 import { accountProvableQuery, accountStatusQuery } from '@/queries'
 
 export interface Ladder {
@@ -45,8 +45,8 @@ interface LadderInput {
 }
 
 /**
- * The ladder: drip (already landed, or not) → deploy → settle → register → confirm. Each rung is
- * a real callback. `settle` is the one the chain owns: the prover looks for the account
+ * The ladder: drip (already landed, or not) → deploy → settle → register → confirm → starter. Each
+ * rung is a real callback. `settle` is the one the chain owns: the prover looks for the account
  * PROVING_BLOCK_LAG blocks behind the head, so a fresh deploy is refused there until the head
  * has moved on — the register call only fires once a live read says it is visible.
  */
@@ -55,6 +55,7 @@ export function useOnboardingLadder({ address, name, claimPublicly, backedUp }: 
   const deploy = useDeployAccount()
   const register = useRegister()
   const claim = useDirectoryClaim()
+  const starter = useStarterDrip()
   const [ladder, setLadder] = useState<Ladder>(IDLE)
   const patch = (p: Partial<Ladder>) => setLadder((l) => ({ ...l, ...p }))
 
@@ -63,7 +64,7 @@ export function useOnboardingLadder({ address, name, claimPublicly, backedUp }: 
     refetchInterval: (query) => (query.state.data?.visible ? false : 10_000),
   })
 
-  const running = deploy.isPending || register.isPending || ladder.settling
+  const running = deploy.isPending || register.isPending || starter.isPending || ladder.settling
 
   const start = async () => {
     if (running || ladder.done) return
@@ -110,8 +111,23 @@ export function useOnboardingLadder({ address, name, claimPublicly, backedUp }: 
       }
       patch({
         receipt: { transactionHash: registered.transactionHash, block: registered.block },
+        reached: RUNG('confirm'),
+      })
+
+      // The last rung: the shielded starting balance, as its own transaction, because the pool
+      // refuses one folded into the registration above (protocol `starter-drip.ts`).
+      //
+      // A FAILURE HERE DOES NOT FAIL ONBOARDING. The account is registered and works; what is
+      // missing is a gift, and its once-per-account claim is released by the relayer whenever the
+      // transaction did not deliver — so the banner will simply offer it again. Blocking the gate
+      // on it would trap a finished account behind a step it cannot fix.
+      const gift = await starter.mutateAsync({})
+      patch({
         reached: [...ONBOARDING_STAGES],
         done: true,
+        ...(gift.ok
+          ? {}
+          : { problem: `Your account is ready. The starting balance has not arrived yet — ${gift.because}` }),
       })
 
       if (claimPublicly && name && DIRECTORY_NAME_PATTERN.test(name)) {

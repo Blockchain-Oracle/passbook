@@ -33,6 +33,7 @@ import {
 import { createGasCalibration, GAS_CALIBRATION_INTERVAL_MS } from './gas-calibration.js'
 import type { LogoService } from './logo.js'
 import { createQuoteCounter } from './quote-proxy.js'
+import { openRevertWatch, REVERT_WATCH_INTERVAL_MS } from './revert-watch.js'
 import { ROOM_IDLE_MS, RoomHub } from './rooms.js'
 import { makeOpsPager, openSigner, readStrkBalance, tellerSubmitters } from './signer.js'
 import { openTeller, tellerChainDeps, TELLER_INTERVAL_MS } from './teller.js'
@@ -78,6 +79,15 @@ async function main(): Promise<void> {
   const accountAllowance = openAccountAllowanceLedger(env.sponsor, sponsorship.salt)
 
   const { nodeUrl, provider, execute, address } = await openSigner(env.address, env.privateKey)
+
+  // The meters' second half: units spent on a transaction that lands and REVERTS come back.
+  // Opened with the ledgers because it holds the same money; swept on a timer like every other job.
+  const revertWatch = openRevertWatch({
+    file: env.sponsor.revertWatchStore,
+    readReceipt: (hash) => provider.getTransactionReceipt(hash),
+    ledgers: { sponsorship, send: sendBudget, account: accountAllowance, faucet },
+  })
+  every(REVERT_WATCH_INTERVAL_MS, () => void revertWatch.sweep())
   const callContract = (contractAddress: string, entrypoint: string, calldata: string[]) =>
     provider.callContract({ contractAddress, entrypoint, calldata })
 
@@ -168,6 +178,7 @@ async function main(): Promise<void> {
     sendBudget,
     faucet,
     accountAllowance,
+    revertWatch,
     feeRecipient: address,
     visitorSalt: sponsorship.salt,
     quoteCounter: createQuoteCounter(env.sponsor.quoteDailyPerVisitor, env.sponsor.quoteDailyGlobal),

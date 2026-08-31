@@ -115,12 +115,46 @@ function assertSetViewingKeyAt(span: readonly bigint[], at: number): void {
  * Felts each `ClientAction` occupies INCLUDING its variant tag. Shared shape with
  * `shield-guards.ts`, which reads the same span for the deposit half of a shield.
  */
-const ACTION_WIDTHS: Record<number, number> = {
+export const ACTION_WIDTHS: Record<number, number> = {
   [CLIENT_ACTION.SetViewingKey]: 2,
   [CLIENT_ACTION.OpenChannel]: 5,
   [CLIENT_ACTION.OpenSubchannel]: 7,
   [CLIENT_ACTION.Deposit]: 3,
   [CLIENT_ACTION.CreateEncNote]: 7,
+}
+
+/** One decoded `ClientAction`: its variant tag and the felts that follow it. */
+export interface DecodedAction {
+  variant: number
+  fields: readonly bigint[]
+}
+
+/**
+ * Walks a `Span<ClientAction>` into its actions, refusing anything it cannot account for.
+ *
+ * Shared by the registration guard and the starter drip's, because a walker that exists twice is a
+ * walker that gets fixed once. It reads the declared count, advances by each variant's width, and
+ * insists the span ends exactly where the last action does — an unconsumed tail is calldata nobody
+ * inspected, which on a batch our own key pays for is the whole thing worth refusing.
+ */
+export function decodeClientActions(span: readonly bigint[], what: string): DecodedAction[] {
+  const count = Number(span[0] ?? -1n)
+  if (!Number.isInteger(count) || count < 1) {
+    throw new Error(`refusing a ${what} span declaring ${span[0] ?? 'no'} actions`)
+  }
+  const actions: DecodedAction[] = []
+  let at = 1
+  for (let index = 0; index < count; index++) {
+    const variant = Number(span[at])
+    const width = ACTION_WIDTHS[variant]
+    if (width === undefined || at + width > span.length) {
+      throw new Error(`refusing unsupported or truncated ${what} action ${variant} at ${index}`)
+    }
+    actions.push({ variant, fields: span.slice(at + 1, at + width) })
+    at += width
+  }
+  if (at !== span.length) throw new Error(`${span.length - at} ${what} calldata felts went uninspected`)
+  return actions
 }
 
 /**
@@ -142,23 +176,11 @@ export function assertRegistrationWithStarter(
   span: readonly bigint[],
   expect: { self: bigint; token: bigint; amount: bigint },
 ): void {
-  const count = Number(span[0] ?? -1n)
+  const actions = decodeClientActions(span, 'registration')
   // SetViewingKey + Deposit + CreateEncNote is the floor; the two channel-setup actions are the ceiling.
-  if (!Number.isInteger(count) || count < 3 || count > 5) {
-    throw new Error(`refusing a registration span declaring ${span[0] ?? 'no'} actions`)
+  if (actions.length < 3 || actions.length > 5) {
+    throw new Error(`refusing a registration span declaring ${actions.length} actions`)
   }
-  const actions: { variant: number; fields: readonly bigint[] }[] = []
-  let at = 1
-  for (let index = 0; index < count; index++) {
-    const variant = Number(span[at])
-    const width = ACTION_WIDTHS[variant]
-    if (width === undefined || at + width > span.length) {
-      throw new Error(`refusing unsupported or truncated registration action ${variant} at ${index}`)
-    }
-    actions.push({ variant, fields: span.slice(at + 1, at + width) })
-    at += width
-  }
-  if (at !== span.length) throw new Error(`${span.length - at} registration calldata felts went uninspected`)
 
   assertSetViewingKeyAt(span, 1)
   if (actions[0]!.variant !== CLIENT_ACTION.SetViewingKey) {
@@ -211,7 +233,7 @@ const FELT = /^(0x[0-9a-fA-F]{1,64}|[0-9]{1,78})$/
  * anyway. Same split `shield.ts` makes for the same reason, and the throws are what would tell us
  * if that ever stopped being true.
  */
-function starterDiscovery(): DiscoveryProviderInterface {
+export function starterDiscovery(): DiscoveryProviderInterface {
   const channels = contractDiscoveryFor(poolContractFor(getProvider()))
   return {
     discoverNotes: async () => {

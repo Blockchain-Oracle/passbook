@@ -11,6 +11,7 @@ import type { FundingObservation } from './funding-monitor.js'
 import type { GasCalibration } from './gas-calibration.js'
 import type { LogoService } from './logo.js'
 import type { Teller } from './teller.js'
+import type { RevertWatch } from './revert-watch.js'
 
 export interface RelayerContext {
   submit: (calls: Call[], details?: { proofFacts: string[]; proof: string; resourceBounds?: ResourceBounds }) => Promise<string>
@@ -30,6 +31,11 @@ export interface RelayerContext {
   faucet?: SponsorshipLedger
   /** Keyed by ACCOUNT ADDRESS, not by hashed IP — the count a user is shown. See ledger.ts. */
   accountAllowance?: SponsorshipLedger
+  /**
+   * Watches the hashes this relayer broadcast and gives the meters their units back on a REVERT.
+   * `/submit` hands it one entry per submission that spent something; it reads the receipt itself.
+   */
+  revertWatch?: RevertWatch
   feeRecipient: string
   visitorSalt: string
   quoteCounter: DailyQuoteCounter
