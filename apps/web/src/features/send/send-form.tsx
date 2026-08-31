@@ -50,7 +50,7 @@ export function SendForm({ initial }: { initial: SendSearch }) {
       ? { shortfallWei: form.shortfallWei, onShield: () => setShielding(true) }
       : null
 
-  const confirm = () => {
+  const confirm = (sponsored: boolean) => {
     if (recipient.state !== 'registered' || parsed.wei === null) return
     const summary: SentSummary = {
       amount: parsed.wei,
@@ -59,7 +59,7 @@ export function SendForm({ initial }: { initial: SendSearch }) {
       recipient: recipient.name ? `@${recipient.name} · ${shortAddress(recipient.address)}` : shortAddress(recipient.address, 10, 6),
     }
     send.mutate(
-      { kind: 'transfer', recipient: recipient.address, token: asset.address, symbol: asset.symbol, amount: parsed.wei, label: recipient.name ? `Pay @${recipient.name}` : `Send ${asset.symbol}` },
+      { kind: 'transfer', recipient: recipient.address, token: asset.address, symbol: asset.symbol, amount: parsed.wei, sponsored, label: recipient.name ? `Pay @${recipient.name}` : `Send ${asset.symbol}` },
       {
         onSuccess: (result) => {
           if (result.ok) {
@@ -161,9 +161,11 @@ export function SendForm({ initial }: { initial: SendSearch }) {
         ]}
         disclosure={disclosureFor('pool-send')}
         confirmLabel={`Send ${asset.symbol}`}
+        sponsor={{ kind: 'eligible' }}
         onConfirm={confirm}
         busy={busy}
-        blocker={busy ? null : (form.blocker ?? sendProblem(send.data))}
+        blocker={busy ? null : form.blocker}
+        problem={busy ? null : (sendProblem(send.data) ?? null)}
       />
 
       <ShieldDialog

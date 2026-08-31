@@ -46,6 +46,18 @@ export const SEND_CAP_NOTICE =
   'Relayed sends are paused until 00:00 UTC. ' +
   'You can still submit this send from your own Starknet wallet.'
 
+/**
+ * The same refusal when it is this CONNECTION's allocation that is gone rather than the day's.
+ *
+ * Per-visitor counts do not reset any more (relayer `ledger.ts` opens these `lifetime`), so the
+ * reset promise above would be false here. Naming the connection rather than the account matters
+ * too: the account is fine, and telling someone their account is out of sends when the limit is
+ * about their network would send them to fix the wrong thing.
+ */
+export const SEND_VISITOR_SPENT_NOTICE =
+  'This connection has used its relayed sends. ' +
+  'You can still submit this send from your own Starknet wallet.'
+
 /** The body `POST /submit` accepts. */
 export interface SubmitBody {
   /** The calls to sign, in order. The relayer's allowlist decides which are permitted. */
@@ -195,6 +207,23 @@ export const STARTER_CLAIMED_NOTICE =
   'This account already has its starting balance. The pool fee for what you do next comes from that balance.'
 
 /**
+ * Shown when the DAY'S starting balances are spent, which is a different refusal from the one above.
+ *
+ * The distinction is the whole reason both sentences exist. `STARTER_CLAIMED_NOTICE` is a fact
+ * about the account — you already have one, and coming back tomorrow changes nothing. This one is a
+ * fact about us, and tomorrow it is gone. Telling someone "you already have it" when they do not
+ * would send them looking for a balance that is not there.
+ */
+export const STARTER_BUDGET_NOTICE =
+  'Starting balances are paused until 00:00 UTC. Your account works without one — ' +
+  'it is a free first note, not something the account needs.'
+
+/** The same refusal when this CONNECTION's allocation is spent, which does not come back. */
+export const STARTER_VISITOR_SPENT_NOTICE =
+  'This connection has had its starting balances. Your account works without one — ' +
+  'it is a free first note, not something the account needs.'
+
+/**
  * What `GET /faucet/:address` answers: whether this address can still take the starter drip.
  *
  * TWO FIELDS BECAUSE THERE ARE TWO WAYS TO HAVE NOTHING TO OFFER, and a screen must not confuse
@@ -215,7 +244,18 @@ export interface FaucetClaimBody {
    * is read rather than hardcoded in the browser for the same reason the pool fee is: the amount
    * our relayer will actually pay for is the relayer's to state.
    */
-  starter?: { wei: string; claimed: boolean }
+  starter?: {
+    wei: string
+    claimed: boolean
+    /**
+     * Whether one can be sent RIGHT NOW — the day's budget and the relayer's funding, folded.
+     *
+     * Its own field beside `claimed` because the two refusals are not interchangeable: `claimed`
+     * is permanent and personal, this one clears at midnight. Optional so a relayer deployed
+     * before the starter had a budget still reads as "offer it", which is what it was doing.
+     */
+    available?: boolean
+  }
   available?: boolean
   error?: string
 }

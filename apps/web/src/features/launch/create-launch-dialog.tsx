@@ -9,6 +9,8 @@ import { KNOWN_TOKEN_DECIMALS } from '@strk20/protocol/token-scale'
 import { STRK_TOKEN } from '@strk20/protocol/constants'
 
 import { useSession } from '@/app/session'
+import { RefusalRow, useRefusal } from '@/components/money/refusal'
+import { SponsorRow, useSponsorChoice } from '@/components/money/sponsor-row'
 import { TokenLogo } from '@/components/money/asset-identity'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -29,6 +31,7 @@ const WINDOWS = [
 const STRK_DECIMALS = KNOWN_TOKEN_DECIMALS[STRK_TOKEN] ?? 18
 
 export function CreateLaunchDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
+  const sponsor = useSponsorChoice()
   const session = useSession()
   const ready = session.status === 'ready'
   const create = useCreateLaunch()
@@ -47,6 +50,7 @@ export function CreateLaunchDialog({ open, onOpenChange }: { open: boolean; onOp
   const [logo, setLogo] = useState<string | null>(null)
   const [candidates, setCandidates] = useState<string[]>([])
   const [generationOff, setGenerationOff] = useState(false)
+  const { refusal, refuse, clear: clearRefusal } = useRefusal()
   const [pinning, setPinning] = useState(false)
 
   const symbolClean = symbol.trim().toUpperCase()
@@ -71,7 +75,7 @@ export function CreateLaunchDialog({ open, onOpenChange }: { open: boolean; onOp
     if (!file) return
     const scaled = await downscale.mutateAsync(file)
     if (!scaled.ok) {
-      notify.refused('That image did not work', { description: scaled.because })
+      refuse(scaled.because)
       return
     }
     setCandidates([])
@@ -86,9 +90,11 @@ export function CreateLaunchDialog({ open, onOpenChange }: { open: boolean; onOp
     const answer = await generate.mutateAsync({ name: name.trim(), symbol: symbolClean, ...(brief.trim() ? { brief: brief.trim() } : {}) })
     if (!answer.ok) {
       if (answer.unconfigured) setGenerationOff(true)
-      notify.refused(answer.unconfigured ? 'Generation is not offered here' : 'No logo came back', {
-        description: answer.unconfigured ? 'This deployment has no image key. Upload a logo, or let the seeded disc stand in.' : answer.because,
-      })
+      refuse(
+        answer.unconfigured
+          ? 'This deployment has no image key. Upload a logo, or let the seeded disc stand in.'
+          : answer.because,
+      )
       return
     }
     setCandidates(answer.value)
@@ -96,6 +102,7 @@ export function CreateLaunchDialog({ open, onOpenChange }: { open: boolean; onOp
   }
 
   const onConfirm = async () => {
+    clearRefusal()
     if (blocker || price.wei === null || epochs === null || tokensPerEpoch === null) {
       if (blocker) notify.noted(blocker)
       return
@@ -107,7 +114,7 @@ export function CreateLaunchDialog({ open, onOpenChange }: { open: boolean; onOp
       if (pinned.ok) logoUri = pinned.value.uri
       else if (pinned.unconfigured) notify.warned('Pinning is not offered here', { description: 'The logo was not stored — the seeded disc will represent this token.' })
       else {
-        notify.refused('The logo did not pin', { description: pinned.because })
+        refuse(pinned.because)
         return
       }
     }
@@ -121,9 +128,10 @@ export function CreateLaunchDialog({ open, onOpenChange }: { open: boolean; onOp
       tokensPerEpoch,
       epochs,
       deadline: Math.floor(Date.now() / 1000) + window.seconds,
+      sponsored: sponsor.sponsored,
     })
     if (!outcome.ok) {
-      notify.refused('The launch was not created', { description: outcome.because })
+      refuse(outcome.because)
       return
     }
     notify.settled(`${symbolClean} is live`, { description: 'The sale is open. Your creator claim is a bearer secret stored in this browser.' })
@@ -248,6 +256,15 @@ export function CreateLaunchDialog({ open, onOpenChange }: { open: boolean; onOp
         <p className="text-body4 text-muted-foreground">
           Creating is an ordinary transaction from this account — your address is on it, the way any deploy is public. Your claim on the raise is a bearer secret this browser stores.
         </p>
+        {/* Who pays, said out loud. This call was always relayer-signed and always silent. */}<SponsorRow
+          offer={{ kind: 'eligible' }}
+          allowance={sponsor.allowance}
+          loading={sponsor.loading}
+          checked={sponsor.want}
+          onCheckedChange={sponsor.setWant}
+          locked={busy}
+        />
+        <RefusalRow refusal={refusal} />
         <Button size="lg" aria-disabled={Boolean(blocker) || undefined} onClick={() => void onConfirm()}>
           {busy ? <Spinner data-icon="inline-start" /> : null}
           {blocker ?? 'Launch it'}

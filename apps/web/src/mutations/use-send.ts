@@ -38,6 +38,14 @@ export interface SendAsk {
   app?: AppInvokeLeg
   surface?: ActivitySurface
   label?: string
+  /**
+   * Spend one of this account's covered transactions on this send.
+   *
+   * The REVIEW SHEET decides this, not the caller: it reads the live allowance and hands back
+   * `true` only when the user left the toggle on AND a unit was actually there. Absent is `false`,
+   * which is self-submission — the behaviour every venue had before the toggle existed.
+   */
+  sponsored?: boolean
   /** Optional narrator beside the pipeline store, for a button's own stage label. */
   onStage?: (stage: SendStage) => void
 }
@@ -70,11 +78,20 @@ async function send(ask: SendAsk): Promise<SendResult> {
     })
   }
 
-  // THE NOTE WALK ABOVE CANNOT SEE THIS. `sendShielded` is always `mode: 'self'`, so the pool fee
-  // and the gas the sequencer reserves are paid from PUBLIC STRK, while `shieldedShortfall` only
-  // weighs pool notes. A spend that is affordable in notes and unaffordable in public STRK was
-  // therefore proved, signed, and refused at `addInvokeTransaction` — the user paying attention in
-  // proving time to learn it. Read both numbers and refuse here, before the proof.
+  // THE NOTE WALK ABOVE CANNOT SEE THIS. A SELF-SUBMITTED `sendShielded` pays the pool fee and the
+  // gas the sequencer reserves out of PUBLIC STRK, while `shieldedShortfall` only weighs pool
+  // notes. A spend that is affordable in notes and unaffordable in public STRK was therefore
+  // proved, signed, and refused at `addInvokeTransaction` — the user paying attention in proving
+  // time to learn it. Read both numbers and refuse here, before the proof.
+  //
+  // ── AND IT IS SKIPPED ENTIRELY FOR A COVERED SEND, WHICH IS THE POINT OF ONE ──────────────
+  //
+  // A sponsored send is submitted by the relayer, so the relayer's own approve pays `collect_fee`
+  // and the relayer's wallet pays the gas. The holder needs no public STRK at all. Applying this
+  // floor anyway would refuse exactly the person the covered transactions exist for — an account
+  // that has just registered, holds a shielded starting balance and nothing public — and it would
+  // refuse them with a sentence telling them to go and find STRK they were promised they would not
+  // need.
   //
   // A read that fails does NOT refuse: the sequencer's own rejection is still the backstop, and a
   // flaky RPC must not block a spend the account can actually afford.
@@ -83,7 +100,7 @@ async function send(ask: SendAsk): Promise<SendResult> {
     queryClient.fetchQuery(publicBalancesQuery(address, [STRK_TOKEN])).catch(() => null),
   ])
   const haveWei = publicStrk?.[STRK_TOKEN] ?? null
-  if (pool && haveWei !== null) {
+  if (!ask.sponsored && pool && haveWei !== null) {
     const floorWei = feeFloor(pool.feeWei, pool.gasPrices)
     if (haveWei < floorWei) {
       return refused({
@@ -136,9 +153,18 @@ async function send(ask: SendAsk): Promise<SendResult> {
         token: ask.token,
         symbol: ask.symbol,
         amount: ask.amount,
-        // Self, always: the embedded account pays its own fee. The relayer path needs a funded
-        // relayer holding twice the live fee and refuses below it.
-        mode: 'self',
+        // ── THE ONE LINE THAT MAKES THE COUNTER REAL ──────────────────────────────────────
+        //
+        // This was `'self'` unconditionally, and that single word orphaned the whole sponsorship
+        // path: `preflightSend` only reads the allowance when the mode is `relayer`, so `covered`
+        // could never be true, so nothing in the app could ever spend one of the three
+        // transactions the shell counts down. Registration took the first; the other two were
+        // unreachable by any button.
+        //
+        // `relayer` only on an explicit yes. The relayer refuses below twice the live fee and
+        // `relayFailureFrom` offers self-submission when it does, so a broke or paused relayer
+        // costs a retry rather than a dead end.
+        mode: ask.sponsored ? 'relayer' : 'self',
         ...(ask.swap ? { swap: ask.swap } : {}),
         ...(ask.bridge ? { bridge: ask.bridge } : {}),
         ...(ask.app ? { app: ask.app } : {}),

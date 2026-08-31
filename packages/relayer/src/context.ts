@@ -30,6 +30,11 @@ export interface RelayerContext {
   sponsorship?: SponsorshipLedger
   sendBudget?: SponsorshipLedger
   faucet?: SponsorshipLedger
+  /**
+   * The DAY'S brake on the shielded starter. Separate from `faucet`, which holds the once-per-
+   * account claims — this one bounds how many gifts a day, and how many one connection may take.
+   */
+  starterBudget?: SponsorshipLedger
   /** Keyed by ACCOUNT ADDRESS, not by hashed IP — the count a user is shown. See ledger.ts. */
   accountAllowance?: SponsorshipLedger
   /**

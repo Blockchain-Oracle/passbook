@@ -52,7 +52,7 @@ export function BridgeSurface({ initialChain }: { initialChain?: string }) {
     setReviewOpen(true)
   }
 
-  const confirm = async () => {
+  const confirm = async (sponsored: boolean) => {
     const ask = form.ask
     if (!ask || send.isPending || form.deliveredWei === null) return
     // Frozen at send time: a form edited afterwards must not rewrite a receipt.
@@ -62,7 +62,7 @@ export function BridgeSurface({ initialChain }: { initialChain?: string }) {
       destination: form.destination.trim(),
       deliveredWei: form.deliveredWei,
     }
-    const result = await send.mutateAsync(ask)
+    const result = await send.mutateAsync({ ...ask, sponsored })
     if (result.ok) {
       setLanded({ hash: result.transactionHash, ...frozen })
       setReviewOpen(false)

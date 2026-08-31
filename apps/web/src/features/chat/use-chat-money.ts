@@ -26,6 +26,10 @@ export interface MoneyAsk {
   attachment: MoneyAttachment
   /** The message written beside the money. Optional: an amount alone is a complete thing to send. */
   note: string
+  /** Whether the review sheet's sponsorship toggle was on AND a unit was there. */
+  sponsored?: boolean
+  /** Where a refusal goes: the review sheet's red row, not a toast. */
+  onRefused?: (sentence: string, hash: string | null) => void
 }
 
 export function useChatMoney() {
@@ -33,9 +37,10 @@ export function useChatMoney() {
   const post = useSendMessage()
 
   /** Transfer, then post the card that points at it. Resolves `true` only when value actually moved. */
-  async function pay({ address, peer, room, attachment, note }: MoneyAsk): Promise<boolean> {
+  async function pay({ address, peer, room, attachment, note, sponsored, onRefused }: MoneyAsk): Promise<boolean> {
     const result = await send.mutateAsync({
       kind: 'transfer',
+      ...(sponsored ? { sponsored: true } : {}),
       recipient: peer,
       token: attachment.token,
       symbol: attachment.symbol,
@@ -44,10 +49,9 @@ export function useChatMoney() {
       label: `Pay in chat · ${attachment.amountText} ${attachment.symbol}`,
     })
     if (!result.ok) {
-      notify.refused('The payment did not go through', {
-        description: sendProblem(result) ?? undefined,
-        hash: sendTransactionHash(result),
-      })
+      // The review sheet is still open and it owns this refusal — a toast would float away from
+      // the screen that caused it. `pay` reports it by returning false; the caller shows it.
+      onRefused?.(sendProblem(result) ?? 'The payment did not go through.', sendTransactionHash(result))
       return false
     }
     try {

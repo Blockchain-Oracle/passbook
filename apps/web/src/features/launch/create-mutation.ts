@@ -19,6 +19,11 @@ export interface CreateLaunchAsk {
   priceWei: bigint
   /** Added to the unit price with each epoch. */
   stepWei: bigint
+  /**
+   * Spend one of this account's covered transactions instead of paying gas from it.
+   * The review screen decides this; absent is `false`, which is "sign it yourself".
+   */
+  sponsored?: boolean
   /** Tokens sold per epoch, whole units of the new token. */
   tokensPerEpoch: number
   epochs: number
@@ -66,6 +71,7 @@ async function createLaunch(ask: CreateLaunchAsk): Promise<CreateLaunchOutcome> 
     session.address,
     { contractAddress: contract, entrypoint: 'create_launch', calldata },
     `Create launch ${ask.symbol}`,
+    ask.sponsored,
   )
   // A hash — confirmed or unknown — keeps the claim; only a refusal that broadcast nothing frees it.
   if (outcome.transactionHash) await relabelStoredPosition(minted.commitment, { txHash: outcome.transactionHash })

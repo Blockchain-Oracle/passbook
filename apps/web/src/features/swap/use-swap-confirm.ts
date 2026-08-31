@@ -15,6 +15,8 @@ export interface SwapConfirmAsk {
   quote: Quote
   slippageBps: number
   minOutWei: bigint
+  /** Whether the review sheet's sponsorship toggle was on AND a unit was there. */
+  sponsored?: boolean
 }
 
 export type SwapOutcome =
@@ -42,6 +44,7 @@ export function useSwapConfirm() {
         token: ask.sell.address,
         symbol: ask.sell.symbol,
         amount: ask.quote.sellAmount,
+        ...(ask.sponsored ? { sponsored: true } : {}),
         swap: {
           executor: built.plan.executorAddress,
           buyToken: ask.buy.address,

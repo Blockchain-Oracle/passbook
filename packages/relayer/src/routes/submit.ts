@@ -8,7 +8,7 @@ import { cairoPanic, rpcMethod, stripRpcParams } from '../../../protocol/src/rpc
 import { assertResourceBounds, assertSubmittable, needsApproveCeiling } from '../allowlist.js'
 import type { AppEnv } from '../context.js'
 import { utcDayKey } from '../sponsorship.js'
-import { jsonError, reply, visitorOf } from './shared.js'
+import { jsonError, lifetimeVisitorOf, reply } from './shared.js'
 import { parseSubmitBody, type SubmitDetails } from './submit-body.js'
 
 /**
@@ -117,7 +117,9 @@ submitRoutes.post('/', async (c) => {
   // burn one of the transactions we said we would pay for — see `SubmitBody.covered`.
   const allowance = account && covered ? ctx.accountAllowance : undefined
   const now = Date.now()
-  const visitor = budget ? visitorOf(c, budget.salt, now) : ''
+  // LIFETIME, not day-scoped: a connection's sponsored registrations and relayed sends are its
+  // share once, and a day-scoped id would hand it a fresh one every midnight. See `ledger.ts`.
+  const visitor = budget ? lifetimeVisitorOf(c, budget.salt) : ''
 
   if (budget) {
     const d = budget.decide(visitor, now)

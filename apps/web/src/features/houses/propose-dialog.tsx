@@ -13,6 +13,8 @@ import { useState } from 'react'
 import { ArrowLeft, ArrowRight } from 'lucide-react'
 import { parseAmountInput } from '@strk20/protocol/amount'
 
+import { RefusalRow, useRefusal } from '@/components/money/refusal'
+import { SponsorRow, useSponsorChoice } from '@/components/money/sponsor-row'
 import { Amount } from '@/components/money/amount'
 import { BoundaryBadge } from '@/components/money/boundary-badge'
 import { Button } from '@/components/ui/button'
@@ -75,6 +77,7 @@ export function ProposeDialog({ house, open, onOpenChange }: DoorProps) {
   const now = useNow(30_000)
   const [draft, setDraft] = useState<ProposeDraft>(EMPTY_DRAFT)
   const [restored, setRestored] = useState(false)
+  const { refusal, refuse, clear: clearRefusal } = useRefusal()
   const [step, setStep] = useState<ProposeStep>('ask')
   const [wasOpen, setWasOpen] = useState(open)
 
@@ -106,6 +109,7 @@ export function ProposeDialog({ house, open, onOpenChange }: DoorProps) {
 
   const amount = parseAmountInput(draft.amountRaw, token.decimals)
   const busy = propose.isPending
+  const sponsor = useSponsorChoice()
   const index = PROPOSE_STEPS.indexOf(step)
   const last = step === 'review'
   const incomplete = firstIncompleteStep(draft, token.decimals)
@@ -128,6 +132,7 @@ export function ProposeDialog({ house, open, onOpenChange }: DoorProps) {
   }
 
   const confirm = async () => {
+    clearRefusal()
     const outcome = await propose.mutateAsync({
       houseId: house.id,
       question: draft.question,
@@ -135,9 +140,10 @@ export function ProposeDialog({ house, open, onOpenChange }: DoorProps) {
       abstain: draft.abstain,
       windowSeconds: WINDOWS[draft.windowIdx]!.seconds,
       spend: draft.spend && amount.wei !== null ? { amountWei: amount.wei, recipient: draft.recipient } : null,
+      sponsored: sponsor.sponsored,
     })
     if (!outcome.ok) {
-      notify.refused('The proposal was not made', { description: outcome.because })
+      refuse(outcome.because)
       return
     }
     notify.settled('The box is open', { description: draft.permanent ? SEALED.permanent : SEALED.untilClose })
@@ -282,6 +288,18 @@ export function ProposeDialog({ house, open, onOpenChange }: DoorProps) {
           ) : null}
         </div>
 
+        {/* Only on the review step: the earlier ones are not about to submit anything. */}
+        {last ? <div className="px-4"><SponsorRow
+          offer={{ kind: 'eligible' }}
+          allowance={sponsor.allowance}
+          loading={sponsor.loading}
+          checked={sponsor.want}
+          onCheckedChange={sponsor.setWant}
+          locked={busy}
+        /></div> : null}
+        <div className="px-4">
+          <RefusalRow refusal={refusal} />
+        </div>
         <DialogFooter className="sm:justify-between">
           <Button
             variant="ghost"

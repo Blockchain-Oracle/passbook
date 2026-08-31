@@ -17,17 +17,33 @@ export interface SubmissionPolicy {
 }
 
 /**
- * The direct entrypoints per app contract. All are permissionless, take no value, and pay the
- * caller nothing; `sweep` and `publish_key` are deliberately absent (they carry a bearer secret /
- * Teller material and must never be signed from a user submission).
+ * The direct entrypoints a BROWSER may ask this relayer to sign. All are permissionless, take no
+ * value, and pay the caller nothing; `sweep` and `publish_key` are deliberately absent (they carry
+ * a bearer secret / Teller material and must never be signed from a user submission).
+ *
+ * ── IT WAS CALLED `KEEPER_ENTRYPOINTS`, AND THE NAME WAS THE BUG ──────────────────────────
+ *
+ * Nothing here has ever served the keeper. `assertSubmittable` is reached from exactly one place —
+ * `POST /submit` — and the market keeper and the Teller do not go through it: both sign through the
+ * signer queue directly (`server.ts` wires `send` to `execute`, `tellerSubmitters` likewise). So
+ * this list never granted the keeper anything it needed, and `resolve`, `void`, `graduate`,
+ * `publish_tally`, `execute` and `void_proposal` sat here granting a capability nothing asked for.
+ * They are gone. If a keeper action ever does need to travel through `/submit`, add it back
+ * deliberately and say why — do not restore it to make an error disappear.
+ *
+ * What is left is the three calls the app actually posts, and they are now METERED: the browser
+ * signs them itself unless the user spends one of their covered transactions, in which case it
+ * arrives with `account` + `covered` and counts down (`use-direct-invoke.ts`). Before that, the app
+ * posted them with no flags at all and this relayer paid the gas for every House, proposal and
+ * token launch anybody cared to create, forever, counted against nothing a user could see.
  */
-export const KEEPER_ENTRYPOINTS = {
-  markets: ['resolve', 'void'],
-  launch: ['graduate', 'create_launch'],
-  governance: ['create_house', 'propose', 'publish_tally', 'execute', 'void_proposal'],
-} as const
+export const DIRECT_ENTRYPOINTS = {
+  markets: [],
+  launch: ['create_launch'],
+  governance: ['create_house', 'propose'],
+} as const satisfies Record<string, readonly string[]>
 
-export type AppContractName = keyof typeof KEEPER_ENTRYPOINTS
+export type AppContractName = keyof typeof DIRECT_ENTRYPOINTS
 
 /** A felt in hex or decimal — starknet.js `CallData.compile` emits decimal. 78 digits leaves margin. */
 export const FELT = /^(0x[0-9a-fA-F]{1,64}|[0-9]{1,78})$/
@@ -145,7 +161,7 @@ export function assertCallAllowed(call: Call, policy: SubmissionPolicy): void {
     if (call.entrypoint !== 'privacy_invoke') throw refuse(call)
     return
   }
-  for (const [name, entrypoints] of Object.entries(KEEPER_ENTRYPOINTS) as [
+  for (const [name, entrypoints] of Object.entries(DIRECT_ENTRYPOINTS) as [
     AppContractName,
     readonly string[],
   ][]) {

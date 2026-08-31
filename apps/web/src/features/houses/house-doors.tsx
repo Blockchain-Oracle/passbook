@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { notify } from '@/lib/notify'
+import { useRefusal } from '@/components/money/refusal'
 import { insufficient, parseAmountInput, toPlainText } from '@strk20/protocol/amount'
 import { disclosureFor } from '@strk20/protocol/disclosure'
 import { DISCLOSURE_HEADLINE } from '@strk20/protocol/disclosure-copy'
@@ -59,6 +60,7 @@ export function useDoorGate(sessionReady: boolean): { contract: string | null; b
 export function FundDialog({ house, open, onOpenChange }: DoorProps) {
   const [raw, setRaw] = useState('')
   const [reviewing, setReviewing] = useState(false)
+  const { refusal, refuse, clear: clearRefusal } = useRefusal()
   const token = useHouseToken(house)
   const send = useSend()
   const gate = useDoorGate(token.sessionReady)
@@ -69,15 +71,16 @@ export function FundDialog({ house, open, onOpenChange }: DoorProps) {
     (parsed.problem ? parsed.problem : parsed.wei === null || parsed.wei === 0n ? 'Enter an amount' : short ? `Not enough shielded ${token.symbol}` : null)
   const amountText = parsed.wei !== null && token.decimals !== null ? toPlainText(parsed.wei, token.decimals) : raw
 
-  const confirm = async () => {
+  const confirm = async (sponsored: boolean) => {
     if (!gate.contract || parsed.wei === null) return
     const payload = fundPayload({ houseId: house.id, amount: parsed.wei })
     if (payload.state === 'refused') {
-      notify.refused('The gift was refused', { description: payload.because })
+      refuse(payload.because)
       return
     }
     const result = await send.mutateAsync({
       kind: 'gov-fund',
+      sponsored,
       recipient: gate.contract,
       token: house.token,
       symbol: token.symbol,
@@ -95,7 +98,7 @@ export function FundDialog({ house, open, onOpenChange }: DoorProps) {
       setRaw('')
       return
     }
-    notify.refused('The treasury was not funded.', { description: sendProblem(result) ?? undefined, hash: sendTransactionHash(result) })
+    refuse(sendProblem(result) ?? 'The treasury was not funded.', sendTransactionHash(result))
   }
 
   return (
@@ -123,7 +126,12 @@ export function FundDialog({ house, open, onOpenChange }: DoorProps) {
             />
           </div>
           <DialogFooter>
-            <Button size="lg" aria-disabled={blocker !== null || undefined} onClick={() => blocker === null && setReviewing(true)}>
+            <Button size="lg" aria-disabled={blocker !== null || undefined} onClick={() => {
+                if (blocker === null) {
+                  clearRefusal()
+                  setReviewing(true)
+                }
+              }}>
               {blocker ?? `Review gift · ${amountText} ${token.symbol}`}
             </Button>
           </DialogFooter>
@@ -141,9 +149,11 @@ export function FundDialog({ house, open, onOpenChange }: DoorProps) {
         ]}
         disclosure={disclosureFor('gov-fund')}
         confirmLabel={`Give ${amountText} ${token.symbol}`}
-        onConfirm={() => void confirm()}
+        sponsor={{ kind: 'eligible' }}
+        onConfirm={(sponsored) => void confirm(sponsored)}
         busy={send.isPending}
         blocker={blocker}
+        problem={refusal}
       />
     </>
   )
@@ -153,6 +163,7 @@ export function FundDialog({ house, open, onOpenChange }: DoorProps) {
 export function JoinDialog({ house, open, onOpenChange }: DoorProps) {
   const [invite, setInvite] = useState('')
   const [reviewing, setReviewing] = useState(false)
+  const { refusal, refuse, clear: clearRefusal } = useRefusal()
   const token = useHouseToken(house)
   const send = useSend()
   const gate = useDoorGate(token.sessionReady)
@@ -165,15 +176,16 @@ export function JoinDialog({ house, open, onOpenChange }: DoorProps) {
   }
   const blocker = gate.blocker ?? (trimmed === '' ? 'Paste the invite' : !inviteOk ? 'That is not a door key' : null)
 
-  const confirm = async () => {
+  const confirm = async (sponsored: boolean) => {
     if (!gate.contract) return
     const payload = joinPayload({ houseId: house.id, inviteSecret: trimmed })
     if (payload.state === 'refused') {
-      notify.refused('The join was refused', { description: payload.because })
+      refuse(payload.because)
       return
     }
     const result = await send.mutateAsync({
       kind: 'gov-join',
+      sponsored,
       recipient: gate.contract,
       token: house.token,
       symbol: token.symbol,
@@ -188,7 +200,7 @@ export function JoinDialog({ house, open, onOpenChange }: DoorProps) {
       setInvite('')
       return
     }
-    notify.refused('The join did not go through.', { description: sendProblem(result) ?? undefined, hash: sendTransactionHash(result) })
+    refuse(sendProblem(result) ?? 'The join did not go through.', sendTransactionHash(result))
   }
 
   return (
@@ -206,7 +218,12 @@ export function JoinDialog({ house, open, onOpenChange }: DoorProps) {
             <FieldDescription>The founder handed this out. The chain holds only its fingerprint.</FieldDescription>
           </Field>
           <DialogFooter>
-            <Button size="lg" aria-disabled={blocker !== null || undefined} onClick={() => blocker === null && setReviewing(true)}>
+            <Button size="lg" aria-disabled={blocker !== null || undefined} onClick={() => {
+                if (blocker === null) {
+                  clearRefusal()
+                  setReviewing(true)
+                }
+              }}>
               {blocker ?? 'Review join'}
             </Button>
           </DialogFooter>
@@ -224,9 +241,11 @@ export function JoinDialog({ house, open, onOpenChange }: DoorProps) {
         ]}
         disclosure={disclosureFor('gov-join')}
         confirmLabel="Join, as a derived handle"
-        onConfirm={() => void confirm()}
+        sponsor={{ kind: 'eligible' }}
+        onConfirm={(sponsored) => void confirm(sponsored)}
         busy={send.isPending}
         blocker={blocker}
+        problem={refusal}
       />
     </>
   )

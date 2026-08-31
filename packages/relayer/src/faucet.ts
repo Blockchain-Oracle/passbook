@@ -89,6 +89,17 @@ export const DRIP_BUDGET_SPENT =
   'Starter STRK is paused until 00:00 UTC. You can still fund this account from any Starknet ' +
   'wallet or exchange.'
 
+/**
+ * The refusal a spent PER-VISITOR allocation answers with. Names no reset, because there is none.
+ *
+ * The drip is once per address forever AND once per connection forever. This is the second of
+ * those — a different address on a connection that already took one — and it is the sentence that
+ * used to promise a midnight that never applied.
+ */
+export const DRIP_VISITOR_SPENT =
+  'This connection has had its starter STRK. You can still fund this account from any Starknet ' +
+  'wallet or exchange.'
+
 /** The refusal for an address that is not one. */
 export const DRIP_BAD_ADDRESS = 'That is not a Starknet address.'
 

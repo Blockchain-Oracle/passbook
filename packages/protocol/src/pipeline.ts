@@ -68,6 +68,15 @@ export type SendFailure =
   /** The sponsorship budget answered an unflagged send: the relayer meters against the wrong budget. */
   | { kind: 'sponsorship-paused'; notice: string; selfSubmit: SelfSubmitOffer }
   | { kind: 'relayer-down'; notice: string; selfSubmit: SelfSubmitOffer }
+  /**
+   * This ACCOUNT has spent the transactions we cover — not a budget, not a rate limit.
+   *
+   * Reachable only since the review sheet let a user ask for one: before that the app never sent
+   * `mode: 'relayer'`, so `/submit`'s `allowance-spent` refusal had nowhere to land and fell
+   * through to `relay-refused`, which drops both the authored notice and the self-submit offer.
+   * The send is not over — it costs the user the pool fee instead of costing us one.
+   */
+  | { kind: 'allowance-spent'; notice: string; selfSubmit: SelfSubmitOffer }
   /** Refused before anything could be broadcast: nothing signed, retry is free. */
   | { kind: 'relay-refused'; status: number; reason: string }
   /** The user's own wallet was the caller; a failed attempt still cost gas — `gasLine` says so. */
@@ -225,6 +234,9 @@ export function relayFailureFrom(e: unknown, offer: SelfSubmitOffer): SendFailur
     }
     if (e.status === 503 && e.reason === 'relayer-down') {
       return { kind: 'relayer-down', notice: notice(e.notice), selfSubmit: offer }
+    }
+    if (e.status === 403 && e.reason === 'allowance-spent') {
+      return { kind: 'allowance-spent', notice: notice(e.notice), selfSubmit: offer }
     }
     return { kind: 'relay-refused', status: e.status, reason: e.error ?? e.notice ?? 'the relayer refused the submission' }
   }

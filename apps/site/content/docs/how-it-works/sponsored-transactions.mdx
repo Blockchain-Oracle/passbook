@@ -1,0 +1,80 @@
+---
+title: Sponsored transactions
+description: Your first three pool fees are on us — what that covers, why shielding is not on the list, and what happens when they run out.
+---
+
+Every transaction against the privacy pool pays a **pool fee**, charged by the pool contract itself
+and read live from `get_fee_amount`. It is not set by strk20.run and we cannot waive it. What we can
+do is pay it for you, and for your first three transactions we do.
+
+## What "sponsored" actually means
+
+A sponsored transaction is submitted by our relayer instead of by your account. The relayer signs
+it, its own approve covers the pool fee, and its wallet pays the Starknet gas. Your account still
+proves the transaction — the proof is built in your browser from your key, and the relayer cannot
+compose one for you — but the bill lands on us.
+
+The practical consequence is the one worth knowing: **a sponsored transaction needs no public STRK
+in your account at all.** A freshly registered account holding nothing but a shielded starting
+balance can still send, swap, bet or vote, because none of those cost it anything public.
+
+## What the three cover
+
+Your registration takes the first one automatically — that is the transaction that puts your
+account in the pool, and it happens before you have any way to pay for it yourself.
+
+The other two are yours to spend, and the review screen asks before it spends one:
+
+<Callout>
+**Use a sponsored transaction · 2 of 3 left** — a toggle on the last screen before you sign. It is
+**off by default**: your account signs and pays its own way, the way any account does. Turn it on
+and we pay the pool fee for that one, and the count goes down by one.
+</Callout>
+
+They work on any pool transaction: sending, unshielding, swapping, bridging, backing a market,
+creating one, funding a house, delegating, voting, and buying into a launch.
+
+Creating a House, opening a proposal and launching a token are a slightly different shape — they
+are direct calls rather than pool transactions, so there is no pool fee on them at all, only
+Starknet gas. The same toggle appears, and turning it on spends a covered transaction to have us
+pay that gas. Left off, your own account pays it, which is the ordinary case.
+
+## Why shielding is not on that list
+
+Shielding is a deposit, and a deposit pulls funds from **whoever submits the transaction**. If our
+relayer submitted your shield, our STRK would go into the pool — in a note owned by you. That is not
+a sponsored transaction, it is a gift, and it is a different thing with different limits.
+
+So a shield is always sent by your own account, which means it always pays its own pool fee and gas
+out of your public STRK. The review screen says so rather than showing a toggle that cannot work.
+
+<Callout type="warn">
+This is a property of how deposits work in the pool, not a feature we have not built yet. Keep
+enough public STRK to cover one pool fee plus gas before you shield.
+</Callout>
+
+We do hand out a starting balance separately — a small shielded note, sent and proved by the
+relayer with its own key, once per account. That is the gift; the three transactions are the
+sponsorship. They are metered apart and neither draws down the other.
+
+## When they run out
+
+Nothing breaks. Your account keeps working exactly as before, and each transaction pays the pool fee
+from your own balance like any other. The review screen stops offering the toggle and says which of
+the two situations you are in.
+
+## The limits, stated
+
+- **Three per account, once.** Not three per day — they do not come back at midnight.
+- **The starting balance and the public drip are also once, per account.** Separate from the three,
+  metered separately, and neither renews.
+- **Everything metered per connection is a lifetime allocation too.** A network that has used its
+  share does not get a fresh one tomorrow. These ceilings are set high enough that shared internet
+  connections — an office, a campus, a mobile carrier — are not mistaken for one person.
+- **A shared daily budget** bounds what the relayer will pay for across everyone in a UTC day. This
+  is the one thing here that does reset: it is a limit on our spending for a day, not a rule about
+  you. When it is spent, sponsorship pauses until 00:00 UTC and self-paid transactions carry on.
+- **A reverted transaction gives the unit back.** The relayer reads the receipt itself and refunds
+  what a failure cost you. It never takes a client's word for it.
+- **A relayer low on funds refuses rather than half-pays.** It stops signing below twice the live
+  pool fee, and the app falls back to offering you the self-paid path.

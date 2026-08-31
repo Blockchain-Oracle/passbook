@@ -4,6 +4,8 @@ import type { Disclosure } from '@strk20/protocol/disclosure'
 import type { BoundaryKind } from '@/app/boundary'
 import { BoundaryBadge } from '@/components/money/boundary-badge'
 import { OperationPipeline } from '@/components/money/operation-pipeline'
+import { RefusalRow, asRefusal, type Refusal } from '@/components/money/refusal'
+import { SponsorRow, useSponsorChoice, type SponsorOffer } from '@/components/money/sponsor-row'
 import { DisclosurePanelView } from '@/components/privacy/disclosure-panel'
 import { usePipeline } from '@/mutations/pipeline-store'
 import { Button } from '@/components/ui/button'
@@ -29,12 +31,29 @@ export interface ReviewSheetProps {
   disclosure?: Disclosure | null
   onWayOut?: () => void
   confirmLabel: string
-  onConfirm: () => void
+  /**
+   * `sponsored` is whether the user left the sponsorship toggle ON *and* a unit was actually
+   * available. Callers that pass no `sponsor` offer always receive `false` and may ignore the
+   * argument entirely — a `() => void` still satisfies this type.
+   */
+  onConfirm: (sponsored: boolean) => void
   busy?: boolean
-  /** Why confirm is blocked. The CTA stays enabled but says this instead (never `disabled`). */
+  /**
+   * Whether we can pay for this one, and the row that says so. Absent renders nothing at all,
+   * which is what every venue did before this existed.
+   */
+  sponsor?: SponsorOffer
+  /**
+   * Why confirm is blocked — a standing condition or a missing input, NOT a failure. It renders
+   * muted, because nothing has gone wrong yet. A refusal belongs in `problem`, which is red.
+   */
   blocker?: string | null
-  /** What went wrong on the last confirm, in the caller's words. Shown above the CTA so a refusal is never silent. */
-  problem?: string | null
+  /**
+   * What went wrong on the last confirm. THE ONE PLACE A REFUSAL GOES, on every venue: it is red,
+   * it sits against the button that caused it, and it stays until the surface is used again.
+   * Takes a bare sentence, or a `Refusal` when there is a transaction to link.
+   */
+  problem?: string | Refusal | null
   children?: ReactNode
 }
 
@@ -51,11 +70,19 @@ export function ReviewSheet({
   confirmLabel,
   onConfirm,
   busy = false,
+  sponsor,
   blocker,
   problem,
   children,
 }: ReviewSheetProps) {
   const blocked = busy || Boolean(blocker)
+  // ── WHO PAYS, DECIDED HERE RATHER THAN IN TWELVE CALL SITES ───────────────────────────────
+  //
+  // Every venue that signs does it behind this sheet, so the offer, the count and the choice live
+  // in one place. The alternative was the same three-state block copied into send, swap, bridge,
+  // unshield, bets and launch — which is exactly how the pipeline row came to be missing from six
+  // of them before it moved here.
+  const choice = useSponsorChoice(sponsor?.kind === 'eligible')
   // A blocker is a SENTENCE when it explains a standing condition ("this deployment is read-only
   // until…") and a PHRASE when it names a missing input ("Enter an amount"). Both were being
   // rendered as the button's label, so the explaining kind produced a paragraph inside a CTA that
@@ -87,6 +114,16 @@ export function ReviewSheet({
               ))}
             </TableBody>
           </Table>
+          {sponsor ? (
+            <SponsorRow
+              offer={sponsor}
+              allowance={choice.allowance}
+              loading={choice.loading}
+              checked={choice.want}
+              onCheckedChange={choice.setWant}
+              locked={busy}
+            />
+          ) : null}
           {running ? (
             <OperationPipeline
               stages={running.stages}
@@ -98,13 +135,11 @@ export function ReviewSheet({
           ) : null}
           {children}
           {disclosure ? <DisclosurePanelView panel={disclosure} onWayOut={onWayOut} /> : null}
-          {problem ? (
-            <p role="alert" className="rounded-lg border border-irreversible/40 bg-irreversibleTint px-3 py-2 text-body4 text-irreversible">
-              {problem}
-            </p>
-          ) : null}
         </div>
+        {/* The refusal lives in the FOOTER, not the scroll area above it: a reason the user has to
+            scroll back up to find is a reason they will report as "it just did nothing". */}
         <SheetFooter className="flex-col items-stretch gap-2">
+          <RefusalRow refusal={asRefusal(problem)} />
           {explained ? (
             <p className="rounded-lg border bg-muted/40 px-3 py-2 text-body4 text-muted-foreground">{explained}</p>
           ) : null}
@@ -112,7 +147,7 @@ export function ReviewSheet({
             size="lg"
             aria-disabled={blocked || undefined}
             onClick={() => {
-              if (!blocked) onConfirm()
+              if (!blocked) onConfirm(choice.sponsored)
             }}
           >
             {busy ? <Spinner data-icon="inline-start" /> : null}

@@ -16,6 +16,7 @@ import { Spinner } from '@/components/ui/spinner'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { shortAddress } from '@/lib/format'
 import { notify } from '@/lib/notify'
+import { useRefusal } from '@/components/money/refusal'
 
 import { useChatContext } from './chat-context'
 import { Composer } from './composer'
@@ -88,6 +89,7 @@ function ThreadView({ me, peer, connection }: { me: RoomInputs; peer: string; co
   }, [bubbles.length])
 
   const blocker = room ? null : status.isPending ? 'Still reading their key…' : statusLine(status.data)
+  const { refusal, refuse, clear: clearRefusal } = useRefusal()
   const busy = send.isPending || money.busy
 
   const clear = () => {
@@ -132,11 +134,23 @@ function ThreadView({ me, peer, connection }: { me: RoomInputs; peer: string; co
     setAttaching({ kind: 'payment', seed: { ...(asset ? { asset } : {}), amount: ask.amount } })
   }
 
-  const confirmPayment = async () => {
+  const confirmPayment = async (sponsored: boolean) => {
     if (!room || !attachment || attachment.kind !== 'payment') return
-    const moved = await money.pay({ address: me.address, peer, room, attachment, note: draft.trim() })
+    clearRefusal()
+    const moved = await money.pay({
+      address: me.address,
+      peer,
+      room,
+      attachment,
+      note: draft.trim(),
+      sponsored,
+      onRefused: refuse,
+    })
+    // A refusal KEEPS THE SHEET OPEN. Closing it and raising a toast was how a failed payment came
+    // to look like a payment that simply vanished.
+    if (!moved) return
     setReviewing(false)
-    if (moved) clear()
+    clear()
   }
 
   return (
@@ -222,8 +236,10 @@ function ThreadView({ me, peer, connection }: { me: RoomInputs; peer: string; co
           ]}
           disclosure={CHAT_PAYMENT_DISCLOSURE}
           confirmLabel={`Send ${attachment.amountText} ${attachment.symbol}`}
-          onConfirm={() => void confirmPayment()}
+          sponsor={{ kind: 'eligible' }}
+          onConfirm={(sponsored) => void confirmPayment(sponsored)}
           busy={money.busy}
+          problem={refusal}
         />
       ) : null}
     </section>

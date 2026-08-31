@@ -7,7 +7,7 @@
 import type { Call } from 'starknet'
 import { NET, STRK_TOKEN } from '../../protocol/src/constants.js'
 import {
-  KEEPER_ENTRYPOINTS,
+  DIRECT_ENTRYPOINTS,
   assertCallAllowed,
   matches,
   type AppContractName,
@@ -61,9 +61,9 @@ function isAppContractInvoke(call: Call, policy: SubmissionPolicy): boolean {
   return false
 }
 
-/** Every direct keeper call: a loop of `resolve` is one useful tx and the rest reverting at our expense. */
-function isKeeperCall(call: Call, policy: SubmissionPolicy): boolean {
-  for (const [name, entrypoints] of Object.entries(KEEPER_ENTRYPOINTS) as [
+/** Every direct app call: two `create_house` in one batch is two Houses on one metered unit. */
+function isDirectAppCall(call: Call, policy: SubmissionPolicy): boolean {
+  for (const [name, entrypoints] of Object.entries(DIRECT_ENTRYPOINTS) as [
     AppContractName,
     readonly string[],
   ][]) {
@@ -120,10 +120,11 @@ export function assertSubmittable(calls: Call[], policy: SubmissionPolicy = {}):
       'on three contracts is refused rather than passing as three separate "at most one"s.',
   )
   assertAtMostOne(
-    calls.filter((call) => isKeeperCall(call, policy)).length,
-    'keeper calls',
-    'resolve, void and graduate each do their whole job the first time they succeed, so a ' +
-      'batch of them is one useful transaction and the rest reverting at this wallet’s expense.',
+    calls.filter((call) => isDirectAppCall(call, policy)).length,
+    'direct app calls',
+    'create_house, create_launch and propose each create a distinct thing, so a batch of them ' +
+      'is several creations riding one metered unit — and when that unit is a covered ' +
+      'transaction, several of them charged to a user who agreed to one.',
   )
 
   for (const call of calls) assertCallAllowed(call, policy)

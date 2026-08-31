@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { notify } from '@/lib/notify'
+import { useRefusal } from '@/components/money/refusal'
 import { Minus, Plus } from 'lucide-react'
 import { UNITS_PER_EPOCH, currentEpoch, type OnChainLaunch } from '@strk20/protocol/app-reads'
 import { disclosureFor } from '@strk20/protocol/disclosure'
@@ -48,6 +49,7 @@ export function BuyPanel({ launch, onDone }: { launch: OnChainLaunch; onDone?: (
 
   const [unitsRaw, setUnitsRaw] = useState('1')
   const [review, setReview] = useState(false)
+  const { refusal, refuse, clear: clearRefusal } = useRefusal()
   const units = /^\d+$/.test(unitsRaw.trim()) ? Number(unitsRaw.trim()) : null
   const remaining = launch.epochs * UNITS_PER_EPOCH - launch.sold
   const quote = useQuery(quoteBuyQuery(launch.id, units))
@@ -66,13 +68,13 @@ export function BuyPanel({ launch, onDone }: { launch: OnChainLaunch; onDone?: (
 
   const step = (delta: number) => setUnitsRaw(String(Math.max(1, (units ?? 0) + delta)))
 
-  const confirm = async () => {
+  const confirm = async (sponsored: boolean) => {
     if (!contract || units === null || cost === null) return
     const { mintPositionSecret } = await import('@strk20/protocol/commitment')
     const minted = mintPositionSecret()
     const payload = buyPayload([{ launchId: launch.id, units, commitment: minted.commitment }])
     if (payload.state === 'refused') {
-      notify.refused('The buy was refused', { description: payload.because })
+      refuse(payload.because)
       return
     }
     // The secret IS the claim on these units: stored before the send so a landed-but-unreported
@@ -88,6 +90,7 @@ export function BuyPanel({ launch, onDone }: { launch: OnChainLaunch; onDone?: (
     })
     const outcome = await send.mutateAsync({
       kind: 'launch-buy',
+      sponsored,
       recipient: contract,
       token: launch.stakeToken,
       symbol: stake.symbol,
@@ -95,7 +98,7 @@ export function BuyPanel({ launch, onDone }: { launch: OnChainLaunch; onDone?: (
       app: { contract, op: LAUNCH_OP.buy, calldata: payload.calldata, noteIdSlots: [], openNoteCount: 0 },
     })
     if (!outcome.ok) {
-      notify.refused('The buy did not go through', { description: sendProblem(outcome) ?? undefined, hash: sendTransactionHash(outcome) })
+      refuse(sendProblem(outcome) ?? 'The buy did not go through.', sendTransactionHash(outcome))
       return
     }
     notify.settled('Bought', {
@@ -172,7 +175,10 @@ export function BuyPanel({ launch, onDone }: { launch: OnChainLaunch; onDone?: (
         aria-disabled={Boolean(blocker) || undefined}
         onClick={() => {
           if (blocker) notify.noted(blocker)
-          else setReview(true)
+          else {
+            clearRefusal()
+            setReview(true)
+          }
         }}
       >
         {blocker ?? `Buy ${unitsLabel}`}
@@ -191,9 +197,11 @@ export function BuyPanel({ launch, onDone }: { launch: OnChainLaunch; onDone?: (
         ]}
         disclosure={disclosureFor('launch-buy')}
         confirmLabel={`Buy ${unitsLabel}`}
-        onConfirm={() => void confirm()}
+        sponsor={{ kind: 'eligible' }}
+        onConfirm={(sponsored) => void confirm(sponsored)}
         busy={send.isPending}
         blocker={send.isPending ? null : blocker}
+        problem={send.isPending ? null : refusal}
       />
     </div>
   )

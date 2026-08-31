@@ -16,6 +16,20 @@ export const BUDGET_EXHAUSTED_NOTICE =
   'Sponsored registrations are paused until 00:00 UTC. ' +
   'You can still create an account from a funded Starknet wallet.'
 
+/**
+ * What a spent PER-VISITOR allocation answers with, now that one never comes back.
+ *
+ * ── A LIFETIME CAP MUST NOT PROMISE A RESET ───────────────────────────────────────────────
+ *
+ * Every notice in this package used to end "until 00:00 UTC", because every counter used to reset
+ * there. The per-visitor half no longer does — an allocation is what this connection gets, once —
+ * so the old sentence would send someone away to wait for a morning that changes nothing. The
+ * shared daily budget still resets and still says so; these say the other true thing.
+ */
+export const VISITOR_SPENT_NOTICE =
+  'This connection has used its sponsored registrations. ' +
+  'You can still create an account from a funded Starknet wallet.'
+
 
 export interface BudgetCaps {
   perVisitor: number   // max sponsored actions for one visitor id
@@ -71,14 +85,23 @@ export function decideSponsorship(
   now: number,
   notice: string = BUDGET_EXHAUSTED_NOTICE,
   keepPerKey = false,
+  /**
+   * The copy for a spent PER-VISITOR allocation, which on a `keepPerKey` ledger is permanent.
+   *
+   * Defaults to `notice`, so a caller that supplies one sentence still gets the old behaviour and
+   * nothing silently changes meaning. Callers that opened a lifetime ledger pass the second.
+   */
+  visitorNotice: string = notice,
 ): SponsorDecision {
   const s = rolledToDay(state, now, keepPerKey)
   // THE DAILY BUDGET IS CHECKED FIRST: it is the relayer's solvency floor and not a courtesy.
+  // It resets at midnight even on a lifetime ledger — it is a fact about OUR wallet for one day,
+  // never a rule about a person — which is why it keeps the sentence that names the reset.
   if (s.dailyCount >= caps.daily) {
     return { allow: false, reason: 'daily-budget', notice }
   }
   if ((s.perVisitor[visitorId] ?? 0) >= caps.perVisitor) {
-    return { allow: false, reason: 'visitor-cap', notice }
+    return { allow: false, reason: 'visitor-cap', notice: visitorNotice }
   }
   return { allow: true }
 }
@@ -173,6 +196,14 @@ export class SponsorshipLedger {
      * resets. Left false for every IP-keyed budget, which is a rate limit and must reset.
      */
     readonly lifetime: boolean = false,
+    /**
+     * The sentence a spent per-visitor allocation gets. Defaults to `notice`.
+     *
+     * PUBLIC like `notice`, and for the same reason: forgetting it on a lifetime ledger is silent,
+     * and the failure is a refusal that tells someone to come back tomorrow for something that
+     * will never be there again.
+     */
+    readonly visitorNotice: string = notice,
   ) {
     const loaded = store.load()
     this.salt = loaded.salt
@@ -183,7 +214,7 @@ export class SponsorshipLedger {
   }
 
   decide(visitorId: string, now: number = Date.now()): SponsorDecision {
-    return decideSponsorship(this.state, this.caps, visitorId, now, this.notice, this.lifetime)
+    return decideSponsorship(this.state, this.caps, visitorId, now, this.notice, this.lifetime, this.visitorNotice)
   }
 
   /**
@@ -329,8 +360,37 @@ export class SponsorshipLedger {
  * The opaque id one visitor is counted under, for one UTC day: `sha256(salt|day|ip)`.
  * Opaque at rest and day-scoped, but NOT one-way against a leak of the file — the salt sits
  * beside the hashes, so the ledger file is sensitive.
+ *
+ * FOR RATE LIMITS ONLY — the quote proxy and the logo service. A spend ledger must not use this;
+ * see `lifetimeVisitorId` for why.
  */
 export function visitorId(ip: string, salt: string, now: number): string {
   // `|` is safe as a separator: the salt is hex, the day is YYYY-MM-DD, the ip is a literal.
   return createHash('sha256').update(`${salt}|${utcDayKey(now)}|${ip}`).digest('hex').slice(0, 32)
+}
+
+/**
+ * The id a LIFETIME allocation is counted under: `sha256(salt|lifetime|ip)`. No day.
+ *
+ * ── WITHOUT THIS, `lifetime` ON A LEDGER DOES NOTHING AT ALL ──────────────────────────────
+ *
+ * `rolledToDay(…, keepPerKey)` preserves the per-visitor MAP across midnight, which reads like it
+ * makes an allocation permanent. It does not, on its own: the day is mixed into the KEY above, so
+ * the same address hashes to a different id tomorrow and is handed a fresh allocation against a map
+ * that still faithfully remembers yesterday's. Two correct-looking pieces, and the cap silently
+ * resets anyway. The key has to lose the day too.
+ *
+ * ── AND THAT IS A REAL PRIVACY TRADE, STATED RATHER THAN SLIPPED IN ───────────────────────
+ *
+ * Day-scoping bought unlinkability across days: yesterday's ids could not be matched to today's.
+ * A lifetime cap is exactly the ability to match them — "this connection already had its share"
+ * is a claim about the past, and it cannot be made without a stable pseudonym. So this file now
+ * holds one long-lived id per address instead of one per address per day. It is still opaque at
+ * rest and still NOT one-way against a leak (the salt sits beside the hashes), so the ledger file
+ * was sensitive before and is more so now. Rotating the salt retires every id with it.
+ */
+export function lifetimeVisitorId(ip: string, salt: string): string {
+  // `lifetime` where the day used to be, so a lifetime id can never collide with a day-scoped one
+  // computed from the same salt and address.
+  return createHash('sha256').update(`${salt}|lifetime|${ip}`).digest('hex').slice(0, 32)
 }

@@ -60,10 +60,10 @@ export function printBanner(b: BannerInput): void {
       : 'origins: none — only callers that send no Origin header',
   )
   console.log(
-    `sponsorship: ${sponsor.caps.perVisitor}/visitor · ${sponsor.caps.daily}/day · ledger ${sponsor.storePath}`,
+    `sponsorship: ${sponsor.caps.perVisitor}/visitor LIFETIME · ${sponsor.caps.daily}/day · ledger ${sponsor.storePath}`,
   )
   console.log(
-    `plain sends: ${sponsor.sendCaps.perVisitor}/visitor · ${sponsor.sendCaps.daily}/day · ` +
+    `plain sends: ${sponsor.sendCaps.perVisitor}/visitor LIFETIME · ${sponsor.sendCaps.daily}/day · ` +
       `ledger ${sponsor.sendStorePath} · fee recipient ${b.address}`,
   )
   // Said out loud because it is the one piece of state a user might assume this process lacks.
@@ -95,8 +95,10 @@ export function printBanner(b: BannerInput): void {
   )
   console.log(
     b.faucetOn
-      ? `faucet: ON — drip ${b.faucetDripWei} wei, ${sponsor.faucetCaps.perVisitor}/visitor/day, ` +
-          `${sponsor.faucetCaps.daily}/day global · ledger ${sponsor.faucetStorePath} — the drip IS the subsidy (M8)`
+      ? `faucet: ON — drip ${b.faucetDripWei} wei, ${sponsor.faucetCaps.perVisitor}/visitor LIFETIME, ` +
+          `${sponsor.faucetCaps.daily}/day global · ledger ${sponsor.faucetStorePath} — the drip IS the subsidy (M8)\n` +
+          `  starter: ${sponsor.starterCaps.perVisitor}/visitor LIFETIME · ${sponsor.starterCaps.daily}/day global · ` +
+          `ledger ${sponsor.starterStorePath} — ~12 STRK a claim, so this line is the day's real spend`
       : 'faucet: off — set RELAYER_FAUCET=on to drip starter STRK (spends principal; the drip stakes the whole journey)',
   )
   console.log(

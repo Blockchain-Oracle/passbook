@@ -45,6 +45,8 @@ export interface ShieldDialogProps {
 const SHIELD_BODY = 'Your strk20.run account deposits its own public funds into the pool as one encrypted note back to itself.'
 const SHIELD_WARNING =
   'This deposit is public: the strk20.run address, token and amount are visible on Starknet. Privacy begins with the encrypted note created inside the pool.'
+/** Why the sponsorship row is dark here. One sentence; the docs link carries the rest. */
+const SHIELD_NOT_SPONSORED = "Sponsored transactions don't work here — shielding is sent by your own account."
 const COST_NOTE =
   'The pool fee is charged by the privacy pool contract on every transaction — read from the contract now, not set by strk20.run. Gas is Starknet’s network fee, priced from the latest block; the held amount is a ceiling and only what is used is charged.'
 
@@ -280,6 +282,10 @@ export function ShieldDialog({ open, onOpenChange, token, symbol, decimals, logo
         ]}
         disclosure={SHIELD_DISCLOSURE}
         confirmLabel={`Shield ${symbol}`}
+        // Not "you have none left" — this account may have all three. A deposit pulls
+        // `transferFrom(caller)`, so a relayer-submitted shield would deposit OUR STRK into a note
+        // owned by someone else. See `sponsor-row.tsx`.
+        sponsor={{ kind: 'unsupported', because: SHIELD_NOT_SPONSORED }}
         onConfirm={confirm}
         busy={busy}
         blocker={busy ? (stage ? STAGE_TITLES[stage] : null) : blocker}

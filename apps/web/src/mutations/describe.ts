@@ -83,6 +83,18 @@ export function describeSendFailure(failure: SendFailure): string {
       const { sentence, refused } = sequencerReason(failure.reason)
       return refused ? sentence : `${sentence} ${failure.gasLine}`.trim()
     }
+    // ── THE FOUR THAT CARRY A NOTICE INSTEAD OF A REASON ──────────────────────────────────
+    //
+    // Each is a relayer refusal with a sentence the relayer wrote for a person, and none of them
+    // has a `reason` field — so the default arm below rendered "The send stopped at
+    // `relayer-down`." These became reachable the moment the review sheet could ask for a
+    // sponsored send; before that the app was always `mode: 'self'` and no relay could refuse.
+    case 'send-cap-reached':
+    case 'sponsorship-paused':
+    case 'relayer-down':
+    case 'allowance-spent':
+      // Nothing was signed on any of these paths, which is the half a user most needs to hear.
+      return `${failure.notice} Nothing was sent, and nothing was spent.`
     default: {
       // Sanitised, not raw: any kind that carries a `reason` gets it cleaned, so a new failure
       // kind added later cannot reintroduce the calldata dump this function exists to prevent.

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { notify } from '@/lib/notify'
+import { useRefusal } from '@/components/money/refusal'
 import { insufficient, parseAmountInput, toPlainText } from '@strk20/protocol/amount'
 import { strikeDisplay } from '@strk20/protocol/app-reads'
 import { disclosureFor } from '@strk20/protocol/disclosure'
@@ -46,6 +47,7 @@ export function CreateMarketDialog({ open, onOpenChange, prices }: CreateMarketD
   const [windowIdx, setWindowIdx] = useState('2')
   const [seed, setSeed] = useState('')
   const [reviewing, setReviewing] = useState(false)
+  const { refusal, refuse, clear: clearRefusal } = useRefusal()
   const stake = useStrkStake()
   const fee = useQuery(poolConstantsQuery())
   const send = useSend()
@@ -72,7 +74,7 @@ export function CreateMarketDialog({ open, onOpenChange, prices }: CreateMarketD
               ? 'Not enough shielded STRK'
               : null
 
-  const confirm = async () => {
+  const confirm = async (sponsored: boolean) => {
     if (!contract || parsedSeed.wei === null) return
     const { mintPositionSecret } = await import('@strk20/protocol/commitment')
     const minted = mintPositionSecret()
@@ -86,7 +88,7 @@ export function CreateMarketDialog({ open, onOpenChange, prices }: CreateMarketD
       experimental: chosen.experimental,
     })
     if (payload.state === 'refused') {
-      notify.refused(payload.because)
+      refuse(payload.because)
       return
     }
     // `-1`: the chain assigns the id; the position read names the market afterwards.
@@ -101,6 +103,7 @@ export function CreateMarketDialog({ open, onOpenChange, prices }: CreateMarketD
     })
     const result = await send.mutateAsync({
       kind: 'market-create',
+      sponsored,
       recipient: contract,
       token: stake.token,
       symbol: stake.symbol,
@@ -119,7 +122,7 @@ export function CreateMarketDialog({ open, onOpenChange, prices }: CreateMarketD
     }
     const mayHaveLanded = result.failure.kind === 'confirmation-unknown' || 'transactionHash' in result.failure
     if (!mayHaveLanded) await removeStoredPosition(minted.commitment)
-    notify.refused('The market could not be opened.', { description: sendProblem(result) ?? undefined, hash: sendTransactionHash(result) })
+    refuse(sendProblem(result) ?? 'The market could not be opened.', sendTransactionHash(result))
   }
 
   // Live from `readPoolConstants` — the fee is never a constant here.
@@ -193,7 +196,10 @@ export function CreateMarketDialog({ open, onOpenChange, prices }: CreateMarketD
               size="lg"
               aria-disabled={blocker !== null || undefined}
               onClick={() => {
-                if (blocker === null) setReviewing(true)
+                if (blocker === null) {
+                  clearRefusal()
+                  setReviewing(true)
+                }
               }}
             >
               {blocker ?? 'Review the market'}
@@ -218,9 +224,11 @@ export function CreateMarketDialog({ open, onOpenChange, prices }: CreateMarketD
         ]}
         disclosure={disclosureFor('markets-bet')}
         confirmLabel={`Seed ${pair} · ${parsedSeed.wei !== null && stake.decimals !== null ? toPlainText(parsedSeed.wei, stake.decimals) : seed} STRK`}
-        onConfirm={() => void confirm()}
+        sponsor={{ kind: 'eligible' }}
+        onConfirm={(sponsored) => void confirm(sponsored)}
         busy={send.isPending}
         blocker={blocker}
+        problem={refusal}
       />
     </>
   )

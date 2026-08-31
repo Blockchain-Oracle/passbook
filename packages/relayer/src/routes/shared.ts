@@ -5,7 +5,7 @@ import { streamSSE, type SSEStreamingApi } from 'hono/streaming'
 import type { ContentfulStatusCode } from 'hono/utils/http-status'
 
 import type { AppEnv } from '../context.js'
-import { visitorId } from '../sponsorship.js'
+import { lifetimeVisitorId, visitorId } from '../sponsorship.js'
 
 export type Ctx = Context<AppEnv>
 
@@ -26,9 +26,26 @@ export function notFound(c: Ctx): Response {
   return jsonError(c, 404, 'not found')
 }
 
-/** The opaque, day-scoped id a visitor is metered under. Socket IP, never x-forwarded-for. */
+/**
+ * The opaque, DAY-SCOPED id a visitor is rate-limited under. Socket IP, never x-forwarded-for.
+ *
+ * For per-day rate limits (quotes, logo generation) and nothing else. Using it for a spend ledger
+ * hands out a fresh allocation every midnight — see `lifetimeVisitorOf`.
+ */
 export function visitorOf(c: Ctx, salt: string, now = Date.now()): string {
   return visitorId(c.var.clientIp, salt, now)
+}
+
+/**
+ * The opaque, PERMANENT id a visitor's money allocation is counted under.
+ *
+ * Every spend ledger uses this one: the sponsorship budget, the send budget, the drip and the
+ * starter are all allocations a connection gets once, not once a day. Deliberately NOT the default
+ * — a rate limit keyed this way locks an address out of quotes for good on its hundredth of the
+ * day, which is a permanent ban bought by a busy afternoon.
+ */
+export function lifetimeVisitorOf(c: Ctx, salt: string): string {
+  return lifetimeVisitorId(c.var.clientIp, salt)
 }
 
 export type JsonBody = { ok: true; value: unknown } | { ok: false; res: Response }

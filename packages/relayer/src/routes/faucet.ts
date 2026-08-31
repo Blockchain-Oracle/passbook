@@ -7,7 +7,7 @@ import type { AppEnv } from '../context.js'
 import { faucetDripWei, starterDripWei } from '../env.js'
 import { DRIP_ALREADY_CLAIMED, DRIP_BAD_ADDRESS, DRIP_BUDGET_SPENT, dripCall, isDrippableAddress } from '../faucet.js'
 import type { SponsorDecision } from '../sponsorship.js'
-import { isPlainObject, jsonError, notFound, readJson, reply, visitorOf } from './shared.js'
+import { isPlainObject, jsonError, lifetimeVisitorOf, notFound, readJson, reply } from './shared.js'
 
 const LEDGER_UNWRITABLE = 'the faucet ledger could not be written; refusing to send'
 
@@ -38,15 +38,26 @@ faucetRoutes.get('/:address', (c) => {
   // drip after the daily budget was spent, and the press answered 429 — the failure this endpoint
   // exists to remove, reintroduced by the one field that was supposed to prevent it.
   const now = Date.now()
-  const available = c.var.ctx.relayerState() === 'ok' && faucet.remaining(visitorOf(c, faucet.salt, now), now).remaining > 0
+  const available = c.var.ctx.relayerState() === 'ok' && faucet.remaining(lifetimeVisitorOf(c, faucet.salt), now).remaining > 0
   // The SHIELDED starter rides on the same read, because a screen deciding what to offer a new
   // account needs both answers at once and neither is worth a second round trip. `wei` is a string:
   // JSON has no bigint, and a number would silently lose precision above 2^53.
   const starterKey = claimKey.replace(/^drip:/, 'starter:')
+  // COMPUTED for the same reason `available` above is: the starter now has a day budget, and a
+  // screen that keeps offering one after it is spent buys a press that answers 403. Its own
+  // ledger, so a spent public drip says nothing about it.
+  const starterBudget = c.var.ctx.starterBudget
+  const starterAvailable =
+    c.var.ctx.relayerState() === 'ok' &&
+    (!starterBudget || starterBudget.remaining(lifetimeVisitorOf(c, starterBudget.salt), now).remaining > 0)
   return reply(c, 200, {
     claimed: faucet.hasClaimed(claimKey),
     available,
-    starter: { wei: starterDripWei().toString(), claimed: faucet.hasClaimed(starterKey) },
+    starter: {
+      wei: starterDripWei().toString(),
+      claimed: faucet.hasClaimed(starterKey),
+      available: starterAvailable,
+    },
   })
 })
 
@@ -66,10 +77,11 @@ faucetRoutes.post('/', async (c) => {
   if (!isDrippableAddress(address)) return jsonError(c, 400, DRIP_BAD_ADDRESS)
 
   const now = Date.now()
-  const visitor = visitorOf(c, faucet.salt, now)
+  const visitor = lifetimeVisitorOf(c, faucet.salt)
 
-  // (2) Budget decided BEFORE the once-ever claim is burned: a capped visitor is told to retry
-  // after 00:00 UTC, and that retry must still find the claim available.
+  // (2) Budget decided BEFORE the once-ever claim is burned. The order mattered when the cap
+  // lifted at midnight and it matters more now that it does not: a claim burned against a
+  // refusal is an address that can never be dripped, spent on nothing.
   const preview = faucet.decide(visitor, now)
   if (!preview.allow) {
     console.warn(`relayer: faucet refused (${preview.reason})`)

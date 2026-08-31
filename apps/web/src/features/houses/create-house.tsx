@@ -5,6 +5,8 @@ import { parseAmountInput } from '@strk20/protocol/amount'
 import { STRK_TOKEN } from '@strk20/protocol/constants'
 import { KNOWN_TOKEN_DECIMALS } from '@strk20/protocol/token-scale'
 
+import { RefusalRow, useRefusal } from '@/components/money/refusal'
+import { SponsorRow, useSponsorChoice } from '@/components/money/sponsor-row'
 import { BoundaryBadge } from '@/components/money/boundary-badge'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
@@ -38,12 +40,14 @@ export function CreateHouse({ open, onOpenChange }: CreateHouseProps) {
   const [quorumRaw, setQuorumRaw] = useState('10')
   const [thresholdPct, setThresholdPct] = useState(50)
   const [invite, setInvite] = useState(false)
+  const { refusal, refuse, clear: clearRefusal } = useRefusal()
   const [memberVotes, setMemberVotes] = useState(false)
   const [doorKey, setDoorKey] = useState<string | null>(null)
   const { copied, copy } = useCopy()
 
   const quorum = parseAmountInput(quorumRaw, STRK_DECIMALS)
   const busy = create.isPending
+  const sponsor = useSponsorChoice()
   const trimmed = name.trim()
   const blocker =
     gate.blocker ??
@@ -60,10 +64,13 @@ export function CreateHouse({ open, onOpenChange }: CreateHouseProps) {
               : null)
 
   const confirm = async () => {
+    clearRefusal()
     if (blocker !== null) return
-    const outcome = await create.mutateAsync({ name: trimmed, quorumWei: quorum.wei ?? 0n, thresholdPct, invite, memberVotes })
+    const outcome = await create.mutateAsync({
+      name: trimmed, quorumWei: quorum.wei ?? 0n, thresholdPct, invite, memberVotes, sponsored: sponsor.sponsored,
+    })
     if (!outcome.ok) {
-      notify.refused('The DAO was not created', { description: outcome.because })
+      refuse(outcome.because)
       return
     }
     if (outcome.inviteSecret) {
@@ -163,8 +170,15 @@ export function CreateHouse({ open, onOpenChange }: CreateHouseProps) {
                   The founder claim as a commitment, with its bearer secret kept in this browser. The transaction’s submitting
                   account remains public. Members enter the roll as pool-derived handles rather than addresses.
                 </AlertDescription>
-              </Alert>
-            </div>
+              </Alert><SponsorRow
+          offer={{ kind: 'eligible' }}
+          allowance={sponsor.allowance}
+          loading={sponsor.loading}
+          checked={sponsor.want}
+          onCheckedChange={sponsor.setWant}
+          locked={busy}
+        /></div>
+            <RefusalRow refusal={refusal} />
             <DialogFooter>
               <Button size="lg" aria-disabled={blocker !== null || undefined} onClick={() => void confirm()}>
                 {busy ? <Spinner data-icon="inline-start" /> : null}

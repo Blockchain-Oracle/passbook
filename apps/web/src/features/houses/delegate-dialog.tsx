@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { notify } from '@/lib/notify'
+import { useRefusal } from '@/components/money/refusal'
 import { insufficient, parseAmountInput, toPlainText } from '@strk20/protocol/amount'
 import { disclosureFor } from '@strk20/protocol/disclosure'
 import { DISCLOSURE_HEADLINE } from '@strk20/protocol/disclosure-copy'
@@ -30,6 +31,7 @@ export function DelegateDialog({ house, open, onOpenChange, initialDelegate }: D
   const [delegate, setDelegate] = useState(initialDelegate ?? '')
   const [raw, setRaw] = useState('')
   const [reviewing, setReviewing] = useState(false)
+  const { refusal, refuse, clear: clearRefusal } = useRefusal()
   const token = useHouseToken(house)
   const send = useSend()
   const gate = useDoorGate(token.sessionReady)
@@ -59,13 +61,13 @@ export function DelegateDialog({ house, open, onOpenChange, initialDelegate }: D
                 : null)
   const amountText = parsed.wei !== null && token.decimals !== null ? toPlainText(parsed.wei, token.decimals) : raw
 
-  const confirm = async () => {
+  const confirm = async (sponsored: boolean) => {
     if (!gate.contract || parsed.wei === null) return
     const { mintPositionSecret } = await import('@strk20/protocol/commitment')
     const escrow = mintPositionSecret()
     const payload = delegatePayload({ houseId: house.id, delegate: handle, amount: parsed.wei, reclaimCommitment: escrow.commitment })
     if (payload.state === 'refused') {
-      notify.refused('The delegation was refused', { description: payload.because })
+      refuse(payload.because)
       return
     }
     // The secret IS the escrow. Stored first, so a landed delegation can never outrun its record.
@@ -81,6 +83,7 @@ export function DelegateDialog({ house, open, onOpenChange, initialDelegate }: D
     })
     const result = await send.mutateAsync({
       kind: 'gov-delegate',
+      sponsored,
       recipient: gate.contract,
       token: house.token,
       symbol: token.symbol,
@@ -100,7 +103,7 @@ export function DelegateDialog({ house, open, onOpenChange, initialDelegate }: D
       return
     }
     if (!mayHaveLanded(result)) await removeStoredPosition(escrow.commitment)
-    notify.refused('The delegation did not go through.', { description: sendProblem(result) ?? undefined, hash: sendTransactionHash(result) })
+    refuse(sendProblem(result) ?? 'The delegation did not go through.', sendTransactionHash(result))
   }
 
   return (
@@ -135,7 +138,12 @@ export function DelegateDialog({ house, open, onOpenChange, initialDelegate }: D
             />
           </div>
           <DialogFooter>
-            <Button size="lg" aria-disabled={blocker !== null || undefined} onClick={() => blocker === null && setReviewing(true)}>
+            <Button size="lg" aria-disabled={blocker !== null || undefined} onClick={() => {
+              if (blocker === null) {
+                clearRefusal()
+                setReviewing(true)
+              }
+            }}>
               {blocker ?? `Review · ${amountText} ${token.symbol}`}
             </Button>
           </DialogFooter>
@@ -153,9 +161,11 @@ export function DelegateDialog({ house, open, onOpenChange, initialDelegate }: D
         ]}
         disclosure={disclosureFor('gov-delegate')}
         confirmLabel={`Delegate ${amountText} ${token.symbol}`}
-        onConfirm={() => void confirm()}
+        sponsor={{ kind: 'eligible' }}
+        onConfirm={(sponsored) => void confirm(sponsored)}
         busy={send.isPending}
         blocker={blocker}
+        problem={refusal}
       />
     </>
   )

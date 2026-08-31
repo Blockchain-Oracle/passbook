@@ -16,6 +16,11 @@ export interface CreateHouseAsk {
   thresholdPct: number
   invite: boolean
   memberVotes: boolean
+  /**
+   * Spend one of this account's covered transactions instead of paying gas from it.
+   * The review screen decides this; absent is `false`, which is "sign it yourself".
+   */
+  sponsored?: boolean
 }
 
 export type CreateHouseOutcome =
@@ -71,6 +76,7 @@ async function createHouse(ask: CreateHouseAsk): Promise<CreateHouseOutcome> {
     g.address,
     { contractAddress: g.contract, entrypoint: 'create_house', calldata },
     `Create DAO ${name}`,
+    ask.sponsored,
   )
   if (outcome.ok) {
     await relabelStoredPosition(creator.commitment, { txHash: outcome.transactionHash })
@@ -94,6 +100,11 @@ export interface ProposeAsk {
   /** Voting window in seconds. */
   windowSeconds: number
   spend: { amountWei: bigint; recipient: string } | null
+  /**
+   * Spend one of this account's covered transactions instead of paying gas from it.
+   * The review screen decides this; absent is `false`, which is "sign it yourself".
+   */
+  sponsored?: boolean
 }
 
 export type ProposeOutcome = { ok: true; transactionHash: string } | { ok: false; because: string }
@@ -129,7 +140,9 @@ async function propose(ask: ProposeAsk): Promise<ProposeOutcome> {
     ask.spend ? ask.spend.recipient.trim() : '0x0',
     ...encodeByteArray(ask.question.trim()),
   ]
-  return invokeSponsoredOrDirect(g.accountKey, g.address, { contractAddress: g.contract, entrypoint: 'propose', calldata }, 'Open a proposal')
+  return invokeSponsoredOrDirect(
+    g.accountKey, g.address, { contractAddress: g.contract, entrypoint: 'propose', calldata }, 'Open a proposal', ask.sponsored,
+  )
 }
 
 export function usePropose() {

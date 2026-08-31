@@ -29,6 +29,7 @@ import {
   openFaucetLedger,
   openSendBudgetLedger,
   openSponsorshipLedger,
+  openStarterBudgetLedger,
 } from './ledger.js'
 import { createGasCalibration, GAS_CALIBRATION_INTERVAL_MS } from './gas-calibration.js'
 import type { LogoService } from './logo.js'
@@ -77,6 +78,9 @@ async function main(): Promise<void> {
   const sponsorship = openSponsorshipLedger(env.sponsor)
   const sendBudget = openSendBudgetLedger(env.sponsor, sponsorship.salt)
   const faucet = env.faucetOn ? openFaucetLedger(env.sponsor, sponsorship.salt) : undefined
+  // Opened with the faucet and never without it: it bounds the starter's DAY, and the starter is
+  // only offered where the claim ledger beside it exists.
+  const starterBudget = env.faucetOn ? openStarterBudgetLedger(env.sponsor, sponsorship.salt) : undefined
   const accountAllowance = openAccountAllowanceLedger(env.sponsor, sponsorship.salt)
 
   const { nodeUrl, provider, account: signerAccount, execute, address } = await openSigner(env.address, env.privateKey)
@@ -86,7 +90,7 @@ async function main(): Promise<void> {
   const revertWatch = openRevertWatch({
     file: env.sponsor.revertWatchStore,
     readReceipt: (hash) => provider.getTransactionReceipt(hash),
-    ledgers: { sponsorship, send: sendBudget, account: accountAllowance, faucet },
+    ledgers: { sponsorship, send: sendBudget, account: accountAllowance, faucet, starter: starterBudget },
   })
   every(REVERT_WATCH_INTERVAL_MS, () => void revertWatch.sweep())
   const callContract = (contractAddress: string, entrypoint: string, calldata: string[]) =>
@@ -183,6 +187,7 @@ async function main(): Promise<void> {
     sponsorship,
     sendBudget,
     faucet,
+    starterBudget,
     accountAllowance,
     revertWatch,
     // The gift. THIS PROCESS IS THE DEPOSITOR — its key proves it and its balance is what the pool

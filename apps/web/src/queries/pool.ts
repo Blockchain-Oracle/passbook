@@ -100,17 +100,21 @@ export interface FaucetOffer {
    * The SHIELDED starting balance, when this deployment hands one out. Absent is not zero: a
    * relayer that offers none has nothing to show, and `0n` would read as an offer withdrawn.
    *
-   * Gated by its OWN once-per-account claim, not by the public drip's daily budget.
+   * Gated by its OWN once-per-account claim and its OWN day budget, not by the public drip's.
    */
-  starter?: { wei: bigint; claimed: boolean }
+  starter?: { wei: bigint; claimed: boolean; available: boolean }
 }
 
 /** Parses the shielded starter off the wire, or nothing at all when it cannot be trusted. */
-function starterOf(raw: { wei: string; claimed: boolean } | undefined): { starter: { wei: bigint; claimed: boolean } } | null {
+function starterOf(
+  raw: { wei: string; claimed: boolean; available?: boolean } | undefined,
+): { starter: { wei: bigint; claimed: boolean; available: boolean } } | null {
   if (!raw || typeof raw.wei !== 'string' || typeof raw.claimed !== 'boolean') return null
   try {
     const wei = BigInt(raw.wei)
-    return wei > 0n ? { starter: { wei, claimed: raw.claimed } } : null
+    // `!== false`, never `=== true`: a relayer from before the starter had a budget omits the
+    // field, and reading that as "unavailable" would silently retire a gift that is still there.
+    return wei > 0n ? { starter: { wei, claimed: raw.claimed, available: raw.available !== false } } : null
   } catch {
     return null
   }

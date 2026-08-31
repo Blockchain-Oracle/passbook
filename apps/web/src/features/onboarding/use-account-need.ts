@@ -89,8 +89,13 @@ function pickNeed(i: NeedInputs): AccountNeed | null {
   // BEFORE the count, because it is a thing to DO and the count is only news. An account that has
   // never claimed its starting balance holds nothing shielded, so every screen it opens shows a
   // dash — the offer is the answer to the question it is already asking itself.
+  //
+  // `available` is checked beside `claimed` for the reason the drip above says nothing when it is
+  // unsure: a press that answers 403 is how a paused gift gets mistaken for a broken one. The two
+  // are not the same refusal — claimed is forever, unavailable clears at midnight — but the screen
+  // does the same thing with both, which is not to offer.
   const starter = i.faucet?.starter
-  if (starter && !starter.claimed) return unless({ kind: 'starter', amountWei: starter.wei })
+  if (starter && !starter.claimed && starter.available) return unless({ kind: 'starter', amountWei: starter.wei })
 
   if (!i.allowance) return null
   return unless({ kind: 'sponsored', remaining: i.allowance.remaining, of: i.allowance.of })

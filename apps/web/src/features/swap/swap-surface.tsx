@@ -38,12 +38,12 @@ export function SwapSurface({ seed }: { seed?: SwapSeed }) {
     if (open) confirm.reset()
   }
 
-  const onConfirm = async () => {
+  const onConfirm = async (sponsored: boolean) => {
     const { sell, buy, quoted, minOutWei, slippageBps } = s
     if (!buy || !quoted || minOutWei === null) return
     let outcome
     try {
-      outcome = await confirm.confirm({ sell, buy, quote: quoted, slippageBps, minOutWei })
+      outcome = await confirm.confirm({ sell, buy, quote: quoted, slippageBps, minOutWei, sponsored })
     } catch {
       return // The mutation keeps the error; the sheet shows it in the CTA's place.
     }
@@ -140,7 +140,7 @@ export function SwapSurface({ seed }: { seed?: SwapSeed }) {
           walkState={s.walkState}
           phase={confirm.phase}
           problem={confirm.problem}
-          onConfirm={() => void onConfirm()}
+          onConfirm={(sponsored) => void onConfirm(sponsored)}
         />
       ) : null}
       <ShieldDialog {...door.dialogProps} />

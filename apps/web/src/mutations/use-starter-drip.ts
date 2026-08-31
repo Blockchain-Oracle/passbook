@@ -46,13 +46,17 @@ async function claimStarter(): Promise<StarterDripOutcome> {
   } catch (error) {
     if (error instanceof RelayerError) {
       if (error.status === 404) return { ok: false, because: 'This deployment does not hand out starting balances.' }
-      // Every other status carries the relayer's own sentence. It is written for a person and is
-      // never a chain payload — see `relayer/src/starter.ts`, where each refusal is authored.
+      // NOTICE FIRST, then `error`. A metered refusal carries both: `error` is the branch token an
+      // operator reads in a log ('starting balances are paused'), `notice` is the sentence written
+      // for the person in front of the screen. Showing the first one to a user was the terser of
+      // the two and told them nothing about when to come back.
       return {
         ok: false,
-        because: error.message.startsWith('relayer answered')
-          ? 'The starting balance could not be sent just now. Try again in a moment.'
-          : error.message,
+        because:
+          error.notice ??
+          (error.message.startsWith('relayer answered')
+            ? 'The starting balance could not be sent just now. Try again in a moment.'
+            : error.message),
       }
     }
     return { ok: false, because: 'The relayer could not be reached. Try again in a moment.' }

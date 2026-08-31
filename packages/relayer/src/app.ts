@@ -128,9 +128,18 @@ export function createApp(context: RelayerContext, options: AppOptions = {}): Ho
       // `x-forwarded-for` is a header anyone can write — true, and the right rule for a relayer
       // reachable directly. It became wrong the moment a proxy went in front: every request then
       // arrives from ONE Vercel egress address, so every user shares one bucket, and a
-      // per-visitor cap of 1 means the first person to use the app each day locks out everyone
-      // else until 00:00 UTC. A control that refuses "too much and never too little" stops being
-      // conservative when too much is everybody.
+      // per-visitor cap of 1 means the first person to use the app locks out everyone else.
+      // A control that refuses "too much and never too little" stops being conservative when too
+      // much is everybody.
+      //
+      // ── AND SINCE THE SPEND LEDGERS WENT `lifetime`, THAT LOCKOUT NO LONGER ENDS ─────────
+      //
+      // It used to lift at 00:00 UTC, which made a broken forward a bad day. Per-visitor
+      // allocations are permanent now (`ledger.ts`), so the same failure is a permanent lockout of
+      // every user behind the proxy, and nothing in a log says so — they are simply all one
+      // visitor who spent their share. This header is load-bearing: verify it from two networks
+      // before trusting a deployment, and keep the per-visitor caps generous enough that real
+      // shared egress (carrier NAT, an office, a campus) is not mistaken for one person.
       //
       // `x-strk20-client-ip` is trusted, but only alongside a valid `x-relayer-auth`, and the
       // gate below is what enforces that ordering. The token is known to our proxy and to nothing

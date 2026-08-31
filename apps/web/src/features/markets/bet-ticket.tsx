@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { notify } from '@/lib/notify'
+import { useRefusal } from '@/components/money/refusal'
 import { insufficient, parseAmountInput, toPlainText } from '@strk20/protocol/amount'
 import { MARKET_STATE, marketQuestion, type OnChainMarket } from '@strk20/protocol/app-reads'
 import { disclosureFor } from '@strk20/protocol/disclosure'
@@ -41,6 +42,7 @@ export function BetTicket({ market, spot = null, open, onOpenChange, initialSide
   const [side, setSide] = useState(initialSide)
   const [raw, setRaw] = useState('')
   const [reviewing, setReviewing] = useState(false)
+  const { refusal, refuse, clear: clearRefusal } = useRefusal()
   const stake = useStake(market.token)
   const send = useSend()
   const contract = appContracts().markets
@@ -85,13 +87,13 @@ export function BetTicket({ market, spot = null, open, onOpenChange, initialSide
   const question =
     market.strike !== 0n ? marketQuestion(market) : spot !== null ? `${market.pair} above ~$${formatPrice(spot)} — the line locks when you bet` : marketQuestion(market)
 
-  const confirm = async () => {
+  const confirm = async (sponsored: boolean) => {
     if (!contract || parsed.wei === null) return
     const { mintPositionSecret } = await import('@strk20/protocol/commitment')
     const minted = mintPositionSecret()
     const payload = betPayload([{ marketId: market.id, side, amount: parsed.wei, commitment: minted.commitment }])
     if (payload.state === 'refused') {
-      notify.refused(payload.because)
+      refuse(payload.because)
       return
     }
     // The secret IS the position. Written first, so a landed bet can never outrun its record.
@@ -106,6 +108,7 @@ export function BetTicket({ market, spot = null, open, onOpenChange, initialSide
     })
     const result = await send.mutateAsync({
       kind: 'market-bet',
+      sponsored,
       recipient: contract,
       token: market.token,
       symbol: stake.symbol,
@@ -125,7 +128,7 @@ export function BetTicket({ market, spot = null, open, onOpenChange, initialSide
     // unknown confirmation means it may have landed, so the secret stays.
     const mayHaveLanded = result.failure.kind === 'confirmation-unknown' || 'transactionHash' in result.failure
     if (!mayHaveLanded) await removeStoredPosition(minted.commitment)
-    notify.refused('The bet could not be placed.', { description: sendProblem(result) ?? undefined, hash: sendTransactionHash(result) })
+    refuse(sendProblem(result) ?? 'The bet could not be placed.', sendTransactionHash(result))
   }
 
   return (
@@ -190,7 +193,10 @@ export function BetTicket({ market, spot = null, open, onOpenChange, initialSide
               size="lg"
               aria-disabled={blocker !== null || undefined}
               onClick={() => {
-                if (blocker === null) setReviewing(true)
+                if (blocker === null) {
+                  clearRefusal()
+                  setReviewing(true)
+                }
               }}
             >
               {blocker ?? `Review ${sideWord} · ${stakeText} ${stake.symbol}`}
@@ -221,9 +227,11 @@ export function BetTicket({ market, spot = null, open, onOpenChange, initialSide
         ]}
         disclosure={disclosureFor('markets-bet')}
         confirmLabel={`Back ${sideWord}`}
-        onConfirm={() => void confirm()}
+        sponsor={{ kind: 'eligible' }}
+        onConfirm={(sponsored) => void confirm(sponsored)}
         busy={send.isPending}
         blocker={blocker}
+        problem={refusal}
       />
     </>
   )

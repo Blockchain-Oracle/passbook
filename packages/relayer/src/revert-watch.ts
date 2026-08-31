@@ -6,7 +6,9 @@
 // one check. `/submit` already unwinds that spend when the batch provably never reached the chain
 // (`NEVER_BROADCAST`). The case it could not cover is the one users actually hit: the transaction
 // IS broadcast, lands in a block, and reverts. The user gets nothing, the unit is gone, and with a
-// per-visitor cap of one that is a lockout until 00:00 UTC — bought by a failure that was ours.
+// per-visitor cap of one that is now a PERMANENT lockout — bought by a failure that was ours.
+// Per-visitor allocations stopped resetting at midnight (`ledger.ts`), so this refund is the only
+// thing standing between a revert we caused and a user who can never be served again.
 //
 // ── WHY THE RELAYER READS THE RECEIPT ITSELF ──────────────────────────────────────────────
 //
@@ -43,7 +45,7 @@ export const REVERT_WATCH_DEADLINE_MS = 300_000
 const MAX_PENDING = 64
 
 /** Which IP-keyed budget paid for this submission. The account allowance is named separately. */
-export type SpentMeter = 'sponsorship' | 'send'
+export type SpentMeter = 'sponsorship' | 'send' | 'starter'
 
 /** One broadcast hash and exactly which units it spent, so a revert can give those back. */
 export interface WatchedSubmission {
@@ -66,6 +68,8 @@ export interface RevertWatchLedgers {
   account?: SponsorshipLedger
   /** Holds the once-per-account claims a starter drip burns. */
   faucet?: SponsorshipLedger
+  /** The starter's DAY budget — the counters, not the claims. See ledger.ts for why they are apart. */
+  starter?: SponsorshipLedger
 }
 
 export interface RevertWatchOptions {
@@ -104,7 +108,7 @@ function validate(value: unknown): WatchedSubmission[] {
     if (r.visitor !== undefined && typeof r.visitor !== 'string') continue
     if (r.account !== undefined && typeof r.account !== 'string') continue
     if (r.claim !== undefined && typeof r.claim !== 'string') continue
-    if (r.meter !== undefined && r.meter !== 'sponsorship' && r.meter !== 'send') continue
+    if (r.meter !== undefined && r.meter !== 'sponsorship' && r.meter !== 'send' && r.meter !== 'starter') continue
     out.push({
       hash: r.hash,
       utcDay: r.utcDay,
@@ -236,7 +240,10 @@ export class RevertWatch {
   private refund(w: WatchedSubmission, now: number): void {
     const back: string[] = []
     if (w.visitor && w.meter) {
-      const ledger = w.meter === 'send' ? this.opts.ledgers.send : this.opts.ledgers.sponsorship
+      // By NAME, not by a chain of ternaries: a third meter added to the union without a branch
+      // here would silently refund the sponsorship budget instead, which is a real unit of someone
+      // else's money moving for a transaction that had nothing to do with it.
+      const ledger = this.opts.ledgers[w.meter === 'send' ? 'send' : w.meter === 'starter' ? 'starter' : 'sponsorship']
       try {
         ledger?.refundCourtesy(w.visitor, now)
         if (ledger) back.push(w.meter)

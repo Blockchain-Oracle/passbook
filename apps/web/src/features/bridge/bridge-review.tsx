@@ -1,4 +1,3 @@
-import { OctagonX } from 'lucide-react'
 import { BRIDGE_USDC_DECIMALS, BRIDGE_USDC_SYMBOL, type BridgeDestination, type ForwardFee } from '@strk20/protocol/bridge'
 import { disclosureFor } from '@strk20/protocol/disclosure'
 import type { LinkabilityModel } from '@strk20/protocol/linkability'
@@ -6,7 +5,6 @@ import type { SelfLinkResult } from '@strk20/protocol/self-link'
 
 import { Amount } from '@/components/money/amount'
 import { ReviewSheet, type ReviewRow } from '@/components/money/review-sheet'
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { ChainMark } from './chain-marks'
 import { SelfLinkNotice } from './destination-field'
 import { DestinationCaveat } from './destination-picker'
@@ -27,7 +25,7 @@ export interface BridgeReviewProps {
   busy: boolean
   /** The last send's failure, shown in place so the person can retry or back out. */
   problem: string | null
-  onConfirm: () => void
+  onConfirm: (sponsored: boolean) => void
 }
 
 const DISCLOSURE = disclosureFor('bridge-exit')
@@ -80,20 +78,15 @@ export function BridgeReview({
       rows={rows}
       disclosure={DISCLOSURE}
       confirmLabel={confirmLabel}
+      sponsor={{ kind: 'eligible' }}
       onConfirm={onConfirm}
       busy={busy}
       blocker={blocker}
+      problem={problem}
     >
       <DestinationCaveat chain={chain} />
       <SelfLinkNotice selfLink={selfLink} />
       <LinkabilityMeter meter={meter} pending={crowdPending} variant="row" className="rounded-lg border p-3" />
-      {problem ? (
-        <Alert variant="destructive">
-          <OctagonX />
-          <AlertTitle>The crossing did not go through</AlertTitle>
-          <AlertDescription>{problem}</AlertDescription>
-        </Alert>
-      ) : null}
     </ReviewSheet>
   )
 }

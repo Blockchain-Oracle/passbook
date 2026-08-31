@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { notify } from '@/lib/notify'
+import { useRefusal } from '@/components/money/refusal'
 import { insufficient, parseAmountInput, toPlainText } from '@strk20/protocol/amount'
 import { disclosureFor } from '@strk20/protocol/disclosure'
 import { DISCLOSURE_HEADLINE, GOV_TELLER_PEEK } from '@strk20/protocol/disclosure-copy'
@@ -47,6 +48,7 @@ export function BallotTicket({ house, proposal, open, onOpenChange, initialChoic
   const [choice, setChoice] = useState(initialChoice)
   const [raw, setRaw] = useState('')
   const [reviewing, setReviewing] = useState(false)
+  const { refusal, refuse, clear: clearRefusal } = useRefusal()
   const token = useHouseToken(house)
   const send = useSend()
   const contract = appContracts().governance
@@ -78,7 +80,7 @@ export function BallotTicket({ house, proposal, open, onOpenChange, initialChoic
 
   const weightText = token.memberMode ? '1 voice' : `${weight !== null && token.decimals !== null ? toPlainText(weight, token.decimals) : raw} ${token.symbol}`
 
-  const confirm = async () => {
+  const confirm = async (sponsored: boolean) => {
     if (!contract || weight === null) return
     // The crypto trio stays lazy — `governance-commitment`/`-seal` reach `starknet`.
     const [{ mintPositionSecret }, { mintBallotVector }, { sealBallot }] = await Promise.all([
@@ -92,7 +94,7 @@ export function BallotTicket({ house, proposal, open, onOpenChange, initialChoic
     const points = []
     for (const point of vector.vector) {
       if (point === null) {
-        notify.refused('The ballot was refused', { description: 'A ballot commitment cannot be the identity point.' })
+        refuse('A ballot commitment cannot be the identity point.')
         return
       }
       points.push(point)
@@ -107,7 +109,7 @@ export function BallotTicket({ house, proposal, open, onOpenChange, initialChoic
       sealed,
     })
     if (payload.state === 'refused') {
-      notify.refused('The ballot was refused', { description: payload.because })
+      refuse(payload.because)
       return
     }
     if (escrow) {
@@ -125,6 +127,7 @@ export function BallotTicket({ house, proposal, open, onOpenChange, initialChoic
     }
     const result = await send.mutateAsync({
       kind: 'gov-ballot',
+      sponsored,
       recipient: contract,
       token: house.token,
       symbol: token.symbol,
@@ -142,7 +145,7 @@ export function BallotTicket({ house, proposal, open, onOpenChange, initialChoic
       return
     }
     if (escrow && !mayHaveLanded(result)) await removeStoredPosition(escrow.commitment)
-    notify.refused('The ballot could not be cast.', { description: sendProblem(result) ?? undefined, hash: sendTransactionHash(result) })
+    refuse(sendProblem(result) ?? 'The ballot could not be cast.', sendTransactionHash(result))
   }
 
   return (
@@ -196,7 +199,10 @@ export function BallotTicket({ house, proposal, open, onOpenChange, initialChoic
               size="lg"
               aria-disabled={blocker !== null || undefined}
               onClick={() => {
-                if (blocker === null) setReviewing(true)
+                if (blocker === null) {
+                  clearRefusal()
+                  setReviewing(true)
+                }
               }}
             >
               {blocker ?? `Review · ${picked.word} · ${weightText}`}
@@ -219,9 +225,11 @@ export function BallotTicket({ house, proposal, open, onOpenChange, initialChoic
         ]}
         disclosure={disclosureFor('gov-ballot')}
         confirmLabel={`Cast ${picked.word}, sealed`}
-        onConfirm={() => void confirm()}
+        sponsor={{ kind: 'eligible' }}
+        onConfirm={(sponsored) => void confirm(sponsored)}
         busy={send.isPending}
         blocker={blocker}
+        problem={refusal}
       >
         <p className="text-body4 text-muted-foreground">{GOV_TELLER_PEEK}</p>
       </ReviewSheet>

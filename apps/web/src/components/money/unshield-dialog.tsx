@@ -91,7 +91,7 @@ export function UnshieldDialog({
                 ? `Not enough shielded ${symbol}`
                 : null
 
-  const confirm = () => {
+  const confirm = (sponsored: boolean) => {
     if (parsed.wei === null || address === undefined) return
     onUnshield({
       kind: 'withdraw',
@@ -99,6 +99,7 @@ export function UnshieldDialog({
       token,
       symbol,
       amount: parsed.wei,
+      sponsored,
       label: `Unshield ${symbol}`,
     })
   }
@@ -178,6 +179,7 @@ export function UnshieldDialog({
         ]}
         disclosure={disclosureFor('unshield')}
         confirmLabel={`Unshield ${symbol}`}
+        sponsor={{ kind: 'eligible' }}
         onConfirm={confirm}
         busy={busy}
         blocker={busy ? (stage ? STAGE_TITLES[stage] : null) : blocker}

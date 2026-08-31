@@ -155,6 +155,27 @@ export interface SponsorshipConfig {
   faucetCaps: BudgetCaps
   faucetStorePath: string
   /**
+   * The brake on the SHIELDED starter, which had none.
+   *
+   * ── WHY THIS IS A FIFTH LEDGER AND NOT THE FAUCET'S ───────────────────────────────────────
+   *
+   * `/starter` bounded itself with a once-per-ACCOUNT claim and the wallet's funding floor, and
+   * neither is a daily cap. The claim stops one account taking two; it does nothing about one
+   * person making twenty accounts. And a registration can be SELF-paid — which spends no
+   * sponsorship unit — so the sponsorship budget was not bounding it either. What was left was
+   * "keep paying until the balance hits the floor", one ~12 STRK claim at a time.
+   *
+   * It cannot share `faucetCaps`: every new account needs both a public drip and a starter, so one
+   * counter for both would halve the number of people a day's budget serves, and a spent drip
+   * would refuse a starter for a reason that has nothing to do with it. Its own file, its own
+   * notice — the rule this package already applies to sends versus registrations.
+   *
+   * LIFETIME per connection, like every other `perVisitor` here — see `resolveSponsorshipCaps`
+   * for why that forces the number up rather than down. `daily` × ~12 STRK is the real spend.
+   */
+  starterCaps: BudgetCaps
+  starterStorePath: string
+  /**
    * Where the hashes awaiting a receipt are kept, so a restart still refunds a revert.
    * Not a ledger — it spends nothing and grants nothing; it only remembers what to check.
    */
@@ -169,13 +190,25 @@ export interface SponsorshipConfig {
 
 export function resolveSponsorshipCaps(env: NodeJS.ProcessEnv = process.env): SponsorshipConfig {
   return {
+    // ── EVERY `perVisitor` BELOW IS NOW A LIFETIME ALLOCATION, NOT A DAILY ONE ────────────
+    //
+    // `ledger.ts` opens all four of these `lifetime`, so a connection gets its share once and
+    // never again. That is the intended rule, and it changes what these NUMBERS have to be:
+    // a cap of 1 meant "one a day" and now means "one, ever", and a great many real people share
+    // one egress address — carrier NAT, an office, a campus, a conference. Sized as ANTI-FARM
+    // ceilings a real visitor never reaches, because the controls that actually bound a person
+    // are per-ACCOUNT and do not live here: three covered transactions per account, one drip per
+    // address, one starting balance per address, each of them already permanent.
     caps: {
-      perVisitor: positiveInt(env, 'RELAYER_SPONSOR_PER_VISITOR', 1),
+      perVisitor: positiveInt(env, 'RELAYER_SPONSOR_PER_VISITOR', 15),
       daily: positiveInt(env, 'RELAYER_SPONSOR_DAILY', 20),
     },
     storePath: env.RELAYER_SPONSOR_STORE || relayerFile('sponsorship.json'),
+    // A relayed send is REIMBURSED — the user's own proof folds a `Withdraw` back to us — so this
+    // costs gas alone and is the cheapest thing here. 3 was a sensible day's worth and is a
+    // punishing lifetime, so it rises with the change in meaning rather than staying put.
     sendCaps: {
-      perVisitor: positiveInt(env, 'RELAYER_SEND_PER_VISITOR', 3),
+      perVisitor: positiveInt(env, 'RELAYER_SEND_PER_VISITOR', 30),
       daily: positiveInt(env, 'RELAYER_SEND_DAILY', 20),
     },
     sendStorePath: env.RELAYER_SEND_STORE || relayerFile('send-budget.json'),
@@ -189,11 +222,32 @@ export function resolveSponsorshipCaps(env: NodeJS.ProcessEnv = process.env): Sp
     // 20/day, not 2. The old number was sized against a 10 STRK drip, where a day's worth was
     // 20 STRK of real money; at a 2 STRK deploy-only drip the same daily spend buys ten times the
     // visitors. The sponsorship budget below is now the one that bounds an expensive day.
+    // WAS 1, AND 1 WOULD NOW BE A PRODUCT BUG: one drip per connection EVER means the first
+    // phone on a carrier NAT takes the only drip its whole network will ever get. The real
+    // once-per-user control is the per-ADDRESS claim in the ledger's `claimed` set, which was
+    // always permanent; this number only has to stop a farm.
     faucetCaps: {
-      perVisitor: positiveInt(env, 'RELAYER_FAUCET_PER_VISITOR', 1),
+      perVisitor: positiveInt(env, 'RELAYER_FAUCET_PER_VISITOR', 15),
       daily: positiveInt(env, 'RELAYER_FAUCET_DAILY', 20),
     },
     faucetStorePath: env.RELAYER_FAUCET_STORE || relayerFile('faucet.json'),
+    // ── SIZED TO CAP A FARM, NOT TO RATION A DEMO ─────────────────────────────────────────
+    //
+    // The standing rule is that funding is handled and controls are NOT sized around a relayer
+    // running dry. This ledger is not that: it exists because the starter had NO ceiling of any
+    // kind — not a day's, not a connection's — so a self-funded registration could claim starting
+    // balances until the wallet hit its floor. That was the leak.
+    //
+    // `perVisitor` is a LIFETIME anti-farm ceiling and is sized for shared egress like the rest.
+    // `daily` is the backstop for a farm spread across many connections, deliberately set ABOVE
+    // `RELAYER_SPONSOR_DAILY` (20) so an ordinary day of registrations can never be refused by it.
+    // At ~12 STRK a claim (3 to the recipient, 6 pool fee, ~3 gas) it caps a bad day near 300 STRK
+    // instead of at "whatever the wallet held".
+    starterCaps: {
+      perVisitor: positiveInt(env, 'RELAYER_STARTER_PER_VISITOR', 15),
+      daily: positiveInt(env, 'RELAYER_STARTER_DAILY', 25),
+    },
+    starterStorePath: env.RELAYER_STARTER_STORE || relayerFile('starter-budget.json'),
     revertWatchStore: env.RELAYER_REVERT_WATCH_STORE || relayerFile('revert-watch.json'),
     opsWebhook: env.RELAYER_OPS_WEBHOOK || undefined,
     salt: resolveVisitorSalt(env),

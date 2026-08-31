@@ -24,18 +24,21 @@ export interface SwapReviewProps {
   ready: boolean
   walkState: WalkState
   phase: SwapPhase
-  /** The last confirm's failure sentence, shown in the CTA's place until the sheet reopens. */
+  /** The last confirm's failure sentence, shown in the sheet's red row until the sheet reopens. */
   problem: string | null
-  onConfirm: () => void
+  onConfirm: (sponsored: boolean) => void
 }
 
-function reviewBlocker(ready: boolean, walkState: WalkState, phase: SwapPhase, problem: string | null): string | null {
+// Conditions only. The last confirm's FAILURE used to come back through here, which sent a refusal
+// to the muted blocker line and left the button reading "Not available" — the app's quietest
+// possible way to say the swap did not happen. It goes to `problem` now, in red, like everywhere.
+function reviewBlocker(ready: boolean, walkState: WalkState, phase: SwapPhase): string | null {
   if (!ready) return 'This browser has no account yet'
   if (walkState === 'pending') return 'Reading your balance…'
   if (walkState === 'unreachable') return 'Your balance could not be read'
   if (phase === 'building') return 'Getting the route…'
   if (phase) return STAGE_TITLES[phase]
-  return problem
+  return null
 }
 
 /** Shielded in, shielded out. The rows are the quote; the panel is what the chain will show. */
@@ -85,9 +88,11 @@ export function SwapReview({
       ]}
       disclosure={SWAP_DISCLOSURE}
       confirmLabel="Confirm swap"
+      sponsor={{ kind: 'eligible' }}
       onConfirm={onConfirm}
       busy={phase !== null}
-      blocker={reviewBlocker(ready, walkState, phase, problem)}
+      blocker={reviewBlocker(ready, walkState, phase)}
+      problem={phase === null ? problem : null}
     />
   )
 }
