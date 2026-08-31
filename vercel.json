@@ -4,5 +4,8 @@
   "outputDirectory": "apps/web/dist",
   "installCommand": "echo 'no install: the uploaded artifact is already built'",
   "framework": null,
-  "rewrites": [{ "source": "/((?!api/).*)", "destination": "/index.html" }]
+  "rewrites": [
+    { "source": "/api/:path+", "destination": "/api/[...path]" },
+    { "source": "/((?!api/).*)", "destination": "/index.html" }
+  ]
 }

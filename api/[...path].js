@@ -30,11 +30,23 @@
 // ── THE ROUTING NOTE THAT CANNOT LIVE IN `vercel.json` ───────────────────────────────────
 //
 // That file is JSON validated against a strict schema — it rejects a `//` key outright, which is
-// how this paragraph ended up here. Its rewrite reads `/((?!api/).*)` rather than `/(.*)`: the app
-// is a single page, so every path falls through to `index.html`, and every path must mean every
-// path EXCEPT this function. Vercel already gives functions precedence over rewrites, so the
-// lookahead is belt and braces — worth having because a catch-all that swallowed `/api/submit`
-// would present as a relayer outage, and the cause would be nowhere near the symptom.
+// how this paragraph ended up here. Two rewrites, and the order is the point.
+//
+// `/api/:path+` → this function, FIRST. Vercel's file-system router compiles `[...path].js` to
+// `^/api/([^/]+)$` — one segment — and then answers everything deeper with a flat 404. So this
+// catch-all did not catch all: `/api/allowance/0x…` and `/api/faucet/0x…` were refused at the
+// edge and never reached the relayer, which is why the sponsored counter rendered nothing in
+// production and could not have rendered anything. The workaround before this was one stub file
+// per nested prefix, each re-exporting this handler, added whenever somebody noticed another
+// route was dead — five of them, and a sixth needed for every new path. The rewrite makes the
+// name true and they are deleted; it also puts this deployment back to a single function, which
+// the Hobby-plan cap those stubs were fighting will thank us for.
+//
+// `/((?!api/).*)` → `index.html`, second: the app is a single page, so every path falls through
+// to it, and every path must mean every path EXCEPT this function. Vercel already gives functions
+// precedence over rewrites, so the lookahead is belt and braces — worth having because a catch-all
+// that swallowed `/api/submit` would present as a relayer outage, and the cause would be nowhere
+// near the symptom.
 //
 import { Readable } from 'node:stream'
 
@@ -70,9 +82,10 @@ export default async function handler(req, res) {
   // string and all, so the injected param turns every proxied route into a 404. `vite dev`
   // forwards clean paths, which is why this only ever breaks in production.
   upstreamUrl.searchParams.delete('...path')
+  // `path` is the same injection under the explicit `/api/:path+` rewrite in `vercel.json`, which
+  // names the parameter itself. `leaf` was the name the per-directory stubs used; they are gone,
+  // and it stays deleted because a stale param would be forwarded silently and 404 the route.
   upstreamUrl.searchParams.delete('path')
-  // The nested prefixes now route through one `[leaf].js` per directory (the Hobby-plan
-  // function cap), and a dynamic segment injects ITS param the same way the catch-all does.
   upstreamUrl.searchParams.delete('leaf')
 
   const headers = { 'content-type': 'application/json' }
