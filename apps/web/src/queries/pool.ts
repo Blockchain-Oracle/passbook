@@ -79,16 +79,28 @@ export function allowanceQuery(address: string | undefined) {
   })
 }
 
-/** Whether the starter drip is still there for this address, or `null` when we cannot say. */
+/**
+ * What this address can still be GIVEN, or `null` when the relayer could not say.
+ *
+ * ── TWO GIFTS, TWO GATES, AND CONFLATING THEM HID ONE OF THEM ─────────────────────────────
+ *
+ * The public drip (STRK to an address so it can deploy) and the shielded starter (a first private
+ * note) are separate offers with separate limits. This read used to collapse the whole response to
+ * `null` whenever `available` was false — and `available` is the PUBLIC drip's per-visitor budget,
+ * which is spent the moment someone takes their drip. So every account that had ever been dripped
+ * reported "no offers at all", and the starter it had never claimed became invisible. The starter
+ * banner simply never appeared for the one group guaranteed to need it.
+ *
+ * So each gift now carries its own answer, and neither can silence the other.
+ */
 export interface FaucetOffer {
-  claimed: boolean
+  /** The PUBLIC drip: unclaimed, budget left, relayer up. False means do not offer it. */
+  drip: boolean
   /**
    * The SHIELDED starting balance, when this deployment hands one out. Absent is not zero: a
    * relayer that offers none has nothing to show, and `0n` would read as an offer withdrawn.
    *
-   * `wei` arrives as a decimal string on the wire (JSON has no bigint) and is parsed here so no
-   * screen has to remember to. A string that does not parse drops the offer rather than showing
-   * an amount nobody can verify.
+   * Gated by its OWN once-per-account claim, not by the public drip's daily budget.
    */
   starter?: { wei: bigint; claimed: boolean }
 }
@@ -105,12 +117,16 @@ function starterOf(raw: { wei: string; claimed: boolean } | undefined): { starte
 }
 
 /**
- * Whether this address can still take the starter drip.
+ * What this address can still be given — the public drip, the shielded starter, or neither.
  *
  * `null` FOR EVERY "WE CANNOT SAY", exactly like `allowanceQuery`, and for the same reason: the
  * banner renders nothing on `null`. A deployment with no faucet answers 404, an unreachable one
- * throws, and in both cases offering starter STRK that will not arrive is worse than silence.
- * `available: false` also resolves `null` — there is no offer to make and no claim to report.
+ * throws, and in both cases offering something that will not arrive is worse than silence.
+ *
+ * A SPENT DRIP IS NOT ONE OF THOSE CASES, and treating it as one was the bug: `available: false`
+ * used to resolve `null`, so every account that had taken its public drip reported no offers at
+ * all — and its unclaimed shielded starter went unmentioned on the one screen meant to mention it.
+ * A relayer that answers has told us about both gifts; each is reported on its own terms.
  */
 export function faucetOfferQuery(address: string | undefined) {
   return queryOptions({
@@ -119,8 +135,12 @@ export function faucetOfferQuery(address: string | undefined) {
     queryFn: async (): Promise<FaucetOffer | null> => {
       try {
         const body = await relayerGet<FaucetClaimBody>(`${RELAYER_PATHS.faucet}/${address}`)
-        if (body.available === false || typeof body.claimed !== 'boolean') return null
-        return { claimed: body.claimed, ...(starterOf(body.starter) ?? {}) }
+        // Both gifts, independently. A drip that is spent, claimed or unavailable is simply not
+        // offered; it says nothing about the starter, which has its own claim.
+        return {
+          drip: body.available !== false && body.claimed === false,
+          ...(starterOf(body.starter) ?? {}),
+        }
       } catch {
         return null
       }

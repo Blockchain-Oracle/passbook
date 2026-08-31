@@ -83,7 +83,7 @@ function pickNeed(i: NeedInputs): AccountNeed | null {
     // Say nothing rather than offer a drip we are not sure is there: a button that answers 429 is
     // how a working faucet gets mistaken for a broken one.
     if (i.faucetLoading) return null
-    return unless(i.faucet && !i.faucet.claimed ? { kind: 'drip' } : { kind: 'fund' })
+    return unless(i.faucet?.drip ? { kind: 'drip' } : { kind: 'fund' })
   }
 
   // BEFORE the count, because it is a thing to DO and the count is only news. An account that has
