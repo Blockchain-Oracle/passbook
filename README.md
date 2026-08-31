@@ -56,11 +56,20 @@ Network `SN_MAIN`. Every row was read back off the chain, not copied from a depl
 |---|---|
 | STRK20 pool | [`0x040337b1…fe812a`](https://voyager.online/contract/0x040337b1af3c663e86e333bab5a4b28da8d4652a15a69beee2b677776ffe812a) |
 | Pool class hash this code was tested against | [`0x67dddd89…6b554d`](https://voyager.online/class/0x67dddd89d80fedadc06b6f160798f94800a4a70164e5a24301cd0d6076b554d) |
-| `Markets` (ours) | [`0x7905ba4e…72a783`](https://voyager.online/contract/0x7905ba4e7535a3e7c1f9f4045762cc7ce83cfb120fe916f97a0dc512d72a783) |
+| `Markets` (ours) — standing windows | [`0x30b487e6…a3c702`](https://voyager.online/contract/0x30b487e6b15d65fae30482fd07dcbfaa47b5b07e5133c0cdb10d8e49a3c702) |
 | `Launch` (ours) | [`0x3fc07897…32eb54`](https://voyager.online/contract/0x3fc07897f657b184ff9b0dab28939bb5a175d7cff9290406a1bd4b3d032eb54) |
 | `MessageBook` (ours) | [`0x3105b6a3…ae35bc`](https://voyager.online/contract/0x3105b6a327ba11f5464335f480046348a4052be2c12df726f37633d50ae35bc) |
-| `Governance` — the Houses (ours) | [`0xdbe26582…37f9bf`](https://voyager.online/contract/0xdbe265829e0f1c859f3a8c1bd8fcfb0a774836b9e07191c6a624a59e37f9bf) |
+| `Governance` — the Houses (ours) | [`0x731207e6…4babc5`](https://voyager.online/contract/0x731207e62d01d80632e9d6e911072bb5a3eeaf86232123d2ab9fc50654babc5) |
 | Pragma oracle (read live by Markets) | [`0x2a85bd61…fa875b`](https://voyager.online/contract/0x2a85bd616f912537c50a49a4076db02c00b29b2cdc8a197ce92ed1837fa875b) |
+
+Two of these were redeployed after the transactions below were made, and the manifest names the
+contract each transaction actually ran through rather than the current one — a declared transaction
+has to match the address that emitted it. `Markets` superseded
+[`0x7905ba4e…72a783`](https://voyager.online/contract/0x7905ba4e7535a3e7c1f9f4045762cc7ce83cfb120fe916f97a0dc512d72a783)
+on 29 Aug; `Governance` superseded
+[`0xdbe26582…37f9bf`](https://voyager.online/contract/0xdbe265829e0f1c859f3a8c1bd8fcfb0a774836b9e07191c6a624a59e37f9bf)
+on 30 Aug, once the tally-key and exclusion fixes landed. Both older addresses stay readable, and
+`evidence/markets-launch-deployment.json` records what replaced what.
 
 **Eleven declared transactions** — every successful mainnet transaction that ran through one of
 our contracts, found by sweeping their events — each with the evidence file that recorded it:
@@ -99,7 +108,7 @@ Seven modes, one pool.
 | **Bridge** | **Live, outbound only.** Shielded USDC to another chain through StarkWare's deployed `OutboundAnonymizer`. |
 | **Markets** | **Deployed on mainnet.** Live Pragma prices, real market records, bets, cash-out while eligible, terminal claims and refunds. |
 | **Launch** | **Deployed on mainnet.** Real sale records, buys, graduation redemption, failed-raise refunds. |
-| **Houses** | **Readable on mainnet; affected writes blocked.** The deployed class predates two corrections, so the app fails closed until a corrected deployment updates the evidence. |
+| **Houses** | **Live end to end.** A house is a treasury with members; a ballot's weight is public, its choice is sealed to the proposal's tally key, and no address is written on it. Our Teller opens the tally at close and cannot forge, drop or miscount a ballot, because the contract checks the arithmetic. |
 
 What does not work, stated plainly: there is no invite for an unregistered address; the bridge is
 outbound only and no crossing has been sent from this code; depositing into the pool is public —
