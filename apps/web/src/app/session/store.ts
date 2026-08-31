@@ -30,11 +30,9 @@ export interface Session {
   readonly accounts: readonly SessionAccount[]
   /** True when a password seals the accounts at rest. */
   readonly hasVault: boolean
-  /** True when this tab holds the cross-tab leader lock and may submit. */
-  readonly isLeader: boolean
 }
 
-export const BOOTING: Session = { status: 'booting', accounts: [], hasVault: false, isLeader: false }
+export const BOOTING: Session = { status: 'booting', accounts: [], hasVault: false }
 
 let snapshot: Session = BOOTING
 const listeners = new Set<() => void>()

@@ -1,6 +1,6 @@
 import { queryOptions } from '@tanstack/react-query'
 import type { PoolConstants, PoolHealth } from '@strk20/protocol/pool'
-import type { Allowance, AllowanceBody } from '@strk20/protocol/relayer-wire'
+import { RELAYER_PATHS, type Allowance, type AllowanceBody, type FaucetClaimBody } from '@strk20/protocol/relayer-wire'
 import type { MeasuredGas } from '@strk20/protocol/fee-ceiling'
 
 import { relayerGet } from '@/lib/relayer'
@@ -71,6 +71,36 @@ export function allowanceQuery(address: string | undefined) {
         const a = body.allowance
         if (!a || !Number.isInteger(a.remaining) || !Number.isInteger(a.of)) return null
         return a
+      } catch {
+        return null
+      }
+    },
+    staleTime: 15_000,
+  })
+}
+
+/** Whether the starter drip is still there for this address, or `null` when we cannot say. */
+export interface FaucetOffer {
+  claimed: boolean
+}
+
+/**
+ * Whether this address can still take the starter drip.
+ *
+ * `null` FOR EVERY "WE CANNOT SAY", exactly like `allowanceQuery`, and for the same reason: the
+ * banner renders nothing on `null`. A deployment with no faucet answers 404, an unreachable one
+ * throws, and in both cases offering starter STRK that will not arrive is worse than silence.
+ * `available: false` also resolves `null` — there is no offer to make and no claim to report.
+ */
+export function faucetOfferQuery(address: string | undefined) {
+  return queryOptions({
+    queryKey: ['relayer', 'faucet-claim', address ?? null],
+    enabled: Boolean(address),
+    queryFn: async (): Promise<FaucetOffer | null> => {
+      try {
+        const body = await relayerGet<FaucetClaimBody>(`${RELAYER_PATHS.faucet}/${address}`)
+        if (body.available === false || typeof body.claimed !== 'boolean') return null
+        return { claimed: body.claimed }
       } catch {
         return null
       }

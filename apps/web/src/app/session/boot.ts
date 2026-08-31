@@ -4,8 +4,8 @@
 // an account minted silently on first load is one the user never chose to back up.
 import type { SessionLock } from '@strk20/protocol/session-lock'
 
-import { BOOTING, getSessionSnapshot, patchSession, publishSession, setBootTrigger } from './store'
-import { addressFor, isLeader, loadTier, publishFromRecord, setLeader, type Tier } from './tier'
+import { BOOTING, publishSession, setBootTrigger } from './store'
+import { addressFor, loadTier, publishFromRecord, type Tier } from './tier'
 
 let booting: Promise<void> | null = null
 let lock: SessionLock | null = null
@@ -61,7 +61,6 @@ async function bootOnce(): Promise<void> {
         .sort((a, b) => a.addedAt - b.addedAt)
         .map((a) => ({ address: a.address, label: a.label })),
       hasVault: true,
-      isLeader: isLeader(),
     })
     return
   }
@@ -85,35 +84,36 @@ async function bootOnce(): Promise<void> {
     publishFromRecord(t, record)
     return
   }
-  publishSession({ ...BOOTING, status: 'fresh', isLeader: isLeader() })
+  publishSession({ ...BOOTING, status: 'fresh' })
 }
 
-function startLeaderLock(): void {
-  if (lock || typeof BroadcastChannel === 'undefined') return
+/**
+ * Opens the cross-tab submit lock. It holds nothing until a submission asks for it, so there is no
+ * leadership to poll and no role for a tab to be stuck in — the old 1 s heartbeat existed only to
+ * publish a role that never changed after boot.
+ *
+ * ── NOTHING IS TORN DOWN ON `pagehide`, AND THAT IS THE FIX ───────────────────────────────
+ *
+ * There used to be a `pagehide` handler here that closed the lock and set it to `null`. `pagehide`
+ * is not unload: it fires when a page enters the back/forward cache and when a mobile browser
+ * backgrounds a tab. On restore the lock was gone and `openSubmitLock` is only reachable through
+ * `ensureBooted`, so every later submission was refused with "the session has not finished
+ * opening" — permanently, in a tab that looked perfectly healthy.
+ *
+ * There is nothing to clean up anyway. A Web Lock is released when its holder's promise settles,
+ * and the browser frees every lock a page holds when the page is actually destroyed.
+ */
+function openSubmitLock(): void {
+  if (lock) return
   void loadTier().then((t) => {
     lock = t.protocol.createSessionLock()
-    // The lock has no subscribe; it heartbeats every second, so a poll at that cadence is exact enough.
-    const tick = () => {
-      const next = lock?.isLeader() ?? false
-      if (next !== isLeader()) {
-        setLeader(next)
-        if (getSessionSnapshot().status !== 'booting') patchSession({ isLeader: next })
-      }
-    }
-    tick()
-    const timer = setInterval(tick, 1000)
-    window.addEventListener('pagehide', () => {
-      clearInterval(timer)
-      lock?.close()
-      lock = null
-    })
   })
 }
 
 /** Idempotent. Runs on the first `useSession` subscriber; a failed boot is retried by the next call. */
 export function ensureBooted(): Promise<void> {
   if (booting) return booting
-  startLeaderLock()
+  openSubmitLock()
   booting = bootOnce().catch((e) => {
     booting = null
     publishSession({
@@ -128,14 +128,6 @@ export function ensureBooted(): Promise<void> {
 /** The cross-tab lock, for `deps.acquireSubmitLock` on register/send. `null` before boot. */
 export function getSessionLock(): SessionLock | null {
   return lock
-}
-
-/** "Use this tab": preempts the leader tab; the 1 s poll above publishes the new role. */
-export async function takeOverSubmitLock(): Promise<void> {
-  if (!lock) throw new Error('The session has not finished opening yet.')
-  await lock.takeOver()
-  setLeader(true)
-  if (getSessionSnapshot().status !== 'booting') patchSession({ isLeader: true })
 }
 
 setBootTrigger(() => {

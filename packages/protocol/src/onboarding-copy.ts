@@ -254,6 +254,51 @@ export const STAGE_LINES: Record<StageKey, readonly [string, string, string]> = 
 /** The stage's footer tick — the one move this whole flow exists for. */
 export const STAGE_TICK = ['public', 'shielded'] as const
 
+// ── The standing banner ───────────────────────────────────────────────────────────────────
+//
+// What the shell says to an account that is IN the app but not finished. The gate is a door; this
+// is the sentence that follows someone who walked past it. Each line names the one thing missing
+// and what it costs them, because a prompt that only says "incomplete" is a prompt people learn
+// to ignore.
+
+/**
+ * NOT DISMISSIBLE, and the copy is written knowing that. An unregistered account cannot send,
+ * receive or hold anything — so there is no state in which hiding this would leave the user
+ * better off, and an × would only let them lose the one explanation for why nothing works.
+ */
+export const NEEDS_REGISTER_TITLE = 'Your account is not registered yet'
+export const NEEDS_REGISTER_BODY =
+  'Registering writes your viewing key to the pool once. Until it lands, this account cannot send or receive.'
+export const NEEDS_REGISTER_CTA = 'Register'
+
+/** The drip is still there. Says what arrives, so nobody presses it expecting a balance. */
+export const NEEDS_DRIP_TITLE = 'Claim your starter STRK'
+export const NEEDS_DRIP_BODY =
+  'Enough to put this account on chain. Registering itself is on us.'
+export const NEEDS_DRIP_CTA = 'Claim'
+
+/**
+ * The drip is gone and the balance is still empty — so the only way forward is their own wallet.
+ * Never says "claim" here: offering a button that answers 429 is how a working faucet gets
+ * mistaken for a broken one.
+ */
+export const NEEDS_FUND_TITLE = 'This account holds no STRK'
+export const NEEDS_FUND_BODY =
+  'It needs a little to put itself on chain — well under 1 STRK. Send some to your address from any wallet or exchange.'
+export const NEEDS_FUND_CTA = 'Show address'
+
+/**
+ * The chain could not be read, so nothing about this account is known.
+ *
+ * NOT DISMISSIBLE, and it is the case the standing banner was built for: someone who pressed
+ * "Continue anyway" past an unreadable status is inside an app where every button fails, and the
+ * one screen that KNOWS the status is unreadable used to say nothing at all. It clears itself the
+ * moment a read succeeds.
+ */
+export const NEEDS_UNKNOWN_TITLE = 'This account could not be read'
+export const NEEDS_UNKNOWN_BODY =
+  'The chain did not answer, so what this account holds and whether it is registered are both unknown. Nothing is wrong with your key. Transactions will fail until this clears.'
+
 export const REGISTER_TITLE = 'Register your key'
 export const REGISTER_CTA = 'Create your account'
 

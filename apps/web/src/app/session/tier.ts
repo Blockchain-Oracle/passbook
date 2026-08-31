@@ -70,7 +70,6 @@ interface OpenVault {
 }
 
 let openVault: OpenVault | null = null
-let leader = false
 
 export function setOpenVault(next: OpenVault | null): void {
   openVault = next
@@ -78,14 +77,6 @@ export function setOpenVault(next: OpenVault | null): void {
 
 export function getOpenVault(): OpenVault | null {
   return openVault
-}
-
-export function setLeader(next: boolean): void {
-  leader = next
-}
-
-export function isLeader(): boolean {
-  return leader
 }
 
 export function hasVault(t: Tier): boolean {
@@ -137,7 +128,6 @@ export function readySession(t: Tier, record: StoredAccounts, active: StoredAcco
     label: active.label,
     accounts: summarize(record),
     hasVault: hasVault(t),
-    isLeader: leader,
   }
 }
 
@@ -154,7 +144,6 @@ export function lockedSession(
     label,
     accounts,
     hasVault: hasVault(t),
-    isLeader: leader,
     ...(reason ? { reason } : {}),
   }
 }
@@ -167,8 +156,7 @@ export function publishFromRecord(t: Tier, record: StoredAccounts, unlockProblem
       status: 'locked',
       accounts: summarize(record),
       hasVault: hasVault(t),
-      isLeader: leader,
-      reason: 'The active account is missing from this browser’s account list.',
+        reason: 'The active account is missing from this browser’s account list.',
     })
     return
   }

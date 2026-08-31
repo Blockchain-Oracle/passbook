@@ -3,8 +3,7 @@ import { Outlet, createRootRouteWithContext } from '@tanstack/react-router'
 
 import { AppSidebar } from '@/components/layout/app-sidebar'
 import { MobileTabs } from '@/components/layout/mobile-tabs'
-import { SponsorshipBanner } from '@/components/layout/sponsorship-banner'
-import { TabBanner } from '@/components/layout/tab-banner'
+import { AccountBanner } from '@/components/layout/account-banner'
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar'
 import { Toaster } from '@/components/ui/sonner'
 import { TooltipProvider } from '@/components/ui/tooltip'
@@ -24,8 +23,7 @@ function Shell() {
             width they actually have, not on the window's, which is 200px of sidebar wider. */}
         <SidebarInset className="@container min-w-0 overflow-x-clip pb-20 md:pb-0">
           <OnboardingGate />
-          <TabBanner />
-          <SponsorshipBanner />
+          <AccountBanner />
           <Outlet />
         </SidebarInset>
         <MobileTabs />

@@ -5,7 +5,9 @@ import type { StoredAccounts } from '@strk20/protocol/session-accounts'
 
 import { ensureBooted } from './boot'
 import { BOOTING, getSessionSnapshot, patchSession, publishSession } from './store'
-import { addressFor, getOpenVault, isLeader, loadRecord, loadTier, persist, publishFromRecord, setOpenVault, summarize, type Tier } from './tier'
+import { clearDismissed } from '../dismissed-notices'
+import { setEntered } from '../onboarding-entry'
+import { addressFor, getOpenVault, loadRecord, loadTier, persist, publishFromRecord, setOpenVault, summarize, type Tier } from './tier'
 
 const NO_RECORD = 'There is no account list in this browser to switch inside.'
 const NOT_HELD = 'This browser does not hold that account.'
@@ -115,6 +117,10 @@ function sameHex(a: string, b: string): boolean {
 export function forget(): void {
   void ready().then((t) => {
     setOpenVault(null)
+    // Not in SESSION_KEYS, and they outlive the keys they describe: a restored recovery file gets
+    // the same address back, so a stale entry flag would wave the account past a gate it never saw.
+    setEntered(null)
+    clearDismissed()
     for (const key of Object.values(t.protocol.SESSION_KEYS)) {
       try {
         t.store.remove(key)
@@ -122,6 +128,6 @@ export function forget(): void {
         // A key that cannot be removed cannot be read either; the store already refused above.
       }
     }
-    publishSession({ ...BOOTING, status: 'fresh', isLeader: isLeader() })
+    publishSession({ ...BOOTING, status: 'fresh' })
   })
 }

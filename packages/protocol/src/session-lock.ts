@@ -1,25 +1,38 @@
 //
-// The cross-tab submit lock, on the Web Locks API. One tab holds `passbook.submit-lock` for its
-// lifetime and is the leader; every other tab's request stays queued and is granted by the browser
-// the moment the leader closes or crashes — takeover for free, no heartbeat protocol.
+// The cross-tab submit lock, on the Web Locks API. A tab holds `passbook.submit-lock` for exactly
+// as long as ONE submission runs, and holds nothing at rest.
 //
-// FAIL CLOSED: a tab that has not been granted the lock never submits. `acquire()` waits out a
-// short election window (the grant is immediate when the lock is free) and then refuses with the
-// sentence the user reads. Where `navigator.locks` is absent (Node, old browsers) a single-process
-// in-memory manager stands in — same semantics, one process.
+// ── IT USED TO BE HELD FOR THE TAB'S LIFETIME, AND THAT IS NOT THE SAME RULE ──────────────
+//
+// The invariant worth enforcing is "one pipeline at a time per account". What was enforced instead
+// was "whichever tab opened first may ever submit": the lock was requested at construction and
+// released only on close, so a second tab was refused for the life of the first — even when that
+// first tab was idle and had never submitted anything. The refusal it printed, "That tab is
+// submitting", was then simply false, and the only way out was a manual steal that could abort a
+// real submission mid-flight.
+//
+// Holding per submission enforces the actual invariant and makes the sentence true. Two tabs can
+// both read, both prepare, and the second to reach the chain waits out the first or is told to.
+//
+// A tab that has not been granted the lock never submits. Where `navigator.locks` is absent (Node,
+// Safari before 15.4) a single-process in-memory manager stands in, and that stand-in is HONESTLY
+// WEAKER: its queue is a module-level map, so two tabs each get their own and both are granted.
+// It still refuses the case that actually happens — the same tab submitting twice — and refusing
+// every submission instead would brick a browser over a risk that needs two tabs to exist at all.
+// Cross-tab exclusion requires Web Locks; without them this degrades to per-tab, and says so.
 //
 
 import { ACCOUNT_OPEN_IN_ANOTHER_TAB, SUBMISSION_ALREADY_IN_PROGRESS } from './session-copy.js'
 
-export interface LockPeer {
+interface LockPeer {
   id: string
   startedAt: number
 }
 
-/** Only `leader` may submit. `electing` = request pending; `follower` = another tab holds it. */
-export type LockRole = 'idle' | 'electing' | 'follower' | 'leader'
+/** `submitting` = this tab holds the lock; `blocked` = another tab does. `idle` = nobody here. */
+type LockRole = 'idle' | 'blocked' | 'submitting'
 
-export interface LockState {
+interface LockState {
   readonly self: LockPeer
   readonly role: LockRole
   /** True while this tab holds the submit lock. The reentrancy guard. */
@@ -28,20 +41,27 @@ export interface LockState {
   readonly fault: string | null
 }
 
-export const DEFAULT_LOCK_CHANNEL = 'passbook.submit-lock'
+const DEFAULT_LOCK_CHANNEL = 'passbook.submit-lock'
 
-/** How long `acquire` waits for a pending grant before calling this tab a follower. */
-export const DEFAULT_ELECTION_MS = 1_000
+/**
+ * How long `acquire` waits for the lock before refusing.
+ *
+ * Short on purpose, and it is a UX decision rather than a safety one. A submission takes tens of
+ * seconds, so a window wide enough to outlast one would leave a button spinning with nothing to
+ * show for it. This is sized to catch the case that actually happens — the other tab finishing
+ * just as this one asks — and to tell the user plainly otherwise. Waiting is never silent.
+ */
+const DEFAULT_ACQUIRE_WAIT_MS = 3_000
 
 /** The double-click. User sentence first; the developer detail rides behind it for the log. */
-export const SUBMIT_LOCK_ALREADY_HELD =
+const SUBMIT_LOCK_ALREADY_HELD =
   `${SUBMISSION_ALREADY_IN_PROGRESS} ` +
   '(this tab already holds the submit lock; a second acquire would produce two releases for one hold)'
 
-export const SUBMIT_LOCK_CLOSED = 'this submit lock has been closed'
+const SUBMIT_LOCK_CLOSED = 'this submit lock has been closed'
 
 /** Thrown by every acquire on a lock whose manager was explicitly withheld (`locks: null`). */
-export const SUBMIT_LOCK_NO_CHANNEL =
+const SUBMIT_LOCK_NO_CHANNEL =
   'this browser has no BroadcastChannel, so tabs cannot agree on which one submits; ' +
   'no tab may submit'
 
@@ -60,20 +80,17 @@ export interface SessionLockOptions {
   /** This tab's id. Generated when absent. */
   id?: string
   now?: () => number
-  electionMs?: number
+  /** How long `acquire` waits for a grant before refusing. */
+  acquireWaitMs?: number
   /** `undefined` → `navigator.locks` or the in-memory fallback; `null` → a refusing lock. */
   locks?: SubmitLockManager | null
 }
 
 export interface SessionLock {
   readonly id: string
-  state(): LockState
-  isLeader(): boolean
-  /** Takes the submit lock, or throws. The release is SYNCHRONOUS (called bare in a `finally`). */
+  /** Takes the submit lock for one submission, or throws. The release is SYNCHRONOUS (bare in a `finally`). */
   acquire(): Promise<() => void>
-  /** Makes THIS tab the leader now: the holder is preempted and told so. Resolves once granted. */
-  takeOver(): Promise<void>
-  /** Gives the lock up so the next tab is granted it. */
+  /** Drops anything still held. Safe to call twice. */
   close(): void
 }
 
@@ -83,7 +100,7 @@ interface Waiter { grant: () => void; abort: () => void }
 const memoryQueues = new Map<string, { holder: boolean; queue: Waiter[] }>()
 
 /** Exclusive-only, single process. Abort while queued rejects like the browser does. */
-export function memoryLockManager(): SubmitLockManager {
+function memoryLockManager(): SubmitLockManager {
   return {
     request: (name, options, callback) =>
       new Promise<void>((resolve, reject) => {
@@ -115,7 +132,11 @@ export function memoryLockManager(): SubmitLockManager {
 
 function defaultLockManager(): SubmitLockManager {
   const nav = (globalThis as { navigator?: { locks?: SubmitLockManager } }).navigator
-  return nav?.locks ?? memoryLockManager()
+  if (nav?.locks) return nav.locks
+  // Named in the log, because the degradation is invisible from the outside: everything works
+  // until a second tab submits at the same moment, which is precisely when nobody is watching.
+  if (nav) console.warn('strk20: this browser has no Web Locks API; submissions are serialised per tab only')
+  return memoryLockManager()
 }
 
 /** Uniqueness, not unpredictability. `randomUUID` is absent off secure origins. */
@@ -128,12 +149,12 @@ function newTabId(): string {
 
 // ── The lock ──────────────────────────────────────────────────────────────────────────────
 
-/** Builds a running lock. It requests leadership immediately. */
+/** Builds a lock. Nothing is held until `acquire`. */
 export function createSessionLock(options: SessionLockOptions = {}): SessionLock {
   const now = options.now ?? Date.now
-  const electionMs = options.electionMs ?? DEFAULT_ELECTION_MS
-  if (!Number.isFinite(electionMs) || electionMs <= 0) {
-    throw new Error(`refusing a lock whose election window is ${String(electionMs)}: it must be a positive finite number`)
+  const waitMs = options.acquireWaitMs ?? DEFAULT_ACQUIRE_WAIT_MS
+  if (!Number.isFinite(waitMs) || waitMs <= 0) {
+    throw new Error(`refusing a lock whose acquire window is ${String(waitMs)}: it must be a positive finite number`)
   }
   const startedAt = now()
   if (!Number.isFinite(startedAt)) {
@@ -143,120 +164,106 @@ export function createSessionLock(options: SessionLockOptions = {}): SessionLock
   const self: LockPeer = { id, startedAt }
 
   if (options.locks === null) {
-    const dead: LockState = { self, role: 'idle', held: false, fault: SUBMIT_LOCK_NO_CHANNEL }
     return {
       id,
-      state: () => dead,
-      isLeader: () => false,
       acquire: async () => { throw new Error(SUBMIT_LOCK_NO_CHANNEL) },
-      takeOver: async () => { throw new Error(SUBMIT_LOCK_NO_CHANNEL) },
       close: () => {},
     }
   }
 
   const locks = options.locks ?? defaultLockManager()
   const name = options.channelName ?? DEFAULT_LOCK_CHANNEL
-  const abort = new AbortController()
 
-  let state: LockState = { self, role: 'electing', held: false, fault: null }
+  let state: LockState = { self, role: 'idle', held: false, fault: null }
   let closed = false
-  let grants = 0
-  let releaseLeadership: (() => void) | null = null
-  let waiters: Array<() => void> = []
+  /**
+   * Set synchronously at the top of `acquire`, because `state.held` is only true AFTER the grant.
+   * Two overlapping acquires in one tab — a double-clicked button, or send and register firing
+   * together — would both pass a `held` check, and the second would queue against its own tab and
+   * time out three seconds later claiming another tab was submitting. Which is a false sentence.
+   */
+  let acquiring = false
 
-  const wake = () => {
-    const waiting = waiters
-    waiters = []
-    for (const w of waiting) w()
-  }
   const set = (patch: Partial<LockState>) => {
     state = { ...state, ...patch }
-    if (state.role !== 'electing') wake()
   }
-
-  // The request resolves only when the callback's promise does — i.e. when this tab closes.
-  // A stolen lead rejects with AbortError: that tab steps down to follower and queues again, so
-  // it is promoted back the moment the thief closes. Any other rejection is a fault to read.
-  const requestLeadership = (steal: boolean): Promise<void> =>
-    locks
-      .request(name, steal ? { mode: 'exclusive', steal: true } : { mode: 'exclusive', signal: abort.signal }, () =>
-        new Promise<void>((release) => {
-          releaseLeadership = release
-          if (closed) release()
-          else set({ role: 'leader', held: false })
-        }),
-      )
-      .catch((e: unknown) => {
-        if (closed) return
-        const stolen = state.role === 'leader' && (e as { name?: string } | null)?.name === 'AbortError'
-        if (stolen) {
-          releaseLeadership = null
-          set({ role: 'follower', held: false })
-          void requestLeadership(false)
-          return
-        }
-        set({ role: 'idle', held: false, fault: `the submit lock request failed: ${String(e)}` })
-      })
-  void requestLeadership(false)
-
-  // Not granted within the window while another tab is alive = follower. The queued request
-  // stays in place, so the browser still promotes this tab when the leader goes away.
-  const followerTimer = setTimeout(() => {
-    if (!closed && state.role === 'electing') set({ role: 'follower' })
-  }, electionMs)
-
-  const waitForGrant = () =>
-    new Promise<void>((resolve) => {
-      const t = setTimeout(resolve, electionMs)
-      waiters.push(() => { clearTimeout(t); resolve() })
-    })
 
   return {
     id,
-    state: () => state,
-    isLeader: () => state.role === 'leader',
 
     acquire: async () => {
       if (closed) throw new Error(SUBMIT_LOCK_CLOSED)
       if (state.fault !== null) throw new Error(state.fault)
-      if (state.role === 'electing') {
-        await waitForGrant()
-        if (closed) throw new Error(SUBMIT_LOCK_CLOSED)
-      }
-      if (state.role !== 'leader') {
-        if (state.role === 'electing') set({ role: 'follower' })
-        throw new Error(ACCOUNT_OPEN_IN_ANOTHER_TAB)
-      }
       // Reentrancy is refused, not counted: one release per acquire, called in a `finally`.
-      if (state.held) throw new Error(SUBMIT_LOCK_ALREADY_HELD)
-      // Every grant gets its own number so a stale release cannot free a newer hold.
-      const epoch = ++grants
-      set({ held: true })
-      return () => {
-        if (epoch !== grants) return
-        set({ held: false })
+      if (state.held || acquiring) throw new Error(SUBMIT_LOCK_ALREADY_HELD)
+      acquiring = true
+      try {
+        return await grant()
+      } finally {
+        acquiring = false
       }
-    },
-
-    takeOver: async () => {
-      if (closed) throw new Error(SUBMIT_LOCK_CLOSED)
-      // Read through a call: `state` is reassigned by `set` across the await, which narrowing cannot see.
-      const leading = () => state.role === 'leader'
-      if (leading()) return
-      const granted = new Promise<void>((resolve) => waiters.push(resolve))
-      void requestLeadership(true)
-      await granted
-      if (!leading()) throw new Error(state.fault ?? 'the submit lock could not be taken over')
     },
 
     close: () => {
       if (closed) return
       closed = true
-      clearTimeout(followerTimer)
-      if (releaseLeadership) releaseLeadership()
-      else abort.abort()
-      set({ role: 'idle', held: false })
-      wake()
+      // Deliberately does NOT release a hold that is still running. The submission it guards is
+      // still going to POST, and freeing the lock here would let another tab start a second
+      // pipeline over the same notes — the exact thing this lock exists to prevent. The in-flight
+      // release runs in its own `finally`, and a real page teardown frees the lock via the browser.
+      if (!state.held) set({ role: 'idle' })
     },
+  }
+
+  /** The grant itself. Split out so `acquire` can hold a synchronous flag across it. */
+  async function grant(): Promise<() => void> {
+    // The request stays queued until granted or aborted. Aborting a QUEUED request rejects it;
+    // aborting after the grant does nothing, which is why the timer is cleared inside the callback.
+    const abort = new AbortController()
+    const timer = setTimeout(() => abort.abort(), waitMs)
+
+    // The grant HANDS THE RELEASER OUT rather than assigning a captured variable: the callback
+    // runs inside the lock manager, so its effects are invisible to control-flow analysis and a
+    // captured `release` reads as never-assigned at every use below.
+    const granted = new Promise<() => void>((resolve, reject) => {
+      locks
+        .request(name, { mode: 'exclusive', signal: abort.signal }, () =>
+          new Promise<void>((done) => {
+            clearTimeout(timer)
+            resolve(done)
+          }),
+        )
+        // Resolving means the callback's promise settled — i.e. the hold is over, not that it failed.
+        .then(() => undefined, reject)
+    })
+
+    let release: () => void
+    try {
+      release = await granted
+    } catch (e) {
+      clearTimeout(timer)
+      // Queued-then-aborted is the ordinary "another tab is submitting". Anything else is a
+      // broken lock manager, and standing down permanently beats submitting past it.
+      if ((e as { name?: string } | null)?.name === 'AbortError') {
+        set({ role: 'blocked' })
+        throw new Error(ACCOUNT_OPEN_IN_ANOTHER_TAB)
+      }
+      set({ role: 'idle', fault: `the submit lock request failed: ${String(e)}` })
+      throw new Error(state.fault!)
+    }
+
+    if (closed) {
+      release()
+      throw new Error(SUBMIT_LOCK_CLOSED)
+    }
+    set({ role: 'submitting', held: true })
+    let released = false
+    return () => {
+      if (released) return
+      released = true
+      set({ role: 'idle', held: false })
+      release()
+    }
+  
   }
 }

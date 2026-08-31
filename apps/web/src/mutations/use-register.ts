@@ -140,8 +140,11 @@ export function useRegister() {
   return useMutation({
     mutationKey: ['register'],
     mutationFn: register,
-    onSettled: () => {
-      void invalidateAccount()
+    // AWAITED, so the mutation does not settle until `account-status` has been refetched. Without
+    // it the gate closes on the old rung and the shell flashes a red "not registered" banner at
+    // somebody who just registered — with a button sending them back into the gate they finished.
+    onSettled: async () => {
+      await invalidateAccount()
       void invalidateMoney()
     },
   })

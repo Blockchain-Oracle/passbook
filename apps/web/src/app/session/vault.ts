@@ -23,7 +23,6 @@ export function lock(): void {
     label: current.label ?? null,
     accounts: current.accounts,
     hasVault: current.hasVault,
-    isLeader: current.isLeader,
   }
   publishSession(locked)
   if (current.hasVault) return // sealed at rest — durable by construction

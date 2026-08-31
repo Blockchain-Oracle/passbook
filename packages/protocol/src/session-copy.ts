@@ -22,16 +22,17 @@
  * to the tab that is working, or close it. A user who does not know a submission is already
  * running is a user who will hunt for a way to force this one.
  *
- * It never says "wait a moment and retry". The lock is not a queue: the other tab holds it
- * for as long as its registration takes, and a promise of an automatic retry is one this tier
- * does not implement.
+ * It DOES say to wait and retry now, and that changed with the lock underneath it. The lock used
+ * to be held for a tab's whole lifetime, so "try again" was advice that would never come true —
+ * the other tab had to be closed. It is now held only while a submission actually runs, so the
+ * block clears on its own in seconds and retrying is the correct thing to tell someone to do.
  *
  * Delivered through the seam `register.ts` already has. That module turns a throwing
  * `acquireSubmitLock` into `{ kind: 'lock-unavailable', reason: String(e) }` — so this
  * sentence rides out as the reason, and the frozen file needs no edit for it to arrive.
  */
 export const ACCOUNT_OPEN_IN_ANOTHER_TAB =
-  'This account is open in another tab. That tab is submitting.'
+  'This account is open in another tab, and that tab is submitting. Wait for it to finish, then try again.'
 
 /**
  * What THIS tab says when it is already submitting and is asked to submit again.

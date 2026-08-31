@@ -4,7 +4,7 @@ import { lock, removePassword, setPassword, unlock } from './vault'
 
 export type { Session, SessionStatus } from './store'
 export { getSessionSnapshot, useSession } from './store'
-export { getSessionLock, takeOverSubmitLock } from './boot'
+export { getSessionLock } from './boot'
 
 export const sessionActions = {
   createAccount,
