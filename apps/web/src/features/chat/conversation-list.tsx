@@ -1,6 +1,6 @@
 import { Link } from '@tanstack/react-router'
 import { MessageCircle } from 'lucide-react'
-import { CHAT_NO_CONVERSATIONS } from '@strk20/protocol/chat-copy'
+import { CHAT_NO_CONVERSATIONS, CHAT_TYPING_LABEL } from '@strk20/protocol/chat-copy'
 import type { ConversationSummary } from '@strk20/protocol/chat-log'
 
 import { Badge } from '@/components/ui/badge'
@@ -9,7 +9,10 @@ import { Item, ItemContent, ItemDescription, ItemGroup, ItemMedia, ItemTitle } f
 import { cn } from '@/lib/utils'
 
 import { PeerAvatar, peerLabel } from './peer-avatar'
+import type { PeerPresence } from './room-presence'
 import type { PeerIdentity } from './use-peers'
+
+const NO_PRESENCE: PeerPresence = { others: 0, typing: false }
 
 function when(lastAt: number, now: number): string {
   const ago = Math.max(0, now - lastAt)
@@ -22,11 +25,13 @@ function when(lastAt: number, now: number): string {
 export function ConversationList({
   conversations,
   identities,
+  presence,
   activePeer,
   now,
 }: {
   conversations: readonly ConversationSummary[]
   identities: Record<string, PeerIdentity>
+  presence: Record<string, PeerPresence>
   activePeer: string | null
   now: number
 }) {
@@ -47,6 +52,7 @@ export function ConversationList({
       {conversations.map((c) => {
         const identity = identities[c.peer]
         const active = activePeer === c.peer
+        const here = presence[c.peer] ?? NO_PRESENCE
         return (
           <Item
             key={c.peer}
@@ -56,7 +62,7 @@ export function ConversationList({
             className={cn(active && 'border-border')}
           >
             <ItemMedia>
-              <PeerAvatar peer={c.peer} identity={identity} />
+              <PeerAvatar peer={c.peer} identity={identity} here={here.others > 0} />
             </ItemMedia>
             <ItemContent className="min-w-0">
               <ItemTitle className="flex w-full items-center gap-2">
@@ -64,7 +70,13 @@ export function ConversationList({
                 <span className="ml-auto shrink-0 text-body4 text-muted-foreground">{when(c.lastAt, now)}</span>
               </ItemTitle>
               <ItemDescription className="flex items-center gap-2">
-                <span className="truncate">{c.preview || 'No messages yet'}</span>
+                {/* The live state replaces the last line rather than sitting next to it: a row is
+                    one line tall, and "typing" is the more useful of the two while it is true. */}
+                {here.typing ? (
+                  <span className="truncate text-primary">{CHAT_TYPING_LABEL}</span>
+                ) : (
+                  <span className="truncate">{c.preview || 'No messages yet'}</span>
+                )}
                 {c.unread > 0 ? <Badge className="ml-auto shrink-0">{c.unread}</Badge> : null}
               </ItemDescription>
             </ItemContent>

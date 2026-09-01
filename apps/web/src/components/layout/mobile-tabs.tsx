@@ -3,9 +3,11 @@ import { Link, useLocation } from '@tanstack/react-router'
 import { Ellipsis } from 'lucide-react'
 
 import { MOBILE_MORE, MOBILE_TABS, isActivePath, type NavItem } from '@/app/navigation'
+import { useSession } from '@/app/session'
 import { NotificationCenter } from '@/components/layout/notification-center'
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
 import { AccountRow } from '@/features/account'
+import { useTotalUnread } from '@/features/chat'
 import { cn } from '@/lib/utils'
 
 const tabClass = (active: boolean) =>
@@ -14,11 +16,19 @@ const tabClass = (active: boolean) =>
     active ? 'text-primary' : 'text-muted-foreground',
   )
 
-function Tab({ item, pathname }: { item: NavItem; pathname: string }) {
+function Tab({ item, pathname, badge = 0 }: { item: NavItem; pathname: string; badge?: number }) {
   const active = isActivePath(pathname, item.to)
   return (
     <Link to={item.to} className={tabClass(active)} aria-current={active ? 'page' : undefined}>
-      <item.icon className="size-5" aria-hidden />
+      <span className="relative">
+        <item.icon className="size-5" aria-hidden />
+        {badge > 0 ? (
+          // Capped at 9+: a tab is 20% of a phone's width and a four-digit count would own it.
+          <span className="absolute -right-2 -top-1 min-w-4 rounded-full bg-primary px-1 text-center text-[10px] leading-4 text-primary-foreground">
+            {badge > 9 ? '9+' : badge}
+          </span>
+        ) : null}
+      </span>
       {item.label}
     </Link>
   )
@@ -27,6 +37,8 @@ function Tab({ item, pathname }: { item: NavItem; pathname: string }) {
 /** Phone navigation: four tabs and a More sheet that also holds the account. Hidden from `md` up. */
 export function MobileTabs() {
   const { pathname } = useLocation()
+  const session = useSession()
+  const unread = useTotalUnread(session.status === 'ready' ? session.address : undefined)
   const [moreOpen, setMoreOpen] = useState(false)
   const moreActive = MOBILE_MORE.some((item) => isActivePath(pathname, item.to))
 
@@ -34,11 +46,20 @@ export function MobileTabs() {
   return (
     <nav className="fixed inset-x-0 bottom-0 z-40 flex border-t bg-sidebar pb-[env(safe-area-inset-bottom)] md:hidden">
       {MOBILE_TABS.map((item) => (
-        <Tab key={item.to} item={item} pathname={pathname} />
+        <Tab key={item.to} item={item} pathname={pathname} badge={item.to === '/chat' ? unread : 0} />
       ))}
       <Sheet open={moreOpen} onOpenChange={setMoreOpen}>
+        {/* Chat is behind More on a phone, so the count has to be readable without opening it —
+            a badge nobody can see until they go looking is not a notification. */}
         <SheetTrigger className={tabClass(moreActive)}>
-          <Ellipsis className="size-5" aria-hidden />
+          <span className="relative">
+            <Ellipsis className="size-5" aria-hidden />
+            {unread > 0 ? (
+              <span className="absolute -right-2 -top-1 min-w-4 rounded-full bg-primary px-1 text-center text-[10px] leading-4 text-primary-foreground">
+                {unread > 9 ? '9+' : unread}
+              </span>
+            ) : null}
+          </span>
           More
         </SheetTrigger>
         <SheetContent side="bottom" className="pb-[env(safe-area-inset-bottom)]">
@@ -59,7 +80,14 @@ export function MobileTabs() {
                     isActivePath(pathname, item.to) && 'border-primary text-primary',
                   )}
                 >
-                  <item.icon className="size-5" aria-hidden />
+                  <span className="relative">
+                    <item.icon className="size-5" aria-hidden />
+                    {item.to === '/chat' && unread > 0 ? (
+                      <span className="absolute -right-2 -top-1 min-w-4 rounded-full bg-primary px-1 text-center text-[10px] leading-4 text-primary-foreground">
+                        {unread > 9 ? '9+' : unread}
+                      </span>
+                    ) : null}
+                  </span>
                   {item.label}
                 </Link>
               ))}

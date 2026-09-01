@@ -49,6 +49,7 @@
 // near the symptom.
 //
 import { Readable } from 'node:stream'
+import { pipeline } from 'node:stream/promises'
 
 //
 // The ceiling on one forwarded request, in seconds.
@@ -124,10 +125,40 @@ export default async function handler(req, res) {
       ? undefined
       : JSON.stringify(req.body ?? {})
 
+  //
+  // ── A CLOSED BROWSER TAB HAS TO CLOSE THE UPSTREAM CONNECTION TOO ────────────────────────
+  //
+  // Without this the hop is one-way: the visitor's socket goes away, and this function carries on
+  // holding its own connection to the relayer until the platform kills it at `maxDuration`. Two
+  // things follow, and the second is the expensive one.
+  //
+  // The relayer counts SUBSCRIBERS PER ROOM and caps them (`MAX_SUBSCRIBERS_PER_ROOM`, 8). An
+  // abandoned stream keeps its slot for up to five minutes, so a person who reloads a few times
+  // in a minute can fill their own room and be refused entry to a conversation they are alone in.
+  // The stream is also cut and reopened roughly every five minutes by design, which means the
+  // leak is not an edge case — it is the ordinary lifecycle.
+  //
+  // WHAT THIS DOES NOT FIX, MEASURED RATHER THAN ASSUMED. It does not make a departure visible to
+  // the relayer. This platform's edge holds the browser's connection and hands the function its
+  // own; a visitor closing a tab does not reliably close anything this process can observe, so
+  // `res` may emit no `close` at all until `maxDuration`. Two runs against production confirmed
+  // it: a peer who left was still counted as attached 145 seconds later. That is why presence is
+  // NOT inferred from socket liveness anywhere in this system — the relayer counts client
+  // beacons with a TTL instead (`rooms.ts`), which needs nothing from this hop.
+  //
+  // `res` emits `close` both when the client disappears and when a normal response finishes;
+  // aborting after a completed fetch is a no-op, so one listener covers both without a flag.
+  //
+  const aborter = new AbortController()
+  res.on('close', () => aborter.abort())
+
   let upstream
   try {
-    upstream = await fetch(upstreamUrl, { method: req.method, headers, body })
+    upstream = await fetch(upstreamUrl, { method: req.method, headers, body, signal: aborter.signal })
   } catch (e) {
+    // An abort here is the visitor leaving before the relayer answered — nobody to tell, and
+    // writing to a closed response would throw on top of it.
+    if (aborter.signal.aborted) return
     res.status(502).json({ error: `the relayer could not be reached: ${String(e)}` })
     return
   }
@@ -145,8 +176,18 @@ export default async function handler(req, res) {
     return
   }
 
-  // PIPED, NOT AWAITED. `await upstream.text()` would work for every route except the one that
+  // PIPED, NOT BUFFERED. `await upstream.text()` would work for every route except the one that
   // matters: a stream has no end to wait for, and buffering it would deliver a room's first
   // message at the same moment as its last.
-  Readable.fromWeb(upstream.body).pipe(res)
+  //
+  // `pipeline` rather than `.pipe()`: `.pipe()` leaves the SOURCE running when the destination
+  // dies, which is the second half of the leak described above — the abort signal releases the
+  // request, and this releases the body already being read. `pipeline` destroys both ends
+  // together, which is the whole reason to prefer it here.
+  try {
+    await pipeline(Readable.fromWeb(upstream.body), res)
+  } catch {
+    // The visitor left mid-stream. That is the ordinary end of a chat socket, not a fault, and
+    // there is no longer a response to report it on.
+  }
 }

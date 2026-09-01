@@ -2,7 +2,14 @@ import { Link } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, Lock } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { CHAT_THREAD_EMPTY } from '@strk20/protocol/chat-copy'
+import {
+  CHAT_PRESENCE_HERE,
+  CHAT_PRESENCE_MEANING,
+  CHAT_PRESENCE_UNKNOWN,
+  CHAT_THREAD_EMPTY,
+  CHAT_TYPING_IS_A_HINT,
+  CHAT_TYPING_LABEL,
+} from '@strk20/protocol/chat-copy'
 import { CHAT_AUDITOR_DERIVES } from '@strk20/protocol/disclosure-copy'
 import { PAY_ASSETS, type PayAsset } from '@strk20/protocol/pay-link'
 import { disclosureFor } from '@strk20/protocol/disclosure'
@@ -15,21 +22,25 @@ import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { shortAddress } from '@/lib/format'
+import { cn } from '@/lib/utils'
 import { notify } from '@/lib/notify'
 import { useRefusal } from '@/components/money/refusal'
 
 import { useChatContext } from './chat-context'
 import { Composer } from './composer'
-import { setActiveThread, useThread } from './chat-log-store'
+import { peerKey, setActiveThread, useThread } from './chat-log-store'
 import { MessageBubble } from './message-bubble'
 import type { PayAsk } from './message-bubble'
 import { AttachMoneyDialog, type MoneyAttachment } from './money-attachment'
 import { ShareHandleDialog } from './share-handle-dialog'
+import { TypingBubble } from './typing-bubble'
 import { PeerAvatar, peerLabel } from './peer-avatar'
 import { peerRoomQuery, statusLine, type RoomInputs } from './queries'
+import { usePresence } from './room-presence'
 import { useChatMoney } from './use-chat-money'
 import { usePeerIdentity } from './use-peers'
 import { useSendMessage } from './use-send-message'
+import { useTypingPing } from './use-typing-ping'
 import type { StreamState } from './use-room-stream'
 
 const CONNECTION_LABEL: Record<StreamState, string> = {
@@ -75,18 +86,23 @@ function ThreadView({ me, peer, connection }: { me: RoomInputs; peer: string; co
   const [attaching, setAttaching] = useState<{ kind: MoneyAttachment['kind']; seed?: { asset?: PayAsset; amount?: string } } | null>(null)
   const [reviewing, setReviewing] = useState(false)
   const [sharing, setSharing] = useState(false)
-  const endRef = useRef<HTMLDivElement>(null)
+  const listRef = useRef<HTMLDivElement>(null)
   const { bubbles, reactions } = useMemo(() => fold(entries), [entries])
   const room = status.data?.kind === 'open' ? status.data.room : null
+  const presence = usePresence(peerKey(peer))
+  const ping = useTypingPing(room)
 
   useEffect(() => {
     setActiveThread(me.address, peer)
     return () => setActiveThread(me.address, null)
   }, [me.address, peer])
 
+  // The LIST is scrolled, never the document. `scrollIntoView` walks up to whatever scrolls and on
+  // a phone that used to be the page — so a new message yanked the whole screen, header and all.
   useEffect(() => {
-    endRef.current?.scrollIntoView({ block: 'end' })
-  }, [bubbles.length])
+    const list = listRef.current
+    if (list) list.scrollTop = list.scrollHeight
+  }, [bubbles.length, presence.typing])
 
   const blocker = room ? null : status.isPending ? 'Still reading their key…' : statusLine(status.data)
   const { refusal, refuse, clear: clearRefusal } = useRefusal()
@@ -153,32 +169,70 @@ function ThreadView({ me, peer, connection }: { me: RoomInputs; peer: string; co
     clear()
   }
 
+  // The second line under the name. Live state outranks the room derivation, which never changes
+  // once it is known and does not need to hold that slot for the life of the conversation.
+  const subtitle = presence.typing
+    ? CHAT_TYPING_LABEL
+    : status.isPending
+      ? 'Reading their key…'
+      : presence.others > 0
+        ? CHAT_PRESENCE_HERE
+        : statusLine(status.data)
+
   return (
-    <section className="flex min-h-[60vh] flex-1 flex-col rounded-xl border bg-card @3xl:min-h-0">
+    // `min-h-0` at every size: the section is a bounded column whose middle scrolls, so the
+    // composer sits on the bottom edge of the screen rather than the bottom of the document.
+    <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-xl border bg-card @max-3xl:rounded-none @max-3xl:border-x-0">
       {/* The name keeps a phone's width; the badges drop to a second line. Money lives in the composer. */}
-      <header className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b px-3 py-2">
+      <header className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-2 border-b px-3 py-2">
         <Button size="icon-sm" variant="ghost" className="@3xl:hidden" render={<Link to="/chat" aria-label="All conversations" />}>
           <ArrowLeft aria-hidden />
         </Button>
-        <PeerAvatar peer={peer} identity={identity} />
-        <div className="min-w-0 flex-1 basis-40">
+        <PeerAvatar peer={peer} identity={identity} here={presence.others > 0} />
+        <div className="min-w-0 flex-1 basis-32">
           <p className="truncate font-medium">{peerLabel(peer, identity)}</p>
-          <p className="truncate text-body4 text-muted-foreground">{status.isPending ? 'Reading their key…' : statusLine(status.data)}</p>
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <p
+                  className={cn(
+                    'truncate text-left text-body4',
+                    presence.typing ? 'text-primary' : presence.others > 0 ? 'text-settled' : 'text-muted-foreground',
+                  )}
+                />
+              }
+            >
+              {subtitle}
+            </TooltipTrigger>
+            <TooltipContent className="max-w-xs">
+              {presence.others > 0 ? CHAT_PRESENCE_MEANING : CHAT_PRESENCE_UNKNOWN}
+            </TooltipContent>
+          </Tooltip>
         </div>
         <Tooltip>
           <TooltipTrigger render={<Badge variant="outline" className="gap-1 uppercase text-navLabel" />}>
             <Lock aria-hidden />
             Sealed
           </TooltipTrigger>
-          <TooltipContent className="max-w-xs">{CHAT_AUDITOR_DERIVES}</TooltipContent>
+          <TooltipContent className="max-w-xs">
+            {CHAT_AUDITOR_DERIVES}
+            {/* The typing hint is the one frame on this socket that is not sealed, so it is named
+                where the seal is claimed rather than in a footnote nobody opens. */}
+            <span className="mt-2 block border-t pt-2">{CHAT_TYPING_IS_A_HINT}</span>
+          </TooltipContent>
         </Tooltip>
-        <Badge variant={connection === 'live' ? 'default' : 'secondary'}>
-          {connection === 'connecting' || connection === 'retrying' ? <Spinner /> : null}
-          {CONNECTION_LABEL[connection]}
-        </Badge>
+        {/* Only when something is WRONG. A permanent "Live" chip is a third thing saying what the
+            green dot and the subtitle already say, and on a phone it is a third thing competing for
+            a header that has to fit a name. Silence here means the socket is fine. */}
+        {connection === 'live' ? null : (
+          <Badge variant="secondary" className="shrink-0">
+            {connection === 'connecting' || connection === 'retrying' ? <Spinner /> : null}
+            {CONNECTION_LABEL[connection]}
+          </Badge>
+        )}
       </header>
 
-      <div className="flex flex-1 flex-col gap-3 overflow-y-auto px-3 py-4">
+      <div ref={listRef} className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-contain px-3 py-4">
         {bubbles.length === 0 ? (
           <p className="m-auto max-w-sm text-center text-body3 text-muted-foreground">{CHAT_THREAD_EMPTY}</p>
         ) : (
@@ -193,12 +247,15 @@ function ThreadView({ me, peer, connection }: { me: RoomInputs; peer: string; co
             />
           ))
         )}
-        <div ref={endRef} />
+        {presence.typing ? <TypingBubble /> : null}
       </div>
 
       <Composer
         draft={draft}
-        onDraft={setDraft}
+        onDraft={(next) => {
+          setDraft(next)
+          ping()
+        }}
         attachment={attachment}
         onAttach={(kind) => setAttaching({ kind })}
         onShareHandle={() => setSharing(true)}

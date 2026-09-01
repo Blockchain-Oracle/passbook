@@ -62,6 +62,51 @@ export const CHAT_MULTIPLEX_DISCLOSURE =
   'Your open conversations share one connection, so the relay can see that they belong to the same ' +
   'person. It could already tell from the timing; this does not hide it and does not pretend to.'
 
+// ── Presence and typing ───────────────────────────────────────────────────────────────────
+
+/**
+ * What the green dot actually knows.
+ *
+ * It used to know less. Presence was a count of connections, so a second tab of your own counted
+ * as a second person — and because your own connection sits in EVERY room you stream, one extra
+ * tab lit the dot on every conversation at once. The count is now keyed by a tag derived per room
+ * from each party's own side of it (`room.ts`), so all of one person's devices collapse to one
+ * entry and the number is exactly how many of the two of you are here.
+ *
+ * What it still does not know is whether anyone is LOOKING. An app connected in a background
+ * window is connected; a person who has walked away from an open laptop is not there. So the
+ * sentence claims a connection and stops.
+ */
+export const CHAT_PRESENCE_MEANING =
+  'Their app is connected to this conversation right now. It clears within about half a minute of ' +
+  'them closing it or switching away — and it says nothing about whether they are reading.'
+
+/**
+ * The one word a header can spare. The sentence above is what the tooltip says when asked.
+ *
+ * "Online" is now defensible where "Connected" was the careful hedge: the count really is about
+ * the other party rather than about however many sockets happen to exist.
+ */
+export const CHAT_PRESENCE_HERE = 'Online'
+
+/** The header line when nobody is attached. Says what is unknown rather than asserting absence. */
+export const CHAT_PRESENCE_UNKNOWN = 'Not connected right now.'
+
+/**
+ * The typing indicator's own disclosure.
+ *
+ * A typing ping is the ONE thing on this socket that is not sealed — there is nothing in it to
+ * seal — so it is also the one thing on it that a liar could forge. The forgery available is a
+ * dot, which is why this is a footnote rather than a warning, and why nothing that matters may
+ * ever be carried this way.
+ */
+export const CHAT_TYPING_IS_A_HINT =
+  'A typing hint is sent in the clear and carries nothing. It is not sealed and not proof of ' +
+  'anything — only the messages themselves are.'
+
+/** The word under a name while a ping is fresh. */
+export const CHAT_TYPING_LABEL = 'Typing…'
+
 // ── The directory ─────────────────────────────────────────────────────────────────────────
 
 export const DIRECTORY_SEARCH_PLACEHOLDER = 'A name, or an address starting 0x'

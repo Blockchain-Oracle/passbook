@@ -50,7 +50,7 @@ function MoneyCard({
   const isPayment = message.kind === 'payment'
   const title = isPayment ? (mine ? 'You sent' : 'They say they sent') : mine ? 'You asked for' : 'They ask for'
   return (
-    <div className="flex min-w-56 flex-col gap-2">
+    <div className="flex min-w-[min(14rem,100%)] flex-col gap-2">
       <div className="flex items-center gap-2">
         {mine ? null : <IdentityAvatar address={peer} name={identity?.name} avatar={identity?.avatar} size="sm" />}
         <span className="text-kicker uppercase text-muted-foreground">{title}</span>
@@ -102,7 +102,7 @@ function MoneyCard({
  */
 function HandleCard({ message, mine }: { message: RoomMessage & { kind: 'handle' }; mine: boolean }) {
   return (
-    <div className="flex min-w-56 flex-col gap-2">
+    <div className="flex min-w-[min(14rem,100%)] flex-col gap-2">
       <div className="flex items-center gap-2">
         <Landmark className="size-4 text-muted-foreground" aria-hidden />
         <span className="text-kicker uppercase text-muted-foreground">{mine ? 'You shared your handle' : 'Their voter handle'}</span>

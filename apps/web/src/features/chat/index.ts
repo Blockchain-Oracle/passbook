@@ -1,3 +1,5 @@
 export { ChatShell } from './chat-shell'
+export { ChatStreamProvider } from './chat-stream'
 export { Thread } from './thread'
 export { ChatIndex } from './chat-index'
+export { useTotalUnread } from './chat-log-store'

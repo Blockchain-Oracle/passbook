@@ -2,7 +2,11 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <!-- `interactive-widget=resizes-content` is what makes a viewport-height chat usable on a phone:
+         without it the on-screen keyboard slides OVER the page, so `100svh` still measures the whole
+         screen and the composer you are typing into sits underneath the keyboard. With it the visual
+         viewport shrinks and the bounded chat column shrinks with it. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1, interactive-widget=resizes-content" />
     <title>strk20.run — everything on Starknet, from one private account</title>
     <meta name="description" content="Send, swap, bridge, bet, launch a token and run a House from one private account on Starknet’s STRK20 pool. No wallet, no seed phrase." />
 

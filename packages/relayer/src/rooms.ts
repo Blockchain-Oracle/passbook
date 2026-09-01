@@ -58,6 +58,43 @@ export const MAX_SUBSCRIBERS_PER_ROOM = 8
 export const MAX_PUBLISH_PER_MINUTE = 60
 
 /**
+ * Ephemeral control frames per room per minute — typing pings, and nothing else so far.
+ *
+ * Higher than the publish limit because a ping is cheaper than a message and a two-party room can
+ * legitimately produce one every few seconds from each side. It is still a ceiling rather than a
+ * knob: a signal costs a fan-out, and a fan-out is this host's CPU.
+ */
+export const MAX_SIGNALS_PER_MINUTE = 120
+
+/**
+ * How long a presence beacon counts for, and how often a client is expected to send one.
+ *
+ * ── WHY PRESENCE IS NOT "HOW MANY SOCKETS ARE ATTACHED" ──────────────────────────────────
+ *
+ * That was the obvious implementation and it is wrong here, for a reason measured rather than
+ * guessed: this process sits behind a serverless proxy that holds the browser's connection
+ * itself. When someone closes a tab, the proxy's own connection to this host stays open until the
+ * platform reaps the function — up to five minutes. A subscriber set therefore says who ARRIVED
+ * accurately and says nothing trustworthy about who LEFT, and a presence dot built on it lights
+ * when a peer joins and never goes out. Two runs against production measured a peer still counted
+ * 145 seconds after closing their tab.
+ *
+ * So presence is a positive assertion with an expiry instead of an inference from liveness. A
+ * client repeats a beacon every `PRESENCE_BEACON_MS`; an entry that has not been refreshed inside
+ * `PRESENCE_TTL_MS` is dropped. Nothing about it depends on a socket being observably dead, which
+ * is exactly the property the proxy took away.
+ *
+ * The TTL is two and a half times the beacon interval, so one dropped request never blinks a
+ * dot, and a closed tab still clears in about half a minute rather than in the five that socket
+ * liveness would have taken.
+ */
+export const PRESENCE_TTL_MS = 30_000
+export const PRESENCE_BEACON_MS = 12_000
+
+/** Beacon ids one room will track. Above any real conversation, below "a slot for every visitor". */
+export const MAX_PRESENT_PER_ROOM = 8
+
+/**
  * One connected listener. An interface rather than a `ServerResponse` so the fan-out rules are
  * testable without sockets — every refusal below is a rule worth a test, and a rule that can only
  * be exercised through an HTTP server is a rule that ends up untested.
@@ -78,13 +115,50 @@ export type PublishRefusal =
 
 export type SubscribeRefusal = 'bad-room-id' | 'too-many-rooms' | 'room-full'
 
+export type SignalRefusal = 'bad-room-id' | 'no-room' | 'rate-limited'
+
 interface Room {
   readonly subscribers: Set<RoomSubscriber>
   /** Ciphertext only, oldest first, capped at ROOM_HISTORY. */
   readonly history: string[]
   /** Publish timestamps inside the current minute, for the rate limit. */
   publishes: number[]
+  /** Signal timestamps inside the current minute. Separate bucket: a ping must not spend a send. */
+  signals: number[]
+  /**
+   * Beacon id → when it last asserted itself. NOT an identity and not computable here: the id is a
+   * tag the client derives from the room's shared secret, which this host does not hold. It is
+   * stable for one party in one room, which is the whole point — it is what makes the count "how
+   * many of the two of them are here" rather than "how many connections happen to exist".
+   */
+  readonly present: Map<string, number>
   lastSeen: number
+}
+
+/**
+ * The two frames this host writes ITSELF, as opposed to the ciphertext it forwards.
+ *
+ * ── WHAT THEY ARE AND WHY THEY ARE NOT A NEW DISCLOSURE ──────────────────────────────────
+ *
+ * `presence` says how many unexpired beacons a room holds. This host has always known who is
+ * connected to what — the file header says so in its first paragraph, and `stats()` has always
+ * counted it. Sending the number back to the two people it is about tells the RELAYER nothing
+ * new; it only stops the relayer being the only party that knows. `typing` is a fan-out of a ping
+ * one client sent, and this host already sees the timing of every message in the room.
+ *
+ * ── WHY THEY ARE NEVER BUFFERED ──────────────────────────────────────────────────────────
+ *
+ * Both are true only at the instant they are written. A replayed presence count is a lie about
+ * now, and a replayed typing ping is a person who stopped typing half an hour ago. So `signal`
+ * fans out and forgets, and neither frame ever enters `history` — which also means neither one
+ * changes what `ROOM_HISTORY` and `ROOM_IDLE_MS` claim on the privacy page.
+ *
+ * They are STRUCTURALLY distinguishable from an envelope: an envelope carries `v:1` and never a
+ * `t`, so a client written before these existed sees a frame that fails `isRoomEnvelope` and
+ * ignores it. That is why the discriminator is a new field rather than a new `v`.
+ */
+function presenceFrame(roomId: string, count: number): string {
+  return JSON.stringify({ t: 'presence', room: roomId, count })
 }
 
 /** What the relayer knows about a room. Also what it could be compelled to hand over. */
@@ -117,7 +191,7 @@ export class RoomHub {
       // A subscription creates a room, which is why it is capped: otherwise "how many rooms can
       // exist" is answered by whoever connects fastest rather than by this file.
       if (this.rooms.size >= MAX_ROOMS) return { ok: false, reason: 'too-many-rooms' }
-      room = { subscribers: new Set(), history: [], publishes: [], lastSeen: this.now() }
+      room = { subscribers: new Set(), history: [], publishes: [], signals: [], present: new Map(), lastSeen: this.now() }
       this.rooms.set(roomId, room)
     }
     if (room.subscribers.size >= MAX_SUBSCRIBERS_PER_ROOM) return { ok: false, reason: 'room-full' }
@@ -125,6 +199,9 @@ export class RoomHub {
     room.subscribers.add(subscriber)
     room.lastSeen = this.now()
     const history = [...room.history]
+    // NO presence announcement here. Attaching is not the claim — the beacon is (`here`), and the
+    // client sends its first one the moment this stream opens. Announcing on attach would count a
+    // socket, which is the thing measured to be unreliable through the proxy.
 
     return {
       ok: true,
@@ -137,8 +214,113 @@ export class RoomHub {
         // An empty room is NOT deleted here. Its history is the whole point: the other party may
         // be mid-reconnect, and dropping the buffer the moment the last socket closes would lose
         // exactly the messages the buffer exists for. `sweep()` reclaims it on the idle timer.
+        // Presence is likewise left alone: it expires on its own clock, which is the point of it.
       },
     }
+  }
+
+  /** Tell a room its current beacon count. Called only when that count has actually changed. */
+  private announce(roomId: string, room: Room): void {
+    if (room.subscribers.size === 0) return
+    const frame = presenceFrame(roomId, room.present.size)
+    for (const subscriber of room.subscribers) {
+      try {
+        subscriber.deliver(frame)
+      } catch {
+        room.subscribers.delete(subscriber)
+      }
+    }
+  }
+
+  /**
+   * "I still have this conversation open." Refreshes one beacon and announces if the count moved.
+   *
+   * Re-registering an id it already holds is a REFRESH, not a second presence — that idempotence
+   * is what a second tab and a five-minute reconnect both rely on, and getting it wrong is what
+   * made every peer read as online at once.
+   *
+   * Like `signal`, it will not create a room: a beacon is a claim about a conversation somebody is
+   * already streaming, and letting one open a room would hand an unauthenticated caller the room
+   * table. It also leaves `lastSeen` alone, so a tab left open cannot extend how long this host
+   * retains ciphertext — that window is a published number and only real traffic moves it.
+   */
+  here(roomId: string, clientId: string): { ok: true; present: number } | { ok: false; reason: SignalRefusal } {
+    if (!ROOM_ID_PATTERN.test(roomId)) return { ok: false, reason: 'bad-room-id' }
+    const room = this.rooms.get(roomId)
+    if (room === undefined) return { ok: false, reason: 'no-room' }
+
+    const at = this.now()
+    const before = room.present.size
+    this.expire(room, at)
+    if (!room.present.has(clientId) && room.present.size >= MAX_PRESENT_PER_ROOM) {
+      // The room is full of live beacons. Refuse rather than evict: evicting would let a flood
+      // take a real participant's dot away, which is worse than a newcomer having none.
+      return { ok: false, reason: 'rate-limited' }
+    }
+    room.present.set(clientId, at)
+    if (room.present.size !== before) this.announce(roomId, room)
+    return { ok: true, present: room.present.size }
+  }
+
+  /** Drop beacons past their TTL from one room. Returns whether the count changed. */
+  private expire(room: Room, at: number): boolean {
+    let dropped = false
+    for (const [id, seen] of room.present) {
+      if (at - seen <= PRESENCE_TTL_MS) continue
+      room.present.delete(id)
+      dropped = true
+    }
+    return dropped
+  }
+
+  /**
+   * Expire stale beacons everywhere and tell the rooms that changed.
+   *
+   * This is what makes a departure visible AT ALL. Nothing else can: the only other candidate was
+   * a dead socket, and the proxy in front of this host makes a dead socket unobservable for
+   * minutes. Driven by an interval in `server.ts` rather than by traffic, because the moment a
+   * dot should go out is precisely a moment when no traffic is arriving.
+   */
+  sweepPresence(): number {
+    const at = this.now()
+    let changed = 0
+    for (const [id, room] of this.rooms) {
+      if (!this.expire(room, at)) continue
+      changed += 1
+      this.announce(id, room)
+    }
+    return changed
+  }
+
+  /**
+   * Fan an ephemeral frame out to a room that ALREADY EXISTS. No history, no room creation.
+   *
+   * Both halves of that sentence are refusals. Buffering would replay a "typing" from half an hour
+   * ago; creating a room would let a caller with no socket grow this host's room table one ping at
+   * a time, which is the exact resource `MAX_ROOMS` exists to bound. It also deliberately leaves
+   * `lastSeen` alone: that clock governs how long ciphertext is retained, and a keystroke must not
+   * be able to extend a retention window the privacy page states as a number.
+   */
+  signal(roomId: string, payload: string): { ok: true; delivered: number } | { ok: false; reason: SignalRefusal } {
+    if (!ROOM_ID_PATTERN.test(roomId)) return { ok: false, reason: 'bad-room-id' }
+    const room = this.rooms.get(roomId)
+    if (room === undefined) return { ok: false, reason: 'no-room' }
+
+    const at = this.now()
+    room.signals = room.signals.filter((t) => at - t < 60_000)
+    if (room.signals.length >= MAX_SIGNALS_PER_MINUTE) return { ok: false, reason: 'rate-limited' }
+    room.signals.push(at)
+
+    let delivered = 0
+    for (const subscriber of room.subscribers) {
+      try {
+        subscriber.deliver(payload)
+        delivered += 1
+      } catch {
+        room.subscribers.delete(subscriber)
+      }
+    }
+    return { ok: true, delivered }
   }
 
   /**
@@ -163,7 +345,7 @@ export class RoomHub {
       if (this.rooms.size >= MAX_ROOMS) return { ok: false, reason: 'too-many-rooms' }
       // Publishing into a room nobody is listening to is legitimate — it is what happens when the
       // recipient's tab is shut — so the room is created and the message buffered.
-      room = { subscribers: new Set(), history: [], publishes: [], lastSeen: at }
+      room = { subscribers: new Set(), history: [], publishes: [], signals: [], present: new Map(), lastSeen: at }
       this.rooms.set(roomId, room)
     }
 

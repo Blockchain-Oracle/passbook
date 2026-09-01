@@ -62,6 +62,21 @@ export function useConversations(address: string | undefined): readonly Conversa
   )
 }
 
+/**
+ * Unread across every conversation, for the navigation badge.
+ *
+ * A number, so the snapshot is stable by value and no caching is needed. It could only ever have
+ * been zero on a non-chat surface until the socket moved to the app root (`chat-stream.tsx`) —
+ * a badge is a promise that you will be told, and nothing was listening to keep it.
+ */
+export function useTotalUnread(address: string | undefined): number {
+  return useSyncExternalStore(
+    subscribeTo(address),
+    () => (address ? chatLogFor(address).totalUnread() : 0),
+    () => 0,
+  )
+}
+
 export function useThread(address: string | undefined, peer: string): readonly ChatLogEntry[] {
   return useSyncExternalStore(
     subscribeTo(address),

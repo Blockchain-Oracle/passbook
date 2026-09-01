@@ -36,7 +36,7 @@ import type { LogoService } from './logo.js'
 import { createQuoteCounter } from './quote-proxy.js'
 import { openRevertWatch, REVERT_WATCH_INTERVAL_MS } from './revert-watch.js'
 import { sendShieldedStarter } from './starter.js'
-import { ROOM_IDLE_MS, RoomHub } from './rooms.js'
+import { PRESENCE_BEACON_MS, ROOM_IDLE_MS, RoomHub } from './rooms.js'
 import { makeOpsPager, openSigner, readStrkBalance, tellerSubmitters } from './signer.js'
 import { openTeller, tellerChainDeps, TELLER_INTERVAL_MS } from './teller.js'
 
@@ -126,6 +126,9 @@ async function main(): Promise<void> {
     const dropped = rooms.sweep()
     if (dropped > 0) console.log(`rooms: swept ${dropped} idle`)
   })
+  // Presence expires on a much shorter clock than a room does, and it has to run on a TIMER: the
+  // moment a dot should go out is a moment when nothing is arriving to trigger a sweep.
+  every(PRESENCE_BEACON_MS / 3, () => rooms.sweepPresence())
 
   const chainFeed =
     env.chainFeedWanted && (app.markets || app.launch || app.pragma)

@@ -62,9 +62,43 @@ const webcrypto: Crypto = globalThis.crypto
  */
 const ROOM_VERSION = 'passbook-room-v1'
 
-/** HKDF `info` strings. Three purposes, three independent outputs from the one shared secret. */
+/** HKDF `info` strings. Four purposes, four independent outputs from the one shared secret. */
 const INFO_ROOM_ID = `${ROOM_VERSION}:id`
 const INFO_SEND_KEY = `${ROOM_VERSION}:send`
+
+/**
+ * The presence tag: WHICH SIDE OF THE ROOM a beacon is, and nothing more.
+ *
+ * ── WHY IT IS DERIVED AND NOT RANDOM ─────────────────────────────────────────────────────
+ *
+ * The relayer counts presence beacons per room, and the count is only meaningful if one PERSON
+ * counts once. A random per-connection id fails that in the two most ordinary situations there
+ * are: a second tab counts twice, and every reconnect — which the proxy forces every five
+ * minutes — leaves the old id counting until it expires. Both show up as the same symptom, and
+ * it is a bad one: a peer who is not there at all reads as present, on every conversation at
+ * once, because the extra beacon was OURS and it is in every room we stream.
+ *
+ * Deriving the tag from the room secret plus our own public key makes it idempotent. Two tabs
+ * produce the same tag, a reconnect re-registers the same tag, and the count becomes exactly what
+ * it claims: how many of the two parties are here.
+ *
+ * ── WHY IT IS NOT A HASH OF THE PUBLIC KEY ───────────────────────────────────────────────
+ *
+ * That was the cheap version and it would have broken the whole scheme. Public keys are readable
+ * from the chain by anyone, so `sha256(publicKey)` is computable by anyone — including the
+ * relayer, which would then be able to compute the tag for EVERY registered address and match it
+ * against the beacons in its room table. That is precisely the join from room to identity the
+ * room-id derivation exists to prevent (see this file's header). Coming out of the shared secret,
+ * the tag cannot be computed by anyone who is not already in the room.
+ *
+ * It is not authentication. The peer can compute our tag as easily as we can, because they hold
+ * the same secret. That is fine and it is the design: the only thing forgeable is a dot claiming
+ * somebody is present, from the one party who already knows whether they are.
+ */
+const INFO_PRESENCE_TAG = `${ROOM_VERSION}:presence`
+
+/** 128 bits of presence tag. Same reasoning as the room id: too wide a space to enumerate. */
+const PRESENCE_TAG_BYTES = 16
 
 /** 128 bits of room id. Long enough that the relayer's room table cannot be enumerated. */
 const ROOM_ID_BYTES = 16
@@ -108,6 +142,11 @@ export interface Room {
   readonly receiveKey: CryptoKey
   /** Our own public key x, echoed into every envelope we seal so they know which key to use. */
   readonly selfPublicKey: string
+  /**
+   * Our side of the room, as an opaque tag the relayer counts presence by. Stable across tabs and
+   * reconnects, and computable only from inside the room — see `INFO_PRESENCE_TAG`.
+   */
+  readonly presenceTag: string
 }
 
 function feltToBytes32(value: bigint): Uint8Array {
@@ -201,18 +240,26 @@ export async function deriveRoom(input: RoomInput): Promise<Room> {
 
   const mine = `0x${input.myPublicKey.toString(16)}`
   const theirs = `0x${input.theirPublicKey.toString(16)}`
-  const [idBits, sendKey, receiveKey] = await Promise.all([
+  const [idBits, sendKey, receiveKey, tagBits] = await Promise.all([
     hkdf(secret, salt, INFO_ROOM_ID, ROOM_ID_BYTES),
     aesKey(secret, salt, mine, ['encrypt']),
     aesKey(secret, salt, theirs, ['decrypt']),
+    // Bound to OUR public key, so the two sides of one room get different tags — the same trick
+    // the directional message keys use, and for the same reason: two parties, two values.
+    hkdf(secret, salt, `${INFO_PRESENCE_TAG}:${mine}`, PRESENCE_TAG_BYTES),
   ])
 
   return {
-    id: [...new Uint8Array(idBits)].map((b) => b.toString(16).padStart(2, '0')).join(''),
+    id: hex(idBits),
     sendKey,
     receiveKey,
     selfPublicKey: mine,
+    presenceTag: hex(tagBits),
   }
+}
+
+function hex(bits: ArrayBuffer): string {
+  return [...new Uint8Array(bits)].map((b) => b.toString(16).padStart(2, '0')).join('')
 }
 
 function toBase64(bytes: Uint8Array): string {

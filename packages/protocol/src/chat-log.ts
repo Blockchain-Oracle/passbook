@@ -21,6 +21,21 @@
 // were not idempotent. Every envelope's GCM nonce is already unique per message and already the
 // id the thread renders by — so `insert` keys on it and a replay is a no-op by construction.
 //
+// ── EVERY MUTATION REPLACES ITS ARRAY. THIS IS NOT A STYLE CHOICE ────────────────────────
+//
+// `thread()` is read through `useSyncExternalStore`, and React decides whether to re-render by
+// comparing the snapshot it holds with the one `getSnapshot` returns next, using `Object.is`.
+// An in-place `entries.push` returns the SAME array both times, so React concludes nothing
+// happened and skips the render — and `useMemo(..., [entries])` in the thread, keyed on that same
+// unchanged reference, keeps handing back the message list from before. The message is in memory
+// and in localStorage and cannot reach the screen until the component remounts, which is why the
+// bug presented as "chat only updates when I refresh" rather than as a lost message.
+//
+// So `insert` and `markUndelivered` build a NEW array, and a conversation that does not exist
+// yet answers with one shared frozen empty array rather than a fresh `[]` per call — a new `[]`
+// every read is the same bug from the other end, and React names it: "The result of getSnapshot
+// should be cached". React's own rule for this hook is that the snapshot must be immutable.
+//
 import type { RoomMessage } from './room-message.js'
 
 /** One rendered message, exactly the shape the thread UI already uses (`ThreadEntry`). */
@@ -67,6 +82,9 @@ export const CHAT_LOG_BOUND = 200
 export type ChatLogStorage = Pick<Storage, 'getItem' | 'setItem'>
 
 const KEY_PREFIX = 'passbook-chat-'
+
+/** One shared snapshot for "no such conversation", so an unopened thread reads stably. */
+const NO_ENTRIES: readonly ChatLogEntry[] = Object.freeze([])
 
 function preview(entry: ChatLogEntry): string {
   const m = entry.message
@@ -193,7 +211,7 @@ export function openChatLog(account: string, storage: ChatLogStorage | null): Ch
     },
 
     thread(peer: string) {
-      return conversations.get(peer)?.entries ?? []
+      return conversations.get(peer)?.entries ?? NO_ENTRIES
     },
 
     insert(peer: string, entry: ChatLogEntry, opts?: { active?: boolean }) {
@@ -203,8 +221,8 @@ export function openChatLog(account: string, storage: ChatLogStorage | null): Ch
         conversations.set(peer, c)
       }
       if (c.entries.some((e) => e.id === entry.id)) return // the replay case — a no-op, silently
-      c.entries.push(entry)
-      if (c.entries.length > CHAT_LOG_BOUND) c.entries.splice(0, c.entries.length - CHAT_LOG_BOUND)
+      const next = [...c.entries, entry]
+      c.entries = next.length > CHAT_LOG_BOUND ? next.slice(next.length - CHAT_LOG_BOUND) : next
       c.lastAt = Math.max(c.lastAt, entry.at)
       if (!entry.mine && !opts?.active) c.unread += 1
       mutated()
@@ -226,11 +244,11 @@ export function openChatLog(account: string, storage: ChatLogStorage | null): Ch
     markUndelivered(peer: string, id: string, because: string) {
       const c = conversations.get(peer)
       if (!c) return
-      const at = c.entries.findIndex((e) => e.id === id)
-      if (at === -1) return
-      // Replaced in place rather than removed and re-pushed: the entry keeps its position in the
-      // thread, so a failed message does not jump to the bottom past ones sent after it.
-      c.entries[at] = { ...c.entries[at]!, undelivered: because }
+      if (!c.entries.some((e) => e.id === id)) return
+      // Replaced at its index rather than removed and re-appended: the entry keeps its position in
+      // the thread, so a failed message does not jump to the bottom past ones sent after it. A new
+      // array, for the reason the header gives — an edit React cannot see is an edit that is not there.
+      c.entries = c.entries.map((e) => (e.id === id ? { ...e, undelivered: because } : e))
       mutated()
     },
 
