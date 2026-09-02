@@ -19,7 +19,12 @@ export function baseOptions(): BaseLayoutProps {
       url: '/',
     },
     githubUrl: REPO_URL,
-    links: [{ text: 'Open the app', url: APP_URL, external: true }],
+    links: [
+      { text: 'Pitch', url: '/pitch' },
+      { text: 'Demo', url: '/demo' },
+      { text: 'Install', url: '/download' },
+      { text: 'Open the app', url: APP_URL, external: true },
+    ],
     // ONE THEME, so no switch. The site is dark because the app opens dark; a toggle here would
     // be a control that changes nothing a reader came to find out.
     themeSwitch: { enabled: false },

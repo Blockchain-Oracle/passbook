@@ -19,9 +19,9 @@ import { FORBIDDEN_CLAIMS } from '@strk20/protocol/forbidden-claims'
 
 import { EXTERNAL, PAGES, SitePage } from './SiteChrome'
 import { Faq, Offer } from './Sections'
-import { Walkthrough } from './Walkthrough'
+import { Explore } from './Explore'
 import { Surfaces, Proof } from './Record'
-import { Band, Inner } from './Band'
+import { Band } from './Band'
 import { MockScreen } from './MockScreen'
 import { APP_URL } from '@/lib/shared'
 import { NETWORK } from '@/data/deployment'
@@ -37,8 +37,7 @@ export function Landing() {
       <Hero />
       <RefusalTicker />
       <Offer />
-      <Walkthrough />
-      <Thesis />
+      <Explore />
       <Surfaces />
       <Faq />
       <Proof />
@@ -190,31 +189,5 @@ function RefusalTicker() {
         ))}
       </div>
     </div>
-  )
-}
-
-function Thesis() {
-  return (
-    <Band tone="dark" className="py-s60">
-      <Inner className="flex max-w-[1100px] flex-col gap-s24">
-        <span className="kicker">Why it exists</span>
-        <p className="display m-0 text-display3 xl:text-display1">
-          Every screen names who can see what — <span className="text-accent1">before you act.</span>{' '}
-          Including the parties you did not choose.
-        </p>
-        <p className="m-0 max-w-[60ch] text-body3 text-neutral2">
-          A privacy tool that overstates what it hides is worse than none at all, because its users
-          act on the difference. The full model — what is hidden, what is public, and what we refuse
-          to claim —{' '}
-          <Link
-            href={PAGES.docs}
-            className="focus-ring text-accent1 underline underline-offset-4 hover:text-accent1Hovered"
-          >
-            is in the documentation
-          </Link>
-          .
-        </p>
-      </Inner>
-    </Band>
   )
 }

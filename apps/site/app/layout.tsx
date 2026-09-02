@@ -6,18 +6,20 @@
 // `lib/layout.shared.tsx`. One committed look, exactly like the app.
 //
 import { RootProvider } from 'fumadocs-ui/provider/next'
-import type { Metadata } from 'next'
+import type { Metadata, Viewport } from 'next'
 
 import './global.css'
 
 export const metadata: Metadata = {
+  metadataBase: new URL('https://strk20.run'),
   title: { default: 'strk20.run — everything on Starknet, from one private account', template: '%s — strk20.run' },
   // Mechanism claims live HERE rather than in the H1 — the pattern Aztec and Miden both use, and
   // the reason our headline can be short without being vague.
   description:
     'Send, swap, bridge, bet, launch a token and run a House from one private account on Starknet’s STRK20 pool. No wallet, no seed phrase. Your first three transactions are on us, on mainnet.',
-  themeColor: '#0A0A0A',
 }
+
+export const viewport: Viewport = { themeColor: '#0A0A0A' }
 
 export default function Layout({ children }: LayoutProps<'/'>) {
   return (

@@ -1,5 +1,5 @@
 //
-// The site's chrome — the header and footer both pages share.
+// The site's chrome — the header and footer its public pages share.
 //
 // It has one job: say what this is and offer the door. The APP has a completely different header
 // (six coequal modes, an account chip, a pool-health strip underneath), and every element of it
@@ -21,17 +21,30 @@ import { APP_URL, REPO_URL } from '@/lib/shared'
  */
 export const EXTERNAL = { target: '_blank', rel: 'noopener noreferrer' } as const
 
-/** The two halves of the site. Both are routes in this app, so both are client-side `Link`s. */
-export const PAGES = { landing: '/', docs: '/docs' } as const
+/** Public routes in this app. The product itself remains on `app.strk20.run`. */
+export const PAGES = {
+  landing: '/',
+  pitch: '/pitch',
+  demo: '/demo',
+  download: '/download',
+  docs: '/docs',
+} as const
 
 export type PageId = keyof typeof PAGES
+
+const PAGE_LABEL: Record<PageId, string> = {
+  landing: 'Home',
+  pitch: 'Pitch',
+  demo: 'Demo',
+  download: 'Install',
+  docs: 'Docs',
+}
 
 /**
  * The header.
  *
  * `current` marks which page is being read, so the header never offers a link to the page you are
- * already on — the same rule the app's header follows with `aria-current`, applied by hand because
- * there are two pages and a router would be a dependency bought for that.
+ * already on — the same rule the app's header follows with `aria-current`.
  */
 export function SiteHeader({ current }: { current: PageId }) {
   return (
@@ -46,11 +59,37 @@ export function SiteHeader({ current }: { current: PageId }) {
           className="focus-ring flex items-center gap-s8 text-neutral1 no-underline"
         >
           <BrandLockup />
-          <span className="kicker rounded-pill border border-surface3 px-s8 py-s4">Docs</span>
+          <span className="kicker hidden rounded-pill border border-surface3 px-s8 py-s4 lg:inline-flex">
+            {PAGE_LABEL[current]}
+          </span>
         </Link>
       )}
 
       <nav aria-label="Site" className="flex items-center gap-s16 sm:gap-s24">
+        {current === 'pitch' ? null : (
+          <Link
+            href={PAGES.pitch}
+            className="focus-ring kicker hidden no-underline hover:text-neutral1 lg:inline"
+          >
+            Pitch
+          </Link>
+        )}
+        {current === 'demo' ? null : (
+          <Link
+            href={PAGES.demo}
+            className="focus-ring kicker hidden no-underline hover:text-neutral1 md:inline"
+          >
+            Demo
+          </Link>
+        )}
+        {current === 'download' ? null : (
+          <Link
+            href={PAGES.download}
+            className="focus-ring kicker hidden no-underline hover:text-neutral1 xl:inline"
+          >
+            Install
+          </Link>
+        )}
         {current === 'docs' ? null : (
           <Link href={PAGES.docs} className="focus-ring kicker no-underline hover:text-neutral1">
             Docs
@@ -59,7 +98,7 @@ export function SiteHeader({ current }: { current: PageId }) {
         <a
           href={REPO_URL}
           {...EXTERNAL}
-          className="focus-ring kicker no-underline hover:text-neutral1"
+          className="focus-ring kicker hidden no-underline hover:text-neutral1 sm:inline"
         >
           GitHub
         </a>
@@ -104,7 +143,16 @@ export function SiteFooter() {
             strk20<span className="text-accent1">.run</span>
           </span>
           <div className="flex flex-col items-start gap-s8 sm:items-end sm:text-right">
-            <div className="flex gap-s20">
+            <div className="flex flex-wrap gap-x-s20 gap-y-s8">
+              <Link href={PAGES.pitch} className="focus-ring kicker no-underline hover:text-neutral1">
+                Pitch
+              </Link>
+              <Link href={PAGES.demo} className="focus-ring kicker no-underline hover:text-neutral1">
+                Demo
+              </Link>
+              <Link href={PAGES.download} className="focus-ring kicker no-underline hover:text-neutral1">
+                Install
+              </Link>
               <Link href={PAGES.docs} className="focus-ring kicker no-underline hover:text-neutral1">
                 Docs
               </Link>
@@ -124,7 +172,7 @@ export function SiteFooter() {
   )
 }
 
-/** The frame both pages sit in. Carries the one `<main>` landmark. */
+/** The frame every marketing page sits in. Carries the one `<main>` landmark. */
 export function SitePage({ current, children }: { current: PageId; children: ReactNode }) {
   return (
     <>
