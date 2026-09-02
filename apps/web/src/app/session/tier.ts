@@ -4,9 +4,10 @@
 import { accountAddressFor } from '@strk20/protocol/account-address'
 import { UNLOCK_DIFFERENT_IDENTITY } from '@strk20/protocol/account-copy'
 import type { StoredAccount, StoredAccounts } from '@strk20/protocol/session-accounts'
-import type { VaultHeader, VaultKey } from '@strk20/protocol/session-vault'
+import type { StoredVault, VaultHeader, VaultKey, VaultV2, VekWrapper } from '@strk20/protocol/session-vault'
 
-import { publishSession, type PrivateTransfersUser, type Session, type SessionAccount } from './store'
+import { getSyncState, setSyncState } from './recovery-state'
+import { NO_PROTECTION, patchSession, publishSession, type PrivateTransfersUser, type Protection, type Session, type SessionAccount } from './store'
 
 type Protocol = typeof import('@strk20/protocol/session')
 type Identity = typeof import('@strk20/protocol/identity')
@@ -64,10 +65,10 @@ export function makeAccount(t: Tier, address: string, accountKey: string): Priva
 
 // ── The open vault, held only while unlocked ────────────────────────────────────────────────
 
-interface OpenVault {
-  key: VaultKey
-  record: StoredAccounts
-}
+/** v1 holds the password-derived key; v2 holds the VEK and the envelope whose wrappers open it. */
+export type OpenVault =
+  | { v: 1; key: VaultKey; record: StoredAccounts }
+  | { v: 2; vek: CryptoKey; envelope: VaultV2; record: StoredAccounts }
 
 let openVault: OpenVault | null = null
 
@@ -81,6 +82,31 @@ export function getOpenVault(): OpenVault | null {
 
 export function hasVault(t: Tier): boolean {
   return openVault !== null || t.vaults.load().kind === 'present'
+}
+
+/** What seals a stored vault, read off its wrappers; v1 is a password by definition. */
+export function protectionOf(vault: StoredVault | null): Protection {
+  if (!vault) return NO_PROTECTION
+  if (vault.v === 1) return { password: true, passkey: null }
+  const passkey = vault.wrappers.find((w) => w.kind === 'passkey')
+  const { sync, problem } = getSyncState()
+  return {
+    password: vault.wrappers.some((w) => w.kind === 'password'),
+    passkey: passkey ? { credentialId: passkey.credentialId, backedUp: passkey.backedUp, sync, problem } : null,
+  }
+}
+
+/** The live protection: the open vault's, else the stored one's, else none. `null` when unreadable. */
+export function protection(t: Tier): Protection | null {
+  if (openVault) return openVault.v === 1 ? { password: true, passkey: null } : protectionOf(openVault.envelope)
+  const read = t.vaults.load()
+  if (read.kind === 'damaged') return null
+  return read.kind === 'present' ? protectionOf(read.vault) : NO_PROTECTION
+}
+
+/** Republishes the protection half of the snapshot after a sync-state change. */
+export function refreshProtection(t: Tier): void {
+  patchSession({ protection: protection(t) })
 }
 
 /** The current record: the open vault's, or the plaintext one. `null` when there is none. */
@@ -99,18 +125,45 @@ export function headerFor(record: StoredAccounts): VaultHeader {
 
 /**
  * Writes the record where it lives: plaintext when there is no vault, re-sealed under the open
- * vault key otherwise. After a sealed write the plaintext mirror is cleared again.
+ * vault key otherwise. After a sealed write the plaintext mirror is cleared again. A v2 write with
+ * a remote copy marks that copy behind; the sync hook carries it over.
  */
 export async function persist(t: Tier, record: StoredAccounts): Promise<void> {
   if (!openVault) {
     t.accounts.save(record)
     return
   }
-  const sealed = await t.protocol.sealWithKey(t.protocol.serializeAccounts(record), headerFor(record), openVault.key)
+  if (openVault.v === 1) {
+    const sealed = await t.protocol.sealWithKey(t.protocol.serializeAccounts(record), headerFor(record), openVault.key)
+    if (!sealed.ok) throw new Error(t.protocol.VAULT_ERROR_TEXT[sealed.error])
+    t.vaults.save(sealed.value)
+    openVault = { v: 1, key: openVault.key, record }
+    t.protocol.clearPlaintextKeys(t.store)
+    return
+  }
+  await persistEnvelope(t, record, {})
+}
+
+/** The v2 write, with the wrappers or the remote id replaced when a passkey or password changes. */
+export async function persistEnvelope(
+  t: Tier,
+  record: StoredAccounts,
+  patch: { wrappers?: readonly VekWrapper[]; vaultId?: string | null },
+): Promise<VaultV2> {
+  if (!openVault || openVault.v !== 2) throw new Error('There is no open passkey vault to write.')
+  const vaultId = patch.vaultId === undefined ? openVault.envelope.vault.id : patch.vaultId
+  const wrappers = patch.wrappers ?? openVault.envelope.wrappers
+  const sealed = await t.protocol.sealEnvelope(t.protocol.serializeAccounts(record), headerFor(record), openVault.vek, vaultId, wrappers)
   if (!sealed.ok) throw new Error(t.protocol.VAULT_ERROR_TEXT[sealed.error])
   t.vaults.save(sealed.value)
-  openVault = { key: openVault.key, record }
+  openVault = { v: 2, vek: openVault.vek, envelope: sealed.value, record }
   t.protocol.clearPlaintextKeys(t.store)
+  // Every local write leaves the remote copy behind until the sync hook carries it over.
+  if (vaultId !== null) {
+    setSyncState('behind')
+    refreshProtection(t)
+  }
+  return sealed.value
 }
 
 export function summarize(record: StoredAccounts): SessionAccount[] {
@@ -128,6 +181,7 @@ export function readySession(t: Tier, record: StoredAccounts, active: StoredAcco
     label: active.label,
     accounts: summarize(record),
     hasVault: hasVault(t),
+    protection: protection(t),
   }
 }
 
@@ -144,6 +198,7 @@ export function lockedSession(
     label,
     accounts,
     hasVault: hasVault(t),
+    protection: protection(t),
     ...(reason ? { reason } : {}),
   }
 }
@@ -156,7 +211,8 @@ export function publishFromRecord(t: Tier, record: StoredAccounts, unlockProblem
       status: 'locked',
       accounts: summarize(record),
       hasVault: hasVault(t),
-        reason: 'The active account is missing from this browser’s account list.',
+      protection: protection(t),
+      reason: 'The active account is missing from this browser’s account list.',
     })
     return
   }

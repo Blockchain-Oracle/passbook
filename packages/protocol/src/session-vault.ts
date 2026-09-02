@@ -37,4 +37,4 @@ export {
   type VekWrapper,
 } from './vault-envelope.js'
 
-export { generateVek, newHkdfSalt, newPasswordKdf, passkeyKek, passwordKek, unwrapVek, wrapVek } from './vek-wrap.js'
+export { generateVek, newHkdfSalt, newPasswordKdf, passkeyKek, passwordKek, unwrapVek, unwrapVekRaw, wrapVek } from './vek-wrap.js'

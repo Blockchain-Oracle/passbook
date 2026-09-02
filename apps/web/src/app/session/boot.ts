@@ -5,7 +5,7 @@
 import type { SessionLock } from '@strk20/protocol/session-lock'
 
 import { BOOTING, publishSession, setBootTrigger } from './store'
-import { addressFor, loadTier, publishFromRecord, type Tier } from './tier'
+import { addressFor, loadTier, protectionOf, publishFromRecord, type Tier } from './tier'
 
 let booting: Promise<void> | null = null
 let lock: SessionLock | null = null
@@ -43,6 +43,8 @@ async function bootOnce(): Promise<void> {
       ...BOOTING,
       status: 'locked',
       hasVault: true,
+      // Nothing can be read, so nothing is guessed about what seals it.
+      protection: null,
       reason:
         `The locked wallet saved in this browser could not be read: ${sealed.reason}. ` +
         'Nothing has been overwritten. Your Recovery File still opens this account.',
@@ -61,6 +63,7 @@ async function bootOnce(): Promise<void> {
         .sort((a, b) => a.addedAt - b.addedAt)
         .map((a) => ({ address: a.address, label: a.label })),
       hasVault: true,
+      protection: protectionOf(sealed.vault),
     })
     return
   }

@@ -5,13 +5,16 @@ export class RelayerError extends Error {
   readonly status: number
   readonly reason: string | undefined
   readonly notice: string | undefined
+  /** The whole refusal body — a 409 carries the state the caller must merge with. */
+  readonly body: Record<string, unknown>
 
-  constructor(status: number, message: string, reason?: string, notice?: string) {
+  constructor(status: number, message: string, reason?: string, notice?: string, body: Record<string, unknown> = {}) {
     super(message)
     this.name = 'RelayerError'
     this.status = status
     this.reason = reason
     this.notice = notice
+    this.body = body
   }
 }
 
@@ -22,13 +25,13 @@ interface ErrorBody {
 }
 
 async function readError(res: Response): Promise<RelayerError> {
-  let body: ErrorBody = {}
+  let body: ErrorBody & Record<string, unknown> = {}
   try {
-    body = (await res.json()) as ErrorBody
+    body = (await res.json()) as ErrorBody & Record<string, unknown>
   } catch {
     // A non-JSON failure (a proxy 502, say) still has a status worth surfacing.
   }
-  return new RelayerError(res.status, body.error ?? `relayer answered ${res.status}`, body.reason, body.notice)
+  return new RelayerError(res.status, body.error ?? `relayer answered ${res.status}`, body.reason, body.notice, body)
 }
 
 /** POST JSON, expect JSON. Every relayer route except the fee recipient is shaped like this. */

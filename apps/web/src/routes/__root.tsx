@@ -9,6 +9,7 @@ import { Toaster } from '@/components/ui/sonner'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { ChatStreamProvider } from '@/features/chat'
 import { OnboardingGate } from '@/features/onboarding'
+import { useRecoverySync } from '@/app/session'
 import { cn } from '@/lib/utils'
 
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
@@ -32,6 +33,8 @@ function Shell() {
   //
   const { pathname } = useLocation()
   const bounded = pathname === '/chat' || pathname.startsWith('/chat/')
+  // App-wide, like the chat stream: a passkey vault's sealed copy follows every local write.
+  useRecoverySync()
 
   return (
     <TooltipProvider>

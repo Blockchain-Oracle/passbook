@@ -17,6 +17,27 @@ export interface SessionAccount {
   readonly label: string | null
 }
 
+/** Whether the sealed copy at the recovery service matches this browser's vault. */
+export type PasskeySync = 'synced' | 'syncing' | 'behind'
+
+export interface PasskeyProtection {
+  /** base64url; rendered short in Settings. Public — it is the verifier's lookup key. */
+  readonly credentialId: string
+  /** What the provider reported: synced across the user's devices, or bound to this one. */
+  readonly backedUp: boolean
+  readonly sync: PasskeySync
+  /** A sync that could not complete, as a whole sentence for Settings to render red. */
+  readonly problem: string | null
+}
+
+/** What seals the accounts at rest. Both may be on; both may be off. */
+export interface Protection {
+  readonly password: boolean
+  readonly passkey: PasskeyProtection | null
+}
+
+export const NO_PROTECTION: Protection = { password: false, passkey: null }
+
 export interface Session {
   readonly status: SessionStatus
   /** Why a `no-storage` or `locked` state is what it is, as a whole sentence. */
@@ -28,11 +49,13 @@ export interface Session {
   readonly account?: PrivateTransfersUser
   readonly label?: string | null
   readonly accounts: readonly SessionAccount[]
-  /** True when a password seals the accounts at rest. */
+  /** True when a vault seals the accounts at rest — by a password, a passkey, or both. */
   readonly hasVault: boolean
+  /** How the vault is sealed. `null` only when the vault could not be read: nothing is guessed. */
+  readonly protection: Protection | null
 }
 
-export const BOOTING: Session = { status: 'booting', accounts: [], hasVault: false }
+export const BOOTING: Session = { status: 'booting', accounts: [], hasVault: false, protection: NO_PROTECTION }
 
 let snapshot: Session = BOOTING
 const listeners = new Set<() => void>()

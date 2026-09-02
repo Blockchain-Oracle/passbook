@@ -4,6 +4,7 @@ import { IMPORT_NO_KEY } from '@strk20/protocol/account-copy'
 import type { StoredAccounts } from '@strk20/protocol/session-accounts'
 
 import { ensureBooted } from './boot'
+import { clearRecoveryState } from './recovery-state'
 import { BOOTING, getSessionSnapshot, patchSession, publishSession } from './store'
 import { clearDismissed } from '../dismissed-notices'
 import { setEntered } from '../onboarding-entry'
@@ -117,6 +118,7 @@ function sameHex(a: string, b: string): boolean {
 export function forget(): void {
   void ready().then((t) => {
     setOpenVault(null)
+    clearRecoveryState()
     // Not in SESSION_KEYS, and they outlive the keys they describe: a restored recovery file gets
     // the same address back, so a stale entry flag would wave the account past a gate it never saw.
     setEntered(null)

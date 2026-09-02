@@ -33,12 +33,35 @@ export {
 // The password vault sits OVER the account list: when a vault exists, `passbook.accounts` and its
 // `accountKey` mirror are deleted, so the entries above stop being where the keys live.
 export {
+  MIN_PASSWORD_LENGTH,
   VAULT_ERROR_TEXT,
   clearPlaintextKeys,
   openVault,
   sealVault,
   sealWithKey,
   sessionVaultStore,
+} from './session-vault.js'
+
+// Vault v2: the VEK envelope and its wrappers, so a passkey can seal what a password seals.
+export {
+  generateVek,
+  localVaultFromRemote,
+  newHkdfSalt,
+  newPasswordKdf,
+  newWrapperId,
+  openEnvelope,
+  parseRemoteEnvelope,
+  passkeyKek,
+  passkeyWrappers,
+  passwordKek,
+  passwordWrapper,
+  remoteEnvelopeOf,
+  sealEnvelope,
+  unwrapVek,
+  unwrapVekRaw,
+  withoutWrapper,
+  withWrapper,
+  wrapVek,
 } from './session-vault.js'
 
 export { SESSION_STORAGE_UNAVAILABLE } from './session-copy.js'

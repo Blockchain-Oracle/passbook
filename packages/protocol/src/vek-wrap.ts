@@ -71,8 +71,11 @@ export async function wrapVek<M extends WrapperMeta>(rawVek: Uint8Array, kek: Cr
   }
 }
 
-/** Opens a wrapper into an in-memory VEK. The raw bytes are zeroed the moment the key is imported. */
-export async function unwrapVek(wrapper: VekWrapper, kek: CryptoKey): Promise<VaultResult<CryptoKey>> {
+/**
+ * Opens a wrapper into the RAW VEK bytes. For the moment a second wrapper is being made — the
+ * caller wraps again and zeroes the bytes at once. Everything else wants `unwrapVek`.
+ */
+export async function unwrapVekRaw(wrapper: VekWrapper, kek: CryptoKey): Promise<VaultResult<Uint8Array>> {
   const subtle = subtleOrNull()
   if (!subtle) return { ok: false, error: 'crypto-unavailable' }
   let iv: Uint8Array
@@ -84,15 +87,28 @@ export async function unwrapVek(wrapper: VekWrapper, kek: CryptoKey): Promise<Va
     return { ok: false, error: 'damaged' }
   }
   if (iv.length !== IV_BYTES || wrapped.length !== VEK_BYTES + 16) return { ok: false, error: 'damaged' }
-  let raw: Uint8Array | null = null
   try {
-    raw = new Uint8Array(await subtle.decrypt({ name: CIPHER_NAME, iv: buffer(iv), additionalData: buffer(wrapperAad(metaOf(wrapper))) }, kek, buffer(wrapped)))
-    if (raw.length !== VEK_BYTES) return { ok: false, error: 'damaged' }
-    return { ok: true, value: await importVek(raw, subtle) }
+    const raw = new Uint8Array(await subtle.decrypt({ name: CIPHER_NAME, iv: buffer(iv), additionalData: buffer(wrapperAad(metaOf(wrapper))) }, kek, buffer(wrapped)))
+    if (raw.length !== VEK_BYTES) {
+      zero(raw)
+      return { ok: false, error: 'damaged' }
+    }
+    return { ok: true, value: raw }
   } catch {
     return { ok: false, error: wrapper.kind === 'password' ? 'wrong-password' : 'unopenable' }
+  }
+}
+
+/** Opens a wrapper into an in-memory VEK. The raw bytes are zeroed the moment the key is imported. */
+export async function unwrapVek(wrapper: VekWrapper, kek: CryptoKey): Promise<VaultResult<CryptoKey>> {
+  const raw = await unwrapVekRaw(wrapper, kek)
+  if (!raw.ok) return raw
+  try {
+    return { ok: true, value: await importVek(raw.value, subtleOrNull()!) }
+  } catch {
+    return { ok: false, error: 'crypto-unavailable' }
   } finally {
-    if (raw) zero(raw)
+    zero(raw.value)
   }
 }
 
