@@ -3,6 +3,7 @@ import { Outlet, createRootRouteWithContext, useLocation } from '@tanstack/react
 
 import { AppSidebar } from '@/components/layout/app-sidebar'
 import { MobileTabs } from '@/components/layout/mobile-tabs'
+import { NotFoundPage } from '@/components/layout/not-found'
 import { AccountBanner } from '@/components/layout/account-banner'
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar'
 import { Toaster } from '@/components/ui/sonner'
@@ -14,6 +15,8 @@ import { cn } from '@/lib/utils'
 
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
   component: Shell,
+  // Rendered in the Outlet's place, so the shell around it stays.
+  notFoundComponent: NotFoundPage,
 })
 
 function Shell() {

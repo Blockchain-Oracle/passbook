@@ -30,7 +30,8 @@ export const PAGES = {
   docs: '/docs',
 } as const
 
-export type PageId = keyof typeof PAGES
+/** `lost` is the 404: no page is current, so the header offers every door. */
+export type PageId = keyof typeof PAGES | 'lost'
 
 const PAGE_LABEL: Record<PageId, string> = {
   landing: 'Home',
@@ -38,6 +39,7 @@ const PAGE_LABEL: Record<PageId, string> = {
   demo: 'Demo',
   download: 'Install',
   docs: 'Docs',
+  lost: 'Not found',
 }
 
 /**
