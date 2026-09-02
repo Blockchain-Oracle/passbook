@@ -2,8 +2,7 @@ import { useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
 import { KeyRound, Lock, TimerOff } from 'lucide-react'
 import {
-  LOCK_WHAT_IT_DOES,
-  LOCK_WHAT_IT_DOES_SEALED,
+  lockWhatItDoes,
   PASSWORD_BODY,
   PASSWORD_NO_RESET,
   PASSWORD_REMOVE_ACTION,
@@ -12,24 +11,27 @@ import {
   PASSWORD_TITLE,
 } from '@strk20/protocol/account-copy'
 
-import type { SessionStatus } from '@/app/session'
+import type { Protection, SessionStatus } from '@/app/session'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Item, ItemActions, ItemContent, ItemDescription, ItemMedia, ItemTitle } from '@/components/ui/item'
 import { Spinner } from '@/components/ui/spinner'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { CurrentPasswordField, NewPasswordFields, type NewPasswordValue } from './password-fields'
+import { PasskeyRow, type PasskeyRowProps } from './passkey-row'
 import { SettingsSection } from './section'
 import { AUTO_LOCK_BODY, AUTO_LOCK_TITLE, LOCK_NOW, NEED_UNLOCK, PASSWORD_CHANGE_ACTION, PASSWORD_CHANGE_BODY } from './settings-copy'
 
 export interface SecuritySectionProps {
   status: SessionStatus
   hasVault: boolean
+  protection: Protection | null
   /** Each resolves on success and throws a whole sentence on refusal. */
   onSetPassword: (password: string) => Promise<void>
   onChangePassword: (current: string, next: string) => Promise<void>
   onRemovePassword: (current: string) => Promise<void>
   onLock: () => void
+  passkey: Omit<PasskeyRowProps, 'ready' | 'protection'>
 }
 
 const EMPTY: NewPasswordValue = { password: '', ready: false }
@@ -115,8 +117,10 @@ function RemovePasswordForm({ onSubmit }: { onSubmit: (current: string) => Promi
   )
 }
 
-export function SecuritySection({ status, hasVault, onSetPassword, onChangePassword, onRemovePassword, onLock }: SecuritySectionProps) {
+export function SecuritySection({ status, hasVault, protection, onSetPassword, onChangePassword, onRemovePassword, onLock, passkey }: SecuritySectionProps) {
   const ready = status === 'ready'
+  // A passkey-only vault has no password to change: the password row offers to set one.
+  const withPassword = hasVault && protection?.password !== false
   return (
     <SettingsSection id="security" index="02" title="Security" description={PASSWORD_BODY}>
       {!ready ? (
@@ -132,8 +136,8 @@ export function SecuritySection({ status, hasVault, onSetPassword, onChangePassw
         </ItemMedia>
         <ItemContent className="gap-3">
           <ItemTitle>{PASSWORD_TITLE}</ItemTitle>
-          {ready && !hasVault ? <SetPasswordForm onSubmit={onSetPassword} /> : null}
-          {ready && hasVault ? (
+          {ready && !withPassword ? <SetPasswordForm onSubmit={onSetPassword} /> : null}
+          {ready && withPassword ? (
             <Tabs defaultValue="change">
               <TabsList>
                 <TabsTrigger value="change">Change</TabsTrigger>
@@ -147,9 +151,11 @@ export function SecuritySection({ status, hasVault, onSetPassword, onChangePassw
               </TabsContent>
             </Tabs>
           ) : null}
-          {!ready ? <ItemDescription>{hasVault ? 'A password protects this browser’s accounts.' : 'No password is set.'}</ItemDescription> : null}
+          {!ready ? <ItemDescription>{withPassword ? 'A password protects this browser’s accounts.' : 'No password is set.'}</ItemDescription> : null}
         </ItemContent>
       </Item>
+
+      <PasskeyRow ready={ready} protection={protection} {...passkey} />
 
       <Item variant="outline">
         <ItemMedia variant="icon">
@@ -157,7 +163,7 @@ export function SecuritySection({ status, hasVault, onSetPassword, onChangePassw
         </ItemMedia>
         <ItemContent>
           <ItemTitle>Lock</ItemTitle>
-          <ItemDescription className="line-clamp-none">{hasVault ? LOCK_WHAT_IT_DOES_SEALED : LOCK_WHAT_IT_DOES}</ItemDescription>
+          <ItemDescription className="line-clamp-none">{lockWhatItDoes(hasVault, protection)}</ItemDescription>
         </ItemContent>
         <ItemActions>
           <Button variant="outline" aria-disabled={!ready} onClick={() => ready && onLock()}>

@@ -22,8 +22,6 @@ export const LOCK_NOW = 'Lock now'
 export const PASSWORD_SET_TOAST = 'This browser’s accounts are now encrypted.'
 export const PASSWORD_REMOVED_TOAST = 'The key is back in this browser’s storage.'
 export const PASSWORD_CHANGED_TOAST = 'Sealed again under the new password.'
-export const PASSWORD_CHANGE_HALF_DONE =
-  'The old password was removed but the new one could not be set, so the key is in this browser’s storage in the clear. Set a password again now.'
 
 // ── Backup ──────────────────────────────────────────────────────────────────────────────────
 export const BACKUP_STATUS_TITLE = { 'backed-up': 'Backed up', 'not-backed-up': 'No backup', unknown: 'Backup state unknown' } as const

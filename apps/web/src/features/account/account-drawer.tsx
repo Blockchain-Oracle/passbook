@@ -77,7 +77,7 @@ export function AccountDrawer({ session, open, onOpenChange }: AccountDrawerProp
       case 'forget':
         return <ForgetForm onDone={close} />
       case 'lock':
-        return <LockControl hasVault={session.hasVault} onLocked={close} />
+        return <LockControl hasVault={session.hasVault} protection={session.protection} onLocked={close} />
       default:
         return (
           <div className="flex flex-col gap-5">

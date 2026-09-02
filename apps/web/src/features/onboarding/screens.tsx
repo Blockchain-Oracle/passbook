@@ -1,11 +1,7 @@
 import { useState } from 'react'
-import { useMutation } from '@tanstack/react-query'
-import { Eye, FileKey, KeyRound, ShieldCheck, UserPlus } from 'lucide-react'
-import { IMPORT_ENTRY_CTA, PASSWORD_BODY, PASSWORD_MISMATCH, PASSWORD_NO_RESET } from '@strk20/protocol/account-copy'
+import { Eye, FileKey, ShieldCheck, UserPlus } from 'lucide-react'
+import { IMPORT_ENTRY_CTA } from '@strk20/protocol/account-copy'
 import {
-  CUSTODY_BODY,
-  CUSTODY_CTA,
-  CUSTODY_TITLE,
   FORK_BODY,
   FORK_CREATE_CTA,
   FORK_TITLE,
@@ -17,18 +13,13 @@ import {
   NAME_TITLE,
   namePreview,
 } from '@strk20/protocol/onboarding-copy'
-import { MIN_PASSWORD_LENGTH } from '@strk20/protocol/session-vault'
 
 import { BOUNDARY } from '@/app/boundary'
-import { getSessionSnapshot, sessionActions } from '@/app/session'
-import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Field, FieldDescription, FieldError, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
-import { Spinner } from '@/components/ui/spinner'
 import { Switch } from '@/components/ui/switch'
-import { PasswordField } from './password-field'
 
 function Heading({ title, body }: { title: string; body?: string }) {
   return (
@@ -156,88 +147,6 @@ export function NameScreen({ initial, onNext }: { initial: NameChoice; onNext: (
       >
         {NAME_CTA}
       </Button>
-    </div>
-  )
-}
-
-interface CustodyAsk {
-  label: string | null
-  password: string | null
-}
-
-/** Mints the key; labels it; optionally seals it under a password. One press, in that order. */
-async function generateKey(ask: CustodyAsk): Promise<void> {
-  await sessionActions.createAccount()
-  const address = getSessionSnapshot().address
-  if (ask.label && address) sessionActions.setLabel(address, ask.label)
-  if (ask.password) {
-    const sealed = await sessionActions.setPassword(ask.password)
-    if (!sealed.ok) throw new Error(sealed.error)
-  }
-}
-
-export function CustodyScreen({ label, onNext }: { label: string | null; onNext: () => void }) {
-  const [wantPassword, setWantPassword] = useState(false)
-  const [password, setPassword] = useState('')
-  const [confirm, setConfirm] = useState('')
-  const mutation = useMutation({ mutationKey: ['generate-key'], mutationFn: generateKey, onSuccess: onNext })
-
-  const mismatch = wantPassword && confirm !== '' && confirm !== password
-  const blocker = !wantPassword
-    ? null
-    : password.length < MIN_PASSWORD_LENGTH
-      ? `At least ${MIN_PASSWORD_LENGTH} characters.`
-      : mismatch || confirm === ''
-        ? PASSWORD_MISMATCH
-        : null
-
-  return (
-    <div className="flex flex-col gap-6">
-      <Heading title={CUSTODY_TITLE} body={CUSTODY_BODY} />
-      <Field orientation="horizontal">
-        <Switch id="custody-password" checked={wantPassword} onCheckedChange={setWantPassword} />
-        <div>
-          <FieldLabel htmlFor="custody-password">Protect this browser with a password</FieldLabel>
-          <FieldDescription>{PASSWORD_BODY}</FieldDescription>
-        </div>
-      </Field>
-      {wantPassword ? (
-        <div className="flex flex-col gap-4 border-l-2 border-primary pl-4">
-          <PasswordField
-            id="custody-pw"
-            label="New password"
-            autoComplete="new-password"
-            autoFocus
-            meter
-            value={password}
-            onChange={setPassword}
-            hint={PASSWORD_NO_RESET}
-          />
-          <PasswordField
-            id="custody-pw2"
-            label="Confirm password"
-            autoComplete="new-password"
-            value={confirm}
-            onChange={setConfirm}
-            error={mismatch ? PASSWORD_MISMATCH : null}
-          />
-        </div>
-      ) : null}
-      {mutation.error ? (
-        <Alert variant="destructive">
-          <AlertDescription>{mutation.error.message}</AlertDescription>
-        </Alert>
-      ) : null}
-      <Button
-        size="lg"
-        className="h-12 self-start text-buttonLabel2"
-        aria-disabled={mutation.isPending || blocker !== null}
-        onClick={() => !mutation.isPending && blocker === null && mutation.mutate({ label, password: wantPassword ? password : null })}
-      >
-        {mutation.isPending ? <Spinner data-icon="inline-start" /> : <KeyRound data-icon="inline-start" />}
-        {mutation.isPending ? 'Making your key…' : CUSTODY_CTA}
-      </Button>
-      {blocker && !mismatch ? <p className="-mt-3 text-body4 text-muted-foreground">{blocker}</p> : null}
     </div>
   )
 }

@@ -43,6 +43,8 @@
 
 // ── Locking ───────────────────────────────────────────────────────────────────────────────
 
+import { LOCK_WHAT_IT_DOES_BOTH, LOCK_WHAT_IT_DOES_PASSKEY } from './passkey-copy.js'
+
 /** What Lock actually does. Never "safe", never "encrypted" — see the header. */
 export const LOCK_WHAT_IT_DOES =
   'Locking drops the key out of this page and leaves it in this browser’s storage. It is a screen ' +
@@ -72,6 +74,20 @@ export const UNLOCK_ACTION = 'Unlock'
 export const LOCK_WHAT_IT_DOES_SEALED =
   'Locking drops the key out of this page. Your accounts stay in this browser encrypted with your ' +
   'password, and nothing can read them without it — not this app, not an extension.'
+
+/** A v1 password change is remove-then-set; this is said loudly when the second leg fails. */
+export const PASSWORD_CHANGE_HALF_DONE =
+  'The old password was removed but the new one could not be set, so the key is in this browser’s storage in the clear. Set a password again now.'
+
+/** The sentence for what ACTUALLY seals the accounts — password, passkey, both, or a screen lock. */
+export function lockWhatItDoes(sealed: boolean, protection: { readonly password: boolean; readonly passkey: object | null } | null): string {
+  if (!sealed) return LOCK_WHAT_IT_DOES
+  // A vault that could not be read is still a vault; the password sentence is the conservative one.
+  if (!protection) return LOCK_WHAT_IT_DOES_SEALED
+  if (protection.password && protection.passkey) return LOCK_WHAT_IT_DOES_BOTH
+  if (protection.passkey) return LOCK_WHAT_IT_DOES_PASSKEY
+  return LOCK_WHAT_IT_DOES_SEALED
+}
 
 /** The sealed lock screen's body. Says what is needed and what was not lost. */
 export const LOCKED_BODY_SEALED =

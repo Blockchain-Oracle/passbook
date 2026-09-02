@@ -2,7 +2,7 @@
 // vault the lock is a screen lock over a plaintext key (`LOCK_WHAT_IT_DOES`); with one, the
 // accounts are sealed at rest and the plaintext mirror is deleted. A v1 vault is the password
 // alone; a v2 vault is a VEK with wrappers, and the password is one wrapper among them.
-import { LOCK_NOT_SAVED, UNLOCK_DIFFERENT_IDENTITY } from '@strk20/protocol/account-copy'
+import { LOCK_NOT_SAVED, PASSWORD_CHANGE_HALF_DONE, UNLOCK_DIFFERENT_IDENTITY } from '@strk20/protocol/account-copy'
 import type { StoredVault, VaultV2 } from '@strk20/protocol/session-vault'
 
 import { ensureBooted } from './boot'
@@ -201,7 +201,8 @@ export async function changePassword(current: string, next: string): Promise<Out
   if (open.v === 1) {
     const removed = await removePassword(current)
     if (!removed.ok) return removed
-    return setPassword(next)
+    const set = await setPassword(next)
+    return set.ok ? set : refuse(`${PASSWORD_CHANGE_HALF_DONE} (${set.error})`)
   }
   const proved = await proveV2Password(t, open.envelope, current)
   if (!proved.ok) return refuse(proved.error)

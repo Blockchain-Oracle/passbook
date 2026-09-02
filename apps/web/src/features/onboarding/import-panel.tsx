@@ -11,6 +11,7 @@ import {
   IMPORT_UNSUPPORTED_VERSION,
 } from '@strk20/protocol/account-copy'
 import { accountAddressFor } from '@strk20/protocol/account-address'
+import { RESTORE_TAB } from '@strk20/protocol/passkey-copy'
 
 import { backupActions, getSessionSnapshot, sessionActions } from '@/app/session'
 import { Button } from '@/components/ui/button'
@@ -20,6 +21,7 @@ import { Spinner } from '@/components/ui/spinner'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { cn } from '@/lib/utils'
 import { PasswordField } from './password-field'
+import { RestorePanel } from './restore-panel'
 
 type ImportAsk = { kind: 'file'; file: string; code: string } | { kind: 'key'; key: string }
 type ImportOutcome = { address: string; already: boolean }
@@ -138,6 +140,9 @@ export function ImportPanel({ onDone }: ImportPanelProps) {
           <TabsTrigger value="key" className="flex-1">
             Raw key
           </TabsTrigger>
+          <TabsTrigger value="passkey" className="flex-1">
+            {RESTORE_TAB}
+          </TabsTrigger>
         </TabsList>
         <TabsContent value="file" className="flex flex-col gap-4 pt-4">
           <DropZone file={file} onFile={(f) => { setFile(f); mutation.reset() }} />
@@ -182,6 +187,9 @@ export function ImportPanel({ onDone }: ImportPanelProps) {
             {mutation.isPending ? <Spinner data-icon="inline-start" /> : <KeyRound data-icon="inline-start" />}
             Import this key
           </Button>
+        </TabsContent>
+        <TabsContent value="passkey" className="pt-4">
+          <RestorePanel onDone={onDone} />
         </TabsContent>
       </Tabs>
     </div>

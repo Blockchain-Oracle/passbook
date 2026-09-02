@@ -159,3 +159,6 @@ export const RECOVERY_NOT_EMPTY =
   'This browser already holds a wallet. Restoring would write over it — forget the wallet first, or unlock it and add accounts with a Recovery File.'
 
 export const RECOVERY_SESSION_EXPIRED = 'The recovery session ended. Approve your passkey again to continue.'
+
+export const RECOVERY_UNKNOWN_PASSKEY =
+  'That passkey is not registered with the recovery service. If you were offered more than one, choose the one named “strk20.run wallet”.'

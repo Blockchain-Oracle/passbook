@@ -12,11 +12,13 @@ import { FORGET_ACTION, FORGET_BODY, FORGET_CONFIRM_WORD, FORGET_TITLE, NOTHING_
 export interface DangerSectionProps {
   /** How many accounts this browser holds — zero means there is nothing to forget. */
   accountCount: number
+  /** What Forget does NOT delete, when there is such a thing — the sealed copy behind a passkey. */
+  note: string | null
   onForget: () => void
 }
 
 /** Irreversible: a typed word, then every key in this browser is gone. The CTA is never `disabled`. */
-export function DangerSection({ accountCount, onForget }: DangerSectionProps) {
+export function DangerSection({ accountCount, note, onForget }: DangerSectionProps) {
   const [open, setOpen] = useState(false)
   const [typed, setTyped] = useState('')
   const armed = typed.trim().toLowerCase() === FORGET_CONFIRM_WORD
@@ -58,6 +60,7 @@ export function DangerSection({ accountCount, onForget }: DangerSectionProps) {
             <DialogHeader>
               <DialogTitle className="font-display text-display4 uppercase text-irreversible">{FORGET_TITLE}</DialogTitle>
               <DialogDescription>{FORGET_BODY}</DialogDescription>
+              {note ? <DialogDescription>{note}</DialogDescription> : null}
             </DialogHeader>
             <Field>
               <FieldLabel htmlFor="forget-confirm">{forgetPrompt(FORGET_CONFIRM_WORD)}</FieldLabel>

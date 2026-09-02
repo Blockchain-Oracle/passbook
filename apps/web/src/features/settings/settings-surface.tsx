@@ -14,13 +14,15 @@ import { NetworkSection } from './network-section'
 import { PrivacySection } from './privacy-section'
 import { backupCadenceQuery } from './queries'
 import { SecuritySection } from './security-section'
+import { FORGOTTEN_TOAST, PASSWORD_CHANGED_TOAST, PASSWORD_REMOVED_TOAST, PASSWORD_SET_TOAST } from './settings-copy'
 import {
-  FORGOTTEN_TOAST,
-  PASSWORD_CHANGED_TOAST,
-  PASSWORD_CHANGE_HALF_DONE,
-  PASSWORD_REMOVED_TOAST,
-  PASSWORD_SET_TOAST,
-} from './settings-copy'
+  FORGET_PASSKEY_NOTE,
+  PASSKEY_ADDED_TOAST,
+  PASSKEY_REMOVED_TOAST_PASSWORD,
+  PASSKEY_REMOVED_TOAST_PLAIN,
+  PASSWORD_CHANGED_TOAST_V2,
+  PASSWORD_REMOVED_TOAST_PASSKEY,
+} from '@strk20/protocol/passkey-copy'
 import { SoundsSection } from './sounds-section'
 import { useSoundFlag } from './use-sound-flag'
 
@@ -44,6 +46,7 @@ export function SettingsSurface() {
   const feeRecipient = useQuery(feeRecipientQuery())
   const refreshCadence = () => void queryClient.invalidateQueries({ queryKey: ['settings', 'backup-cadence'] })
 
+  const passkey = session.protection?.passkey ?? null
   const setPassword = async (pw: string) => {
     const outcome = await sessionActions.setPassword(pw)
     if (!outcome.ok) throw new Error(outcome.error)
@@ -52,16 +55,28 @@ export function SettingsSurface() {
   const removePassword = async (pw: string) => {
     const outcome = await sessionActions.removePassword(pw)
     if (!outcome.ok) throw new Error(outcome.error)
-    notify.settled('Password removed', { description: PASSWORD_REMOVED_TOAST })
+    notify.settled('Password removed', { description: passkey ? PASSWORD_REMOVED_TOAST_PASSKEY : PASSWORD_REMOVED_TOAST })
   }
-  // The core has no atomic re-seal: unseal with the old password, then seal with the new one.
-  // A failure on the second step is said loudly — the key is in plaintext until it is redone.
+  // One action: v1 removes then sets (and says so if the second leg fails); v2 swaps the wrapper.
   const changePassword = async (current: string, next: string) => {
-    const removed = await sessionActions.removePassword(current)
-    if (!removed.ok) throw new Error(removed.error)
-    const set = await sessionActions.setPassword(next)
-    if (!set.ok) throw new Error(`${PASSWORD_CHANGE_HALF_DONE} (${set.error})`)
-    notify.settled('Password changed', { description: PASSWORD_CHANGED_TOAST })
+    const outcome = await sessionActions.changePassword(current, next)
+    if (!outcome.ok) throw new Error(outcome.error)
+    notify.settled('Password changed', { description: passkey ? PASSWORD_CHANGED_TOAST_V2 : PASSWORD_CHANGED_TOAST })
+  }
+  const addPasskey = async (password?: string) => {
+    const outcome = await sessionActions.protectWithPasskey(password ? { password } : {})
+    if (!outcome.ok) throw new Error(outcome.error)
+    notify.settled('Passkey added', { description: PASSKEY_ADDED_TOAST })
+  }
+  const removePasskey = async () => {
+    const hadPassword = session.protection?.password === true
+    const outcome = await sessionActions.removePasskey()
+    if (!outcome.ok) throw new Error(outcome.error)
+    notify.settled('Passkey removed', { description: hadPassword ? PASSKEY_REMOVED_TOAST_PASSWORD : PASSKEY_REMOVED_TOAST_PLAIN })
+  }
+  const syncPasskey = async () => {
+    const outcome = await sessionActions.syncNow()
+    if (!outcome.ok) throw new Error(outcome.error)
   }
   const verifyBackup = async (file: string, code: string) => {
     try {
@@ -72,7 +87,7 @@ export function SettingsSurface() {
   }
   const forget = () => {
     sessionActions.forget()
-    notify.settled('Forgotten', { description: FORGOTTEN_TOAST })
+    notify.settled('Forgotten', { description: passkey ? `${FORGOTTEN_TOAST} ${FORGET_PASSKEY_NOTE}` : FORGOTTEN_TOAST })
   }
 
   return (
@@ -82,10 +97,18 @@ export function SettingsSurface() {
       <SecuritySection
         status={session.status}
         hasVault={session.hasVault}
+        protection={session.protection}
         onSetPassword={setPassword}
         onChangePassword={changePassword}
         onRemovePassword={removePassword}
         onLock={sessionActions.lock}
+        passkey={{
+          // A v2 vault sealed by a password alone needs that password once to add a passkey.
+          needsPassword: session.hasVault && session.protection?.password === true && session.protection.passkey === null && !!session.protection,
+          onAdd: addPasskey,
+          onRemove: removePasskey,
+          onSync: syncPasskey,
+        }}
       />
 
       <BackupSection
@@ -122,7 +145,7 @@ export function SettingsSurface() {
 
       <SoundsSection enabled={sounds} onChange={setSounds} />
 
-      <DangerSection accountCount={session.accounts.length} onForget={forget} />
+      <DangerSection accountCount={session.accounts.length} note={passkey ? FORGET_PASSKEY_NOTE : null} onForget={forget} />
     </div>
   )
 }

@@ -10,7 +10,8 @@ import { FundStep } from './fund-step'
 import { ImportPanel } from './import-panel'
 import { BootingScreen, CheckingScreen, LockedScreen, NoStorageScreen } from './locked-screen'
 import { RegisterStep } from './register-step'
-import { CustodyScreen, ForkScreen, NameScreen, TeachScreen, type NameChoice } from './screens'
+import { CustodyScreen } from './custody-screen'
+import { ForkScreen, NameScreen, TeachScreen, type NameChoice } from './screens'
 
 /**
  * The gate: the onboarding stack, which is exactly as tall as the account is short. It renders

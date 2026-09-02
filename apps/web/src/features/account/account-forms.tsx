@@ -1,11 +1,11 @@
 import { useState } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { Trash2 } from 'lucide-react'
-import { EXPORT_ROW_DETAIL, EXPORT_ROW_LABEL, LOCK_WHAT_IT_DOES, LOCK_WHAT_IT_DOES_SEALED } from '@strk20/protocol/account-copy'
+import { EXPORT_ROW_DETAIL, EXPORT_ROW_LABEL, lockWhatItDoes } from '@strk20/protocol/account-copy'
 import { DIRECTORY_NAME_PATTERN, normalizeDirectoryName } from '@strk20/protocol/directory-name'
 import { MAX_ACCOUNT_LABEL_LENGTH } from '@strk20/protocol/session-accounts'
 
-import { sessionActions } from '@/app/session'
+import { sessionActions, type Protection } from '@/app/session'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Field, FieldDescription, FieldError, FieldLabel } from '@/components/ui/field'
@@ -96,7 +96,7 @@ export function ExportPanel({ onDone }: FormProps) {
 }
 
 /** Lock / unlock, with the honest sentence for the browser's actual protection. */
-export function LockControl({ hasVault, onLocked }: { hasVault: boolean; onLocked: () => void }) {
+export function LockControl({ hasVault, protection, onLocked }: { hasVault: boolean; protection: Protection | null; onLocked: () => void }) {
   const lock = useMutation({
     mutationKey: ['lock'],
     mutationFn: async () => {
@@ -107,7 +107,7 @@ export function LockControl({ hasVault, onLocked }: { hasVault: boolean; onLocke
   return (
     <div className="flex flex-col gap-2">
       <Alert>
-        <AlertDescription>{hasVault ? LOCK_WHAT_IT_DOES_SEALED : LOCK_WHAT_IT_DOES}</AlertDescription>
+        <AlertDescription>{lockWhatItDoes(hasVault, protection)}</AlertDescription>
       </Alert>
       <Button variant="outline" onClick={() => lock.mutate()} aria-disabled={lock.isPending}>
         Lock now

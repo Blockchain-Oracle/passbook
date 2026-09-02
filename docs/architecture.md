@@ -9,10 +9,12 @@ thing is built, for a reader who wants to check the claims against the code.
 
 The key is derived in the browser on first load — no wallet, no email, no seed phrase before
 anything works. That is also what makes the hosted demo work without login: a consequence, not a
-waiver. The key sits in `localStorage` in plaintext, which is an accepted and argued risk written
-down at `packages/protocol/src/session-key.ts` rather than a detail nobody mentioned. "Lock"
-therefore means a screen lock, and the app says so in those words instead of implying encryption
-it does not perform.
+waiver. Without a password or a passkey the key sits in `localStorage` in plaintext, which is an
+accepted and argued risk written down at `packages/protocol/src/session-key.ts` rather than a
+detail nobody mentioned; "Lock" then means a screen lock, and the app says so in those words. With
+a password or a passkey the accounts are sealed at rest (`vault.ts`, `vault-envelope.ts`) and the
+plaintext is deleted — a passkey wraps the same vault key a password does, and the relayer keeps a
+sealed copy it cannot open so a synced passkey can bring the accounts back on another device.
 
 Two balances exist and are never summed: **shielded** (pool notes) and **public** (ERC-20).
 An unknown balance renders as `—`, never `0`.

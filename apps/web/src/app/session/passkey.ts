@@ -16,6 +16,7 @@ import {
   RECOVERY_NO_ENVELOPE,
   RECOVERY_NOT_EMPTY,
   RECOVERY_SESSION_EXPIRED,
+  RECOVERY_UNKNOWN_PASSKEY,
 } from '@strk20/protocol/recovery-wire'
 import type { PasskeyWrapper, RemoteEnvelope, VekWrapper } from '@strk20/protocol/session-vault'
 
@@ -158,7 +159,8 @@ export async function protectWithPasskey(opts: { password?: string } = {}): Prom
     t.protocol.clearPlaintextKeys(t.store)
     setOpenVault({ v: 2, vek, envelope: sealed.value, record: unlocked })
     setRemoteRevision(0)
-    setSyncState('behind')
+    // `syncing`, not `behind`: the push below is the one upload, and the sync hook only fires on `behind`.
+    setSyncState('syncing')
     publishFromRecord(t, unlocked)
     // 5. The sealed copy. A failed upload is a sync problem, not a failed protect.
     await pushEnvelope()
@@ -243,7 +245,8 @@ export async function restoreWithPasskey(): Promise<Outcome> {
       setSyncState('synced')
     })
   } catch (e) {
-    return refuse(message(e))
+    // A 404 here is a different passkey than the registered one — say which to pick.
+    return refuse(e instanceof RecoveryError && e.status === 404 ? RECOVERY_UNKNOWN_PASSKEY : message(e))
   }
 }
 
