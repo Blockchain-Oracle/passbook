@@ -34,6 +34,8 @@ import {
 import { createGasCalibration, GAS_CALIBRATION_INTERVAL_MS } from './gas-calibration.js'
 import type { LogoService } from './logo.js'
 import { createQuoteCounter } from './quote-proxy.js'
+import { openRecovery, RECOVERY_SWEEP_MS } from './recovery.js'
+import { openRecoveryStore } from './recovery-store.js'
 import { openRevertWatch, REVERT_WATCH_INTERVAL_MS } from './revert-watch.js'
 import { sendShieldedStarter } from './starter.js'
 import { PRESENCE_BEACON_MS, ROOM_IDLE_MS, RoomHub } from './rooms.js'
@@ -153,6 +155,18 @@ async function main(): Promise<void> {
         }
       : undefined
 
+  // Passkey continuity. The ledger opens before the socket, like every other ledger: an unreadable
+  // store is a startup failure, never a first-request surprise.
+  const recovery = env.recoveryOn
+    ? openRecovery({
+        store: openRecoveryStore(env.recoveryStore),
+        origins: env.webauthnOrigins,
+        optionsPerVisitorPerDay: env.recoveryOptionsPerVisitor,
+        optionsPerDay: env.recoveryOptionsDaily,
+      })
+    : undefined
+  if (recovery) every(RECOVERY_SWEEP_MS, () => recovery.sweep())
+
   const teller = writableGovernance ? openTeller({ file: env.tellerStore }) : undefined
   if (teller && writableGovernance) {
     const deps = {
@@ -221,6 +235,7 @@ async function main(): Promise<void> {
     gasCalibration,
     logos,
     teller,
+    recovery,
   }
   const web = createApp(ctx, { allowedOrigins: env.allowedOrigins, authToken: env.authToken })
 
@@ -251,6 +266,7 @@ async function main(): Promise<void> {
       feedWanted: env.chainFeedWanted, chainFeed, chainFeedStore: env.chainFeedStore,
       logos, teller, tellerStore: env.tellerStore,
       faucetOn: faucet !== undefined, faucetDripWei: faucetDripWei(), monitor,
+      recovery, recoveryStore: env.recoveryStore, webauthnOrigins: env.webauthnOrigins,
     }),
   )
 }

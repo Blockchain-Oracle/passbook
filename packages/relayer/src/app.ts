@@ -30,6 +30,7 @@ import { roomRoutes } from './routes/rooms.js'
 import { chainRoutes } from './routes/chain.js'
 import { logoRoutes } from './routes/logo.js'
 import { governRoutes } from './routes/govern.js'
+import { recoveryRoutes } from './routes/recovery.js'
 import { healthRoutes } from './routes/health.js'
 
 // A proven submission carries a ~309 KB base64 proof blob; one megabyte is ~3x headroom. Raise
@@ -111,6 +112,7 @@ const MOUNTS = [
   ['chain', chainRoutes],
   ['logo', logoRoutes],
   ['govern', governRoutes],
+  ['recovery', recoveryRoutes],
 ] as const
 
 export function createApp(context: RelayerContext, options: AppOptions = {}): Hono<AppEnv> {

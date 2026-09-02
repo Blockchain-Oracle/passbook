@@ -9,6 +9,7 @@ import type { LogoService } from './logo.js'
 import { PROXY_TARGETS } from './quote-proxy.js'
 import { ROOM_HISTORY, ROOM_IDLE_MS } from './rooms.js'
 import { TELLER_INTERVAL_MS, type Teller } from './teller.js'
+import type { RecoveryService } from './recovery.js'
 
 export interface BannerInput {
   host: string
@@ -32,6 +33,9 @@ export interface BannerInput {
   faucetOn: boolean
   faucetDripWei: bigint
   monitor: FundingMonitor
+  recovery: RecoveryService | undefined
+  recoveryStore: string
+  webauthnOrigins: ReadonlySet<string>
 }
 
 export function printBanner(b: BannerInput): void {
@@ -92,6 +96,11 @@ export function printBanner(b: BannerInput): void {
       ? `teller: holding ${b.teller.keyCount()} tally key(s) · sweeping every ${TELLER_INTERVAL_MS / 1000}s · ` +
           `ledger ${b.tellerStore}`
       : 'teller: off — no Governance contract deployed',
+  )
+  console.log(
+    b.recovery
+      ? `recovery: ON — ${b.recovery.stats().vaults} vault(s) · passkeys for ${[...b.webauthnOrigins].join(', ')} · ledger ${b.recoveryStore}`
+      : 'recovery: off — set RELAYER_RECOVERY=on and RELAYER_WEBAUTHN_ORIGINS to offer passkeys',
   )
   console.log(
     b.faucetOn

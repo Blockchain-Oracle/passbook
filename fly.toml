@@ -78,6 +78,13 @@ primary_region = "iad"
   # losing it costs a refund nobody can see, never a cap. On the volume because a restart in the
   # thirty seconds after a broadcast is exactly when a watch is worth having.
   RELAYER_REVERT_WATCH_STORE = "/data/revert-watch.json"
+  # Passkey wallet continuity: the sealed envelopes and passkey public keys. On the volume because
+  # a wiped ledger tells every passkey holder "no sealed copy was ever uploaded" — a lockout, not a
+  # reset. The service itself stays off until `fly secrets set RELAYER_RECOVERY=on`.
+  RELAYER_RECOVERY_STORE = "/data/recovery.json"
+  # The browser origins passkeys are made for: exact, comma-separated. The relayer never sees an
+  # Origin header behind the proxy, so this list is what the client's named origin is checked against.
+  RELAYER_WEBAUTHN_ORIGINS = "https://app.strk20.run,http://localhost:5173"
   # After `deploy-governance.ts --execute`, set this to the blockNumber it prints — the Teller's
   # event-scan floor:
   #   fly secrets set RELAYER_GOVERNANCE_FROM_BLOCK=<block>

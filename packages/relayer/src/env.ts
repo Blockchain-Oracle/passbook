@@ -271,8 +271,38 @@ const switches = z.object({
   RELAYER_GEMINI_IMAGE_MODEL: blank,
   RELAYER_TELLER_STORE: blank,
   RELAYER_GOVERNANCE_FROM_BLOCK: blank,
+  RELAYER_RECOVERY: blank,
+  RELAYER_RECOVERY_STORE: blank,
+  RELAYER_WEBAUTHN_ORIGINS: blank,
   PORT: blank,
 })
+
+/**
+ * The browser origins passkeys are made for. The relayer never sees an Origin header (the proxy
+ * strips it), so the client NAMES its origin and this list is what that name is checked against
+ * before it becomes the WebAuthn origin and RP ID. Required when recovery is on: a passkey
+ * service with no origin to verify against would accept a signature from anywhere.
+ */
+export function resolveWebAuthnOrigins(env: NodeJS.ProcessEnv, on: boolean): ReadonlySet<string> {
+  const origins = new Set(
+    (env.RELAYER_WEBAUTHN_ORIGINS ?? '')
+      .split(',')
+      .map((origin) => origin.trim())
+      .filter(Boolean),
+  )
+  if (!on) return origins
+  if (origins.size === 0) throw new Error('RELAYER_RECOVERY=on needs RELAYER_WEBAUTHN_ORIGINS, a comma-separated list of exact browser origins')
+  for (const origin of origins) {
+    let url: URL
+    try {
+      url = new URL(origin)
+    } catch {
+      throw new Error(`RELAYER_WEBAUTHN_ORIGINS entry ${JSON.stringify(origin)} is not an absolute URL`)
+    }
+    if (url.origin !== origin) throw new Error(`RELAYER_WEBAUTHN_ORIGINS entry ${JSON.stringify(origin)} must be a bare origin — scheme, host and port only`)
+  }
+  return origins
+}
 
 export interface RelayerEnv {
   address: string
@@ -292,6 +322,11 @@ export interface RelayerEnv {
   tellerStore: string
   governanceFromBlock: number
   keeperWanted: boolean
+  recoveryOn: boolean
+  recoveryStore: string
+  webauthnOrigins: ReadonlySet<string>
+  recoveryOptionsPerVisitor: number
+  recoveryOptionsDaily: number
 }
 
 /** The whole environment, resolved once. Throws the spec's refusal strings on bad input. */
@@ -317,5 +352,10 @@ export function resolveEnv(env: NodeJS.ProcessEnv = process.env): RelayerEnv {
     tellerStore: s.RELAYER_TELLER_STORE ?? relayerFile('teller.json'),
     governanceFromBlock: Number(s.RELAYER_GOVERNANCE_FROM_BLOCK ?? 0),
     keeperWanted: s.RELAYER_KEEPER !== 'off',
+    recoveryOn: s.RELAYER_RECOVERY === 'on',
+    recoveryStore: s.RELAYER_RECOVERY_STORE ?? relayerFile('recovery.json'),
+    webauthnOrigins: resolveWebAuthnOrigins(env, s.RELAYER_RECOVERY === 'on'),
+    recoveryOptionsPerVisitor: positiveInt(env, 'RELAYER_RECOVERY_PER_VISITOR', 60),
+    recoveryOptionsDaily: positiveInt(env, 'RELAYER_RECOVERY_DAILY', 5_000),
   }
 }

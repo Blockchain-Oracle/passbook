@@ -11,6 +11,7 @@ import type { FundingObservation } from './funding-monitor.js'
 import type { GasCalibration } from './gas-calibration.js'
 import type { LogoService } from './logo.js'
 import type { Teller } from './teller.js'
+import type { RecoveryService } from './recovery.js'
 import type { RevertWatch } from './revert-watch.js'
 import type { StarterOutcome } from './starter.js'
 
@@ -63,5 +64,7 @@ export interface RelayerContext {
   gasCalibration?: GasCalibration
   logos?: LogoService
   teller?: Teller
+  /** Passkey registration, assertion and the sealed-envelope custody. Absent → `/recovery/*` answers 404. */
+  recovery?: RecoveryService
 }
 export type AppEnv = { Variables: { ctx: RelayerContext; clientIp: string } }
