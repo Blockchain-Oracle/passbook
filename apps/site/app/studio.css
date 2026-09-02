@@ -103,6 +103,9 @@
   --text-kicker--line-height: 16px;
   --text-kicker--letter-spacing: 0.16em;
 
+  /* The narrowest phone still in use; below it the header wordmark folds behind the mark. */
+  --breakpoint-xs: 22.5rem;
+
   /* spacing — [tokens.yaml spacing.scale], the subset this site reaches for */
   --spacing-s2: 2px;
   --spacing-s4: 4px;

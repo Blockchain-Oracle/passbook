@@ -67,7 +67,7 @@ export function SiteHeader({ current }: { current: PageId }) {
         </Link>
       )}
 
-      <nav aria-label="Site" className="flex items-center gap-s16 sm:gap-s24">
+      <nav aria-label="Site" className="flex items-center gap-s12 sm:gap-s24">
         {current === 'pitch' ? null : (
           <Link
             href={PAGES.pitch}
@@ -107,7 +107,7 @@ export function SiteHeader({ current }: { current: PageId }) {
         <a
           href={APP_URL}
           {...EXTERNAL}
-          className="focus-ring rounded-pill bg-accent1 px-s20 py-s8 text-body3 font-medium text-onAccent no-underline hover:bg-accent1Hovered"
+          className="focus-ring shrink-0 whitespace-nowrap rounded-pill bg-accent1 px-s16 py-s8 text-body3 font-medium text-onAccent no-underline hover:bg-accent1Hovered sm:px-s20"
         >
           Open the app
         </a>

@@ -32,7 +32,7 @@ export function BrandLockup() {
       >
         <BrandGlyph className="size-s20" />
       </span>
-      <span className="display text-heading3">
+      <span className="display hidden text-heading3 xs:inline">
         strk20<span className="text-accent1">.run</span>
       </span>
     </>
