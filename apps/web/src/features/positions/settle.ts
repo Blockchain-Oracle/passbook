@@ -148,13 +148,14 @@ export function useSettle() {
   const send = useSend()
   const run = useMutation({
     mutationKey: ['position', 'settle'],
-    mutationFn: async ({ claim, group, door }: { claim: Claim; group: PositionGroup; door: SettleDoor }): Promise<SettleOutcome> => {
+    mutationFn: async ({ claim, group, door, sponsored }: { claim: Claim; group: PositionGroup; door: SettleDoor; sponsored: boolean }): Promise<SettleOutcome> => {
       const built = build(claim, group, door)
       if (!built.ok) {
         notify.refused(`${DOOR_VERB[door]} refused`, { description: built.because })
         return { ok: false }
       }
-      const result = await send.mutateAsync(built.ask)
+      // The review sheet decides sponsorship, exactly as it does for a bet; the builder never guesses.
+      const result = await send.mutateAsync({ ...built.ask, sponsored })
       if (!result.ok) {
         notify.refused('The settlement did not go through', {
           description: sendProblem(result) ?? undefined,

@@ -107,13 +107,14 @@ export function PositionsSurface({ open }: { open?: string }) {
   const shown = useMemo(() => (tab === 'all' ? read.groups : read.groups.filter((g) => g.tab === tab)), [read.groups, tab])
   const openGroup = useMemo(() => read.groups.find((g) => g.key === openKey) ?? null, [read.groups, openKey])
 
-  const confirm = async () => {
+  const confirm = async (sponsored: boolean) => {
     if (!review) return
     const { claims, group, door } = review
     setProgress({ done: 0, total: claims.length })
     for (const [i, claim] of claims.entries()) {
-      // One pipeline at a time per account, so a batch is a queue rather than a fan-out.
-      const outcome = await settle({ claim, group, door })
+      // One pipeline at a time per account, so a batch is a queue rather than a fan-out. The
+      // sponsor choice applies to each; the sheet's counter says how many are still covered.
+      const outcome = await settle({ claim, group, door, sponsored })
       if (!outcome.ok) {
         setProgress(null)
         if (i > 0) notify.warned(`${i} of ${claims.length} settled`, { description: 'The rest are still held — open the position to try them again.' })
@@ -252,7 +253,8 @@ export function PositionsSurface({ open }: { open?: string }) {
           ]}
           disclosure={DISCLOSURE[review.group.venue]}
           confirmLabel={batch ? `Settle ${review.claims.length} claims` : `${DOOR_VERB[review.door]} now`}
-          onConfirm={() => void confirm()}
+          sponsor={{ kind: 'eligible' }}
+          onConfirm={(sponsored) => void confirm(sponsored)}
           busy={busy || progress !== null}
         >
           {batch ? (
