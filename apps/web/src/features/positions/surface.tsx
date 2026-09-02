@@ -27,10 +27,13 @@ import { GroupDialog } from './group-dialog'
 import { FINISHED_BODY, FINISHED_TITLE, HISTORY_CORRUPT } from './history-copy'
 import { HistoryList } from './history-list'
 import { PositionsList } from './positions-table'
+import { shareOf } from './receipt-describe'
 import { ReceiptSheet } from './receipt-sheet'
+import { ShareDialog } from './share-dialog'
 import { PositionsRollup } from './rollup'
 import { DOOR_VERB, doorAmount, settleDoor, useSettle, type SettleDoor } from './settle'
 import type { MarketReceipt } from '@strk20/protocol/position-history'
+import type { PositionShare } from '@strk20/protocol/position-share'
 
 import type { Claim, PositionGroup, PositionTab } from './types'
 import { useMarketHistory } from './use-history'
@@ -85,6 +88,7 @@ export function PositionsSurface({ open }: { open?: string }) {
   // Hidden while locked: a memory of bets is still a fact about the wallet on this screen.
   const history = useMarketHistory(now, session.status === 'ready')
   const [receipt, setReceipt] = useState<MarketReceipt | null>(null)
+  const [share, setShare] = useState<PositionShare | null>(null)
   const [tab, setTab] = useState<PositionTab>('all')
   const [openKey, setOpenKey] = useState<string | null>(open ?? null)
   const [seededFrom, setSeededFrom] = useState(open)
@@ -199,7 +203,15 @@ export function PositionsSurface({ open }: { open?: string }) {
           await removeReceipt(r.commitment)
           setReceipt(null)
         }}
+        onShare={(r) => {
+          const dto = shareOf(r, history.tokens)
+          if (dto) {
+            setReceipt(null)
+            setShare(dto)
+          }
+        }}
       />
+      <ShareDialog share={share} onOpenChange={(next) => (next ? undefined : setShare(null))} />
 
       <GroupDialog
         group={openGroup}

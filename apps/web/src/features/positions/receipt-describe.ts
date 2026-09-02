@@ -4,6 +4,8 @@ import { SIDE_UP } from '@strk20/protocol/market-calldata'
 import { BET_SIDE_DOWN, BET_SIDE_UP } from '@strk20/protocol/markets-copy'
 import type { MarketReceipt } from '@strk20/protocol/position-history'
 
+import { positionShareOf, type PositionShare } from '@strk20/protocol/position-share'
+
 import { formatWei, shortAddress } from '@/lib/format'
 import { findToken } from '@/queries'
 
@@ -42,3 +44,31 @@ export function receiptAmount(r: MarketReceipt, tokens?: TokenList): string | nu
   return `${formatWei(BigInt(amount), unit.decimals)} ${unit.symbol}`.trim()
 }
 
+
+/**
+ * The share DTO for a receipt, from named scalars — the receipt is never spread. `null` unless
+ * the chain has confirmed the opening (and the ending, when there is one) and the bet can be
+ * described in its own unit.
+ */
+export function shareOf(r: MarketReceipt, tokens: TokenList | undefined): PositionShare | null {
+  if (r.contract === null || r.snapshot === null || r.opening.state !== 'landed' || r.opening.txHash === null) return null
+  if (r.terminal && r.terminal.kind !== 'lost' && r.terminal.txHash === null) return null
+  const unit = receiptUnit(r, tokens)
+  return positionShareOf({
+    chainId: r.chainId,
+    contract: r.contract,
+    marketId: r.marketId,
+    pair: r.snapshot.pair,
+    side: r.side,
+    cashIn: r.cashIn,
+    token: r.token,
+    symbol: unit.symbol,
+    decimals: unit.decimals,
+    strike: r.snapshot.strike,
+    deadline: r.snapshot.deadline,
+    commitment: r.commitment,
+    openingTxHash: r.opening.txHash,
+    openingBlock: r.opening.block,
+    terminal: r.terminal ? { kind: r.terminal.kind, amount: r.terminal.amount, txHash: r.terminal.txHash, block: r.terminal.block } : null,
+  })
+}
