@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Sparkles } from 'lucide-react'
+import { Ticket } from 'lucide-react'
 import type { Allowance } from '@strk20/protocol/relayer-wire'
 
 import { useSession } from '@/app/session'
@@ -45,7 +45,7 @@ function Note({ children }: { children: ReactNode }) {
   return (
     <div className={cn(FRAME, 'bg-muted/40')}>
       <div className="flex items-start gap-2">
-        <Sparkles className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+        <Ticket className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
         <p className="text-body4 text-muted-foreground">{children}</p>
       </div>
     </div>
@@ -105,7 +105,7 @@ export function SponsorRow({ offer, allowance, loading, checked, onCheckedChange
   return (
     <label className={cn(FRAME, 'cursor-pointer items-center border-accent/40 bg-accent/5')}>
       <span className="flex items-center gap-2">
-        <Sparkles className="size-4 shrink-0 text-accent" />
+        <Ticket className="size-4 shrink-0 text-accent" />
         <span className="flex flex-col">
           <span className="text-body3">Use a sponsored transaction</span>
           <span className="text-body4 text-muted-foreground">

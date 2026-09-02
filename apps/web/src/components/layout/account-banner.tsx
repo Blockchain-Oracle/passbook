@@ -1,4 +1,4 @@
-import { CloudOff, Gift, Sparkles, TriangleAlert, Wallet, X } from 'lucide-react'
+import { CloudOff, Gift, Ticket, TriangleAlert, Wallet, X } from 'lucide-react'
 import { ALLOWANCE_SPENT_NOTICE } from '@strk20/protocol/relayer-wire'
 import {
   NEEDS_DRIP_BODY,
@@ -94,7 +94,7 @@ export function AccountBanner() {
 }
 
 interface View {
-  Icon: typeof Sparkles
+  Icon: typeof Ticket
   title: string
   body: string
   /** Absent when there is nothing to press — the sponsored count is news, not a task. */
@@ -126,7 +126,7 @@ function describe(need: AccountNeed): View {
       // "3 of 3 left", which reads like something already in progress.
       const title =
         remaining === of ? SPONSORED_OFFER : remaining <= 0 ? 'Sponsored transactions used' : `${remaining} of ${of} sponsored transactions left`
-      return { Icon: Sparkles, title, body: remaining <= 0 ? ALLOWANCE_SPENT_NOTICE : SPONSORED_OFFER_NOTE }
+      return { Icon: Ticket, title, body: remaining <= 0 ? ALLOWANCE_SPENT_NOTICE : SPONSORED_OFFER_NOTE }
     }
   }
 }
