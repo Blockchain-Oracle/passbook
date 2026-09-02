@@ -4,32 +4,25 @@
 // The header is plaintext on purpose: the lock screen draws addresses and labels, which are public.
 // Crypto parameters are frozen — existing vaults must keep opening.
 //
+// v1 (this file) seals the body directly under the password key. v2 (`vault-envelope.ts`) seals
+// it under a random VEK that a password and/or a passkey wrap. Both sit under one storage key and
+// `parseVault` tells them apart by `v`; a password-only wallet stays v1 for as long as it exists.
+//
 
 import { MIN_PASSWORD_LENGTH, type VaultError } from './password.js'
 import { SESSION_KEYS, type SessionStore } from './session-store.js'
+import { buffer, fromBase64, randomBytes, subtleOrNull, toBase64, utf8 } from './vault-bytes.js'
+import { parseVaultV2, VAULT_V2, type VaultV2 } from './vault-envelope.js'
+import { readHeader, type VaultHeader } from './vault-header.js'
+import { CIPHER_NAME, deriveKey, IV_BYTES, KDF_HASH, KDF_ITERATIONS, KDF_NAME, SALT_BYTES } from './vault-kdf.js'
 
-/** The vault format this build writes. A different one reads as unusable, never as absent. */
+export { deriveKey } from './vault-kdf.js'
+export { readHeader, type VaultHeader } from './vault-header.js'
+
+/** The password-only format this build writes. A different one reads as unusable, never as absent. */
 export const VAULT_VERSION = 1
 
-const KDF_ITERATIONS = 600_000 // OWASP floor; paid once, on a screen meant to pause
-const KDF_NAME = 'PBKDF2'
-const KDF_HASH = 'SHA-256'
-const CIPHER_NAME = 'AES-GCM'
-const AES_KEY_BITS = 256
-const SALT_BYTES = 16
-const IV_BYTES = 12
-
-/** The public half of a vault. Rendered by the locked screen; never secret. */
-export interface VaultHeader {
-  readonly active: string
-  readonly accounts: readonly {
-    readonly address: string
-    readonly label: string | null
-    readonly addedAt: number
-  }[]
-}
-
-/** What sits in storage under `SESSION_KEYS.vault`. */
+/** What sits in storage under `SESSION_KEYS.vault` for a password-only wallet. */
 export interface SealedVault {
   readonly v: typeof VAULT_VERSION
   readonly kdf: {
@@ -43,6 +36,9 @@ export interface SealedVault {
   /** base64 AES-GCM ciphertext of a serialized accounts record. */
   readonly body: string
 }
+
+/** Either format. Narrow on `v` — the header is the same shape in both. */
+export type StoredVault = SealedVault | VaultV2
 
 export type VaultResult<T> = { ok: true; value: T } | { ok: false; error: VaultError }
 
@@ -66,51 +62,7 @@ export interface OpenedVault {
 export type VaultRead =
   | { kind: 'absent' }
   | { kind: 'damaged'; reason: string }
-  | { kind: 'present'; vault: SealedVault }
-
-function subtleOrNull(): SubtleCrypto | null {
-  return globalThis.crypto?.subtle ?? null
-}
-
-function randomBytes(size: number): Uint8Array {
-  const bytes = new Uint8Array(size)
-  globalThis.crypto.getRandomValues(bytes)
-  return bytes
-}
-
-// btoa/atob: global in browsers and Node ≥ 16, so no Buffer creeps into the bundle.
-function toBase64(bytes: Uint8Array): string {
-  let binary = ''
-  for (const byte of bytes) binary += String.fromCharCode(byte)
-  return btoa(binary)
-}
-
-function fromBase64(value: string): Uint8Array {
-  if (!/^[A-Za-z0-9+/]+={0,2}$/.test(value)) throw new Error('not base64')
-  const binary = atob(value)
-  const bytes = new Uint8Array(binary.length)
-  for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i)
-  return bytes
-}
-
-// By COPY: `bytes.buffer` on a view would hand WebCrypto the whole backing allocation.
-function buffer(bytes: Uint8Array): ArrayBuffer {
-  const copy = new Uint8Array(bytes.length)
-  copy.set(bytes)
-  return copy.buffer
-}
-
-async function deriveKey(password: string, salt: Uint8Array, iterations: number, subtle: SubtleCrypto): Promise<CryptoKey> {
-  // Not extractable: a key the page can read back is one an XSS can read back.
-  const material = await subtle.importKey('raw', buffer(new TextEncoder().encode(password)), KDF_NAME, false, ['deriveKey'])
-  return subtle.deriveKey(
-    { name: KDF_NAME, salt: buffer(salt), iterations, hash: KDF_HASH },
-    material,
-    { name: CIPHER_NAME, length: AES_KEY_BITS },
-    false,
-    ['encrypt', 'decrypt'],
-  )
-}
+  | { kind: 'present'; vault: StoredVault }
 
 /** Seals under an already-derived key. A FRESH IV every time — reuse under one key is catastrophic. */
 export async function sealWithKey(plaintext: string, header: VaultHeader, vaultKey: VaultKey): Promise<VaultResult<SealedVault>> {
@@ -118,7 +70,7 @@ export async function sealWithKey(plaintext: string, header: VaultHeader, vaultK
   if (!subtle) return { ok: false, error: 'crypto-unavailable' }
   const iv = randomBytes(IV_BYTES)
   try {
-    const sealed = await subtle.encrypt({ name: CIPHER_NAME, iv: buffer(iv) }, vaultKey.key, buffer(new TextEncoder().encode(plaintext)))
+    const sealed = await subtle.encrypt({ name: CIPHER_NAME, iv: buffer(iv) }, vaultKey.key, buffer(utf8(plaintext)))
     return {
       ok: true,
       value: {
@@ -189,7 +141,7 @@ export async function openVault(vault: SealedVault, password: string): Promise<V
   }
 }
 
-export function serializeVault(vault: SealedVault): string {
+export function serializeVault(vault: StoredVault): string {
   return JSON.stringify(vault)
 }
 
@@ -203,8 +155,14 @@ export function parseVault(raw: string | null): VaultRead {
     return { kind: 'damaged', reason: `it is not JSON: ${String(e)}` }
   }
   if (!parsed || typeof parsed !== 'object') return { kind: 'damaged', reason: 'it is not an object' }
+  const version = (parsed as { v?: unknown }).v
+  if (version === VAULT_V2) return parseVaultV2(parsed)
+  if (version !== VAULT_VERSION) {
+    // A version this build has never heard of is a NEWER build's vault — say so, not "corrupt".
+    const newer = typeof version === 'number' && version > VAULT_V2
+    return { kind: 'damaged', reason: newer ? `it was locked by a newer strk20.run (format ${version})` : `the version is ${String(version)}, not ${VAULT_VERSION}` }
+  }
   const value = parsed as Partial<SealedVault>
-  if (value.v !== VAULT_VERSION) return { kind: 'damaged', reason: `the version is ${String(value.v)}, not ${VAULT_VERSION}` }
   if (typeof value.body !== 'string' || value.body === '') return { kind: 'damaged', reason: 'the sealed body is missing' }
   if (!value.kdf || typeof value.kdf.salt !== 'string') return { kind: 'damaged', reason: 'the key-derivation parameters are missing' }
   if (!value.cipher || typeof value.cipher.iv !== 'string') return { kind: 'damaged', reason: 'the cipher parameters are missing' }
@@ -213,29 +171,10 @@ export function parseVault(raw: string | null): VaultRead {
   return { kind: 'present', vault: { ...(value as SealedVault), header } }
 }
 
-// Strict: the header is the half an attacker can edit without breaking the GCM tag.
-function readHeader(value: unknown): VaultHeader | null {
-  if (!value || typeof value !== 'object') return null
-  const header = value as Partial<VaultHeader>
-  if (typeof header.active !== 'string' || header.active === '') return null
-  if (!Array.isArray(header.accounts) || header.accounts.length === 0) return null
-  const accounts: VaultHeader['accounts'][number][] = []
-  for (const entry of header.accounts) {
-    if (!entry || typeof entry !== 'object') return null
-    const account = entry as Partial<VaultHeader['accounts'][number]>
-    if (typeof account.address !== 'string' || account.address === '') return null
-    if (account.label !== null && typeof account.label !== 'string') return null
-    if (typeof account.addedAt !== 'number' || !Number.isFinite(account.addedAt)) return null
-    accounts.push({ address: account.address, label: account.label, addedAt: account.addedAt })
-  }
-  if (!accounts.some((a) => a.address === header.active)) return null
-  return { active: header.active, accounts }
-}
-
 /** Load, save and clear a vault over any `SessionStore`. */
 export interface VaultStore {
   load(): VaultRead
-  save(vault: SealedVault): void
+  save(vault: StoredVault): void
   clear(): void
 }
 

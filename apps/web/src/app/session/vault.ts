@@ -2,7 +2,7 @@
 // lock is a screen lock over a plaintext key (`LOCK_WHAT_IT_DOES`); with one, the accounts are
 // sealed at rest and the plaintext mirror is deleted (`LOCK_WHAT_IT_DOES_SEALED`).
 import { LOCK_NOT_SAVED, UNLOCK_DIFFERENT_IDENTITY } from '@strk20/protocol/account-copy'
-import type { SealedVault } from '@strk20/protocol/session-vault'
+import type { StoredVault } from '@strk20/protocol/session-vault'
 
 import { ensureBooted } from './boot'
 import { getSessionSnapshot, publishSession } from './store'
@@ -11,6 +11,9 @@ import { addressFor, getOpenVault, headerFor, loadRecord, loadTier, lockedSessio
 export type Outcome = { ok: true } | { ok: false; error: string }
 
 const refuse = (error: string): Outcome => ({ ok: false, error })
+
+// Placeholder until the passkey session tier lands: a v2 vault is readable but not yet openable here.
+const V2_NOT_YET = 'This wallet is sealed by a passkey, which this build cannot open yet.'
 
 /** Drops the key out of this page. Synchronous: the snapshot changes before the caller returns. */
 export function lock(): void {
@@ -40,7 +43,8 @@ export function lock(): void {
   })
 }
 
-async function unseal(t: Tier, vault: SealedVault, password: string): Promise<Outcome> {
+async function unseal(t: Tier, vault: StoredVault, password: string): Promise<Outcome> {
+  if (vault.v !== 1) return refuse(V2_NOT_YET)
   const opened = await t.protocol.openVault(vault, password)
   if (!opened.ok) return refuse(t.protocol.VAULT_ERROR_TEXT[opened.error])
   const read = t.protocol.parseStoredAccounts(opened.value.plaintext)
@@ -119,8 +123,8 @@ export async function setPassword(password: string): Promise<Outcome> {
   if (echo.kind !== 'present') {
     return refuse('The password could not be saved in this browser, so nothing was changed and your wallet is still unprotected.')
   }
-  const reopened = await t.protocol.openVault(echo.vault, password)
-  if (!reopened.ok) {
+  const reopened = echo.vault.v === 1 ? await t.protocol.openVault(echo.vault, password) : null
+  if (!reopened?.ok) {
     return refuse('The password was saved but could not be used to reopen the wallet, so nothing was deleted. Try again.')
   }
   t.protocol.clearPlaintextKeys(t.store)
@@ -135,6 +139,7 @@ export async function removePassword(password: string): Promise<Outcome> {
   const t = await loadTier()
   const sealed = t.vaults.load()
   if (sealed.kind !== 'present') return refuse('This wallet has no password to remove.')
+  if (sealed.vault.v !== 1) return refuse(V2_NOT_YET)
   const opened = await t.protocol.openVault(sealed.vault, password)
   if (!opened.ok) return refuse(t.protocol.VAULT_ERROR_TEXT[opened.error])
   const read = t.protocol.parseStoredAccounts(opened.value.plaintext)

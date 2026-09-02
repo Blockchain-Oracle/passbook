@@ -17,6 +17,7 @@ export type VaultError =
   | 'crypto-unavailable'
   | 'damaged'
   | 'password-too-short'
+  | 'unopenable'
   | 'unsupported-version'
   | 'wrong-password'
 
@@ -27,6 +28,8 @@ export const VAULT_ERROR_TEXT: Record<VaultError, string> = {
   damaged:
     'The locked wallet in this browser could not be read. Your Recovery File still opens this account.',
   'password-too-short': `Use at least ${MIN_PASSWORD_LENGTH} characters.`,
+  // A passkey wrapper that will not open: a wrong key and a flipped bit look the same to GCM.
+  unopenable: 'The sealed copy could not be opened with this passkey. Your Recovery File still opens this account.',
   'unsupported-version':
     'This wallet was locked by a newer version of strk20.run. Update the page, or open it with your Recovery File.',
   'wrong-password': 'That password does not open this wallet.',
