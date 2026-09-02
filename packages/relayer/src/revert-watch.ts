@@ -27,6 +27,10 @@
 import type { SponsorshipLedger } from './sponsorship.js'
 import { atomicWriteJson } from './sponsorship-store.js'
 import { readFileSync } from 'node:fs'
+// The receipt verdict is the browser's too (position history reads it) — one definition, in protocol.
+import { receiptOutcome, type ReceiptOutcome as Outcome } from '../../protocol/src/market-events.js'
+
+export { receiptOutcome }
 
 /** How often the pending set is swept. Mainnet blocks are ~2 s; this is one sweep per two blocks. */
 export const REVERT_WATCH_INTERVAL_MS = 4_000
@@ -80,20 +84,6 @@ export interface RevertWatchOptions {
   deadlineMs?: number
   now?: () => number
   log?: (line: string) => void
-}
-
-type Outcome = 'reverted' | 'succeeded' | 'pending'
-
-/**
- * Reads a receipt's verdict off the loose wire shape. Anything that is not one of the two stated
- * execution statuses is `pending` — an unknown status is a receipt we do not understand, and
- * guessing "reverted" there would refund against a transaction that may have succeeded.
- */
-export function receiptOutcome(receipt: unknown): Outcome {
-  const status = (receipt as { execution_status?: unknown } | null)?.execution_status
-  if (status === 'REVERTED') return 'reverted'
-  if (status === 'SUCCEEDED') return 'succeeded'
-  return 'pending'
 }
 
 /** Keeps only entries that are shaped like watches, so a hand-edited file loses rows, not the boot. */

@@ -56,6 +56,13 @@ export const SESSION_KEYS = {
    */
   positionSecrets: 'passbook.position-secrets',
   /**
+   * What each Markets bet became — landed, won, lost, sold back, reverted — with its transactions
+   * (`position-history.ts`). A memory, not money: no secret is ever in it, and clearing it loses
+   * nothing claimable. Kept because `settle.ts` retires the secret on success and the row used to
+   * vanish with it.
+   */
+  positionHistory: 'passbook.position-history',
+  /**
    * The password-sealed accounts record (`session-vault.ts`). When a password is set, `accounts`
    * and its `accountKey` mirror are DELETED and this is what is left. Not mandatory, and must not
    * become so: forcing a password onto the cold open would put a form in front of browsing.

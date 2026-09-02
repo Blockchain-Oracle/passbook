@@ -181,6 +181,13 @@ export interface PositionStore {
   add(position: StoredPosition): void
   /** Drops one by commitment, once it has been claimed and can never be claimed again. */
   remove(commitment: string): void
+  /**
+   * Changes the public fields of one position IN PLACE, in ONE write. Remove-then-add was two
+   * writes, and a quota throw between them lost the secret — on exactly the path (a transaction
+   * whose confirmation is unknown) where the secret matters most. The secret and commitment
+   * cannot be patched: a patched secret is a different position.
+   */
+  patch(commitment: string, patch: Partial<Pick<StoredPosition, 'label' | 'txHash' | 'id' | 'kind' | 'houseId'>>): void
   /** Everything, as a plain object for the backup ceremony to serialise. */
   backupPayload(): { version: number; positions: StoredPosition[] }
 }
@@ -210,6 +217,16 @@ export function sessionPositionStore(store: SessionStore): PositionStore {
     remove(commitment) {
       const kept = list().filter((p) => BigInt(p.commitment) !== BigInt(commitment))
       store.write(SESSION_KEYS.positionSecrets, serializePositions(kept))
+    },
+    patch(commitment, patch) {
+      const next = list().map((p) => {
+        if (BigInt(p.commitment) !== BigInt(commitment)) return p
+        const { label, txHash, id, kind, houseId } = { ...p, ...patch }
+        const merged: StoredPosition = { ...p, ...(label !== undefined ? { label } : {}), ...(txHash !== undefined ? { txHash } : {}), id, ...(kind !== undefined ? { kind } : {}), ...(houseId !== undefined ? { houseId } : {}) }
+        if (!isPosition(merged)) throw new Error('refusing a patch that would leave a position malformed')
+        return merged
+      })
+      store.write(SESSION_KEYS.positionSecrets, serializePositions(next))
     },
     backupPayload: () => ({ version: POSITION_RECORD_VERSION, positions: list() }),
   }

@@ -1,5 +1,6 @@
 // The activity tape: the app contracts' event selectors and one raw event → one tape row.
 import type { TapeItem } from '../../protocol/src/chain-feed-wire.js'
+import { MARKET_EVENT_KEY } from '../../protocol/src/market-events.js'
 
 export type TapeSource = 'markets' | 'launch' | 'governance'
 
@@ -7,11 +8,8 @@ export type TapeSource = 'markets' | 'launch' | 'governance'
 export const EVENT_KEY = {
   MarketCreated: '0x15d762f1fc581b3e684cf095d93d3a2c10754f60124b09bec8bf3d76473baaf',
   MarketOpened: '0x2e072842f8f83a92799cd84b0eb595d776651e5351915cc6c69fa54f79dc7c7',
-  BetPlaced: '0x3714964c81efee0fe58ac4504b7913e0e777e5d0f90ab45fc44568dd4ca88c1',
-  MarketResolved: '0x3a69063a7ce6bf68928eda97af8f80e63b16ada5f75dacc66f432ab2683963',
-  MarketVoided: '0x22e796813637e01cc55546e5af27911e667117f1ddf02dad9709e6194aeb423',
-  Claimed: '0x35cc0235f835cc84da50813dc84eb10a75e24a21d74d6d86278c0f037cb7429',
-  CashedOut: '0x1e27bebcd46bc944065dc93e3f3b8d71b4ffe68d6cfca1ee14301239a41b01f',
+  // The five the browser reconciles positions with live in protocol — one source of truth.
+  ...MARKET_EVENT_KEY,
   LaunchCreated: '0x357d68fbe7a6a30028c88b1094efd4614d9eed65cf27f0d40da9c405a629a12',
   Bought: '0x20cb8131637de1953a75938db3477cc6b648e5ed255f5b3fe3f0fb9299f0afc',
   Graduated: '0x36c2bc6e1f3df003a7f84d1a6f715017a63a49e4cf2f4d6c448a3b271423543',
