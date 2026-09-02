@@ -5,7 +5,7 @@ import { useRefusal } from '@/components/money/refusal'
 import { insufficient, parseAmountInput, toPlainText } from '@strk20/protocol/amount'
 import { MARKET_STATE, marketQuestion, type OnChainMarket } from '@strk20/protocol/app-reads'
 import { disclosureFor } from '@strk20/protocol/disclosure'
-import { MARKET_OP, SIDE_DOWN, SIDE_UP, betPayload } from '@strk20/protocol/market-calldata'
+import { SIDE_DOWN, SIDE_UP } from '@strk20/protocol/market-calldata'
 import { payoutMultiple } from '@strk20/protocol/market-math'
 import { BET_PRICE_LOCKS, BET_SIDE_DOWN, BET_SIDE_UP, openingStakeLine } from '@strk20/protocol/markets-copy'
 
@@ -17,13 +17,12 @@ import { ReviewSheet } from '@/components/money/review-sheet'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
-import { sendProblem, sendTransactionHash, useSend } from '@/mutations'
 import { appContracts } from '@/queries'
 import { cn } from '@/lib/utils'
 import { formatWei } from '@/lib/format'
 import { formatPrice } from '@strk20/protocol/pragma-pairs'
-import { addStoredPosition, relabelStoredPosition, removeStoredPosition } from '@/queries/positions'
 import { betQuoteQuery } from './queries'
+import { usePlaceBet } from './use-place-bet'
 import { useStake } from './use-stake'
 
 export interface BetTicketProps {
@@ -44,7 +43,7 @@ export function BetTicket({ market, spot = null, open, onOpenChange, initialSide
   const [reviewing, setReviewing] = useState(false)
   const { refusal, refuse, clear: clearRefusal } = useRefusal()
   const stake = useStake(market.token)
-  const send = useSend()
+  const { placeBet, busy } = usePlaceBet()
   const contract = appContracts().markets
 
   const parsed = parseAmountInput(raw, stake.decimals)
@@ -89,46 +88,24 @@ export function BetTicket({ market, spot = null, open, onOpenChange, initialSide
 
   const confirm = async (sponsored: boolean) => {
     if (!contract || parsed.wei === null) return
-    const { mintPositionSecret } = await import('@strk20/protocol/commitment')
-    const minted = mintPositionSecret()
-    const payload = betPayload([{ marketId: market.id, side, amount: parsed.wei, commitment: minted.commitment }])
-    if (payload.state === 'refused') {
-      refuse(payload.because)
-      return
-    }
-    // The secret IS the position. Written first, so a landed bet can never outrun its record.
-    await addStoredPosition({
-      venue: 'market',
-      kind: 'market-bet',
-      id: market.id,
-      secret: minted.secret,
-      commitment: minted.commitment,
-      createdAt: Date.now(),
-      label: `${sideWord} · ${marketQuestion(market)} · ${stakeText} ${stake.symbol}`,
-    })
-    const result = await send.mutateAsync({
-      kind: 'market-bet',
-      sponsored,
-      recipient: contract,
-      token: market.token,
-      symbol: stake.symbol,
+    const outcome = await placeBet({
+      contract,
+      market,
+      side,
       amount: parsed.wei,
-      surface: 'markets',
-      app: { contract, op: MARKET_OP.bet, calldata: [...payload.calldata], noteIdSlots: [...payload.noteIdSlots], openNoteCount: 0 },
+      symbol: stake.symbol,
+      decimals: stake.decimals,
+      label: `${sideWord} · ${marketQuestion(market)} · ${stakeText} ${stake.symbol}`,
+      sponsored,
     })
-    if (result.ok) {
-      await relabelStoredPosition(minted.commitment, { txHash: result.transactionHash })
-      notify.settled('Position open', { description: POSITION_OPEN_DETAIL, hash: sendTransactionHash(result) })
+    if (outcome.ok) {
+      notify.settled('Position open', { description: POSITION_OPEN_DETAIL, hash: outcome.transactionHash })
       setReviewing(false)
       onOpenChange(false)
       setRaw('')
       return
     }
-    // Nothing reached the chain → the record names a position that never existed. A hash or an
-    // unknown confirmation means it may have landed, so the secret stays.
-    const mayHaveLanded = result.failure.kind === 'confirmation-unknown' || 'transactionHash' in result.failure
-    if (!mayHaveLanded) await removeStoredPosition(minted.commitment)
-    refuse(sendProblem(result) ?? 'The bet could not be placed.', sendTransactionHash(result))
+    refuse(outcome.problem, outcome.hash)
   }
 
   return (
@@ -229,7 +206,7 @@ export function BetTicket({ market, spot = null, open, onOpenChange, initialSide
         confirmLabel={`Back ${sideWord}`}
         sponsor={{ kind: 'eligible' }}
         onConfirm={(sponsored) => void confirm(sponsored)}
-        busy={send.isPending}
+        busy={busy}
         blocker={blocker}
         problem={refusal}
       />

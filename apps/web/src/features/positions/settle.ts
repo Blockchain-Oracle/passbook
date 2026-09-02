@@ -17,6 +17,7 @@ import { formatWei } from '@/lib/format'
 import { notify } from '@/lib/notify'
 import { sendProblem, sendTransactionHash, useSend, type SendAsk } from '@/mutations'
 import { appContracts } from '@/queries'
+import { recordTerminal } from '@/queries/position-history'
 import { removeStoredPosition } from '@/queries/positions'
 
 import type { Claim, PositionGroup } from './types'
@@ -136,11 +137,13 @@ function build(claim: Claim, group: PositionGroup, door: SettleDoor): Built {
   }
 }
 
-export interface SettleOutcome {
-  ok: boolean
-}
+export type SettleOutcome = { ok: true; transactionHash: string } | { ok: false }
 
-/** One settlement. The stored secret is forgotten only on a result that actually landed. */
+/**
+ * One settlement. The stored secret is forgotten only on a result that actually landed — and a
+ * market bet's receipt is told what happened BEFORE the secret goes, so the memory is durable
+ * before the money moves out of reach.
+ */
 export function useSettle() {
   const send = useSend()
   const run = useMutation({
@@ -159,12 +162,15 @@ export function useSettle() {
         })
         return { ok: false }
       }
+      if (group.venue === 'market') {
+        await recordTerminal(claim.position.commitment, door === 'cashout' ? 'cashed-out' : 'claimed', result.transactionHash, result.sendBlock, claim.life.amount)
+      }
       await removeStoredPosition(claim.position.commitment)
       notify.settled(DOOR_DONE[door], {
         description: `${doorAmount(claim)} matured into your shielded balance as a fresh note.`,
         hash: sendTransactionHash(result),
       })
-      return { ok: true }
+      return { ok: true, transactionHash: result.transactionHash }
     },
   })
   return { settle: run.mutateAsync, busy: run.isPending || send.isPending }

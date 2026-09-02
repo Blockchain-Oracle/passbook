@@ -48,12 +48,11 @@ export async function removeStoredPosition(commitment: string): Promise<void> {
   await queryClient.invalidateQueries({ queryKey: POSITIONS_KEY })
 }
 
-/** Rewrites a create-time sentinel (`id: -1`) or attaches the hash once the chain answered. */
-export async function relabelStoredPosition(commitment: string, patch: Partial<StoredPosition>): Promise<void> {
-  const s = await positionStore()
-  const held = s.list().find((p) => BigInt(p.commitment) === BigInt(commitment))
-  if (!held) return
-  s.remove(commitment)
-  s.add({ ...held, ...patch })
+/**
+ * Rewrites a create-time sentinel (`id: -1`) or attaches the hash once the chain answered. ONE
+ * write, in place: the remove-then-add it replaced could lose the secret between its two writes.
+ */
+export async function patchStoredPosition(commitment: string, patch: Parameters<PositionStore['patch']>[1]): Promise<void> {
+  ;(await positionStore()).patch(commitment, patch)
   await queryClient.invalidateQueries({ queryKey: POSITIONS_KEY })
 }

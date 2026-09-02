@@ -42,6 +42,8 @@ function contractDefines(): Record<string, string> {
     }
   }
   wire('VITE_APP_MARKETS_ADDRESS', field('MarketsV2', 'contractAddress') ?? field('Markets', 'contractAddress'))
+  // The superseded deployment, only while a newer one stands: a position placed there still resolves.
+  wire('VITE_APP_MARKETS_V1_ADDRESS', field('MarketsV2', 'contractAddress') ? field('Markets', 'contractAddress') : undefined)
   wire('VITE_APP_LAUNCH_ADDRESS', field('Launch', 'contractAddress'))
   wire('VITE_APP_PRAGMA_ADDRESS', evidence.pragma)
   wire('VITE_APP_GOVERNANCE_ADDRESS', field('Governance', 'contractAddress'))

@@ -19,7 +19,7 @@ import { sendProblem, sendTransactionHash, useSend } from '@/mutations'
 import { shortAddress } from '@/lib/format'
 import { govLeg, houseTitle, mayHaveLanded } from './gov-send'
 import { useDoorGate, type DoorProps } from './house-doors'
-import { addStoredPosition, relabelStoredPosition, removeStoredPosition } from '@/queries/positions'
+import { addStoredPosition, patchStoredPosition, removeStoredPosition } from '@/queries/positions'
 import { useHouseToken } from './use-house-token'
 
 /**
@@ -92,7 +92,7 @@ export function DelegateDialog({ house, open, onOpenChange, initialDelegate }: D
       app: govLeg(gate.contract, GOV_OP.delegate, payload, { via: 'compute' }),
     })
     if (result.ok) {
-      await relabelStoredPosition(escrow.commitment, { txHash: result.transactionHash })
+      await patchStoredPosition(escrow.commitment, { txHash: result.transactionHash })
       notify.settled('Weight delegated', {
         description: 'Revoke it any time from your positions — the escrow comes back as a fresh note.',
         hash: sendTransactionHash(result),

@@ -19,7 +19,7 @@ import { sendProblem, sendTransactionHash, useSend } from '@/mutations'
 import { appContracts, governanceWrites } from '@/queries'
 import { cn } from '@/lib/utils'
 import { govLeg, mayHaveLanded, proposalTitle } from './gov-send'
-import { addStoredPosition, relabelStoredPosition, removeStoredPosition } from '@/queries/positions'
+import { addStoredPosition, patchStoredPosition, removeStoredPosition } from '@/queries/positions'
 import { useHouseToken } from './use-house-token'
 
 export interface BallotTicketProps {
@@ -137,7 +137,7 @@ export function BallotTicket({ house, proposal, open, onOpenChange, initialChoic
       app: govLeg(contract, GOV_OP.ballot, payload, { via: 'compute' }),
     })
     if (result.ok) {
-      if (escrow) await relabelStoredPosition(escrow.commitment, { txHash: result.transactionHash })
+      if (escrow) await patchStoredPosition(escrow.commitment, { txHash: result.transactionHash })
       notify.settled('Ballot cast', { description: CAST_DETAIL, hash: sendTransactionHash(result) })
       setReviewing(false)
       onOpenChange(false)

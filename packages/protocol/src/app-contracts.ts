@@ -28,6 +28,8 @@
 export interface AppContracts {
   /** The Markets contract. Absent until deployed. */
   markets?: string
+  /** The superseded Markets deployment, kept readable so a position placed there still resolves. */
+  marketsV1?: string
   /** The Launch contract. Absent until deployed. */
   launch?: string
   /**
@@ -135,8 +137,11 @@ export function parseAppContracts(raw: string | null | undefined): AppContracts 
   const contracts: AppContracts = {}
 
   // v2 (standing series) when it has been deployed; the v1 record stays for its history.
-  const markets = nested(record, 'MarketsV2', 'contractAddress') ?? nested(record, 'Markets', 'contractAddress')
+  const marketsV2 = nested(record, 'MarketsV2', 'contractAddress')
+  const marketsV1 = nested(record, 'Markets', 'contractAddress')
+  const markets = marketsV2 ?? marketsV1
   if (markets) contracts.markets = markets
+  if (marketsV2 && marketsV1) contracts.marketsV1 = marketsV1
 
   const launch = nested(record, 'Launch', 'contractAddress')
   if (launch) contracts.launch = launch
@@ -166,6 +171,8 @@ export function appContractsFromEnv(env: Record<string, string | undefined>): Ap
   const contracts: AppContracts = {}
   const markets = address(env.APP_MARKETS_ADDRESS)
   if (markets) contracts.markets = markets
+  const marketsV1 = address(env.APP_MARKETS_V1_ADDRESS)
+  if (marketsV1 && markets && marketsV1 !== markets) contracts.marketsV1 = marketsV1
   const launch = address(env.APP_LAUNCH_ADDRESS)
   if (launch) contracts.launch = launch
   const pragma = address(env.APP_PRAGMA_ADDRESS)

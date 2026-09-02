@@ -7,7 +7,7 @@ import { getSessionSnapshot } from '@/app/session'
 import { RelayerError, relayerPost } from '@/lib/relayer'
 import { hex, invalidateVenues, invokeSponsoredOrDirect } from '@/mutations'
 import { appContracts, governanceWrites } from '@/queries'
-import { addStoredPosition, relabelStoredPosition, removeStoredPosition } from '@/queries/positions'
+import { addStoredPosition, patchStoredPosition, removeStoredPosition } from '@/queries/positions'
 
 export interface CreateHouseAsk {
   name: string
@@ -79,11 +79,11 @@ async function createHouse(ask: CreateHouseAsk): Promise<CreateHouseOutcome> {
     ask.sponsored,
   )
   if (outcome.ok) {
-    await relabelStoredPosition(creator.commitment, { txHash: outcome.transactionHash })
+    await patchStoredPosition(creator.commitment, { txHash: outcome.transactionHash })
     return { ok: true, transactionHash: outcome.transactionHash, inviteSecret: door?.secret ?? null }
   }
   // Only a refusal with nothing broadcast frees the claim; confirmation-unknown keeps it.
-  if (outcome.transactionHash) await relabelStoredPosition(creator.commitment, { txHash: outcome.transactionHash })
+  if (outcome.transactionHash) await patchStoredPosition(creator.commitment, { txHash: outcome.transactionHash })
   else await removeStoredPosition(creator.commitment)
   return outcome
 }

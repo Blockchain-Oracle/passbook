@@ -8,7 +8,7 @@ import { STRK_TOKEN } from '@strk20/protocol/constants'
 import { getSessionSnapshot } from '@/app/session'
 import { invalidateVenues, invokeSponsoredOrDirect, type DirectOutcome } from '@/mutations'
 import { appContracts } from '@/queries'
-import { addStoredPosition, relabelStoredPosition, removeStoredPosition } from '@/queries/positions'
+import { addStoredPosition, patchStoredPosition, removeStoredPosition } from '@/queries/positions'
 
 export interface CreateLaunchAsk {
   name: string
@@ -74,7 +74,7 @@ async function createLaunch(ask: CreateLaunchAsk): Promise<CreateLaunchOutcome> 
     ask.sponsored,
   )
   // A hash — confirmed or unknown — keeps the claim; only a refusal that broadcast nothing frees it.
-  if (outcome.transactionHash) await relabelStoredPosition(minted.commitment, { txHash: outcome.transactionHash })
+  if (outcome.transactionHash) await patchStoredPosition(minted.commitment, { txHash: outcome.transactionHash })
   else await removeStoredPosition(minted.commitment)
   return outcome
 }

@@ -21,7 +21,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { formatWei } from '@/lib/format'
 import { sendProblem, sendTransactionHash, useSend } from '@/mutations'
 import { appContracts, poolConstantsQuery } from '@/queries'
-import { addStoredPosition, relabelStoredPosition, removeStoredPosition } from '@/queries/positions'
+import { addStoredPosition, patchStoredPosition, removeStoredPosition } from '@/queries/positions'
 import { useStrkStake } from './use-stake'
 
 const WINDOWS = [
@@ -112,7 +112,7 @@ export function CreateMarketDialog({ open, onOpenChange, prices }: CreateMarketD
       app: { contract, op: MARKET_OP.create, calldata: [...payload.calldata], noteIdSlots: [...payload.noteIdSlots], openNoteCount: 0 },
     })
     if (result.ok) {
-      await relabelStoredPosition(minted.commitment, { txHash: result.transactionHash })
+      await patchStoredPosition(minted.commitment, { txHash: result.transactionHash })
       notify.settled('Market open', { description: 'The first bet in it sets the odds.', hash: sendTransactionHash(result) })
       setReviewing(false)
       onOpenChange(false)

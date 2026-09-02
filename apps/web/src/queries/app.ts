@@ -9,6 +9,7 @@ let contracts: AppContracts | null = null
 export function appContracts(): AppContracts {
   contracts ??= appContractsFromEnv({
     APP_MARKETS_ADDRESS: import.meta.env.VITE_APP_MARKETS_ADDRESS,
+    APP_MARKETS_V1_ADDRESS: import.meta.env.VITE_APP_MARKETS_V1_ADDRESS,
     APP_LAUNCH_ADDRESS: import.meta.env.VITE_APP_LAUNCH_ADDRESS,
     APP_PRAGMA_ADDRESS: import.meta.env.VITE_APP_PRAGMA_ADDRESS,
     APP_GOVERNANCE_ADDRESS: import.meta.env.VITE_APP_GOVERNANCE_ADDRESS,
