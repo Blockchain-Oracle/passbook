@@ -8,6 +8,7 @@
 import { queryOptions, skipToken } from '@tanstack/react-query'
 import { MARKET_STATE, type OnChainMarket } from '@strk20/protocol/app-reads'
 import { NET } from '@strk20/protocol/constants'
+import { marketPositionAction } from '@strk20/protocol/position-actions'
 import type { HistoryStore, MarketReceipt, TerminalKind } from '@strk20/protocol/position-history'
 
 import { queryClient } from '@/app/query-client'
@@ -141,6 +142,10 @@ export async function removeReceipt(commitment: string): Promise<void> {
 export interface ChainFacts {
   contract?: string
   legacyUnknown?: true
+  /** The bet's own facts off its `BetPlaced` event, for a row seeded before history existed. */
+  bet?: { side: number; cashIn: string; marketId: number }
+  /** The market's facts off `get_market`, for a row with no snapshot. Symbol and decimals are the token list's, at render. */
+  market?: { pair: string; strike: string; deadline: number; token: string }
   opening?: { state: 'landed' | 'reverted'; txHash: string | null; block: number | null }
   terminal?: { kind: TerminalKind; txHash: string | null; block: number | null; amount: string | null; source: 'receipt' | 'storage' | 'events' }
 }
@@ -168,11 +173,10 @@ export function receiptReconcileQuery(receipt: MarketReceipt, market: OnChainMar
 }
 
 async function reconcile(receipt: MarketReceipt, market: OnChainMarket | null, current: string, superseded: string | null, nowMs: number): Promise<ChainFacts> {
-  const [{ defaultTransport }, events, { readMarketPosition }, { marketPositionAction }] = await Promise.all([
+  const [{ defaultTransport, readMarket }, events, { readMarketPosition }] = await Promise.all([
     import('@strk20/protocol/app-reads'),
     import('@strk20/protocol/market-events'),
     import('@strk20/protocol/position-reads'),
-    import('@strk20/protocol/position-actions'),
   ])
   const facts: ChainFacts = {}
   const { commitment } = receipt
@@ -201,11 +205,14 @@ async function reconcile(receipt: MarketReceipt, market: OnChainMarket | null, c
       const verdict = events.receiptOutcome(rc)
       if (verdict === 'reverted') return { ...facts, opening: { state: 'reverted', txHash: opening.txHash, block: events.receiptBlock(rc) } }
       if (verdict === 'succeeded') {
-        const placed = events.receiptEvents(rc).some((e) => {
-          const bet = events.decodeBetPlaced(e, contract!)
-          return bet !== null && events.sameFelt(bet.commitment, commitment)
-        })
-        if (placed) facts.opening = { state: 'landed', txHash: opening.txHash, block: events.receiptBlock(rc) }
+        const placed = events
+          .receiptEvents(rc)
+          .map((e) => events.decodeBetPlaced(e, contract!))
+          .find((bet) => bet !== null && events.sameFelt(bet.commitment, commitment))
+        if (placed) {
+          facts.opening = { state: 'landed', txHash: opening.txHash, block: events.receiptBlock(rc) }
+          if (receipt.side < 0) facts.bet = { side: placed.side, cashIn: BigInt(placed.amount).toString(), marketId: placed.marketId }
+        }
       }
     } catch {
       // Unreachable, or a hash no host knows yet: no verdict is no change.
@@ -213,22 +220,53 @@ async function reconcile(receipt: MarketReceipt, market: OnChainMarket | null, c
   }
 
   // (b) Storage: the position and its market. `lost` comes from the one existing derivation.
-  if (!receipt.terminal) {
+  if (!receipt.terminal || !opening.txHash) {
     position ??= await readMarketPosition(contract, commitment)
+  }
+  if (!receipt.terminal && position) {
     if (position.state === events.POS_STATE.claimed) {
       facts.terminal = { kind: 'spent-elsewhere', txHash: null, block: null, amount: null, source: 'storage' }
     } else if (position.state === events.POS_STATE.open) {
       if (!facts.opening && (opening.state === 'intent' || opening.state === 'unknown')) facts.opening = { state: 'landed', txHash: opening.txHash, block: null }
-      if (market) {
+      // A window long off the board still answers `get_market`; the list is only the cheap path.
+      const m = market ?? (await readMarket(contract, receipt.marketId).catch(() => null))
+      if (m) {
         const action = marketPositionAction({
           positionOpen: true,
-          marketState: market.state === MARKET_STATE.active ? 'active' : market.state === MARKET_STATE.resolved ? 'resolved' : 'voided',
-          beforeDeadline: nowMs < market.deadline * 1000,
+          marketState: m.state === MARKET_STATE.active ? 'active' : m.state === MARKET_STATE.resolved ? 'resolved' : 'voided',
+          beforeDeadline: nowMs < m.deadline * 1000,
           cashoutQuote: position.cashoutQuote,
           claimPreview: position.claimPreview,
         })
         if (action.kind === 'lost') facts.terminal = { kind: 'lost', txHash: null, block: null, amount: null, source: 'storage' }
       }
+    }
+  }
+
+  if (!receipt.snapshot && position && position.state !== events.POS_STATE.none) {
+    const m = market ?? (await readMarket(contract, position.marketId).catch(() => null))
+    if (m) facts.market = { pair: m.pair, strike: m.strike.toString(), deadline: m.deadline, token: m.token }
+  }
+
+  // (b′) A row with no opening hash at all: `BetPlaced` is keyed by market id, and storage just
+  // said which market, so one bounded read recovers the opening transaction and the bet's facts.
+  if (!opening.txHash && !facts.opening && position && position.state !== events.POS_STATE.none) {
+    try {
+      const page = (await defaultTransport('starknet_getEvents', [
+        { from_block: { block_number: events.MARKETS_EVENTS_FLOOR_BLOCK }, to_block: 'latest', address: contract, keys: [[events.MARKET_EVENT_KEY.BetPlaced], [`0x${position.marketId.toString(16)}`]], chunk_size: 1000 },
+      ])) as { events?: unknown[]; continuation_token?: string } | null
+      if (page && Array.isArray(page.events) && !page.continuation_token) {
+        for (const raw of page.events) {
+          const bet = events.decodeBetPlaced(raw as Parameters<typeof events.decodeBetPlaced>[0], contract)
+          if (bet && events.sameFelt(bet.commitment, commitment)) {
+            facts.opening = { state: 'landed', txHash: bet.txHash, block: bet.block }
+            if (receipt.side < 0) facts.bet = { side: bet.side, cashIn: BigInt(bet.amount).toString(), marketId: bet.marketId }
+            break
+          }
+        }
+      }
+    } catch {
+      // No answer is no change.
     }
   }
 
@@ -245,7 +283,7 @@ async function reconcile(receipt: MarketReceipt, market: OnChainMarket | null, c
         for (const raw of page.events) {
           const t = events.decodeTerminal(raw as Parameters<typeof events.decodeTerminal>[0], contract, commitment)
           if (t) {
-            facts.terminal = { kind: t.kind, txHash: t.txHash, block: t.block, amount: t.amount, source: 'events' }
+            facts.terminal = { kind: t.kind, txHash: t.txHash, block: t.block, amount: BigInt(t.amount).toString(), source: 'events' }
             break
           }
         }
@@ -262,6 +300,8 @@ export function applyFacts(r: MarketReceipt, facts: ChainFacts): MarketReceipt {
   let next = r
   const now = Date.now()
   if (facts.contract && next.contract !== facts.contract) next = { ...next, contract: facts.contract }
+  if (facts.bet && next.side < 0) next = { ...next, side: facts.bet.side, cashIn: facts.bet.cashIn, marketId: facts.bet.marketId }
+  if (facts.market && !next.snapshot) next = { ...next, token: facts.market.token, snapshot: { pair: facts.market.pair, strike: facts.market.strike, deadline: facts.market.deadline, symbol: '', decimals: null } }
   if (facts.opening && (next.opening.state !== facts.opening.state || next.opening.block !== facts.opening.block)) {
     next = { ...next, opening: { ...next.opening, ...facts.opening, observedAt: now } }
   }

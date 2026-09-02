@@ -6,141 +6,29 @@
 // than opening a second read of the same position. Nothing here decides a door — the venues'
 // `*PositionAction` reducers do, and `positionLifecycle` puts one vocabulary over all three.
 //
+// A market position whose receipt already has an ending is NOT a claim any more: its row lives in
+// history, and its retained secret (a lost bet keeps one) is not polled on every invalidation.
+//
 import { useQueries, useQuery } from '@tanstack/react-query'
 import { useMemo } from 'react'
-import { MARKET_STATE, marketQuestion, timeLeft, type OnChainLaunch, type OnChainMarket } from '@strk20/protocol/app-reads'
+import { MARKET_STATE, marketQuestion } from '@strk20/protocol/app-reads'
 import { PROPOSAL_STATE, type OnChainHouse } from '@strk20/protocol/governance-reads'
 import { governancePositionAction, launchPositionAction, marketPositionAction } from '@strk20/protocol/position-actions'
-import { positionLifecycle, type PositionLifecycle, type PositionTone } from '@strk20/protocol/position-lifecycle'
+import { positionLifecycle, type PositionTone } from '@strk20/protocol/position-lifecycle'
 import type { StoredPosition } from '@strk20/protocol/session-position-store'
 
 import { houseTitle } from '@/features/houses/gov-send'
 import { launchStateWord } from '@/features/launch/phase'
-import { shortAddress } from '@/lib/format'
-import {
-  findToken,
-  governanceWrites,
-  housesQuery,
-  launchPositionQuery,
-  launchesQuery,
-  marketPositionQuery,
-  marketsQuery,
-  proposalsQuery,
-  tokenListQuery,
-} from '@/queries'
+import { governanceWrites, housesQuery, launchPositionQuery, launchesQuery, marketByIdQuery, marketPositionQuery, marketsQuery, proposalsQuery, tokenListQuery } from '@/queries'
+import { historyQuery, receiptIsFinal } from '@/queries/position-history'
 import { storedPositionsQuery } from '@/queries/positions'
 
-import { mergeClaimable, type Claim, type Claimable, type PositionGroup, type PositionsRead, type Payout } from './types'
-
-type TokenList = Parameters<typeof findToken>[0]
-
-/** One frozen empty array, so "nothing stored" is a stable reference rather than a new one. */
-const EMPTY: readonly StoredPosition[] = []
-
-/** A token's display identity, or an honest stand-in. `decimals: null` renders raw units, never a guess. */
-function payoutFor(list: TokenList, token: string, symbol?: string): Payout {
-  const info = findToken(list, token)
-  return { token, symbol: symbol ?? info?.symbol ?? shortAddress(token, 6, 3), decimals: info?.decimals ?? (symbol ? 18 : null) }
-}
-
-function marketClock(market: OnChainMarket | undefined, now: number): string | null {
-  if (!market) return null
-  if (market.state === MARKET_STATE.resolved) return 'Resolved'
-  if (market.state === MARKET_STATE.voided) return 'Voided — stakes are refundable'
-  const left = timeLeft(market.deadline, now)
-  return left === 'closed' ? 'Closed · settling' : `Resolves in ${left}`
-}
-
-function launchClock(launch: OnChainLaunch | undefined, now: number): string | null {
-  if (!launch) return null
-  const word = launchStateWord(launch)
-  if (word === 'graduated') return 'Graduated'
-  if (word === 'failed') return 'Did not fill'
-  const left = timeLeft(launch.deadline, now)
-  return left === 'closed' ? 'Deadline passed' : `Closes in ${left}`
-}
-
-/** Ready beats running beats finished: a group is as actionable as its most actionable claim. */
-function groupTone(claims: readonly Claim[]): PositionTone {
-  if (claims.some((c) => c.life.tone === 'ready')) return 'ready'
-  return claims.some((c) => c.life.tone === 'waiting') ? 'waiting' : 'settled'
-}
-
-function claimableOf(claims: readonly Claim[]): Claimable[] {
-  return mergeClaimable(
-    claims
-      .filter((c) => c.life.tone === 'ready' && c.life.amount !== null)
-      .map((c) => [{ symbol: c.payout.symbol, decimals: c.payout.decimals, wei: c.life.amount! }]),
-  )
-}
-
-function assemble(
-  key: string,
-  venue: PositionGroup['venue'],
-  tab: PositionGroup['tab'],
-  title: string,
-  kicker: string,
-  href: PositionGroup['href'],
-  clock: string | null,
-  claims: Claim[],
-): PositionGroup {
-  return {
-    key,
-    venue,
-    tab,
-    title,
-    kicker,
-    href,
-    clock,
-    claims,
-    ready: claims.filter((c) => c.life.tone === 'ready').length,
-    running: claims.filter((c) => c.life.tone === 'waiting').length,
-    finished: claims.filter((c) => c.life.tone === 'settled').length,
-    claimable: claimableOf(claims),
-    tone: groupTone(claims),
-  }
-}
-
-/**
- * A founder's claim has no chain read and no door, so `positionLifecycle(null)` — which means
- * "the chain has not answered yet" — reported it as READING, forever. It is not being read. It is
- * a credential you hold, and the row now says that instead of spinning on a question nobody asked.
- */
-const FOUNDER_CLAIM: PositionLifecycle = {
-  tone: 'waiting',
-  label: 'Held',
-  detail: 'Your founder claim on this DAO. It is a credential, not a payout — there is no door until the DAO needs one.',
-  amount: null,
-}
-
-/**
- * A claim on a contract this build no longer reads.
- *
- * Markets was migrated once and the old deployment was left behind. A position opened on it is not
- * loading and is not running — it is stranded, and the honest row says so and offers the one action
- * that remains: forget it. `settled` is the tone precisely because nothing further can happen.
- */
-const RETIRED_CLAIM: PositionLifecycle = {
-  tone: 'settled',
-  label: 'Retired',
-  detail: 'Opened on an earlier deployment this build no longer reads. Nothing here can settle it — forget it to clear the row.',
-  amount: null,
-}
-
-/** Insertion-ordered buckets, so settling one claim never reshuffles the board. */
-function bucket<T>(rows: readonly T[], keyOf: (row: T) => string): Map<string, T[]> {
-  const out = new Map<string, T[]>()
-  for (const row of rows) {
-    const key = keyOf(row)
-    const held = out.get(key)
-    if (held) held.push(row)
-    else out.set(key, [row])
-  }
-  return out
-}
+import { assemble, bucket, EMPTY, FOUNDER_CLAIM, launchClock, marketClock, payoutFor, RETIRED_CLAIM } from './claim-helpers'
+import { mergeClaimable, type Claim, type PositionGroup, type PositionsRead } from './types'
 
 export function usePositionGroups(now: number): PositionsRead {
   const stored = useQuery(storedPositionsQuery())
+  const history = useQuery(historyQuery())
   const markets = useQuery(marketsQuery())
   const launches = useQuery(launchesQuery())
   const houses = useQuery(housesQuery())
@@ -150,11 +38,26 @@ export function usePositionGroups(now: number): PositionsRead {
 
   // Read once into a stable array: a fresh `[]` every render would re-key every `useQueries` below.
   const all = useMemo<readonly StoredPosition[]>(() => (stored.data?.state === 'ok' ? stored.data.positions : EMPTY), [stored.data])
-  const marketHeld = useMemo(() => all.filter((p) => p.venue === 'market'), [all])
+  // Filtered BEFORE the fan-out: a finished bet's secret is never read again by `get_position`.
+  const finished = useMemo(() => {
+    const out = new Set<string>()
+    if (history.data?.state === 'ok') for (const r of history.data.receipts) if (receiptIsFinal(r)) out.add(BigInt(r.commitment).toString())
+    return out
+  }, [history.data])
+  const marketHeld = useMemo(() => all.filter((p) => p.venue === 'market' && !finished.has(BigInt(p.commitment).toString())), [all, finished])
   const launchHeld = useMemo(() => all.filter((p) => p.venue === 'launch'), [all])
   const govHeld = useMemo(() => all.filter((p) => p.venue === 'governance'), [all])
 
   const marketReads = useQueries({ queries: marketHeld.map((p) => marketPositionQuery(p.commitment)) })
+  // A window that rolled off the board is read by id — the position's own read says which id.
+  const boardIds = useMemo(() => new Set((markets.data?.markets ?? []).map((m) => m.id)), [markets.data])
+  const offBoardReads = useQueries({
+    queries: marketHeld.map((_, i) => {
+      const id = marketReads[i]?.data?.marketId
+      const known = id !== undefined && id > 0 && !markets.isPending && !boardIds.has(id)
+      return marketByIdQuery(known ? id : undefined)
+    }),
+  })
   const launchReads = useQueries({ queries: launchHeld.map((p) => launchPositionQuery(p.commitment)) })
 
   // Narrowed before the memo so its dependencies are the values it reads, not five query objects.
@@ -167,6 +70,8 @@ export function usePositionGroups(now: number): PositionsRead {
   const govPending = houses.isPending || proposals.isPending
   const govFailed = houses.isError
 
+  const offBoard = useMemo(() => new Map(offBoardReads.flatMap((r) => (r.data ? [[r.data.id, r.data] as const] : []))), [offBoardReads])
+
   const groups = useMemo(() => {
     const list = tokenList
     const out: PositionGroup[] = []
@@ -175,7 +80,7 @@ export function usePositionGroups(now: number): PositionsRead {
     // the chain assigns an id — so grouping has to wait for the reading, not the stored row.
     const marketClaims = marketHeld.map((position, i): Claim & { marketId: number } => {
       const read = marketReads[i]
-      const market = marketList?.find((m) => m.id === (read?.data?.marketId ?? position.id))
+      const market = marketList?.find((m) => m.id === (read?.data?.marketId ?? position.id)) ?? offBoardReads[i]?.data
       const action =
         read?.data && market
           ? marketPositionAction({
@@ -193,7 +98,7 @@ export function usePositionGroups(now: number): PositionsRead {
         // A commitment the live contract has never heard of, once the registry has actually been
         // read, is from a deployment this build no longer follows. Saying "Reading" about it is a
         // question that never gets answered; it is retired, and the only thing left is to clear it.
-        life: !marketsPending && !market && !read?.isPending ? RETIRED_CLAIM : positionLifecycle(action),
+        life: !marketsPending && !market && !read?.isPending && !offBoardReads[i]?.isPending ? RETIRED_CLAIM : positionLifecycle(action),
         pending: read?.isPending ?? true,
         failed: read?.isError ?? false,
         payout: payoutFor(list, market?.token ?? '0x0'),
@@ -201,7 +106,7 @@ export function usePositionGroups(now: number): PositionsRead {
       }
     })
     for (const [id, claims] of bucket(marketClaims, (c) => String(c.marketId))) {
-      const market = marketList?.find((m) => m.id === Number(id))
+      const market = marketList?.find((m) => m.id === Number(id)) ?? offBoard.get(Number(id))
       out.push(
         assemble(
           `market:${id}`,
@@ -304,7 +209,7 @@ export function usePositionGroups(now: number): PositionsRead {
     // Ready first — the only ordering that answers "what can I do right now" without reading it all.
     const rank: Record<PositionTone, number> = { ready: 0, waiting: 1, settled: 2 }
     return out.sort((a, b) => rank[a.tone] - rank[b.tone])
-  }, [marketHeld, launchHeld, govHeld, marketReads, launchReads, marketList, marketsPending, launchList, houseList, proposalList, tokenList, govPending, govFailed, writes, now])
+  }, [marketHeld, launchHeld, govHeld, marketReads, launchReads, offBoardReads, offBoard, marketList, marketsPending, launchList, houseList, proposalList, tokenList, govPending, govFailed, writes, now])
 
   if (stored.isPending) return { status: 'pending', because: null, groups: [], ready: 0, running: 0, finished: 0, claimable: [] }
   if (stored.data?.state === 'corrupt') {

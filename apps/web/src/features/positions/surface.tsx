@@ -16,15 +16,24 @@ import { ReviewSheet } from '@/components/money/review-sheet'
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { useSession } from '@/app/session'
 import { useNow } from '@/hooks/use-now'
 import { formatWei } from '@/lib/format'
 import { notify } from '@/lib/notify'
+import { removeReceipt } from '@/queries/position-history'
+import { removeStoredPosition } from '@/queries/positions'
 
 import { GroupDialog } from './group-dialog'
+import { FINISHED_BODY, FINISHED_TITLE, HISTORY_CORRUPT } from './history-copy'
+import { HistoryList } from './history-list'
 import { PositionsList } from './positions-table'
+import { ReceiptSheet } from './receipt-sheet'
 import { PositionsRollup } from './rollup'
 import { DOOR_VERB, doorAmount, settleDoor, useSettle, type SettleDoor } from './settle'
+import type { MarketReceipt } from '@strk20/protocol/position-history'
+
 import type { Claim, PositionGroup, PositionTab } from './types'
+import { useMarketHistory } from './use-history'
 import { usePositionGroups } from './use-position-groups'
 
 /** Thirty seconds. Nothing here is a trading clock, and a long list ticking per second is waste. */
@@ -72,6 +81,10 @@ function totalOf(claims: readonly Claim[]): { wei: bigint; decimals: number | nu
 export function PositionsSurface({ open }: { open?: string }) {
   const now = useNow(TICK_MS)
   const read = usePositionGroups(now)
+  const session = useSession()
+  // Hidden while locked: a memory of bets is still a fact about the wallet on this screen.
+  const history = useMarketHistory(now, session.status === 'ready')
+  const [receipt, setReceipt] = useState<MarketReceipt | null>(null)
   const [tab, setTab] = useState<PositionTab>('all')
   const [openKey, setOpenKey] = useState<string | null>(open ?? null)
   const [seededFrom, setSeededFrom] = useState(open)
@@ -160,8 +173,33 @@ export function PositionsSurface({ open }: { open?: string }) {
               )}
             </>
           )}
+
+          {(tab === 'all' || tab === 'market') && (history.status === 'corrupt' || history.finished.length > 0) ? (
+            <section className="flex flex-col gap-3">
+              <div>
+                <h2 className="font-display text-display4 uppercase">{FINISHED_TITLE}</h2>
+                <p className="text-body4 text-muted-foreground">{FINISHED_BODY}</p>
+              </div>
+              {history.status === 'corrupt' ? (
+                <p className="text-body4 text-irreversible">{HISTORY_CORRUPT}</p>
+              ) : (
+                <HistoryList receipts={history.finished} tokens={history.tokens} onOpen={setReceipt} />
+              )}
+            </section>
+          ) : null}
         </>
       ) : null}
+
+      <ReceiptSheet
+        receipt={receipt}
+        tokens={history.tokens}
+        onOpenChange={(next) => (next ? undefined : setReceipt(null))}
+        onClear={async (r) => {
+          await removeStoredPosition(r.commitment)
+          await removeReceipt(r.commitment)
+          setReceipt(null)
+        }}
+      />
 
       <GroupDialog
         group={openGroup}

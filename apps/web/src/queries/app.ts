@@ -98,6 +98,26 @@ export function proposalsQuery() {
   })
 }
 
+/**
+ * One market by id, for a position whose window has rolled off the board: the board keeps the
+ * current and last window of each series, a claim can be older than both, and a claim on a market
+ * this build cannot describe used to read as "Retired" — which is a bet nobody can collect.
+ */
+export function marketByIdQuery(marketId: number | undefined) {
+  const contract = appContracts().markets
+  return queryOptions({
+    queryKey: ['markets', 'one', contract ?? null, marketId ?? null],
+    queryFn:
+      contract && marketId !== undefined
+        ? async () => {
+            const { readMarket } = await import('@strk20/protocol/app-reads')
+            return readMarket(contract, marketId)
+          }
+        : skipToken,
+    staleTime: APP_MS,
+  })
+}
+
 /** A bearer position on the Markets contract, by its commitment. Absent contract → skipped. */
 export function marketPositionQuery(commitment: string | undefined) {
   const contract = appContracts().markets

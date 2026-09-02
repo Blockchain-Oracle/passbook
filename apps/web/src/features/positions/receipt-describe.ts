@@ -1,0 +1,44 @@
+// How a receipt describes itself in words and numbers. Pure, so the list and the sheet agree.
+import { strikeDisplay } from '@strk20/protocol/app-reads'
+import { SIDE_UP } from '@strk20/protocol/market-calldata'
+import { BET_SIDE_DOWN, BET_SIDE_UP } from '@strk20/protocol/markets-copy'
+import type { MarketReceipt } from '@strk20/protocol/position-history'
+
+import { formatWei, shortAddress } from '@/lib/format'
+import { findToken } from '@/queries'
+
+export type TokenList = Parameters<typeof findToken>[0]
+
+/** The stake's unit: the snapshot's when it was captured at the bet, else the token list's, else raw units. */
+export function receiptUnit(r: MarketReceipt, tokens: TokenList | undefined): { symbol: string; decimals: number | null } {
+  if (r.snapshot && r.snapshot.symbol !== '') return { symbol: r.snapshot.symbol, decimals: r.snapshot.decimals }
+  const info = tokens && r.token ? findToken(tokens, r.token) : undefined
+  return { symbol: info?.symbol ?? (r.token ? shortAddress(r.token, 6, 3) : ''), decimals: info?.decimals ?? null }
+}
+
+/** "BTC/USD above $80,500", or the honest stand-in for a row older than history. */
+export function receiptTitle(r: MarketReceipt): string {
+  if (!r.snapshot) return `Market #${r.marketId} · earlier deployment`
+  const strike = BigInt(r.snapshot.strike)
+  return strike === 0n ? `${r.snapshot.pair} above the opening line` : `${r.snapshot.pair} above $${strikeDisplay(strike)}`
+}
+
+export function receiptSide(r: MarketReceipt): string {
+  if (r.side < 0) return '—'
+  return r.side === SIDE_UP ? BET_SIDE_UP : BET_SIDE_DOWN
+}
+
+export function receiptStake(r: MarketReceipt, tokens?: TokenList): string {
+  if (r.cashIn === '0') return '—'
+  const unit = receiptUnit(r, tokens)
+  return `${formatWei(BigInt(r.cashIn), unit.decimals)} ${unit.symbol}`.trim()
+}
+
+/** The ending's amount as the chain said it, or nothing — never a computed number. */
+export function receiptAmount(r: MarketReceipt, tokens?: TokenList): string | null {
+  const amount = r.terminal?.amount
+  if (!amount) return null
+  const unit = receiptUnit(r, tokens)
+  return `${formatWei(BigInt(amount), unit.decimals)} ${unit.symbol}`.trim()
+}
+

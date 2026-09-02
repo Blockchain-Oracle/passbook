@@ -76,6 +76,11 @@ async function call(
   return result as string[]
 }
 
+/** One market by id, wherever it sits — a window long past the board still answers `get_market`. */
+export async function readMarket(contract: string, marketId: number, transport: Transport = rpc as Transport): Promise<OnChainMarket> {
+  return decodeMarket(marketId, await call(contract, SELECTOR.get_market, [hex(marketId)], transport))
+}
+
 export interface MarketsRead {
   /** Series windows (current and last, opened or not) first, then custom markets newest first. */
   markets: OnChainMarket[]

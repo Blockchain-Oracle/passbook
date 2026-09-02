@@ -11,6 +11,7 @@ export {
   launchesQuery,
   housesQuery,
   proposalsQuery,
+  marketByIdQuery,
   marketPositionQuery,
   launchPositionQuery,
 } from './app'
