@@ -12,11 +12,13 @@ import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
 import type { MDXComponents } from 'mdx/types'
 
 import { MainnetRecord, RefusedClaims, SurfaceStatus, WhoSeesWhat } from './live'
+import { GuideShot } from './guide-shot'
 
 export function getMDXComponents(components?: MDXComponents) {
   return {
     ...defaultMdxComponents,
     Callout,
+    GuideShot,
     Step,
     Steps,
     Tab,

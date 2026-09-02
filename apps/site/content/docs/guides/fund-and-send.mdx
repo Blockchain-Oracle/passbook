@@ -1,0 +1,71 @@
+---
+title: Fund, shield and send
+description: Read the two balances, cross public value into the pool, then prepare a shielded transfer.
+---
+
+The wallet deliberately shows **shielded pool notes** and **public ERC-20 balances** in separate
+cards. They are never added together.
+
+<Steps>
+
+<Step>
+
+### Check which side currently holds the asset
+
+The right card is public value at the Starknet account. The left card is shielded value held as
+pool notes. Use **Shield** to move public value into the pool; use **Send** only when the shielded
+side has enough.
+
+<GuideShot
+  src="/guides/wallet-actions.svg"
+  alt="Wallet with arrows to public balance, Shield and Send"
+  caption="1–3 — Read the boundary first, then choose the action."
+  eager
+/>
+
+</Step>
+
+<Step>
+
+### Shield public value
+
+Press **Shield**, choose STRK or USDC, and enter the public amount. Read the live pool fee, gas
+hold and shieldable amount before continuing. Shielding is submitted by this account and pays from
+its public funds; sponsored pool transactions do not fund this deposit.
+
+<GuideShot
+  src="/guides/shield-form.svg"
+  alt="Shield form with arrows to amount, live costs and the action button"
+  caption="4–6 — This capture uses an unfunded guide account, so the blocker is the correct state. Fee and gas values change."
+/>
+
+</Step>
+
+<Step>
+
+### Prepare the send
+
+Open **Send**, choose the asset, enter the shielded amount, then use a claimed `@name` or a Starknet
+address. The recipient must already be registered with the pool. The optional note is request
+context; it is not written into the transaction.
+
+<GuideShot
+  src="/guides/send-form.svg"
+  alt="Send form with arrows to amount, recipient and continue button"
+  caption="7–9 — Completing the form opens review; it does not broadcast immediately."
+/>
+
+</Step>
+
+<Step>
+
+### Review, submit and keep the receipt
+
+Read the disclosure and resolved recipient in the review surface. After submission, follow the
+visible pipeline through proof, signature, broadcast, pool acceptance and confirmation. If the
+app reports confirmation unknown, use the transaction hash to check before retrying; the first
+transaction may already have landed.
+
+</Step>
+
+</Steps>

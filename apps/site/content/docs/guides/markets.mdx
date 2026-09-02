@@ -1,0 +1,61 @@
+---
+title: Use Markets
+description: Choose a live window, inspect the public terms, set a side and carry the bearer position through review.
+---
+
+Market windows and oracle prices are live reads. The values in these captures were visible on
+2 September 2026 and will not match a later visit.
+
+<Steps>
+
+<Step>
+
+### Choose a window and market
+
+Use the duration tabs, then open a market card. A card shows the current price, line state, time
+remaining, seed and the two displayed outcomes. You can open the card for its tape and terms, or
+press a side directly.
+
+<GuideShot
+  src="/guides/markets-board.svg"
+  alt="Markets board with arrows to duration tabs, a market card and outcome buttons"
+  caption="1–3 — Prices, windows and odds are live; this is a dated capture, not a quote."
+  eager
+/>
+
+</Step>
+
+<Step>
+
+### Set the side and stake
+
+Confirm Over or Under, enter the shielded STRK stake, and read the payout and vig shown for that
+exact form state. The minimum and the available balance remain visible blockers instead of being
+hidden behind a failed transaction.
+
+<GuideShot
+  src="/guides/market-bet.svg"
+  alt="Bet form with arrows to side, stake, payout and continue action"
+  caption="4–7 — The form proceeds to review; this capture did not place a bet."
+/>
+
+</Step>
+
+<Step>
+
+### Review and retain the bearer position
+
+The review explains what becomes public before submission. The position secret is stored before
+the transaction is sent because that secret is needed later to cash out, claim or refund. Follow
+the result in **Positions** and keep the transaction receipt.
+
+<Callout type="warn">
+A bearer position is controlled by its secret. Do not clear the browser or discard recovery data
+while a position can still be claimed.
+</Callout>
+
+</Step>
+
+</Steps>
+
+For the public/private split, see [Markets and Launch](/docs/how-it-works/markets-and-launch).

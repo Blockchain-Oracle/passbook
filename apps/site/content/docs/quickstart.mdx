@@ -1,25 +1,35 @@
 ---
 title: Quickstart
-description: From opening the page to holding shielded value — what happens at each step and what it costs you.
+description: From opening the page to a protected, registered account with shielded value.
 ---
 
-There is no install step and no signup. What follows is what actually happens.
+There is no email login or extension to install. There is still a setup flow, because key
+protection, recovery and registration are decisions a money account must not hide.
 
 <Steps>
 
 <Step>
 
-### Open the app
+### Create the browser account
 
-The browser derives an account key on first load and stores it in `localStorage`. That is your
-account. Nothing was sent anywhere to create it, and no server knows it exists yet.
+Press **Create an account**, learn the two-balance model, choose an optional label and decide
+whether to claim that label publicly. On the protection screen, choose a password, passkey, both,
+or neither, then generate the key.
 
 <Callout type="warn">
-The key is in `localStorage` **in plaintext**. Anything that can run JavaScript on that origin can
-read it, and so can anyone with the unlocked device. The app's "lock" is a screen lock, not
-encryption. This is an accepted trade — it is what removes the wallet, the extension and the seed
-phrase — and it is argued in the code rather than hidden.
+A password or passkey seals the account record in an encrypted vault. Choosing neither stores the
+key in browser storage in plaintext, readable by scripts on the origin and by someone holding the
+unlocked device.
 </Callout>
+
+</Step>
+
+<Step>
+
+### Save the Recovery File and Code
+
+Issue the file, write the code somewhere else, type it back and download the verified file. The
+registered key cannot be replaced, so recovery is completed before the first on-chain write.
 
 </Step>
 
@@ -34,14 +44,15 @@ Registration is the step to read twice. It publishes an encrypted copy of your v
 on-chain, readable by anyone, decryptable by the auditor. It cannot be rotated and cannot be opted
 out of. [The auditor](/docs/privacy/the-auditor) explains exactly what that means.
 
-The first registration is **sponsored** — our relayer pays for it, so you need no funds to start.
-There is a [real one on mainnet](/docs/evidence) you can go and look at.
+The app attempts its current faucet and sponsorship offer. Those are live services with budgets,
+so the setup screen also provides the public address to fund with STRK when either is unavailable.
+There is a [recorded sponsored registration on mainnet](/docs/evidence).
 
 </Step>
 
 <Step>
 
-### Deposit
+### Shield public value
 
 You send tokens into the pool from a public address. **This step is public**: an observer sees your
 address and the amount. That is not a limitation of strk20.run, it is what a deposit is.
@@ -53,7 +64,7 @@ if a deposit does not arrive, it will look like our bug.
 
 <Step>
 
-### Hold, send, swap, bridge, bet, launch
+### Send or use another surface
 
 Inside the pool your value is a set of shielded notes. From here the surfaces do what they say:
 sends are private to everyone except your recipient, and swaps and bridges use
@@ -65,6 +76,9 @@ Amounts on any leg that touches an open note remain public. **What is hidden is 
 </Step>
 
 </Steps>
+
+For the illustrated path, continue with [Create your account](/docs/guides/create-account) and
+[Fund, shield and send](/docs/guides/fund-and-send).
 
 ## Running it yourself
 

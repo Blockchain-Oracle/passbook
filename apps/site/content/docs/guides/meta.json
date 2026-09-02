@@ -1,0 +1,5 @@
+{
+  "title": "Guides",
+  "defaultOpen": true,
+  "pages": ["create-account", "fund-and-send", "chat-and-pay", "markets"]
+}

@@ -1,0 +1,56 @@
+---
+title: Chat and attach money
+description: Find a registered account, open a sealed room and send a message with or without shielded value.
+---
+
+Chat uses pool registration keys to derive a room in the browser. Register the account first.
+
+<Steps>
+
+<Step>
+
+### Start a conversation
+
+Open **Chat**, press **New**, then search a claimed name or paste a Starknet address. Name search
+runs against a list fetched to the browser. If the directory cannot be reached, the address path
+still makes the fallback explicit.
+
+<GuideShot
+  src="/guides/chat-new.svg"
+  alt="New message dialog with an arrow to recipient search"
+  caption="1 — Names are labels, so verify the resolved address before relying on one."
+  eager
+/>
+
+</Step>
+
+<Step>
+
+### Write, attach value if needed, then send
+
+The paperclip opens the money attachment. Set the asset and amount there, return to the composer,
+write the message and press Send. Attached value and the message are prepared as one product
+action, while the transaction lifecycle remains visible.
+
+<GuideShot
+  src="/guides/chat-compose.svg"
+  alt="Conversation composer with arrows to Attach money, message field and Send"
+  caption="2–4 — Captured against a registered evidence account; no message or money was sent."
+/>
+
+</Step>
+
+<Step>
+
+### Know what persists
+
+The message is sealed before it leaves the browser, but the auditor escrow can derive room
+secrets. The relayer sees connection timing and which rooms share the multiplexed connection, and
+keeps only a short in-memory ciphertext buffer. Conversation history lives in this browser, so
+clearing site data removes it.
+
+</Step>
+
+</Steps>
+
+The full trust boundary is in [Chat](/docs/how-it-works/chat).

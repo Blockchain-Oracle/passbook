@@ -1,14 +1,77 @@
 ---
 title: System topology
-description: The four parties that touch a request, and exactly what each of them can see.
+description: The browser-to-chain path, numbered from local preparation to public settlement.
 ---
 
-Four parties touch a request. Each one is listed with what it can see, because this diagram is the
-trust model rather than the plumbing.
+The numbered path is the write path. The dashed line is the free-read path used for balances,
+prices, constants and action rehearsal.
+
+<GuideShot
+  src="/architecture.svg"
+  alt="Numbered architecture diagram from browser through app host and relayer to Starknet"
+  caption="The trust boundary and transaction path in one image."
+  width={1200}
+  height={680}
+  eager
+/>
+
+<Steps>
+
+<Step>
+
+### Prepare in the browser
+
+The browser holds the active account key, keeps the shielded and public balances separate, reads
+chain state and asks the privacy SDK builder to compose the action list. Proven writes use state
+from `latest − 10`; the proof facts and proof travel together as transaction details.
+
+</Step>
+
+<Step>
+
+### Post to the same-origin host
+
+The browser sends the request to `/api/*` on the app's own origin. No relayer credential is bundled
+into browser JavaScript.
+
+</Step>
+
+<Step>
+
+### Inject the relayer credential
+
+The app host proxy adds the server-held auth token and forwards the bounded request. This is a
+credential boundary, not a privacy claim: the host can see the request it forwards.
+
+</Step>
+
+<Step>
+
+### Validate and submit from the relayer
+
+The relayer checks its `(contract, entrypoint)` allowlist, reads the live pool fee for any capped
+STRK approval, then submits the v3 invoke. Its account is the visible submitter, and it learns the
+request IP and timing.
+
+</Step>
+
+<Step>
+
+### Settle on Starknet
+
+The STRK20 pool and the selected product contract execute the action list. Pool notes, app
+commitments and receipts become part of the public record according to the surface. A deposit is a
+public leg; later note ownership is what the pool obscures.
+
+</Step>
+
+</Steps>
+
+## Who touches the request
 
 | Party | What it is | What it sees |
 |---|---|---|
-| **Your browser** | Holds the embedded key in `localStorage`, in plaintext | Everything. "Lock" means a screen lock, not encryption |
+| **Your browser** | Holds the active key; a password or passkey can seal the stored account record | Everything needed to prepare the action |
 | **App host proxy** | Same origin. The browser posts to `/api/*` and the host injects the relayer auth token | The request. The browser never holds the token |
 | **Relayer** | A trust assumption, and named as one | Your IP and request timing. For chat, a short in-memory ciphertext backlog. Holds no key of yours |
 | **Starknet · STRK20 pool** | The public record | Deposits: depositor and amount. What it hides is which notes are yours afterwards |
@@ -19,7 +82,7 @@ The relayer requires an auth token when it is reachable off-loopback. If the bro
 token, it would be in the bundle, which means it would be public — so the app host injects it
 server-side and the browser posts to same-origin paths. See [the relayer](/docs/architecture/relayer).
 
-## The relayer is the visible submitter
+## Why the relayer is the visible submitter
 
 This is the whole reason it exists. Somebody's address appears on-chain as the submitter of every
 transaction, and the design choice is whether that is yours or ours. It is ours.
@@ -27,10 +90,10 @@ transaction, and the design choice is whether that is yours or ours. It is ours.
 The cost is that the relayer learns your IP and the timing of your request, which is why it is
 listed as a trust assumption on the surface and here, rather than described as infrastructure.
 
-## Four design rules that follow
+## Design rules that follow
 
-**The account is an embedded key.** Derived in the browser on first load — no wallet, no email, no
-seed phrase before anything works. See [the account](/docs/how-it-works/the-account).
+**The account is an embedded key.** Generated in the browser during setup, then optionally sealed
+with a password or passkey. See [the account](/docs/how-it-works/the-account).
 
 **One socket, disclosed.** Every conversation rides one multiplexed socket, and a multiplexed
 subscribe tells the relayer those rooms share one participant. The copy says so.

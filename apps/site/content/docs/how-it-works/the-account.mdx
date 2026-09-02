@@ -1,45 +1,48 @@
 ---
 title: The account
-description: An embedded key derived in your browser — why there is no wallet, and what that costs.
+description: A key generated in your browser, with explicit protection and recovery choices.
 ---
 
 Most products in this category start with "connect your wallet". strk20.run does not have that step,
 because it does not have that dependency.
 
-## What happens on first load
+## What happens during setup
 
-The browser derives a key and keeps it in `localStorage`. That key is the account: it signs, it
-decrypts your notes, and it derives the shared secrets your chat rooms use. No extension, no email,
-no seed phrase stands between opening the page and having somewhere to put money.
+The first screen offers a new account or an import. A new key is generated only after the person
+chooses a label, whether to claim it publicly, and how to protect the key. That key signs, decrypts
+pool notes and derives the shared secrets used by chat rooms.
 
 The account contract is then deployed on-chain, because **a key cannot sign anything until the
 account it belongs to exists**. Registration follows, and registration is the consequential step —
 see [the auditor](/docs/privacy/the-auditor).
 
-## The cost, stated plainly
+## Protection is a choice
+
+With a password, the account record is sealed under an encrypted vault. A passkey wraps the same
+vault key and can restore the sealed account record on a compatible device. Both can protect the
+same account.
 
 <Callout type="warn">
-The key sits in `localStorage` in plaintext. Any script that runs on the origin can read it, and so
-can anybody holding the unlocked device. There is no passphrase wrapping it and the in-app lock is
-a screen lock, not encryption.
+If neither option is selected, the key remains in browser storage in plaintext. A script running
+on the origin or a person holding the unlocked device can read it.
 </Callout>
 
-This is a real trade and it is the one that buys the whole product: no wallet to install, no seed
-phrase to write down, no chicken-and-egg where you need funds before you can be onboarded. It is
-accepted deliberately and argued in the source rather than glossed over.
+The Recovery File and Recovery Code are issued separately from password or passkey protection.
+They are verified before registration because the pool records the key once and it cannot be
+rotated later.
 
-What follows from it: this is an account for an amount of money you are willing to keep in a
-browser. It is not a cold storage design and does not pretend to be one.
+What follows from the unprotected choice: it is suitable only for an amount someone is willing to
+keep in that browser. It is not a cold-storage design.
 
 ## One key, two jobs
 
-The same key both reads your notes and spends them. There is **no view-only derivation** — you
-cannot hand an accountant a key that shows them your balance without also handing them the ability
-to spend it. That is why "watch-only", "view-only" and "read-only" are on the
-[refused claims](/docs/privacy/refused-claims) list.
+The same key reads the notes and spends them. There is no reduced-permission key that reveals the
+balance without also granting spending authority. The [refused claims](/docs/privacy/refused-claims)
+page records the language the product avoids around that limitation.
 
 ## Registration is sponsored
 
-Your first transaction is paid for by our relayer, which is what makes "open the page and you have
-an account" true rather than "open the page, then go and buy STRK". There is a real sponsored
-registration on mainnet in [the evidence](/docs/evidence).
+The onboarding ladder can use the live faucet and current relayer sponsorship allowance. Neither
+is assumed available forever: when it cannot cover the setup, the screen shows the public address
+to fund directly. A sponsored registration already recorded on mainnet is in
+[the evidence](/docs/evidence).
