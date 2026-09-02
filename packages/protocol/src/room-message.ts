@@ -19,6 +19,7 @@
 // type it does not know renders a placeholder and keeps the thread readable; throwing would let
 // one unknown message from a newer client break the whole conversation.
 //
+import { parsePositionShare, type PositionShare } from './position-share.js'
 import { MAX_MESSAGE_BYTES } from './room.js'
 
 export type RoomMessage =
@@ -87,11 +88,21 @@ export type RoomMessage =
       /** The House's name as the sender saw it — a byline for the card, never used to resolve it. */
       readonly houseName?: string
     }
+  | {
+      /**
+       * A MARKET POSITION — one finished (or open) bet, as its share DTO and nothing more. A CLAIM,
+       * exactly like a payment card: the recipient's client checks the named transaction against
+       * the chain and says `verified`, `mismatch` or `unavailable` in its own words. Matching
+       * evidence proves the bet happened; it never proves who placed it, and the card says so.
+       */
+      readonly kind: 'market'
+      readonly share: PositionShare
+    }
   /** A message from a client that speaks a type this one does not. Rendered, never thrown. */
   | { readonly kind: 'unsupported'; readonly received: string }
 
 /** The wire discriminators. Single letters: every byte here is inside the message size cap. */
-const WIRE_KIND = { text: 't', payment: 'p', post: 'o', request: 'r', reaction: 'e', handle: 'h' } as const
+const WIRE_KIND = { text: 't', payment: 'p', post: 'o', request: 'r', reaction: 'e', handle: 'h', market: 'm' } as const
 
 export function encodeRoomMessage(message: RoomMessage): string {
   switch (message.kind) {
@@ -129,6 +140,9 @@ export function encodeRoomMessage(message: RoomMessage): string {
         i: message.houseId,
         ...(message.houseName === undefined ? {} : { n: message.houseName }),
       })
+    case 'market':
+      // The DTO rides verbatim: it is already the exact, parsed shape, and the receiver re-parses it.
+      return JSON.stringify({ k: WIRE_KIND.market, s: message.share })
     case 'unsupported':
       // Re-encoding something we could not read would forward a payload we never validated. A
       // client that received an unsupported message has nothing to say back in its shape.
@@ -217,6 +231,11 @@ export function decodeRoomMessage(plaintext: string): RoomMessage {
       houseId: wire.i,
       ...(typeof wire.n === 'string' && wire.n.length > 0 ? { houseName: wire.n } : {}),
     }
+  }
+  if (wire.k === WIRE_KIND.market) {
+    const share = parsePositionShare(wire.s)
+    if (share) return { kind: 'market', share }
+    return { kind: 'unsupported', received: 'market' }
   }
   if (wire.k === WIRE_KIND.post && typeof wire.b === 'string' && wire.b.length > 0) {
     return {

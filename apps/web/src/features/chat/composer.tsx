@@ -6,7 +6,7 @@
 // chat-composer one (21st's Input Bar): staged chips over an auto-sizing field, actions either side.
 //
 import { useRef, type KeyboardEvent } from 'react'
-import { HandCoins, Landmark, Paperclip, Send, SendHorizontal } from 'lucide-react'
+import { ChartCandlestick, HandCoins, Landmark, Paperclip, Send, SendHorizontal } from 'lucide-react'
 
 import { Amount } from '@/components/money/amount'
 import { Button } from '@/components/ui/button'
@@ -31,12 +31,14 @@ export interface ComposerProps {
   onSubmit: () => void
   /** Offers the voter handle. Absent where there is nothing to delegate with. */
   onShareHandle?: () => void
+  /** Offers a finished bet as a card. Absent on surfaces without a position history. */
+  onShareMarket?: () => void
   /** Why sending is blocked, in a sentence. The button stays pressable and says why. */
   blocker: string | null
   busy: boolean
 }
 
-export function Composer({ draft, onDraft, attachment, onAttach, onRemoveAttachment, onSubmit, onShareHandle, blocker, busy }: ComposerProps) {
+export function Composer({ draft, onDraft, attachment, onAttach, onRemoveAttachment, onSubmit, onShareHandle, onShareMarket, blocker, busy }: ComposerProps) {
   const field = useRef<HTMLTextAreaElement>(null)
 
   // Money is a decision, never a keystroke: Enter sends text, but a staged amount needs the button.
@@ -75,6 +77,12 @@ export function Composer({ draft, onDraft, attachment, onAttach, onRemoveAttachm
               <DropdownMenuItem onClick={onShareHandle}>
                 <Landmark aria-hidden />
                 Share my voter handle
+              </DropdownMenuItem>
+            ) : null}
+            {onShareMarket ? (
+              <DropdownMenuItem onClick={onShareMarket}>
+                <ChartCandlestick aria-hidden />
+                Share a finished bet
               </DropdownMenuItem>
             ) : null}
           </DropdownMenuContent>

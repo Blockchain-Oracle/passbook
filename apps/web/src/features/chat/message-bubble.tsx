@@ -20,6 +20,7 @@ import { Button } from '@/components/ui/button'
 import { explorerTx, shortAddress } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
+import { MarketCard } from './market-card'
 import type { PeerIdentity } from './use-peers'
 
 type MoneyMessage = RoomMessage & { kind: 'payment' | 'request' }
@@ -146,6 +147,8 @@ function Body({
       return <MoneyCard message={message} mine={mine} peer={peer} identity={identity} onPay={onPay} />
     case 'handle':
       return <HandleCard message={message} mine={mine} />
+    case 'market':
+      return <MarketCard share={message.share} mine={mine} />
     default:
       return <p className="text-body3 text-muted-foreground">A message this version cannot show yet.</p>
   }
@@ -163,7 +166,7 @@ export interface MessageBubbleProps {
 /** One entry. Reactions to it (folded by the caller) render as chips under the bubble. */
 export function MessageBubble({ entry, reactions, peer, identity, onPay }: MessageBubbleProps) {
   // A card, not a bubble: money and handles are objects in the thread, not somebody typing.
-  const money = entry.message.kind === 'payment' || entry.message.kind === 'request' || entry.message.kind === 'handle'
+  const money = entry.message.kind === 'payment' || entry.message.kind === 'request' || entry.message.kind === 'handle' || entry.message.kind === 'market'
   return (
     <div className={cn('flex max-w-[85%] flex-col gap-1', entry.mine ? 'items-end self-end' : 'items-start self-start')}>
       <div

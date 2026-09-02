@@ -8,6 +8,7 @@
 import { queryOptions, skipToken } from '@tanstack/react-query'
 import { MARKET_STATE, type OnChainMarket } from '@strk20/protocol/app-reads'
 import { NET } from '@strk20/protocol/constants'
+import * as events from '@strk20/protocol/market-events'
 import { marketPositionAction } from '@strk20/protocol/position-actions'
 import type { HistoryStore, MarketReceipt, TerminalKind } from '@strk20/protocol/position-history'
 
@@ -174,9 +175,8 @@ export function receiptReconcileQuery(receipt: MarketReceipt, market: OnChainMar
 }
 
 async function reconcile(receipt: MarketReceipt, market: OnChainMarket | null, current: string, superseded: string | null, nowMs: number): Promise<ChainFacts> {
-  const [{ defaultTransport, readMarket, readMarketHead }, events, { readMarketPosition }] = await Promise.all([
+  const [{ defaultTransport, readMarket, readMarketHead }, { readMarketPosition }] = await Promise.all([
     import('@strk20/protocol/app-reads'),
-    import('@strk20/protocol/market-events'),
     import('@strk20/protocol/position-reads'),
   ])
   const facts: ChainFacts = {}

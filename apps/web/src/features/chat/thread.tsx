@@ -14,6 +14,7 @@ import { CHAT_AUDITOR_DERIVES } from '@strk20/protocol/disclosure-copy'
 import { PAY_ASSETS, type PayAsset } from '@strk20/protocol/pay-link'
 import { disclosureFor } from '@strk20/protocol/disclosure'
 import type { ChatLogEntry } from '@strk20/protocol/chat-log'
+import type { PositionShare } from '@strk20/protocol/position-share'
 
 import { Amount } from '@/components/money/amount'
 import { ReviewSheet } from '@/components/money/review-sheet'
@@ -33,6 +34,7 @@ import { MessageBubble } from './message-bubble'
 import type { PayAsk } from './message-bubble'
 import { AttachMoneyDialog, type MoneyAttachment } from './money-attachment'
 import { ShareHandleDialog } from './share-handle-dialog'
+import { ShareMarketDialog } from './share-market-dialog'
 import { TypingBubble } from './typing-bubble'
 import { PeerAvatar, peerLabel } from './peer-avatar'
 import { peerRoomQuery, statusLine, type RoomInputs } from './queries'
@@ -86,6 +88,7 @@ function ThreadView({ me, peer, connection }: { me: RoomInputs; peer: string; co
   const [attaching, setAttaching] = useState<{ kind: MoneyAttachment['kind']; seed?: { asset?: PayAsset; amount?: string } } | null>(null)
   const [reviewing, setReviewing] = useState(false)
   const [sharing, setSharing] = useState(false)
+  const [sharingMarket, setSharingMarket] = useState(false)
   const listRef = useRef<HTMLDivElement>(null)
   const { bubbles, reactions } = useMemo(() => fold(entries), [entries])
   const room = status.data?.kind === 'open' ? status.data.room : null
@@ -142,6 +145,13 @@ function ThreadView({ me, peer, connection }: { me: RoomInputs; peer: string; co
       { address: me.address, peer, room, message: { kind: 'handle', ...share } },
       { onError: (e) => notify.refused(e.message) },
     )
+  }
+
+  /** A bet card carries no value either — it is a claim the other side checks. Straight in. */
+  function shareMarket(share: PositionShare) {
+    if (!room) return
+    setSharingMarket(false)
+    send.mutate({ address: me.address, peer, room, message: { kind: 'market', share } }, { onError: (e) => notify.refused(e.message) })
   }
 
   /** Their ask, answered: the money dialog opens already holding the numbers they named. */
@@ -259,6 +269,7 @@ function ThreadView({ me, peer, connection }: { me: RoomInputs; peer: string; co
         attachment={attachment}
         onAttach={(kind) => setAttaching({ kind })}
         onShareHandle={() => setSharing(true)}
+        onShareMarket={() => setSharingMarket(true)}
         onRemoveAttachment={() => setAttachment(null)}
         onSubmit={submit}
         blocker={blocker}
@@ -277,6 +288,7 @@ function ThreadView({ me, peer, connection }: { me: RoomInputs; peer: string; co
       />
 
       <ShareHandleDialog open={sharing} onOpenChange={setSharing} onShare={shareHandle} />
+      <ShareMarketDialog open={sharingMarket} onOpenChange={setSharingMarket} onShare={shareMarket} />
 
       {attachment?.kind === 'payment' ? (
         <ReviewSheet
