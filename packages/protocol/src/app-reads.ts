@@ -17,6 +17,7 @@ import {
   decodeByteArray,
   decodeLaunch,
   decodeMarket,
+  decodeShortString,
   decodeSeries,
   hex,
   seriesMarketId,
@@ -79,6 +80,17 @@ async function call(
 /** One market by id, wherever it sits — a window long past the board still answers `get_market`. */
 export async function readMarket(contract: string, marketId: number, transport: Transport = rpc as Transport): Promise<OnChainMarket> {
   return decodeMarket(marketId, await call(contract, SELECTOR.get_market, [hex(marketId)], transport))
+}
+
+/**
+ * The first four fields of a market — pair, strike, deadline, token — which every Markets
+ * deployment has laid out the same way. For a position on a superseded deployment whose full
+ * `Market` struct this build no longer decodes: enough to describe the bet and unit its money.
+ */
+export async function readMarketHead(contract: string, marketId: number, transport: Transport = rpc as Transport): Promise<{ pair: string; strike: bigint; deadline: number; token: string }> {
+  const felts = await call(contract, SELECTOR.get_market, [hex(marketId)], transport)
+  if (felts.length < 4) throw new Error(`get_market returned ${felts.length} felts; a market head is 4`)
+  return { pair: decodeShortString(felts[0]!), strike: toBig(felts[1]!), deadline: toNum(felts[2]!), token: felts[3]! }
 }
 
 export interface MarketsRead {

@@ -161,11 +161,12 @@ const RECONCILE_MS = 30_000
 
 export function receiptReconcileQuery(receipt: MarketReceipt, market: OnChainMarket | null, nowMs: number) {
   const contracts = appContracts()
-  const final = receiptIsFinal(receipt)
+  // A finished story with no snapshot still gets one pass, so its money can be unit-ed.
+  const done = receiptIsFinal(receipt) && receipt.snapshot !== null
   const settling = receipt.opening.state === 'intent' || receipt.opening.state === 'unknown'
   return queryOptions({
-    queryKey: ['history', 'market', receipt.contract, receipt.commitment, receipt.opening.state, receipt.terminal?.kind ?? null, receipt.terminal?.txHash ?? null],
-    queryFn: final || !contracts.markets ? skipToken : () => reconcile(receipt, market, contracts.markets!, contracts.marketsV1 ?? null, nowMs),
+    queryKey: ['history', 'market', receipt.contract, receipt.commitment, receipt.opening.state, receipt.terminal?.kind ?? null, receipt.terminal?.txHash ?? null, receipt.snapshot === null],
+    queryFn: done || !contracts.markets ? skipToken : () => reconcile(receipt, market, contracts.markets!, contracts.marketsV1 ?? null, nowMs),
     staleTime: RECONCILE_MS,
     // A bet still settling is asked again; a story waiting only for a hash is asked once per visit.
     refetchInterval: settling ? RECONCILE_MS : false,
@@ -173,7 +174,7 @@ export function receiptReconcileQuery(receipt: MarketReceipt, market: OnChainMar
 }
 
 async function reconcile(receipt: MarketReceipt, market: OnChainMarket | null, current: string, superseded: string | null, nowMs: number): Promise<ChainFacts> {
-  const [{ defaultTransport, readMarket }, events, { readMarketPosition }] = await Promise.all([
+  const [{ defaultTransport, readMarket, readMarketHead }, events, { readMarketPosition }] = await Promise.all([
     import('@strk20/protocol/app-reads'),
     import('@strk20/protocol/market-events'),
     import('@strk20/protocol/position-reads'),
@@ -220,7 +221,7 @@ async function reconcile(receipt: MarketReceipt, market: OnChainMarket | null, c
   }
 
   // (b) Storage: the position and its market. `lost` comes from the one existing derivation.
-  if (!receipt.terminal || !opening.txHash) {
+  if (!receipt.terminal || !opening.txHash || !receipt.snapshot) {
     position ??= await readMarketPosition(contract, commitment)
   }
   if (!receipt.terminal && position) {
@@ -244,7 +245,8 @@ async function reconcile(receipt: MarketReceipt, market: OnChainMarket | null, c
   }
 
   if (!receipt.snapshot && position && position.state !== events.POS_STATE.none) {
-    const m = market ?? (await readMarket(contract, position.marketId).catch(() => null))
+    // The full struct on the current deployment; the shared four-field head on an older one.
+    const m = market ?? (await readMarket(contract, position.marketId).catch(() => readMarketHead(contract, position.marketId).catch(() => null)))
     if (m) facts.market = { pair: m.pair, strike: m.strike.toString(), deadline: m.deadline, token: m.token }
   }
 
