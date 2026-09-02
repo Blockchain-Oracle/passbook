@@ -17,6 +17,7 @@ import { BetTicket } from './bet-ticket'
 import { CreateMarketDialog } from './create-market-dialog'
 import { MarketCard } from './market-card'
 import { PositionsStrip } from '@/features/positions'
+import { Pulse } from './pulse'
 import { Tape } from './tape'
 import { useMarketFeed } from './use-market-feed'
 import { useStrkStake } from './use-stake'
@@ -134,6 +135,8 @@ export function MarketsBoard() {
 
       {/* Claims live on /positions now; the board points at them rather than hosting a second list. */}
       <PositionsStrip venue="market" />
+
+      <Pulse now={now} symbol={stake.symbol} decimals={stake.decimals} />
 
       <div className="grid gap-6">
         {/* No heading: the tape is self-evidently the activity feed, and "Live" beside "Your
