@@ -6,11 +6,7 @@ import {
   EARN_DESCRIPTION,
   EARN_KICKER,
   EARN_NOT_DEPLOYED,
-  EARN_NO_RISK_SCORE,
-  EARN_RATE_MOVES,
-  EARN_REDEEMABLE_MEANS,
   EARN_TITLE,
-  EARN_UTILIZATION_MEANS,
 } from '@strk20/protocol/earn-copy'
 import { totalValue } from '@strk20/protocol/earn-position'
 import { notify } from '@/lib/notify'
@@ -143,30 +139,20 @@ export function EarnSurface() {
             </div>
           )}
 
-        <p className="text-body4 text-muted-foreground">{EARN_UTILIZATION_MEANS}</p>
       </section>
 
-      <div className="grid gap-4 @3xl:grid-cols-2 @3xl:items-start">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-kicker uppercase text-muted-foreground">What this shows</CardTitle>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-2 text-body4 text-muted-foreground">
-            <p>{EARN_RATE_MOVES}</p>
-            <p>{EARN_REDEEMABLE_MEANS}</p>
-            <p>{EARN_NO_RISK_SCORE}</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-kicker uppercase text-muted-foreground">Who sees what</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <VisibilityMatrixView context="earn" />
-          </CardContent>
-        </Card>
-      </div>
+      {/* The three-paragraph "what this shows" card is gone: on a board its job is done by the
+          cards themselves, and each of those facts is stated where it actually bites — the rate's
+          observation time on every card, the redeemable-vs-worth split on the market page beside
+          the two numbers, and the no-risk-score line next to the addresses it is about. */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-kicker uppercase text-muted-foreground">Who sees what</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <VisibilityMatrixView context="earn" />
+        </CardContent>
+      </Card>
 
       {/* The form opens where the click happened, instead of in a column that fell below seven
           cards on every width narrower than a wide desktop. */}
