@@ -11,6 +11,7 @@ import { useSession } from '@/app/session'
 import { appContracts } from '@/queries/app'
 import { earnCatalogQuery, earnHelperQuery, earnPositionsQuery, earnQuoteQuery } from '@/queries/earn'
 import { poolConstantsQuery, pricesQuery, shieldedBalanceQuery } from '@/queries'
+import { publicBalancesQuery, publicTokenSet } from '@/queries/public-balances'
 import { useNow } from '@/hooks/use-now'
 
 export type EarnTab = 'supply' | 'redeem'
@@ -26,6 +27,8 @@ function spendable(tab: EarnTab, usdcWei: bigint | null, position: EarnPosition 
 
 export interface EarnState {
   ready: boolean
+  /** This account, for the reads a door has to make on its own. */
+  address: string | undefined
   locked: boolean
   now: number
   /** Every market, in registry order, whatever state each is in. */
@@ -50,6 +53,10 @@ export interface EarnState {
   symbol: string
   available: bigint | null
   short: boolean
+  /** Public USDC this account holds, for the row that offers to shield it. `null` while unread. */
+  publicUsdcWei: bigint | null
+  /** How much shielded USDC a supply is missing, or `null` when it fits. Drives the shield door. */
+  shortfallWei: bigint | null
   /** The market's own estimate of what comes back. `undefined` while it is being read. */
   quoteWei: bigint | undefined
   quoteLoading: boolean
@@ -125,6 +132,22 @@ export function useEarnState(seedMarketId?: string): EarnState {
   const short = parsed.wei !== null && available !== null && parsed.wei > available
 
   const quote = useQuery(earnQuoteQuery(market, tab, parsed.wei))
+  // Public USDC is read whatever the shielded side says: a holder with 100 public and 0 shielded
+  // was the case Earn shipped unable to serve, and it is the ordinary case for a new account.
+  const publicBalances = useQuery(publicBalancesQuery(address, publicTokenSet([EARN_UNDERLYING])))
+  const publicUsdcWei = useMemo(() => {
+    const found = Object.keys(publicBalances.data ?? {}).find((k) => {
+      try {
+        return BigInt(k) === BigInt(EARN_UNDERLYING)
+      } catch {
+        return false
+      }
+    })
+    return found === undefined ? null : (publicBalances.data?.[found] ?? null)
+  }, [publicBalances.data])
+  // Only a supply can be covered by shielding: a redeem spends shares, which cannot be bought.
+  const shortfallWei =
+    tab === 'supply' && parsed.wei !== null && available !== null && parsed.wei > available ? parsed.wei - available : null
   // `PragmaReading` is a per-pair union: a failed pair carries its name and a reason, not a price.
   // Reaching past that would render a break-even built on `undefined`.
   const strkReading = prices.data?.find((r) => r.ok && r.price.pair === 'STRK/USD')
@@ -151,6 +174,7 @@ export function useEarnState(seedMarketId?: string): EarnState {
 
   return {
     ready,
+    address,
     locked: !ready,
     now,
     catalog: rows,
@@ -179,6 +203,8 @@ export function useEarnState(seedMarketId?: string): EarnState {
     symbol,
     available,
     short,
+    publicUsdcWei,
+    shortfallWei,
     quoteWei: quote.data,
     quoteLoading: quote.isFetching,
     feeWei: fee.data?.feeWei ?? null,

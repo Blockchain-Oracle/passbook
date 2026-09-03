@@ -38,7 +38,7 @@ function groupFor(position: EarnPosition): PositionGroup {
     tab: 'earn',
     title: market.label,
     kicker: 'Lending',
-    href: { to: '/earn', id: market.marketId },
+    href: { to: '/earn/$id', id: market.marketId },
     // No clock. A lending position does not decide at a time — it is redeemable until it is not,
     // and inventing a deadline would be the one number on this row that is not read from the chain.
     clock: null,

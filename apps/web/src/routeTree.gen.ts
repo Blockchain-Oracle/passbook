@@ -22,9 +22,11 @@ import { Route as SendRouteImport } from './routes/send'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as SwapRouteImport } from './routes/swap'
 import { Route as WalletRouteImport } from './routes/wallet'
+import { Route as YieldRouteImport } from './routes/yield'
 import { Route as ActivityIdRouteImport } from './routes/activity.$id'
 import { Route as ChatIndexRouteImport } from './routes/chat.index'
 import { Route as ChatPeerRouteImport } from './routes/chat.$peer'
+import { Route as EarnIdRouteImport } from './routes/earn_.$id'
 import { Route as HousesIdRouteImport } from './routes/houses_.$id'
 import { Route as LaunchIdRouteImport } from './routes/launch_.$id'
 import { Route as MailIndexRouteImport } from './routes/mail.index'
@@ -99,6 +101,11 @@ const WalletRoute = WalletRouteImport.update({
   path: '/wallet',
   getParentRoute: () => rootRouteImport,
 } as any)
+const YieldRoute = YieldRouteImport.update({
+  id: '/yield',
+  path: '/yield',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ActivityIdRoute = ActivityIdRouteImport.update({
   id: '/activity/$id',
   path: '/activity/$id',
@@ -113,6 +120,11 @@ const ChatPeerRoute = ChatPeerRouteImport.update({
   id: '/$peer',
   path: '/$peer',
   getParentRoute: () => ChatRoute,
+} as any)
+const EarnIdRoute = EarnIdRouteImport.update({
+  id: '/earn_/$id',
+  path: '/earn/$id',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const HousesIdRoute = HousesIdRouteImport.update({
   id: '/houses_/$id',
@@ -169,8 +181,10 @@ export interface FileRoutesByFullPath {
   '/settings': typeof SettingsRoute
   '/swap': typeof SwapRoute
   '/wallet': typeof WalletRoute
+  '/yield': typeof YieldRoute
   '/activity/$id': typeof ActivityIdRoute
   '/chat/$peer': typeof ChatPeerRoute
+  '/earn/$id': typeof EarnIdRoute
   '/houses/$id': typeof HousesIdRoute
   '/launch/$id': typeof LaunchIdRoute
   '/mail/$peer': typeof MailPeerRoute
@@ -193,8 +207,10 @@ export interface FileRoutesByTo {
   '/settings': typeof SettingsRoute
   '/swap': typeof SwapRoute
   '/wallet': typeof WalletRoute
+  '/yield': typeof YieldRoute
   '/activity/$id': typeof ActivityIdRoute
   '/chat/$peer': typeof ChatPeerRoute
+  '/earn/$id': typeof EarnIdRoute
   '/houses/$id': typeof HousesIdRoute
   '/launch/$id': typeof LaunchIdRoute
   '/mail/$peer': typeof MailPeerRoute
@@ -220,8 +236,10 @@ export interface FileRoutesById {
   '/settings': typeof SettingsRoute
   '/swap': typeof SwapRoute
   '/wallet': typeof WalletRoute
+  '/yield': typeof YieldRoute
   '/activity/$id': typeof ActivityIdRoute
   '/chat/$peer': typeof ChatPeerRoute
+  '/earn_/$id': typeof EarnIdRoute
   '/houses_/$id': typeof HousesIdRoute
   '/launch_/$id': typeof LaunchIdRoute
   '/mail/$peer': typeof MailPeerRoute
@@ -248,8 +266,10 @@ export interface FileRouteTypes {
     | '/settings'
     | '/swap'
     | '/wallet'
+    | '/yield'
     | '/activity/$id'
     | '/chat/$peer'
+    | '/earn/$id'
     | '/houses/$id'
     | '/launch/$id'
     | '/mail/$peer'
@@ -272,8 +292,10 @@ export interface FileRouteTypes {
     | '/settings'
     | '/swap'
     | '/wallet'
+    | '/yield'
     | '/activity/$id'
     | '/chat/$peer'
+    | '/earn/$id'
     | '/houses/$id'
     | '/launch/$id'
     | '/mail/$peer'
@@ -298,8 +320,10 @@ export interface FileRouteTypes {
     | '/settings'
     | '/swap'
     | '/wallet'
+    | '/yield'
     | '/activity/$id'
     | '/chat/$peer'
+    | '/earn_/$id'
     | '/houses_/$id'
     | '/launch_/$id'
     | '/mail/$peer'
@@ -325,7 +349,9 @@ export interface RootRouteChildren {
   SettingsRoute: typeof SettingsRoute
   SwapRoute: typeof SwapRoute
   WalletRoute: typeof WalletRoute
+  YieldRoute: typeof YieldRoute
   ActivityIdRoute: typeof ActivityIdRoute
+  EarnIdRoute: typeof EarnIdRoute
   HousesIdRoute: typeof HousesIdRoute
   LaunchIdRoute: typeof LaunchIdRoute
   MarketsIdRoute: typeof MarketsIdRoute
@@ -427,6 +453,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof WalletRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/yield': {
+      id: '/yield'
+      path: '/yield'
+      fullPath: '/yield'
+      preLoaderRoute: typeof YieldRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/activity/$id': {
       id: '/activity/$id'
       path: '/activity/$id'
@@ -447,6 +480,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/chat/$peer'
       preLoaderRoute: typeof ChatPeerRouteImport
       parentRoute: typeof ChatRoute
+    }
+    '/earn_/$id': {
+      id: '/earn_/$id'
+      path: '/earn/$id'
+      fullPath: '/earn/$id'
+      preLoaderRoute: typeof EarnIdRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/houses_/$id': {
       id: '/houses_/$id'
@@ -545,7 +585,9 @@ const rootRouteChildren: RootRouteChildren = {
   SettingsRoute: SettingsRoute,
   SwapRoute: SwapRoute,
   WalletRoute: WalletRoute,
+  YieldRoute: YieldRoute,
   ActivityIdRoute: ActivityIdRoute,
+  EarnIdRoute: EarnIdRoute,
   HousesIdRoute: HousesIdRoute,
   LaunchIdRoute: LaunchIdRoute,
   MarketsIdRoute: MarketsIdRoute,

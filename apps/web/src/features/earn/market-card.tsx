@@ -1,3 +1,4 @@
+import { Link } from '@tanstack/react-router'
 import { AlertTriangle, PauseCircle, Wallet } from 'lucide-react'
 import type { EarnMarketSnapshot } from '@strk20/protocol/earn-reads'
 import type { EarnPosition } from '@strk20/protocol/earn-position'
@@ -55,9 +56,9 @@ function StatusBadge({ snapshot }: { snapshot: EarnMarketSnapshot }) {
 export interface EarnMarketCardProps {
   snapshot: EarnMarketSnapshot
   position: EarnPosition | undefined
-  selected: boolean
   now: number
-  onSelect: () => void
+  /** Opens the supply form for this market, right here, without leaving the list. */
+  onSupply: () => void
 }
 
 /**
@@ -67,17 +68,13 @@ export interface EarnMarketCardProps {
  * catalog that quietly drops the paused one teaches the reader that everything they can see is
  * fine, which is the opposite of what this surface is for.
  */
-export function EarnMarketCard({ snapshot, position, selected, now, onSelect }: EarnMarketCardProps) {
+export function EarnMarketCard({ snapshot, position, now, onSupply }: EarnMarketCardProps) {
   const { market } = snapshot
   const used = snapshot.utilization
+  // A paused or unverified market can still be REDEEMED from, so a held position keeps its door.
+  const canSupply = (snapshot.validated && !snapshot.paused && snapshot.blocker === null) || position !== undefined
   return (
-    <Card
-      className={cn(
-        'flex flex-col gap-0 transition-colors',
-        selected ? 'border-accent1' : 'border-border hover:border-accent1/40',
-        !snapshot.validated && 'opacity-90',
-      )}
-    >
+    <Card className={cn('flex flex-col gap-0 transition-colors hover:border-accent1/40', !snapshot.validated && 'opacity-90')}>
       <CardHeader className="gap-2 pb-3">
         <div className="flex flex-wrap items-start justify-between gap-2">
           <div className="min-w-0">
@@ -124,14 +121,17 @@ export function EarnMarketCard({ snapshot, position, selected, now, onSelect }: 
           </div>
         ) : null}
 
-        <Button
-          variant={selected ? 'default' : 'outline'}
-          className="mt-auto w-full"
-          onClick={onSelect}
-          aria-pressed={selected}
-        >
-          {selected ? 'Selected' : 'View market'}
-        </Button>
+        {/* Two doors, and each one goes where its label says. "View market" used to only change a
+            selection somewhere else on the page, which is the kind of button that teaches people
+            the app is broken. */}
+        <div className="mt-auto grid grid-cols-2 gap-2">
+          <Button variant="outline" render={<Link to="/earn/$id" params={{ id: market.marketId }} />}>
+            Details
+          </Button>
+          <Button onClick={onSupply} aria-disabled={!canSupply || undefined}>
+            {position ? 'Manage' : 'Supply'}
+          </Button>
+        </div>
       </CardContent>
     </Card>
   )

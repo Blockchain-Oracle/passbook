@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Link } from '@tanstack/react-router'
 import {
   EARN_CATALOG_EMPTY,
   EARN_CATALOG_LOADING,
@@ -21,12 +22,15 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { ShieldDialog } from '@/components/money/shield-dialog'
 import { Skeleton } from '@/components/ui/skeleton'
 import { appContracts } from '@/queries/app'
 import { EarnMarketCard } from './market-card'
 import { EarnPortfolio } from './portfolio-card'
 import { EarnReview } from './earn-review'
-import { SupplyPanel } from './supply-panel'
+import { SupplyForm } from './supply-panel'
+import { useEarnShieldDoor } from './use-earn-shield-door'
 import { useEarnConfirm } from './use-earn-confirm'
 import { useEarnState, type EarnFilter } from './use-earn-state'
 
@@ -39,10 +43,12 @@ const FILTERS: readonly { value: EarnFilter; label: string }[] = [
 const AWAY = 'The transaction is away — the pool credits the new note when it accepts it.'
 
 /** The whole Earn surface: portfolio, market rail, one panel, one review. */
-export function EarnSurface({ market: seed }: { market?: string }) {
-  const s = useEarnState(seed)
+export function EarnSurface() {
+  const s = useEarnState()
   const confirm = useEarnConfirm()
   const [reviewing, setReviewing] = useState(false)
+  const [ticket, setTicket] = useState(false)
+  const door = useEarnShieldDoor(s)
   const deployed = Boolean(appContracts().vesuEarn)
 
   const openReview = (open: boolean) => {
@@ -88,8 +94,7 @@ export function EarnSurface({ market: seed }: { market?: string }) {
         loading={s.positionsLoading}
       />
 
-      <div className="grid gap-6 @4xl:grid-cols-[minmax(0,1fr)_minmax(0,24rem)] @4xl:items-start">
-        <section className="flex min-w-0 flex-col gap-4" aria-label="Lending markets">
+      <section className="flex min-w-0 flex-col gap-4" aria-label="Lending markets">
           <div className="flex flex-wrap items-center gap-2">
             {FILTERS.map((f) => (
               <Button
@@ -127,41 +132,61 @@ export function EarnSurface({ market: seed }: { market?: string }) {
                   key={snapshot.market.marketId}
                   snapshot={snapshot}
                   position={s.positions.find((p) => p.market.marketId === snapshot.market.marketId)}
-                  selected={s.selected?.market.marketId === snapshot.market.marketId}
                   now={s.now}
-                  onSelect={() => s.select(snapshot.market.marketId)}
+                  onSupply={() => {
+                    s.select(snapshot.market.marketId)
+                    confirm.reset()
+                    setTicket(true)
+                  }}
                 />
               ))}
             </div>
           )}
 
-          <p className="text-body4 text-muted-foreground">{EARN_UTILIZATION_MEANS}</p>
-        </section>
+        <p className="text-body4 text-muted-foreground">{EARN_UTILIZATION_MEANS}</p>
+      </section>
 
-        <aside className="flex min-w-0 flex-col gap-4 @4xl:sticky @4xl:top-4" aria-label="Supply and redeem">
-          <SupplyPanel s={s} onReview={() => openReview(true)} />
+      <div className="grid gap-4 @3xl:grid-cols-2 @3xl:items-start">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-kicker uppercase text-muted-foreground">What this shows</CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-2 text-body4 text-muted-foreground">
+            <p>{EARN_RATE_MOVES}</p>
+            <p>{EARN_REDEEMABLE_MEANS}</p>
+            <p>{EARN_NO_RISK_SCORE}</p>
+          </CardContent>
+        </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-kicker uppercase text-muted-foreground">What this shows</CardTitle>
-            </CardHeader>
-            <CardContent className="flex flex-col gap-2 text-body4 text-muted-foreground">
-              <p>{EARN_RATE_MOVES}</p>
-              <p>{EARN_REDEEMABLE_MEANS}</p>
-              <p>{EARN_NO_RISK_SCORE}</p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-kicker uppercase text-muted-foreground">Who sees what</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <VisibilityMatrixView context="earn" />
-            </CardContent>
-          </Card>
-        </aside>
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-kicker uppercase text-muted-foreground">Who sees what</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <VisibilityMatrixView context="earn" />
+          </CardContent>
+        </Card>
       </div>
+
+      {/* The form opens where the click happened, instead of in a column that fell below seven
+          cards on every width narrower than a wide desktop. */}
+      <Dialog open={ticket} onOpenChange={setTicket}>
+        <DialogContent className="max-h-[90svh] overflow-y-auto sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="font-display text-display3 uppercase">{s.selected?.market.label ?? 'Market'}</DialogTitle>
+            <DialogDescription>{s.selected?.market.curatorLabel ?? 'Vesu V2'}</DialogDescription>
+          </DialogHeader>
+          <SupplyForm
+            s={s}
+            shieldDoor={door.door}
+            onShield={() => { setTicket(false); door.open() }}
+            onReview={() => { setTicket(false); openReview(true) }}
+          />
+          <Button variant="ghost" size="sm" render={<Link to="/earn/$id" params={{ id: s.selected?.market.marketId ?? '' }} />}>
+            See this market’s addresses and full detail
+          </Button>
+        </DialogContent>
+      </Dialog>
 
       {s.selected && s.parsed.wei !== null ? (
         <EarnReview
@@ -178,6 +203,7 @@ export function EarnSurface({ market: seed }: { market?: string }) {
           onConfirm={() => void onConfirm()}
         />
       ) : null}
+      <ShieldDialog {...door.dialogProps} />
     </Page>
   )
 }

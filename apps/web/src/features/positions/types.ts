@@ -53,7 +53,7 @@ export interface PositionGroup {
   /** The venue's own word for itself, under the title. */
   kicker: string
   /** Where this position lives, for the row that opens it. */
-  href: { to: '/markets/$id' | '/launch/$id' | '/houses/$id'; id: string } | { to: '/earn'; id: string } | null
+  href: { to: '/markets/$id' | '/launch/$id' | '/houses/$id' | '/earn/$id'; id: string } | null
   /** When it decides, in one line, or nothing when this group cannot read a clock. */
   clock: string | null
   claims: Claim[]
