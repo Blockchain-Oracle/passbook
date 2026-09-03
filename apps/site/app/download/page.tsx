@@ -8,7 +8,7 @@ import { APP_URL } from '@/lib/shared'
 
 export const metadata: Metadata = {
   title: 'Install on your phone',
-  description: 'Add the strk20.run web app to an iPhone, iPad, or Android Home Screen from the browser menu.',
+  description: 'Add the strk20.run web app to an iPhone, iPad, or Android Home Screen from Safari or Chrome.',
 }
 
 function PhoneStage() {
@@ -67,26 +67,38 @@ function PhoneStage() {
   )
 }
 
-// Labels as the two browsers spell them in 2026: Safari on iOS 26 keeps Share behind the ⋯ button
-// in its default Compact layout, and Chrome on Android names the menu item "Install and create
-// shortcut". Chrome may also offer the install on its own; that prompt is the same install.
+// The recordings show Chrome on iPhone and Android. Safari follows the same Share action on iOS.
 const INSTALL_STEPS = [
   {
     platform: 'iPhone or iPad',
-    browser: 'Safari',
-    icon: <Ellipsis aria-hidden="true" size={27} strokeWidth={1.6} />,
+    browser: 'Chrome or Safari',
+    icon: <Share aria-hidden="true" size={27} strokeWidth={1.6} />,
+    recording: {
+      src: '/install-guides/iphone-chrome.mp4',
+      poster: '/install-guides/iphone-chrome-poster.jpg',
+      width: 720,
+      height: 1566,
+      duration: '13-second',
+    },
     steps: [
-      'Open app.strk20.run in Safari.',
-      'Tap the ⋯ button in the address bar, then Share.',
+      'Open app.strk20.run in Chrome or Safari.',
+      'Tap Share in the browser toolbar. In a compact layout, open the ⋯ menu first.',
       'Scroll the sheet down and tap Add to Home Screen.',
       'Leave Open as Web App on, then tap Add.',
     ],
-    note: 'Safari’s Top and Bottom tab layouts show a Share button in the bar instead; start from that.',
+    note: 'The recording uses Chrome on iPhone. Safari uses the same Share → Add to Home Screen action, though the Share button can move with the tab layout.',
   },
   {
     platform: 'Android',
     browser: 'Chrome',
     icon: <EllipsisVertical aria-hidden="true" size={27} strokeWidth={1.6} />,
+    recording: {
+      src: '/install-guides/android-chrome.mp4',
+      poster: '/install-guides/android-chrome-poster.jpg',
+      width: 720,
+      height: 1544,
+      duration: '14-second',
+    },
     steps: [
       'Open app.strk20.run in Chrome.',
       'If Chrome offers to install it, tap Install and you are done.',
@@ -136,8 +148,8 @@ export default function DownloadPage() {
               <h2 className="display m-0 pt-s8 text-display2 xl:text-display1">Two short paths.</h2>
             </div>
             <p className="m-0 max-w-[48ch] text-body4 text-neutral2">
-              Start from the browser you intend to keep using. A Home Screen icon is not a backup
-              of the account stored in that browser.
+              Watch the real-device recording, then follow the matching steps. A Home Screen icon
+              is not a backup of the account stored in that browser.
             </p>
           </div>
 
@@ -149,6 +161,29 @@ export default function DownloadPage() {
                   <span className="kicker">{guide.browser}</span>
                 </div>
                 <h3 className="display m-0 pt-s24 text-display3 xl:text-display2">{guide.platform}</h3>
+                <figure className="m-0 pt-s24">
+                  <div className="mx-auto w-full max-w-[280px] overflow-hidden rounded-[34px] border border-surface3 bg-ground shadow-[0_24px_60px_rgba(0,0,0,0.32)]">
+                    <video
+                      controls
+                      playsInline
+                      preload="metadata"
+                      poster={guide.recording.poster}
+                      width={guide.recording.width}
+                      height={guide.recording.height}
+                      aria-label={`${guide.platform} installation recording`}
+                      className="block h-auto w-full bg-ground"
+                    >
+                      <source src={guide.recording.src} type="video/mp4" />
+                      <a className="text-accent1" href={guide.recording.src}>
+                        Open the {guide.platform} installation recording
+                      </a>
+                    </video>
+                  </div>
+                  <figcaption className="m-0 pt-s12 text-center text-body4 text-neutral3">
+                    Silent {guide.recording.duration} recording. Use the player’s full-screen control
+                    to inspect each tap.
+                  </figcaption>
+                </figure>
                 <ol className="m-0 flex list-none flex-col gap-s16 p-0 pt-s24">
                   {guide.steps.map((step, index) => (
                     <li key={step} className="grid grid-cols-[2rem_minmax(0,1fr)] gap-s12 border-t border-surface3 pt-s12">
