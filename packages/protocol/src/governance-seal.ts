@@ -2,13 +2,13 @@
 // Sealing a ballot's choice to the proposal's tally key — and opening it, which is the Teller's
 // whole job (docs/architecture.md — Houses).
 //
-// ── ECIES ON THE STARK CURVE, `room.ts`'s PRIMITIVES REARRANGED ──────────────────────────
+// ── ECIES ON THE STARK CURVE ──────────────────────────────────────────────────────────────
 //
-// The room scheme is two parties with one ECDH secret. A ballot is one party sealing to a
+// A ballot is one party sealing to a
 // PUBLISHED key: the voter mints an ephemeral scalar `e`, computes `S = e·TallyPub`, derives an
 // AES-GCM key from S's x, and ships `E = e·G`'s x beside the ciphertext. The Teller — or, in
 // secret-until-close mode after the key hits the chain, ANYONE — recomputes `S = teller_priv·E`
-// and opens. The even-y lift is the same one `room.ts` proves sign-independent.
+// and opens. The even-y lift is sign-independent: `k·(−P) = −(k·P)` shares an x-coordinate.
 //
 // ── WHAT TRAVELS, AND WHERE ──────────────────────────────────────────────────────────────
 //

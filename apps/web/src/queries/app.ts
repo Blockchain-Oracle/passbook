@@ -14,6 +14,10 @@ export function appContracts(): AppContracts {
     APP_PRAGMA_ADDRESS: import.meta.env.VITE_APP_PRAGMA_ADDRESS,
     APP_GOVERNANCE_ADDRESS: import.meta.env.VITE_APP_GOVERNANCE_ADDRESS,
     APP_GOVERNANCE_CLASS_HASH: import.meta.env.VITE_APP_GOVERNANCE_CLASS_HASH,
+    APP_MAILBOX_ADDRESS: import.meta.env.VITE_APP_MAILBOX_ADDRESS,
+    APP_MAILBOX_BLOCK: import.meta.env.VITE_APP_MAILBOX_BLOCK,
+    APP_VESU_EARN_ADDRESS: import.meta.env.VITE_APP_VESU_EARN_ADDRESS,
+    APP_VESU_EARN_BLOCK: import.meta.env.VITE_APP_VESU_EARN_BLOCK,
   })
   return contracts
 }

@@ -6,7 +6,7 @@ import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbP
 import { HouseRecord, houseTitle, useGovernanceRead } from '@/features/houses'
 
 interface HouseSearch {
-  /** A voter handle handed over in chat — the Delegate door opens holding it. */
+  /** A voter handle handed over in mail — the Delegate door opens holding it. */
   delegate?: string
 }
 

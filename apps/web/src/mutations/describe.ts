@@ -77,6 +77,9 @@ export function describeSendFailure(failure: SendFailure): string {
       return 'The pool is paused, so nothing can move right now. Nothing was spent.'
     case 'pool-upgraded':
       return 'The pool contract changed since this app was built, so nothing was submitted.'
+    case 'mail-anchor-mismatch':
+      // Nothing was signed: the walk named a note the SDK did not. A refresh and a retry is free.
+      return 'Your balance moved while this mail was being prepared, so it was not sent. Nothing was spent — send it again.'
     case 'self-submit-failed': {
       // The one arm that carries a raw sequencer throw. `gasLine` is authored copy, but it only
       // holds when the transaction actually ran — a pre-execution refusal costs nothing.
@@ -198,8 +201,11 @@ function payYourOwnWayCost(feeWei: bigint): string {
 export function labelFor(kind: SendKind, symbol: string): string {
   switch (kind) {
     case 'transfer': return `Send ${symbol}`
+    case 'mail': return `Mail ${symbol}`
     case 'withdraw': return `Withdraw ${symbol}`
     case 'swap': return `Swap ${symbol}`
+    case 'earn-supply': return `Supply ${symbol}`
+    case 'earn-redeem': return `Redeem ${symbol}`
     case 'bridge': return `Bridge ${symbol}`
     case 'market-create': return 'Create market'
     case 'market-bet': return `Place ${symbol} bet`

@@ -47,12 +47,14 @@ const TABS: readonly { value: PositionTab; label: string }[] = [
   { value: 'market', label: 'Markets' },
   { value: 'token', label: 'Tokens' },
   { value: 'house', label: 'DAOs' },
+  { value: 'earn', label: 'Earn' },
 ]
 
 const DISCLOSURE = {
   market: disclosureFor('markets-exit'),
   launch: disclosureFor('launch-sell'),
   governance: disclosureFor('gov-reclaim'),
+  earn: disclosureFor('earn'),
 } as const
 
 interface Review {

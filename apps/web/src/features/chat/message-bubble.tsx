@@ -20,7 +20,7 @@ import { Button } from '@/components/ui/button'
 import { explorerTx, shortAddress } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
-import { MarketCard } from './market-card'
+import { MarketCard } from '@/components/share/market-card'
 import type { PeerIdentity } from './use-peers'
 
 type MoneyMessage = RoomMessage & { kind: 'payment' | 'request' }

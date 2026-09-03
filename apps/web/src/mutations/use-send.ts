@@ -1,5 +1,5 @@
 import { useMutation } from '@tanstack/react-query'
-import type { AppInvokeLeg, BridgeLeg, SendFailure, SendKind, SendResult, SwapLeg } from '@strk20/protocol/send'
+import type { AppInvokeLeg, BridgeLeg, EarnLeg, MailLeg, SendFailure, SendKind, SendResult, SwapLeg } from '@strk20/protocol/send'
 import { SEND_STAGES, type SendStage } from '@strk20/protocol/pipeline-stage'
 import type { ActivitySurface } from '@strk20/protocol/transaction'
 
@@ -34,8 +34,10 @@ export interface SendAsk {
   symbol: string
   amount: bigint
   swap?: SwapLeg
+  earn?: EarnLeg
   bridge?: BridgeLeg
   app?: AppInvokeLeg
+  mail?: MailLeg
   surface?: ActivitySurface
   label?: string
   /**
@@ -166,8 +168,10 @@ async function send(ask: SendAsk): Promise<SendResult> {
         // costs a retry rather than a dead end.
         mode: ask.sponsored ? 'relayer' : 'self',
         ...(ask.swap ? { swap: ask.swap } : {}),
+        ...(ask.earn ? { earn: ask.earn } : {}),
         ...(ask.bridge ? { bridge: ask.bridge } : {}),
         ...(ask.app ? { app: ask.app } : {}),
+        ...(ask.mail ? { mail: ask.mail } : {}),
         wallet: read.wallet,
       },
       { acquireSubmitLock, selfSubmit: makeSelfSubmit(accountKey, address), onStage },

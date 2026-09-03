@@ -48,6 +48,10 @@ function contractDefines(): Record<string, string> {
   wire('VITE_APP_PRAGMA_ADDRESS', evidence.pragma)
   wire('VITE_APP_GOVERNANCE_ADDRESS', field('Governance', 'contractAddress'))
   wire('VITE_APP_GOVERNANCE_CLASS_HASH', field('Governance', 'classHash'))
+  wire('VITE_APP_MAILBOX_ADDRESS', field('Mailbox', 'contractAddress'))
+  wire('VITE_APP_MAILBOX_BLOCK', String(field('Mailbox', 'blockNumber') ?? ''))
+  wire('VITE_APP_VESU_EARN_ADDRESS', field('VesuEarn', 'contractAddress'))
+  wire('VITE_APP_VESU_EARN_BLOCK', String(field('VesuEarn', 'blockNumber') ?? ''))
   return defines
 }
 

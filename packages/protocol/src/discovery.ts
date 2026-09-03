@@ -10,6 +10,8 @@
 import { Contract, type BigNumberish, type RpcProvider } from 'starknet'
 import {
   ContractDiscoveryProvider,
+  compute_channel_key,
+  compute_enc_amount_hash,
   compute_note_id,
   compute_nullifier,
   type PoolContractInterface,
@@ -21,8 +23,9 @@ import { deriveViewingKey } from './identity.js'
 import { withFallback } from './rpc.js'
 import type { ShieldedBalancePresence } from './backup-cadence.js'
 
-// Pool consensus hashes — imported, never reimplemented (activity.ts recomputes ids/nullifiers).
-export { compute_note_id, compute_nullifier }
+// Pool consensus hashes — imported, never reimplemented (activity recomputes ids/nullifiers; mail
+// predicts a note id before compiling and decrypts note amounts).
+export { compute_channel_key, compute_enc_amount_hash, compute_note_id, compute_nullifier }
 export type { PoolContractInterface }
 
 // ── Caller-supplied wallet data — the seam a send spends from ───────────────────────────────

@@ -6,6 +6,9 @@ export function invalidateMoney(): Promise<void> {
     queryClient.invalidateQueries({ queryKey: ['shielded'] }),
     queryClient.invalidateQueries({ queryKey: ['public-balances'] }),
     queryClient.invalidateQueries({ queryKey: ['activity'] }),
+    // An Earn position is a vToken note, so the walk above already moved it — but the market's
+    // own figures (share price, liquidity, utilization) moved too, and they come from elsewhere.
+    queryClient.invalidateQueries({ queryKey: ['earn'] }),
   ]).then(() => undefined)
 }
 

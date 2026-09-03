@@ -16,7 +16,6 @@ export interface BannerInput {
   port: number
   address: string
   nodeUrl: string
-  messageBook: string | undefined
   appContracts: AppContracts
   governanceSafety: GovernanceWriteSafety
   keeperWanted: boolean
@@ -42,7 +41,6 @@ export function printBanner(b: BannerInput): void {
   const { appContracts: app, sponsor } = b
   console.log(`relayer listening on ${b.host}:${b.port}, submitting as ${b.address} via ${b.nodeUrl}`)
   console.log(`allowlist: pool ${NET.pool} · STRK approve-to-pool only`)
-  console.log(b.messageBook ? `allowlist: MessageBook ${b.messageBook}` : 'allowlist: no MessageBook deployed yet')
   console.log(
     app.markets
       ? `allowlist: Markets ${app.markets}${app.launch ? ` · Launch ${app.launch}` : ''}${app.governance ? ` · Governance ${app.governance}` : ''}`
@@ -71,6 +69,7 @@ export function printBanner(b: BannerInput): void {
       `ledger ${sponsor.sendStorePath} · fee recipient ${b.address}`,
   )
   // Said out loud because it is the one piece of state a user might assume this process lacks.
+  // Chat's backlog lives here and nowhere else; Mail's memos live on chain and never pass through.
   console.log(
     `rooms: ciphertext only, in memory · ${ROOM_HISTORY} messages kept per room · ` +
       `idle rooms dropped after ${ROOM_IDLE_MS / 60_000} minutes`,

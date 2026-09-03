@@ -124,6 +124,12 @@ export async function noteExists(noteId: bigint): Promise<boolean> {
   return notePresentIn(await call('get_note', [`0x${noteId.toString(16)}`]), noteId)
 }
 
+/** The packed `(salt, amount)` the pool holds under a note id; `0n` when it holds nothing. Spent notes keep theirs. */
+export async function readPackedNote(noteId: bigint): Promise<bigint> {
+  const result = await call('get_note', [`0x${noteId.toString(16)}`])
+  return notePresentIn(result, noteId) ? BigInt(result[0]!) : 0n
+}
+
 /** Present iff `packed_value != 0` — the pool's own existence test throughout `privacy.cairo`. */
 export function notePresentIn(result: readonly string[], noteId: bigint): boolean {
   const packed = result?.[0]

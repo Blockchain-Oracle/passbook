@@ -27,7 +27,7 @@ import { useHouseToken } from './use-house-token'
  * the position is stored first and revoked later through `gov-revoke`.
  */
 export function DelegateDialog({ house, open, onOpenChange, initialDelegate }: DoorProps & { initialDelegate?: string }) {
-  // Seeded once: the handle arrives from a chat card through the route, and is then just the field's value.
+  // Seeded once: the handle arrives from a mail card through the route, and is then just the field's value.
   const [delegate, setDelegate] = useState(initialDelegate ?? '')
   const [raw, setRaw] = useState('')
   const [reviewing, setReviewing] = useState(false)

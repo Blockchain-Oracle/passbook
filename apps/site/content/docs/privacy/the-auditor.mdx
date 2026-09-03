@@ -17,7 +17,7 @@ contract, and writes the result on-chain.
 - Anyone can read the record with one permissionless view call — `get_enc_private_key(address)`.
 - Whoever holds the matching private key can recover **every pool-rooted shared secret**, and can
   do so **retroactively**, including for activity from before they decided to look.
-- Your **chat room keys derive from those same viewing keys**.
+- Your **mail memo keys derive from the pool's channel keys**, which those same viewing keys recover.
 
 ## Why it is like this
 

@@ -51,9 +51,6 @@ export function isPoolApplyActions(call: Call): boolean {
 
 /** Every `privacy_invoke` across the WHOLE app-contract set — per-contract counting would allow three. */
 function isAppContractInvoke(call: Call, policy: SubmissionPolicy): boolean {
-  if (policy.messageBook !== undefined && matches(call, policy.messageBook, 'privacy_invoke')) {
-    return true
-  }
   for (const name of ['markets', 'launch', 'governance'] as const) {
     const address = policy[name]
     if (address !== undefined && matches(call, address, 'privacy_invoke')) return true

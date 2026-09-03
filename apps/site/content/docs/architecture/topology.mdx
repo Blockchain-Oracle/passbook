@@ -73,7 +73,7 @@ public leg; later note ownership is what the pool obscures.
 |---|---|---|
 | **Your browser** | Holds the active key; a password or passkey can seal the stored account record | Everything needed to prepare the action |
 | **App host proxy** | Same origin. The browser posts to `/api/*` and the host injects the relayer auth token | The request. The browser never holds the token |
-| **Relayer** | A trust assumption, and named as one | Your IP and request timing. For chat, a short in-memory ciphertext backlog. Holds no key of yours |
+| **Relayer** | A trust assumption, and named as one | Your IP and request timing. Carries no message: mail is a pool transaction. Holds no key of yours |
 | **Starknet · STRK20 pool** | The public record | Deposits: depositor and amount. What it hides is which notes are yours afterwards |
 
 ## The proxy exists so the browser never holds a secret
@@ -94,9 +94,6 @@ listed as a trust assumption on the surface and here, rather than described as i
 
 **The account is an embedded key.** Generated in the browser during setup, then optionally sealed
 with a password or passkey. See [the account](/docs/how-it-works/the-account).
-
-**One socket, disclosed.** Every conversation rides one multiplexed socket, and a multiplexed
-subscribe tells the relayer those rooms share one participant. The copy says so.
 
 **The name directory is public by construction.** Claiming a name publishes `name → address`; that
 is its function. Search is private — the client fetches the whole list and matches locally.

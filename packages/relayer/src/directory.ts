@@ -1,10 +1,10 @@
 //
 // The name directory — the relayer's one OPT-IN public record.
 //
-// Everything else this process holds is deliberately unreadable (ciphertext rooms) or private
-// operational state (budgets). This file is the opposite: a registry whose entire
-// function is to be fetched by anyone, because chat search needs a name → address map and the
-// only honest place for one is out in the open. What keeps it honest:
+// Everything else this process holds is private operational state (budgets, ledgers). This file
+// is the opposite: a registry whose entire function is to be fetched by anyone, because a
+// recipient search needs a name → address map and the only honest place for one is out in the
+// open. What keeps it honest:
 //
 //   1. A claim must prove control of its address — a Stark signature over H(name, address),
 //      verified against the viewing key the pool anchors on-chain (`get_public_key`, one free

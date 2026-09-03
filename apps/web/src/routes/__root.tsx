@@ -19,10 +19,13 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
   notFoundComponent: NotFoundPage,
 })
 
+/** The surfaces that own their scrollbar instead of the document's. See the note in `Shell`. */
+const BOUNDED_ROUTES = ['/mail', '/chat'] as const
+
 function Shell() {
   //
-  // Chat is the one surface that scrolls INSIDE itself rather than scrolling the document: a
-  // message list needs its own scrollbar so the composer can stay put at the bottom of the SCREEN
+  // Mail and Chat are the two surfaces that scroll INSIDE themselves rather than scrolling the
+  // document: a thread needs its own scrollbar so the composer can stay put at the bottom of the SCREEN
   // instead of at the bottom of an ever-growing page. That only works if an ancestor is genuinely
   // viewport-height — `min-h-svh` grows, `h-svh` bounds — after which the surfaces below chain
   // `flex-1 min-h-0` down to the list. Every other page keeps document scrolling, which is why
@@ -35,7 +38,7 @@ function Shell() {
   // child, and stretch subtracts a child's margins. One rem, and it is the whole bug.
   //
   const { pathname } = useLocation()
-  const bounded = pathname === '/chat' || pathname.startsWith('/chat/')
+  const bounded = BOUNDED_ROUTES.some((route) => pathname === route || pathname.startsWith(`${route}/`))
   // App-wide, like the chat stream: a passkey vault's sealed copy follows every local write.
   useRecoverySync()
 
@@ -50,6 +53,9 @@ function Shell() {
         <SidebarInset
           className={cn('@container min-w-0 overflow-x-clip pb-20 md:pb-0', bounded && 'min-h-0 overflow-y-hidden')}
         >
+          {/* One multiplexed socket for every remembered conversation, mounted at the ROOT so a
+              message arriving while you are on another surface still lands and still counts. Mail
+              needs no equivalent: its threads come from the chain, not from a connection. */}
           <ChatStreamProvider>
             <OnboardingGate />
             <AccountBanner />

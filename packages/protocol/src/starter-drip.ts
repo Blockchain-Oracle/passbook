@@ -26,7 +26,7 @@ import { createEmptyRegistry, type PrivateTransfersUser } from '@starkware-libs/
 
 import { NET, STRK_TOKEN } from './constants.js'
 import { createPoolClient } from './client.js'
-import { CLIENT_ACTION } from './message-book.js'
+import { CLIENT_ACTION } from './client-action-index.js'
 import {
   decodeClientActions,
   extractClientActionSpan,

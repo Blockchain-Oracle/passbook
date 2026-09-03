@@ -1,7 +1,7 @@
 //
 // Who an address is, as far as the directory knows: a handle and maybe a picture.
 //
-// This started inside chat, which is where a face was first needed. It is app-wide now because the
+// This started inside mail, which is where a face was first needed. It is app-wide now because the
 // sidebar has to show YOUR handle, and a search result has to show the face of a name you just
 // typed — the same two reads, and they must not be answered twice from two places.
 //

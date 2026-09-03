@@ -1,10 +1,12 @@
 ---
 title: The invoke sandwich
-description: How a swap or a bridge happens without your value ever landing on a public address of yours.
+description: How a swap, a bridge or a lending supply happens without your value ever landing on a public address of yours.
 ---
 
-Swap and bridge are the same shape, and it is worth understanding because it is what makes them
-private at all.
+Swap, [Earn](/docs/how-it-works/earn) and bridge are the same shape, and it is worth understanding
+because it is what makes them private at all. The only thing that differs is which contract gets
+invoked in the middle: an aggregator's executor for a swap, our own helper for a lending supply, and
+StarkWare's `OutboundAnonymizer` for a crossing.
 
 <Steps>
 
@@ -22,14 +24,14 @@ address and then trades has already told everyone who you are.
 
 <Step>
 ### Invoke
-The executor runs the swap, or the bridge burn, **inside the same transaction**. There is no
-window in which the value is sitting somewhere waiting.
+The executor runs the swap, the lending supply, or the bridge burn, **inside the same transaction**.
+There is no window in which the value is sitting somewhere waiting.
 </Step>
 
 <Step>
 ### Proceeds land back as a note
-Output returns into the pool. On a bridge it exits through `OutboundAnonymizer` instead — outbound
-only, see [surface status](/docs/surfaces).
+Output returns into the pool — the bought token, or the lending market's shares. On a bridge it
+exits through `OutboundAnonymizer` instead — outbound only, see [surface status](/docs/surfaces).
 </Step>
 
 </Steps>
@@ -38,8 +40,8 @@ only, see [surface status](/docs/surfaces).
 
 It hides **who**. It does not hide **how much**.
 
-Any leg that touches an open note publishes its size. A swap, a launch buy and a market bet all
-reveal their amount to anyone reading the chain. This is why "amounts are private" is a
+Any leg that touches an open note publishes its size. A swap, a lending supply, a launch buy and a
+market bet all reveal their amount to anyone reading the chain. This is why "amounts are private" is a
 [refused claim](/docs/privacy/refused-claims) — the sponsor's own rule is *claim identity privacy;
 never claim amount privacy for swaps*, and this product follows it.
 

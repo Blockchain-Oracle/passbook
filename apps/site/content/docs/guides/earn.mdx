@@ -1,0 +1,64 @@
+---
+title: Supply a lending market
+description: Put shielded USDC to work in a Vesu market, and take it back out.
+---
+
+You need shielded USDC to start, and public STRK for the fee — Earn is submitted by your own
+account, so it is not covered by a sponsored transaction.
+
+## Compare first
+
+Open **Earn**. The rail lists every Vesu USDC market with its live supply rate, its available
+liquidity, and a utilization meter. Nothing here is a transaction, so read as long as you like.
+
+Three things are worth looking at together rather than one at a time:
+
+- **The rate.** Variable, and read from the market's own contract at the moment shown on the card.
+- **Utilization.** How much of the market is lent out. High utilization is usually what pays well,
+  and it is also what can make leaving harder.
+- **Available now.** The unborrowed USDC sitting in the market. This is the ceiling on what anyone
+  can take out today, yourself included.
+
+The list is not sorted by rate. Sorting by rate would be the app telling you the highest number is
+the best choice, and it is not.
+
+## Supply
+
+Pick a market and the panel opens on **Supply**. The quick amounts are 25/50/75/max of your actual
+shielded USDC balance, so the buttons work whatever you hold.
+
+Before you confirm, the panel shows what you would receive as an estimate, the pool fee, and the
+**break-even** — how long at the current rate before the yield covers the fee in both directions. On
+a small deposit that number can be months. It is there because it is the part of the decision the
+rate alone hides.
+
+Review, then confirm. One transaction: the USDC leaves the pool to our helper, the helper supplies
+the market, and the shares come back as a private note.
+
+## Come back later
+
+The position appears on **Earn** and on **Positions**, aggregated per market. You do not need this
+browser to find it again — the position is the note, so a cleared browser or a new device holding
+the same account rebuilds it from the chain.
+
+While a supply is maturing the pool has not yet made the new note spendable; that is normal and the
+surface says which stage it is in.
+
+## Redeem
+
+A **Redeem** tab appears once you hold something. It spends shares, not USDC, so the quick amounts
+are percentages of your share balance and the estimate below shows the USDC that would come back.
+
+Two things to check:
+
+- **Redeemable now** may be less than the position is worth, if the market has lent out more than it
+  currently holds. The panel shows both numbers.
+- A **paused** market refuses new supply but still lets you redeem. The banner says both halves.
+
+## Moving to another market
+
+Moving is two transactions with two fees, and the plan says so up front. After the first leg your
+money is shielded USDC — you can supply the new market, or stop there and keep it.
+
+If the first leg finishes in an unknown state, the second is held back until the chain settles the
+question. Nothing retries on its own, because a redemption sent twice is a real way to lose money.

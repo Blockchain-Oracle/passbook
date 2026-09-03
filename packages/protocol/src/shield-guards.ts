@@ -6,7 +6,8 @@
 import type { BigNumberish, Call } from 'starknet'
 import type { Proof } from '@starkware-libs/starknet-privacy-sdk'
 import { NET } from './constants.js'
-import { CLIENT_ACTION } from './message-book.js'
+import { CLIENT_ACTION } from './client-action-index.js'
+import { decodeClientActions } from './action-span.js'
 
 export type ShieldPoolMode = 'compatibility' | 'screening'
 
@@ -29,25 +30,8 @@ export interface ShieldSpanSubject {
 
 /** Only the self-channel setup prefix, then exactly `Deposit + CreateEncNote` for the reviewed amount. */
 export function assertShieldActionSpan(span: readonly bigint[], request: ShieldSpanSubject): void {
-  const count = Number(span[0] ?? -1n)
-  if (!Number.isInteger(count) || count < 2 || count > 4) throw new Error(`refusing a shield span declaring ${span[0] ?? 'no'} actions`)
-
-  const widths: Record<number, number> = {
-    [CLIENT_ACTION.OpenChannel]: 5,
-    [CLIENT_ACTION.OpenSubchannel]: 7,
-    [CLIENT_ACTION.Deposit]: 3,
-    [CLIENT_ACTION.CreateEncNote]: 7,
-  }
-  const actions: { variant: number; fields: readonly bigint[] }[] = []
-  let at = 1
-  for (let index = 0; index < count; index++) {
-    const variant = Number(span[at])
-    const width = widths[variant]
-    if (width === undefined || at + width > span.length) throw new Error(`refusing unsupported or truncated shield action ${variant} at ${index}`)
-    actions.push({ variant, fields: span.slice(at + 1, at + width) })
-    at += width
-  }
-  if (at !== span.length) throw new Error(`${span.length - at} shield calldata felts went uninspected`)
+  const actions = decodeClientActions(span, 'shield')
+  if (actions.length < 2 || actions.length > 4) throw new Error(`refusing a shield span declaring ${actions.length} actions`)
 
   const tail = actions.slice(-2)
   if (tail[0]?.variant !== CLIENT_ACTION.Deposit || tail[1]?.variant !== CLIENT_ACTION.CreateEncNote) {

@@ -16,6 +16,8 @@ import {
   BRIDGE_IRREVERSIBLE,
   BRIDGE_WAY_OUT,
   CHAT_AUDITOR_DERIVES,
+  CHAT_NOT_ON_CHAIN,
+  MAIL_AUDITOR_DERIVES,
   DISCLOSURE_HEADLINE,
   UNSHIELD_SELF_LINK,
   GOV_NOT_ANONYMITY,
@@ -28,6 +30,10 @@ import {
   RELAYER_SEES,
   SELF_SUBMIT_NO_RELAYER,
   SELF_SUBMIT_WAY_OUT,
+  EARN_OBSERVER,
+  EARN_POSITION_RECOVERABLE,
+  EARN_RETURNS_TO_YOU,
+  EARN_SELF_SUBMIT,
   SWAP_OBSERVER,
   SWAP_RELAY_QUOTE,
   SWAP_RETURNS_TO_YOU,
@@ -143,11 +149,27 @@ const TABLE = {
     wayOut: null,
   },
 
+  mail: {
+    authored: true,
+    context: 'mail',
+    lines: [
+      leaves(DISCLOSURE_HEADLINE.mail, 'medium'),
+      leaves(MAIL_AUDITOR_DERIVES, 'low'),
+      stays(NOTES_STAY),
+    ],
+    wayOut: null,
+  },
+
+  // Chat's headline is `CHAT_RELAY_METADATA` and it is `medium`, not `low`: a room hands the relay
+  // the conversation graph, which is more than an ordinary send gives it. The gas-free line is a
+  // disclosure and not a feature bullet — the same fact that makes it free is what keeps it off
+  // the chain.
   'chat-payment': {
     authored: true,
     context: 'chat-payment',
     lines: [
       leaves(DISCLOSURE_HEADLINE['chat-payment'], 'medium'),
+      leaves(CHAT_NOT_ON_CHAIN, 'low'),
       leaves(CHAT_AUDITOR_DERIVES, 'low'),
       stays(NOTES_STAY),
     ],
@@ -162,6 +184,23 @@ const TABLE = {
       leaves(SWAP_OBSERVER, 'low'),
       leaves(SWAP_RELAY_QUOTE, 'low'),
       stays(SWAP_RETURNS_TO_YOU),
+    ],
+    wayOut: null,
+  },
+
+  // `EARN_SELF_SUBMIT` is `medium` for the same reason `self-submit`'s headline is high: putting
+  // the user's own address on the transaction is the one exposure here they cannot opt out of.
+  // There is no `wayOut` because there is no relayed alternative to offer — a label wired to a
+  // no-op would be the overclaim this type exists to prevent.
+  earn: {
+    authored: true,
+    context: 'earn',
+    lines: [
+      leaves(DISCLOSURE_HEADLINE.earn, 'low'),
+      leaves(EARN_OBSERVER, 'low'),
+      leaves(EARN_SELF_SUBMIT, 'medium'),
+      stays(EARN_RETURNS_TO_YOU),
+      stays(EARN_POSITION_RECOVERABLE),
     ],
     wayOut: null,
   },

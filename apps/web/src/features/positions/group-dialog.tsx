@@ -27,6 +27,7 @@ const OPEN_LABEL: Record<PositionGroup['venue'], string> = {
   market: 'Open the market',
   launch: 'Open the token',
   governance: 'Open the DAO',
+  earn: 'Open Earn',
 }
 
 export interface GroupDialogProps {
@@ -100,7 +101,16 @@ export function GroupDialog({ group, onOpenChange, onSettle }: GroupDialogProps)
                     variant="outline"
                     size="sm"
                     className="shrink-0"
-                    render={<Link to={group.href.to} params={{ id: group.href.id }} />}
+                    // `/earn` carries the market in its search, not in a path param, so the two
+                    // shapes cannot share one `<Link>` — the wrong one silently drops the id and
+                    // lands on whichever market the surface picked by default.
+                    render={
+                      group.href.to === '/earn' ? (
+                        <Link to="/earn" search={{ market: group.href.id }} />
+                      ) : (
+                        <Link to={group.href.to} params={{ id: group.href.id }} />
+                      )
+                    }
                   >
                     {OPEN_LABEL[group.venue]}
                     <ArrowUpRight data-icon="inline-end" aria-hidden />

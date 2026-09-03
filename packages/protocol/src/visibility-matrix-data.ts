@@ -25,8 +25,10 @@ export const VISIBILITY_CONTEXTS = [
   'pool-send',
   'self-submit',
   'registration',
+  'mail',
   'chat-payment',
   'swap',
+  'earn',
   'unshield',
   'bridge-exit',
   'markets-bet',
@@ -46,8 +48,10 @@ export const CONTEXT_LABELS = {
   'pool-send': 'Sending through the relayer',
   'self-submit': 'Submitting it yourself',
   registration: 'Registering with the pool',
+  mail: 'Sending mail',
   'chat-payment': 'Paying inside a chat room',
   swap: 'Swapping',
+  earn: 'Supplying a lending market',
   unshield: 'Moving value back out to a public address',
   'bridge-exit': 'Crossing to another chain',
   'markets-bet': 'Placing a bet',
@@ -171,7 +175,23 @@ export const MATRICES = {
     context: 'registration',
     cells: { amount: NONE, sender: ALL_SEE, recipient: NONE, timing: ALL_SEE, ip: BASELINE_IP },
   },
-  // The relay sees who-talks-to-whom; a payment inside a room travels the same relay.
+  // A mail is a pool send that also posts a sealed memo: the same cells as a send, plus a
+  // public event whose size and block everyone can read.
+  mail: {
+    authored: true,
+    context: 'mail',
+    cells: {
+      amount: row(SEES, HIDDEN, HIDDEN, SEES),
+      sender: row(SEES, HIDDEN, HIDDEN, SEES),
+      recipient: row(SEES, HIDDEN, HIDDEN, SEES),
+      timing: ALL_SEE,
+      ip: BASELINE_IP,
+    },
+  },
+  // Both amounts, both tokens and the timing are on-chain; the owner is not.
+  // The relay sees who-talks-to-whom; a payment inside a room travels the same relay. This is the
+  // row that differs most from `mail` — there the relayer column is HIDDEN, here it SEES, because
+  // a room is a standing connection the relay routes rather than a transaction it forwards once.
   'chat-payment': {
     authored: true,
     context: 'chat-payment',
@@ -183,7 +203,6 @@ export const MATRICES = {
       ip: BASELINE_IP,
     },
   },
-  // Both amounts, both tokens and the timing are on-chain; the owner is not.
   swap: {
     authored: true,
     context: 'swap',
@@ -193,6 +212,21 @@ export const MATRICES = {
       recipient: NONE,
       timing: ALL_SEE,
       ip: BASELINE_IP,
+    },
+  },
+  // Earn is the swap row with one column changed: it is never relayed, so the relayer is ABSENT
+  // rather than blind, and the user's own address is on the transaction as its sender.
+  earn: {
+    authored: true,
+    context: 'earn',
+    cells: {
+      amount: ALL_SEE,
+      sender: row(SEES, ABSENT, SEES, SEES),
+      recipient: NONE,
+      timing: row(SEES, ABSENT, SEES, SEES),
+      // Same as `self-submit`: no relayer stands between you and a node, so the node you broadcast
+      // through sees your IP. Claiming HIDDEN here would be the overclaim.
+      ip: row(SEES, conditional(SELF_SUBMIT_NODE_SEES), HIDDEN, HIDDEN),
     },
   },
   // 09-bridge §4: hides which note funded it; not the amount, destination, chain or timing.

@@ -1,5 +1,5 @@
 // The chain feed: this process asks the chain once, and every open tab gets the answer — PUBLIC
-// state only (markets, launches, prices, app events), a sibling of `rooms.ts`. Live state rebuilds
+// state only (markets, launches, prices, app events). Live state rebuilds
 // inside a tick; only the price history earns a file (`chain-feed-store.ts`). Every limit refuses.
 import {
   defaultTransport,

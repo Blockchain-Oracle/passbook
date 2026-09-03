@@ -8,7 +8,7 @@
 // two would drift the first time anything was redeployed.
 //
 // So the deploy script writes `evidence/markets-launch-deployment.json` and everything reads it:
-// the relayer with `readFileSync` at boot (the shape `server.ts` already uses for MessageBook), the
+// the relayer with `readFileSync` at boot, the
 // ops scripts the same way, and the web build through its env. This module owns the one thing all
 // three share — turning that file's text into addresses, or saying clearly that there are none yet.
 //
@@ -47,6 +47,17 @@ export interface AppContracts {
   governance?: string
   /** The Governance class the evidence says that address runs. Required before writes are safe. */
   governanceClassHash?: string
+  /** The Mailbox — the pool-only memo log. Absent until deployed; Mail refuses to compose without it. */
+  mailbox?: string
+  /** The block the Mailbox was deployed in: the floor of every memo scan. */
+  mailboxBlock?: number
+  /**
+   * Our Vesu lending helper. Absent until deployed, and absence is a state Earn runs in: the
+   * catalog and every rate stay readable, and only the two buttons that move money are refused.
+   */
+  vesuEarn?: string
+  /** The block it was deployed in: the floor of an Earn history scan. */
+  vesuEarnBlock?: number
 }
 
 /** The corrected source built after the key-binding and exclusion-uniqueness fixes. */
@@ -107,11 +118,15 @@ function address(value: unknown): string | undefined {
   }
 }
 
-function nested(record: unknown, key: string, field: string): string | undefined {
+function nestedRaw(record: unknown, key: string, field: string): unknown {
   if (typeof record !== 'object' || record === null) return undefined
   const entry = (record as Record<string, unknown>)[key]
   if (typeof entry !== 'object' || entry === null) return undefined
-  return address((entry as Record<string, unknown>)[field])
+  return (entry as Record<string, unknown>)[field]
+}
+
+function nested(record: unknown, key: string, field: string): string | undefined {
+  return address(nestedRaw(record, key, field))
 }
 
 /**
@@ -157,7 +172,23 @@ export function parseAppContracts(raw: string | null | undefined): AppContracts 
   const governanceClassHash = nested(record, 'Governance', 'classHash')
   if (governanceClassHash) contracts.governanceClassHash = governanceClassHash
 
+  const mailbox = nested(record, 'Mailbox', 'contractAddress')
+  if (mailbox) contracts.mailbox = mailbox
+  const mailboxBlock = blockNumber(nestedRaw(record, 'Mailbox', 'blockNumber'))
+  if (mailbox && mailboxBlock !== undefined) contracts.mailboxBlock = mailboxBlock
+
+  const vesuEarn = nested(record, 'VesuEarn', 'contractAddress')
+  if (vesuEarn) contracts.vesuEarn = vesuEarn
+  const vesuEarnBlock = blockNumber(nestedRaw(record, 'VesuEarn', 'blockNumber'))
+  if (vesuEarn && vesuEarnBlock !== undefined) contracts.vesuEarnBlock = vesuEarnBlock
+
   return contracts
+}
+
+/** A block height, or nothing: a floor that is not a whole non-negative number is no floor. */
+function blockNumber(value: unknown): number | undefined {
+  const n = typeof value === 'string' ? Number(value) : value
+  return typeof n === 'number' && Number.isInteger(n) && n >= 0 ? n : undefined
 }
 
 /**
@@ -181,5 +212,13 @@ export function appContractsFromEnv(env: Record<string, string | undefined>): Ap
   if (governance) contracts.governance = governance
   const governanceClassHash = address(env.APP_GOVERNANCE_CLASS_HASH)
   if (governanceClassHash) contracts.governanceClassHash = governanceClassHash
+  const mailbox = address(env.APP_MAILBOX_ADDRESS)
+  if (mailbox) contracts.mailbox = mailbox
+  const mailboxBlock = blockNumber(env.APP_MAILBOX_BLOCK)
+  if (mailbox && mailboxBlock !== undefined) contracts.mailboxBlock = mailboxBlock
+  const vesuEarn = address(env.APP_VESU_EARN_ADDRESS)
+  if (vesuEarn) contracts.vesuEarn = vesuEarn
+  const vesuEarnBlock = blockNumber(env.APP_VESU_EARN_BLOCK)
+  if (vesuEarn && vesuEarnBlock !== undefined) contracts.vesuEarnBlock = vesuEarnBlock
   return contracts
 }

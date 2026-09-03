@@ -1,0 +1,101 @@
+---
+title: Earn
+description: Shielded USDC into Vesu lending markets and back, through a helper we deployed ourselves.
+---
+
+Earn is the third [invoke sandwich](/docs/how-it-works/invoke-sandwich), after swap and bridge, and
+it has the same shape: shielded USDC leaves the pool to a helper contract, the helper does one thing
+with it, and the proceeds come back into the pool as a private note — one transaction, and the value
+never touches a public address of yours in between.
+
+What the helper does here is supply a Vesu lending market and hand back the shares.
+
+## Seven markets, one protocol
+
+Vesu is one protocol containing several isolated markets. A market is one pool/asset pair with its
+own rate, its own liquidity, and its own curator, and they differ a lot: at the time of writing the
+spread across the seven USDC markets ran from 5.12% down to 0%.
+
+All seven are in the catalog, including the empty one. A list that quietly drops the markets nobody
+is using teaches you that everything you can see is fine.
+
+## Every number is a contract read
+
+Vesu's own API answers, and returns `stats: null` for every V2 pool — no rate, no price, no risk
+rating. So none of the figures on this surface come from a feed. Each market's rate is computed from
+its own pool contract:
+
+```
+supply rate = borrow rate × utilization × (1 − curator fee)
+```
+
+with `utilization`, `interest_rate`, `asset_config` and `is_paused` all read live, and available
+liquidity taken from the market's own unborrowed reserve. Every card says when it was read.
+
+**There is no risk score.** The first-party feed publishes none, and inventing one would be us
+making up a number about somebody else's money.
+
+## What is public, and what is not
+
+On chain: that our helper contract supplied a named Vesu market, the amount, and the timing. A
+vToken deposit is a plaintext ERC-4626 event and this documentation will not pretend otherwise.
+
+Not on chain: which account owns the position. The supply arrives as a withdrawal from the pool, so
+the market records no depositor address of yours.
+
+**Earn is always submitted by your own account.** It is not covered by a sponsored transaction —
+that is a product choice rather than a limitation — so your address is the visible sender, and the
+pool fee and gas come from your public STRK.
+
+## The position is the note
+
+Supplying mints vToken notes into the pool. That is the position: there is no secret in your browser
+that owns it, and no server holding a record of it. A cleared browser, a new device, or a restored
+account finds it again from the note walk alone, which is a better property than the bearer claims
+that Markets and Launch positions use.
+
+## Redeeming, and the line that cost somebody money
+
+The exit burns an **exact share count** — `redeem(shares)`, not `withdraw(assets)`.
+
+This matters more than it sounds. The privacy SDK's published Vesu helper class called
+`withdraw(assets)` on the way out; the corrected source calls `redeem(shares)`, and the SDK's own
+README still shows an exit passing an underlying amount two lines after it has discovered a share
+balance. vToken shares are 18-decimal and USDC is 6-decimal, so the two numbers differ by roughly the
+share price times a trillion.
+
+The published helper class is not declared on mainnet at all, so there was nothing to point at even
+if we had wanted to. Ours is built from the corrected source and deployed at
+`0x3ce7a79c53685ab178bcf36960099bf37bbd16035f0f7e2defefa5153204157` — pool-only, and holding nothing between
+transactions. Before it went up it was driven against the **real** Vesu vTokens on a fork of
+mainnet: all seven markets supply and redeem an exact share count, the shares returned match the
+vault's own `preview_deposit` exactly, and the pool can pull what the helper approved. A mock could
+not have caught a disagreement with Vesu, because a mock cannot disagree with the assumption it was
+written from.
+
+The app also refuses to prove a transaction whose compiled action list is not exactly the operation
+you reviewed.
+
+## What is worth taking out is not what it is worth
+
+A lending market lends its deposits out, so "your position is worth X" and "you can withdraw X
+today" are different sentences — and the market paying the best rate is often the one where they
+differ most, because high utilization is both what pays and what makes leaving harder. The surface
+shows the value and the currently redeemable amount as two numbers, and never says funds are always
+immediately withdrawable.
+
+## Fees, said before you sign
+
+A pool fee is charged per transaction whatever the size, so getting in and out of a small position
+costs the same as a large one. At the fee and rate current while this was written, a round trip cost
+about $0.32 — roughly 23 days of gross yield on $100, and about 229 days on $10.
+
+The review shows the live entry fee, the estimated exit fee, and the break-even horizon before any
+proof is generated, because that arithmetic is the decision.
+
+## Moving between markets
+
+A private pool transaction supports one external invocation, so moving a position is **two
+transactions with two fees**, not one. The plan shows both legs, and after the first one your money
+is shielded USDC and you can stop there. If the first leg's outcome is unknown the second is held
+back, and nothing is retried automatically — that is how a redemption gets done twice.

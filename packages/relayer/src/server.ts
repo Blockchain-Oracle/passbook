@@ -52,13 +52,6 @@ function evidence(name: string): string | undefined {
     return undefined
   }
 }
-function deployedMessageBook(): string | undefined {
-  try {
-    return (JSON.parse(evidence('deployment.json') ?? 'null') as { contractAddress?: string } | null)?.contractAddress
-  } catch {
-    return undefined
-  }
-}
 function deployedAppContracts(): AppContracts {
   try {
     return parseAppContracts(evidence('markets-launch-deployment.json'))
@@ -117,12 +110,14 @@ async function main(): Promise<void> {
     intervalMs: env.sponsor.fundingIntervalMs,
   })
 
-  const messageBook = deployedMessageBook()
   const app = deployedAppContracts()
   const governanceSafety = governanceWriteSafety(app)
   // A vulnerable Governance stays readable in the feed; neither this signer nor the Teller writes it.
   const writableGovernance = governanceSafety.enabled ? app.governance : undefined
 
+  // Chat's bus. Purely in memory and deliberately so: it carries ciphertext nobody here can read,
+  // and it is the reason this deployment must stay on exactly one machine (`fly.toml`). Mail does
+  // not touch it — a memo is a pool transaction and reaches its recipient through the chain.
   const rooms = new RoomHub()
   every(ROOM_IDLE_MS / 6, () => {
     const dropped = rooms.sweep()
@@ -196,7 +191,7 @@ async function main(): Promise<void> {
 
   const ctx: RelayerContext = {
     submit: submitThroughQueue,
-    policy: { messageBook, markets: app.markets, launch: app.launch, governance: writableGovernance },
+    policy: { markets: app.markets, launch: app.launch, governance: writableGovernance },
     resolveApproveCeiling: async () => approveCeiling((await readPoolConstants()).feeWei),
     // Prices live, units measured — `gasCalibration` reads the pool's own recent receipts, so this
     // is a better bound than any client could build. Falls back to the constant before the first sample.
@@ -260,7 +255,7 @@ async function main(): Promise<void> {
 
   serve({ fetch: web.fetch, port: env.port, hostname: env.host }, () =>
     printBanner({
-      host: env.host, port: env.port, address, nodeUrl, messageBook, appContracts: app, governanceSafety,
+      host: env.host, port: env.port, address, nodeUrl, appContracts: app, governanceSafety,
       keeperWanted: env.keeperWanted, keeperReady, keeperNextRun: keeper?.nextRun() ?? null,
       allowedOrigins: env.allowedOrigins, sponsor: env.sponsor,
       feedWanted: env.chainFeedWanted, chainFeed, chainFeedStore: env.chainFeedStore,

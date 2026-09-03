@@ -37,6 +37,13 @@ function Waiting({ claimable }: { claimable: readonly Claimable[] }) {
 }
 
 function claimLine(group: PositionGroup): string {
+  // An Earn group has no claims, because it has no bearer secrets — so it says what it does have.
+  // "0 claims" would be literally true about a position worth real money, which is the kind of
+  // true sentence that reads as a bug.
+  if (group.earn) {
+    const notes = `${group.earn.noteCount} note${group.earn.noteCount === 1 ? '' : 's'}`
+    return group.earn.paused ? `${notes} · market paused` : notes
+  }
   const claims = `${group.claims.length} claim${group.claims.length === 1 ? '' : 's'}`
   return group.ready > 0 ? `${claims} · ${group.ready} ready` : claims
 }
@@ -47,6 +54,9 @@ export interface GroupListProps {
 }
 
 function ActionLabel({ group }: { group: PositionGroup }) {
+  // Earn is managed on its own surface; there is nothing to settle here and saying so would offer
+  // a door that opens on an empty room.
+  if (group.earn) return <>Manage</>
   return <>{group.tone === 'ready' ? 'Settle' : 'View'}</>
 }
 

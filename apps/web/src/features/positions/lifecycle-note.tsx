@@ -31,6 +31,14 @@ const STEPS: Record<PositionVenue, readonly Step[]> = {
     { when: 'Closed', what: 'Once the proposal is decided the lock lifts.' },
     { when: 'Reclaim', what: 'The escrow comes back to you as one fresh shielded note. A delegation can be revoked the same way.' },
   ],
+  // The one venue with no bearer secret and no deadline. Its steps say so, because a reader who has
+  // learned the other three will otherwise go looking for the browser secret that owns this one.
+  earn: [
+    { when: 'Supply', what: 'Shielded USDC leaves the pool to our helper, which supplies the market. The shares come back as a private note.' },
+    { when: 'Holding', what: 'The position earns at a variable rate. There is no deadline and nothing to collect on a schedule.' },
+    { when: 'Redeem', what: 'An exact number of shares is burned and the USDC comes back shielded. Full or partial, whenever you want it.' },
+    { when: 'Recovery', what: 'The position is the note, not a record in this browser. A cleared browser holding the same account finds it again.' },
+  ],
 }
 
 /**

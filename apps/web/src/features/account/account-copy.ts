@@ -24,7 +24,7 @@ export const LOCKED_MARK = 'Locked'
 // showing the label with no `@`, so a claimed handle and a private nickname read identically.
 export const NAME_TITLE = 'Claim a public name'
 export const NAME_BODY =
-  'A public name puts @you over this address in the directory, so people can start a chat or pay you without pasting hex. ' +
+  'A public name puts @you over this address in the directory, so people can mail you or pay you without pasting hex. ' +
   'The directory is public: it maps the name to this address, and anyone can read that.'
 export const NAME_ACTION = 'Claim the name'
 export const NAME_RULE = '3–20 characters: lowercase letters, numbers, hyphen or underscore.'

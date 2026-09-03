@@ -19,8 +19,8 @@
 //
 // A health check that fails gets the machine restarted, so the status code must mean "restarting
 // me would help". Being out of funds is the clearest case where it would not: a restart cannot add
-// STRK, so a 503 there buys a restart loop that fixes nothing and takes the chat rooms down with it
-// (they are in memory — see `fly.toml`). The process being able to serve is the 200; whether it can
+// STRK, so a 503 there buys a restart loop that fixes nothing and drops the chain feed's price
+// history with it. The process being able to serve is the 200; whether it can
 // currently do its job is `funding.canSign` in the body, where a human or an alert can read it.
 //
 // ── AND WHY IT DOES NOT READ THE CHAIN ────────────────────────────────────────────────────

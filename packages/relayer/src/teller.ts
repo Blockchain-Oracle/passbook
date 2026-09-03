@@ -2,7 +2,7 @@
 // The Teller — the Houses' named trust party (docs/architecture.md — Houses), as a
 // relayer subsystem: signer five, named before it existed, now existing.
 //
-// ── WHAT IT CAN AND CANNOT DO, said the way the rooms file says it ───────────────────────
+// ── WHAT IT CAN AND CANNOT DO ─────────────────────────────────────────────────────────────
 //
 // It holds each proposal's tally secret, so it CAN read sealed choices early (disclosed, on the
 // product's who-sees-what panel) and it LEARNS the ballot book keyed to anonymous handles — never

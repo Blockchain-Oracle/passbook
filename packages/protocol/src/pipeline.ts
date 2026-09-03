@@ -59,6 +59,10 @@ export type SendFailure =
   /** Enough of the send token, not enough shielded STRK for the relayer's fee. Self-submission needs none. */
   | { kind: 'insufficient-fee-balance'; token: string; symbol: string; feeWei: bigint; haveWei: bigint; shortfallWei: bigint; notice: string }
   | { kind: 'prover-failed'; reason: string }
+  /** The SDK named the mail's recipient note differently from the walk; nothing signed, retry is free. */
+  | { kind: 'mail-anchor-mismatch'; reason: string }
+  /** The compiled span was not the Earn transaction that was reviewed. Nothing was signed or paid. */
+  | { kind: 'earn-span-mismatch'; reason: string }
   | { kind: 'proof-expired'; provedAtBlock: number; currentBlock: number; validityBlocks: number }
   /** Reachable and wired wrong. Waiting fixes nothing; self-submission works now. */
   | { kind: 'relayer-misconfigured'; reason: string; selfSubmit: SelfSubmitOffer }
@@ -97,6 +101,8 @@ export type SendResult =
       /** The notes this send minted for the sender, once the pool holds them. */
       maturedNoteIds: bigint[]
       sendBlock: number | null
+      /** A mail's recipient note id — the key its memo is posted under. */
+      mailAnchor?: bigint
     }
   | { ok: false; stages: SendStage[]; failure: SendFailure; selfSubmitted?: true }
 

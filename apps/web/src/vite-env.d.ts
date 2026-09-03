@@ -8,6 +8,10 @@ interface ImportMetaEnv {
   readonly VITE_APP_PRAGMA_ADDRESS?: string
   readonly VITE_APP_GOVERNANCE_ADDRESS?: string
   readonly VITE_APP_GOVERNANCE_CLASS_HASH?: string
+  readonly VITE_APP_MAILBOX_ADDRESS?: string
+  readonly VITE_APP_MAILBOX_BLOCK?: string
+  readonly VITE_APP_VESU_EARN_ADDRESS?: string
+  readonly VITE_APP_VESU_EARN_BLOCK?: string
 }
 
 interface ImportMeta {

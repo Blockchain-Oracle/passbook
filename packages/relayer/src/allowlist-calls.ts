@@ -5,8 +5,6 @@ import type { Call } from 'starknet'
 import { NET, STRK_TOKEN } from '../../protocol/src/constants.js'
 
 export interface SubmissionPolicy {
-  /** The deployed MessageBook, once evidence/deployment.json exists. */
-  messageBook?: string
   /** Absent means permitted NOTHING — the closing `throw refuse(call)` fails safe. Same for the rest. */
   markets?: string
   launch?: string
@@ -155,10 +153,6 @@ export function assertCallAllowed(call: Call, policy: SubmissionPolicy): void {
   }
   if (sameAddress(to, NET.pool)) {
     if (call.entrypoint !== 'apply_actions') throw refuse(call)
-    return
-  }
-  if (policy.messageBook && sameAddress(to, policy.messageBook)) {
-    if (call.entrypoint !== 'privacy_invoke') throw refuse(call)
     return
   }
   for (const [name, entrypoints] of Object.entries(DIRECT_ENTRYPOINTS) as [

@@ -57,6 +57,7 @@ export interface RelayerContext {
    * Absent when no monitor is attached, which `/health` reports as `unknown` rather than as zero.
    */
   fundingObserved?: () => FundingObservation | null
+  /** Chat's relay bus. Absent means `/api/room/*` answers 404 — Mail is unaffected either way. */
   rooms?: RoomHub
   directory?: Directory
   chainFeed?: ChainFeed

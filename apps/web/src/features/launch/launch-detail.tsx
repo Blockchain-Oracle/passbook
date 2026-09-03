@@ -120,6 +120,9 @@ export function LaunchDetail({ id }: { id: number }) {
             </CardContent>
           </Card>
 
+          {/* Talk rides the same relay bus as Chat, on a room anybody can derive from the launch id —
+              so it is public by construction, and `TalkThread` says so rather than implying a
+              private room. Nothing here touches the chain. */}
           <Tabs defaultValue="talk">
             <TabsList variant="line">
               <TabsTrigger value="talk">Talk</TabsTrigger>

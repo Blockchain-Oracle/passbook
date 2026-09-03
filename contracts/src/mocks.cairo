@@ -268,3 +268,141 @@ pub mod MockPragma {
         }
     }
 }
+
+/// A Vesu vToken, reduced to the two things `VesuEarn` calls and the one property that matters.
+///
+/// It IS the share token, as a real vToken is: an ERC-4626 vault mints its own ERC-20 shares, so a
+/// mock that split the two would let `VesuEarn` read a balance off a contract that in production is
+/// the same address it deposits into — which is exactly the confusion this contract must not have.
+///
+/// The share price is deliberately settable and never 1:1 in the tests. At 1:1 a redeem passing a
+/// SHARE count and a redeem passing an UNDERLYING amount return the same number, and the upstream
+/// bug this whole surface was built around would pass unnoticed.
+#[starknet::interface]
+pub trait IMockVToken<TContractState> {
+    fn deposit(ref self: TContractState, assets: u256, receiver: ContractAddress) -> u256;
+    fn redeem(
+        ref self: TContractState, shares: u256, receiver: ContractAddress, owner: ContractAddress,
+    ) -> u256;
+    // The ERC20 half, because the vault and the share token are one contract.
+    fn balance_of(self: @TContractState, account: ContractAddress) -> u256;
+    fn approve(ref self: TContractState, spender: ContractAddress, amount: u256) -> bool;
+    fn allowance(self: @TContractState, owner: ContractAddress, spender: ContractAddress) -> u256;
+    fn transfer(ref self: TContractState, recipient: ContractAddress, amount: u256) -> bool;
+    fn transfer_from(
+        ref self: TContractState, sender: ContractAddress, recipient: ContractAddress, amount: u256,
+    ) -> bool;
+    fn mint(ref self: TContractState, to: ContractAddress, amount: u256);
+    fn set_price(ref self: TContractState, price: u256);
+    /// The exact `shares` argument the last `redeem` received. The assertion the tests are for.
+    fn last_redeem_shares(self: @TContractState) -> u256;
+    fn last_deposit_assets(self: @TContractState) -> u256;
+}
+
+#[starknet::contract]
+pub mod MockVToken {
+    use starknet::storage::{Map, StorageMapReadAccess, StorageMapWriteAccess};
+    use starknet::storage::{StoragePointerReadAccess, StoragePointerWriteAccess};
+    use starknet::{ContractAddress, get_caller_address, get_contract_address};
+    use super::{IMockERC20Dispatcher, IMockERC20DispatcherTrait};
+
+    /// vToken shares are 18-decimal; the underlying is 6-decimal, as USDC is. The 1e12 gap between
+    /// them is what makes a shares/assets mix-up catastrophic rather than small.
+    pub const SHARE_SCALE: u256 = 1_000_000_000_000_000_000;
+
+    #[storage]
+    struct Storage {
+        underlying: ContractAddress,
+        price: u256,
+        balances: Map<ContractAddress, u256>,
+        allowances: Map<(ContractAddress, ContractAddress), u256>,
+        last_redeem_shares: u256,
+        last_deposit_assets: u256,
+    }
+
+    #[constructor]
+    fn constructor(ref self: ContractState, underlying: ContractAddress, price: u256) {
+        self.underlying.write(underlying);
+        self.price.write(price);
+    }
+
+    #[abi(embed_v0)]
+    impl MockVTokenImpl of super::IMockVToken<ContractState> {
+        fn deposit(ref self: ContractState, assets: u256, receiver: ContractAddress) -> u256 {
+            self.last_deposit_assets.write(assets);
+            let caller = get_caller_address();
+            // Pulls, exactly as a real vault does after the helper's approve.
+            IMockERC20Dispatcher { contract_address: self.underlying.read() }
+                .transfer_from(caller, get_contract_address(), assets);
+            let minted = assets * SHARE_SCALE / self.price.read();
+            self.balances.write(receiver, self.balances.read(receiver) + minted);
+            minted
+        }
+
+        fn redeem(
+            ref self: ContractState, shares: u256, receiver: ContractAddress, owner: ContractAddress,
+        ) -> u256 {
+            self.last_redeem_shares.write(shares);
+            let held = self.balances.read(owner);
+            assert(held >= shares, 'INSUFFICIENT_SHARES');
+            self.balances.write(owner, held - shares);
+            let assets = shares * self.price.read() / SHARE_SCALE;
+            IMockERC20Dispatcher { contract_address: self.underlying.read() }.mint(receiver, assets);
+            assets
+        }
+
+        fn balance_of(self: @ContractState, account: ContractAddress) -> u256 {
+            self.balances.read(account)
+        }
+
+        fn approve(ref self: ContractState, spender: ContractAddress, amount: u256) -> bool {
+            self.allowances.write((get_caller_address(), spender), amount);
+            true
+        }
+
+        fn allowance(
+            self: @ContractState, owner: ContractAddress, spender: ContractAddress,
+        ) -> u256 {
+            self.allowances.read((owner, spender))
+        }
+
+        fn transfer(ref self: ContractState, recipient: ContractAddress, amount: u256) -> bool {
+            let sender = get_caller_address();
+            let from_balance = self.balances.read(sender);
+            assert(from_balance >= amount, 'INSUFFICIENT_BALANCE');
+            self.balances.write(sender, from_balance - amount);
+            self.balances.write(recipient, self.balances.read(recipient) + amount);
+            true
+        }
+
+        fn transfer_from(
+            ref self: ContractState, sender: ContractAddress, recipient: ContractAddress, amount: u256,
+        ) -> bool {
+            let spender = get_caller_address();
+            let allowed = self.allowances.read((sender, spender));
+            assert(allowed >= amount, 'INSUFFICIENT_ALLOWANCE');
+            let from_balance = self.balances.read(sender);
+            assert(from_balance >= amount, 'INSUFFICIENT_BALANCE');
+            self.allowances.write((sender, spender), allowed - amount);
+            self.balances.write(sender, from_balance - amount);
+            self.balances.write(recipient, self.balances.read(recipient) + amount);
+            true
+        }
+
+        fn mint(ref self: ContractState, to: ContractAddress, amount: u256) {
+            self.balances.write(to, self.balances.read(to) + amount);
+        }
+
+        fn set_price(ref self: ContractState, price: u256) {
+            self.price.write(price);
+        }
+
+        fn last_redeem_shares(self: @ContractState) -> u256 {
+            self.last_redeem_shares.read()
+        }
+
+        fn last_deposit_assets(self: @ContractState) -> u256 {
+            self.last_deposit_assets.read()
+        }
+    }
+}

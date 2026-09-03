@@ -65,6 +65,12 @@ export interface ReadPoolEventsOptions {
   toBlock?: number
   /** Which events to ask for. Defaults to all seven. */
   names?: readonly PoolEventName[]
+  /**
+   * Another contract's events, by address and selector. The pool is the default; a helper we
+   * deployed (the Mailbox) reads through the same bounded loop rather than its own.
+   */
+  address?: string
+  selectors?: readonly string[]
   chunkSize?: number
   maxPages?: number
   /** Resume cursor from a previous page whose `complete` was false. Pinned to its issuing host. */
@@ -105,15 +111,15 @@ export async function readPoolEvents(options: ReadPoolEventsOptions): Promise<Po
     throw new Error(`maxPages must be at least 1, not ${String(options.maxPages)}`)
   }
 
-  const names = options.names ?? POOL_EVENT_NAMES
+  const address = options.address ?? NET.pool
+  const selectors = options.selectors ?? (options.names ?? POOL_EVENT_NAMES).map(poolEventSelector)
   // `keys: [[]]` is starknet's "match anything" wildcard — an empty list would be the firehose.
-  if (names.length === 0) {
+  if (selectors.length === 0) {
     throw new Error(
       'readPoolEvents was asked for zero event types. An empty key filter matches every event ' +
-        'the pool emits, so this is refused rather than silently read as "all of them".',
+        'the contract emits, so this is refused rather than silently read as "all of them".',
     )
   }
-  const selectors = names.map(poolEventSelector)
 
   // Clamped to the SPEC ceiling, not to the default — a bigger chunk was a deliberate trade.
   const chunkSize = Math.min(options.chunkSize ?? EVENT_CHUNK_SIZE, MAX_EVENT_CHUNK_SIZE)
@@ -145,12 +151,12 @@ export async function readPoolEvents(options: ReadPoolEventsOptions): Promise<Po
 
     do {
       const page = await read({
-        address: NET.pool,
+        address,
         from_block: { block_number: fromBlock },
         to_block: { block_number: toBlock },
         // ONE inner array: `[[a, b, c]]` means "keys[0] is any of a, b, c"; `[[a], [b]]` would
         // filter keys[1] on a note id and match nothing.
-        keys: [selectors],
+        keys: [[...selectors]],
         chunk_size: chunkSize,
         ...(continuation === undefined ? {} : { continuation_token: continuation }),
       })

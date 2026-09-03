@@ -40,10 +40,16 @@ What bounds a process that holds a funded key:
 - It binds `127.0.0.1` by default; widening that is a deliberate act (`RELAYER_HOST`).
 
 Beyond submission it runs the product's background jobs, each answering its own degrade state
-rather than taking the process down: chat rooms (in-memory backlog — 50 messages per room,
-dropped 30 minutes after a room goes quiet), the public name directory, the onboarding
-sponsorship ledger, the faucet, the chain feed the app streams from, the markets groundskeeper,
-and the governance teller.
+rather than taking the process down: the public name directory, the onboarding sponsorship
+ledger, the faucet, the chain feed the app streams from, the markets groundskeeper, the
+governance teller, and the room hub Chat's messages travel over.
+
+**It carries a chat message and it does not carry a mail.** That asymmetry is the point of having
+both surfaces. A mail is a pool transaction, so this process only ever sees one as a transaction it
+was asked to submit — sealed, like every other. A chat message never becomes a transaction at all,
+which is why it is free, and the price of free is that the relay routes the ciphertext and sees the
+metadata around it: who is talking to whom, when, and how often. It holds no key either way, and its
+backlog is bounded, in memory, and dropped after a quiet period.
 
 ### Running it, and the one setting you must not skip
 
@@ -77,17 +83,28 @@ In development, `apps/web/vite.config.ts` forwards `/api/*` to `127.0.0.1:8787` 
 `Origin` header, so the app's same-origin paths reach a relayer started the ordinary way. Point it
 somewhere else with `RELAYER_ORIGIN`.
 
-**Rooms live in memory, so the deployment must run exactly one machine.** Two would each hold half
-of every conversation and neither would know. `fly.toml` pins that with `auto_stop_machines =
-false` and `min_machines_running = 1`; it also mounts a volume at `/data` for the ledgers and the
-name directory, which unlike the chat backlog must survive a deploy.
+**The ledgers are files on one volume, so the deployment must run exactly one machine.** A Fly
+volume attaches to a single machine; a second one would have no ledger or a different one.
+`fly.toml` pins that with `auto_stop_machines = false` and `min_machines_running = 1`, and mounts
+the volume at `/data` for the ledgers and the name directory.
 
 ## The invoke sandwich
 
-Swap and bridge are the same shape: withdraw the input to the venue's privacy executor, invoke
-the executor, and the proceeds land back in the pool as a note. Value never touches a public
-address of yours in between. The venues are AVNU's privacy executor (swap) and StarkWare's
-deployed `OutboundAnonymizer` (bridge out via CCTP — an exit only; there is no inbound leg).
+Swap, Earn and bridge are the same shape: withdraw the input to a privacy executor, invoke it, and
+the proceeds land back in the pool as a note. Value never touches a public address of yours in
+between. The venues are AVNU's privacy executor (swap), our own `VesuEarn` helper (lending supply
+and redeem), and StarkWare's deployed `OutboundAnonymizer` (bridge out via CCTP — an exit only;
+there is no inbound leg).
+
+Earn's helper is ours because there was nothing else to point at: the privacy repo's published Vesu
+anonymizer class is not declared on mainnet, and the source it was built from redeemed by underlying
+amount rather than by share count. Ours redeems an exact share count, is pool-only, holds nothing
+between transactions, and was exercised against the real Vesu vTokens on a mainnet fork — all seven
+markets, both directions — before it was deployed at `0x3ce7a79c53685ab178bcf36960099bf37bbd16035f0f7e2defefa5153204157`.
+The client refuses to prove
+an Earn transaction whose compiled action span is not exactly the operation that was reviewed
+(`packages/protocol/src/earn-guards.ts`) — which matters more here than elsewhere, because the
+relayer does not decode a pool call and there is no second opinion downstream.
 
 ## Rehearsal and proving discipline
 
@@ -135,10 +152,52 @@ from deploy logs — "the transaction succeeded" is a weaker claim than "the cla
 
 | Contract | What it stores |
 |---|---|
-| `MessageBook` | Sealed chat messages, and value attached to them |
+| `Mailbox` | One sealed memo per note, posted by the pool — bodies in events, one-time anchors in storage |
+| `VesuEarn` | Pool-only Vesu lending helper: underlying in, shares out, and an exact-share redeem back |
 | `Markets` | Market records and bets as bearer commitments — no buyer address |
 | `Launch` | Sale records, buys, graduation and refund state — no buyer address |
 | `Governance` (Houses) | Houses, proposals, sealed ballots, tallies |
+
+## Mail — a payment that carries a sealed note
+
+A mail is one private transfer with one extra action. The SDK composes the transfer as it always
+does — spend notes, create the recipient's encrypted note, return change — and the app appends a
+single `InvokeExternal` to the `Mailbox` carrying the sealed memo. The pool proves the whole
+action list, applies the notes, and *then* calls `Mailbox.privacy_invoke` itself, so the memo and
+the money share one hash, one receipt, and one revert. The Mailbox accepts no other caller:
+sender anonymity in the messaging RFP is precisely "the pool is `msg.sender`", and a memo posted
+by an account directly would print that account beside its ciphertext.
+
+**The key is the pool's own channel key.** The pool keeps a directional channel between any two
+accounts that have transacted; its key is a Poseidon hash the sender derives (it includes the
+sender's private viewing key) and the recipient recovers by decrypting the pool's channel record
+with theirs — the same material the pool uses to hide note amounts. The memo key is
+`HKDF(channel_key, salt = note_id, info = domain ‖ chain ‖ pool ‖ mailbox)` into AES-GCM-256, with
+the note id and token in the authenticated data, so a ciphertext moved to another note fails to
+open. No second secret is agreed anywhere, and nothing but the two viewing keys — and the auditor
+escrow that can recover them — can derive it.
+
+**The anchor is the recipient note's id**, which the sender can compute before compiling
+(`compute_note_id(channel_key, token, next_index)`) and nobody else can predict. The app seals the
+memo for that id, compiles the transaction *without proving it*, reads the compiled action span,
+and refuses to prove unless the SDK created the recipient's note at exactly that index and the
+Mailbox calldata is the sealed envelope verbatim (`packages/protocol/src/mail-guards.ts`). A drift
+costs nothing; it would otherwise cost the pool fee to learn on chain.
+
+**Reading needs no service.** Discovery already yields every channel this account is on either
+end of, so every note id it could have sent or received is recomputable — spent ones included.
+One bounded event scan of the Mailbox (our contract; few events) joined on those ids, one key
+derivation per hit, one AES-GCM open, and the thread is back. A fresh device holding the account
+sees the same threads; this browser keeps only a "seen up to block" cursor for the badge.
+
+**What is visible, and who is trusted.** On chain: that a pool transaction invoked the Mailbox,
+the ciphertext and its size, the block, and the note id (already public in the pool's
+`EncNoteCreated` event of the same receipt). The submitter, unless a covered transaction is used,
+in which case the relayer sees your IP and timing as for any send. The prover, after OHTTP
+terminates, sees the actions it proves. The auditor escrow can recover the channel key and read
+every memo, old ones included. The channel key is static for the life of the channel, so there is
+no forward secrecy, and the words are never called end-to-end encrypted. A memo costs no extra
+pool fee — `collect_fee` is flat per `apply_actions` — so a mail costs exactly what a send costs.
 
 ## Houses — the sealed-ballot design in one paragraph
 

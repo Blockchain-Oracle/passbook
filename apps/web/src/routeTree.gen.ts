@@ -12,8 +12,10 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as BridgeRouteImport } from './routes/bridge'
 import { Route as ChatRouteImport } from './routes/chat'
+import { Route as EarnRouteImport } from './routes/earn'
 import { Route as HousesRouteImport } from './routes/houses'
 import { Route as LaunchRouteImport } from './routes/launch'
+import { Route as MailRouteImport } from './routes/mail'
 import { Route as MarketsRouteImport } from './routes/markets'
 import { Route as PositionsRouteImport } from './routes/positions'
 import { Route as SendRouteImport } from './routes/send'
@@ -25,6 +27,8 @@ import { Route as ChatIndexRouteImport } from './routes/chat.index'
 import { Route as ChatPeerRouteImport } from './routes/chat.$peer'
 import { Route as HousesIdRouteImport } from './routes/houses_.$id'
 import { Route as LaunchIdRouteImport } from './routes/launch_.$id'
+import { Route as MailIndexRouteImport } from './routes/mail.index'
+import { Route as MailPeerRouteImport } from './routes/mail.$peer'
 import { Route as MarketsIdRouteImport } from './routes/markets_.$id'
 import { Route as PayAddressRouteImport } from './routes/pay.$address'
 import { Route as TokenAddressRouteImport } from './routes/token.$address'
@@ -45,6 +49,11 @@ const ChatRoute = ChatRouteImport.update({
   path: '/chat',
   getParentRoute: () => rootRouteImport,
 } as any)
+const EarnRoute = EarnRouteImport.update({
+  id: '/earn',
+  path: '/earn',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const HousesRoute = HousesRouteImport.update({
   id: '/houses',
   path: '/houses',
@@ -53,6 +62,11 @@ const HousesRoute = HousesRouteImport.update({
 const LaunchRoute = LaunchRouteImport.update({
   id: '/launch',
   path: '/launch',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MailRoute = MailRouteImport.update({
+  id: '/mail',
+  path: '/mail',
   getParentRoute: () => rootRouteImport,
 } as any)
 const MarketsRoute = MarketsRouteImport.update({
@@ -110,6 +124,16 @@ const LaunchIdRoute = LaunchIdRouteImport.update({
   path: '/launch/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
+const MailIndexRoute = MailIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => MailRoute,
+} as any)
+const MailPeerRoute = MailPeerRouteImport.update({
+  id: '/$peer',
+  path: '/$peer',
+  getParentRoute: () => MailRoute,
+} as any)
 const MarketsIdRoute = MarketsIdRouteImport.update({
   id: '/markets_/$id',
   path: '/markets/$id',
@@ -135,8 +159,10 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/bridge': typeof BridgeRoute
   '/chat': typeof ChatRouteWithChildren
+  '/earn': typeof EarnRoute
   '/houses': typeof HousesRoute
   '/launch': typeof LaunchRoute
+  '/mail': typeof MailRouteWithChildren
   '/markets': typeof MarketsRoute
   '/positions': typeof PositionsRoute
   '/send': typeof SendRoute
@@ -147,15 +173,18 @@ export interface FileRoutesByFullPath {
   '/chat/$peer': typeof ChatPeerRoute
   '/houses/$id': typeof HousesIdRoute
   '/launch/$id': typeof LaunchIdRoute
+  '/mail/$peer': typeof MailPeerRoute
   '/markets/$id': typeof MarketsIdRoute
   '/pay/$address': typeof PayAddressRoute
   '/token/$address': typeof TokenAddressRoute
   '/u/$name': typeof UNameRoute
   '/chat/': typeof ChatIndexRoute
+  '/mail/': typeof MailIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/bridge': typeof BridgeRoute
+  '/earn': typeof EarnRoute
   '/houses': typeof HousesRoute
   '/launch': typeof LaunchRoute
   '/markets': typeof MarketsRoute
@@ -168,19 +197,23 @@ export interface FileRoutesByTo {
   '/chat/$peer': typeof ChatPeerRoute
   '/houses/$id': typeof HousesIdRoute
   '/launch/$id': typeof LaunchIdRoute
+  '/mail/$peer': typeof MailPeerRoute
   '/markets/$id': typeof MarketsIdRoute
   '/pay/$address': typeof PayAddressRoute
   '/token/$address': typeof TokenAddressRoute
   '/u/$name': typeof UNameRoute
   '/chat': typeof ChatIndexRoute
+  '/mail': typeof MailIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/bridge': typeof BridgeRoute
   '/chat': typeof ChatRouteWithChildren
+  '/earn': typeof EarnRoute
   '/houses': typeof HousesRoute
   '/launch': typeof LaunchRoute
+  '/mail': typeof MailRouteWithChildren
   '/markets': typeof MarketsRoute
   '/positions': typeof PositionsRoute
   '/send': typeof SendRoute
@@ -191,11 +224,13 @@ export interface FileRoutesById {
   '/chat/$peer': typeof ChatPeerRoute
   '/houses_/$id': typeof HousesIdRoute
   '/launch_/$id': typeof LaunchIdRoute
+  '/mail/$peer': typeof MailPeerRoute
   '/markets_/$id': typeof MarketsIdRoute
   '/pay/$address': typeof PayAddressRoute
   '/token/$address': typeof TokenAddressRoute
   '/u/$name': typeof UNameRoute
   '/chat/': typeof ChatIndexRoute
+  '/mail/': typeof MailIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -203,8 +238,10 @@ export interface FileRouteTypes {
     | '/'
     | '/bridge'
     | '/chat'
+    | '/earn'
     | '/houses'
     | '/launch'
+    | '/mail'
     | '/markets'
     | '/positions'
     | '/send'
@@ -215,15 +252,18 @@ export interface FileRouteTypes {
     | '/chat/$peer'
     | '/houses/$id'
     | '/launch/$id'
+    | '/mail/$peer'
     | '/markets/$id'
     | '/pay/$address'
     | '/token/$address'
     | '/u/$name'
     | '/chat/'
+    | '/mail/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/bridge'
+    | '/earn'
     | '/houses'
     | '/launch'
     | '/markets'
@@ -236,18 +276,22 @@ export interface FileRouteTypes {
     | '/chat/$peer'
     | '/houses/$id'
     | '/launch/$id'
+    | '/mail/$peer'
     | '/markets/$id'
     | '/pay/$address'
     | '/token/$address'
     | '/u/$name'
     | '/chat'
+    | '/mail'
   id:
     | '__root__'
     | '/'
     | '/bridge'
     | '/chat'
+    | '/earn'
     | '/houses'
     | '/launch'
+    | '/mail'
     | '/markets'
     | '/positions'
     | '/send'
@@ -258,19 +302,23 @@ export interface FileRouteTypes {
     | '/chat/$peer'
     | '/houses_/$id'
     | '/launch_/$id'
+    | '/mail/$peer'
     | '/markets_/$id'
     | '/pay/$address'
     | '/token/$address'
     | '/u/$name'
     | '/chat/'
+    | '/mail/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   BridgeRoute: typeof BridgeRoute
   ChatRoute: typeof ChatRouteWithChildren
+  EarnRoute: typeof EarnRoute
   HousesRoute: typeof HousesRoute
   LaunchRoute: typeof LaunchRoute
+  MailRoute: typeof MailRouteWithChildren
   MarketsRoute: typeof MarketsRoute
   PositionsRoute: typeof PositionsRoute
   SendRoute: typeof SendRoute
@@ -309,6 +357,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ChatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/earn': {
+      id: '/earn'
+      path: '/earn'
+      fullPath: '/earn'
+      preLoaderRoute: typeof EarnRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/houses': {
       id: '/houses'
       path: '/houses'
@@ -321,6 +376,13 @@ declare module '@tanstack/react-router' {
       path: '/launch'
       fullPath: '/launch'
       preLoaderRoute: typeof LaunchRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/mail': {
+      id: '/mail'
+      path: '/mail'
+      fullPath: '/mail'
+      preLoaderRoute: typeof MailRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/markets': {
@@ -400,6 +462,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LaunchIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/mail/': {
+      id: '/mail/'
+      path: '/'
+      fullPath: '/mail/'
+      preLoaderRoute: typeof MailIndexRouteImport
+      parentRoute: typeof MailRoute
+    }
+    '/mail/$peer': {
+      id: '/mail/$peer'
+      path: '/$peer'
+      fullPath: '/mail/$peer'
+      preLoaderRoute: typeof MailPeerRouteImport
+      parentRoute: typeof MailRoute
+    }
     '/markets_/$id': {
       id: '/markets_/$id'
       path: '/markets/$id'
@@ -443,12 +519,26 @@ const ChatRouteChildren: ChatRouteChildren = {
 
 const ChatRouteWithChildren = ChatRoute._addFileChildren(ChatRouteChildren)
 
+interface MailRouteChildren {
+  MailPeerRoute: typeof MailPeerRoute
+  MailIndexRoute: typeof MailIndexRoute
+}
+
+const MailRouteChildren: MailRouteChildren = {
+  MailPeerRoute: MailPeerRoute,
+  MailIndexRoute: MailIndexRoute,
+}
+
+const MailRouteWithChildren = MailRoute._addFileChildren(MailRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   BridgeRoute: BridgeRoute,
   ChatRoute: ChatRouteWithChildren,
+  EarnRoute: EarnRoute,
   HousesRoute: HousesRoute,
   LaunchRoute: LaunchRoute,
+  MailRoute: MailRouteWithChildren,
   MarketsRoute: MarketsRoute,
   PositionsRoute: PositionsRoute,
   SendRoute: SendRoute,

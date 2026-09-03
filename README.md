@@ -8,7 +8,7 @@
 
 <p align="center">
   Open the app and you have an account — no wallet to connect, nothing to install, nothing to paste.<br/>
-  Hold and send shielded value, chat with money attached, swap, bet, launch, bridge out.
+  Hold and send shielded value, mail a payment with a sealed note, swap, bet, launch, bridge out.
 </p>
 
 <p align="center">
@@ -26,7 +26,7 @@
 </p>
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/Blockchain-Oracle/strk20-run/main/assets/brand/strk20-banner.svg" width="960" alt="strk20.run — a private account on Starknet. Hold, send, chat, swap, bridge, bet, launch." />
+  <img src="https://raw.githubusercontent.com/Blockchain-Oracle/strk20-run/main/assets/brand/strk20-banner.svg" width="960" alt="strk20.run — a private account on Starknet. Hold, send, mail, swap, bridge, bet, launch." />
 </p>
 
 The key is generated in your browser on first load, and everything runs from it. Every screen
@@ -58,7 +58,7 @@ Network `SN_MAIN`. Every row was read back off the chain, not copied from a depl
 | Pool class hash this code was tested against | [`0x67dddd89…6b554d`](https://voyager.online/class/0x67dddd89d80fedadc06b6f160798f94800a4a70164e5a24301cd0d6076b554d) |
 | `Markets` (ours) — standing windows | [`0x30b487e6…a3c702`](https://voyager.online/contract/0x30b487e6b15d65fae30482fd07dcbfaa47b5b07e5133c0cdb10d8e49a3c702) |
 | `Launch` (ours) | [`0x3fc07897…32eb54`](https://voyager.online/contract/0x3fc07897f657b184ff9b0dab28939bb5a175d7cff9290406a1bd4b3d032eb54) |
-| `MessageBook` (ours) | [`0x3105b6a3…ae35bc`](https://voyager.online/contract/0x3105b6a327ba11f5464335f480046348a4052be2c12df726f37633d50ae35bc) |
+| `Mailbox` (ours) — pool-only memo log | [`0x675196bd…0bba5a`](https://voyager.online/contract/0x675196bd1c2df73c85acdf3ac97a5baffce476f0915006ca8187e00c80bba5a) |
 | `Governance` — the Houses (ours) | [`0x731207e6…4babc5`](https://voyager.online/contract/0x731207e62d01d80632e9d6e911072bb5a3eeaf86232123d2ab9fc50654babc5) |
 | Pragma oracle (read live by Markets) | [`0x2a85bd61…fa875b`](https://voyager.online/contract/0x2a85bd616f912537c50a49a4076db02c00b29b2cdc8a197ce92ed1837fa875b) |
 
@@ -98,21 +98,26 @@ delay, so if the running class stops matching, the app says so and stops rather 
 
 ## Where each surface stands
 
-Seven modes, one pool.
+Nine modes, one pool.
 
 | Surface | State today |
 |---|---|
-| **Wallet** | **Live end to end.** Balance read from the pool, send, deploy, register, QR receive, account lifecycle, history. |
-| **Chat** | **Live end to end.** Multi-conversation, one multiplexed socket, sealed messages, money attached to a message, opt-in public name directory. |
-| **Swap** | **Live end to end.** Real route priced through an on-chain aggregator, executed in one transaction, proceeds land back in the pool. |
+| **Wallet** | **Live on mainnet.** Balance read from the pool, send, deploy, register, QR receive, account lifecycle, history. |
+| **Mail** | **Deployed on mainnet.** Every message is a shielded payment: the pool creates the recipient's note and posts the sealed memo to our pool-only `Mailbox` in the same proved transaction. Threads are rebuilt from the chain with the viewing key — no server carries a message, nothing is kept in the browser. Opt-in public name directory. |
+| **Chat** | **Live, and free because it is not a transaction.** Sealed messages over one multiplexed connection to our relay. Sending an ordinary message costs nothing and writes nothing to the chain — the relay carries the ciphertext, sees who is talking to whom and when, and keeps a bounded in-memory backlog rather than durable storage. Money attached to a message is a separate pool transaction with an ordinary fee. Use Mail for a message that survives on chain. |
+| **Swap** | **Live on mainnet.** Real route priced through an on-chain aggregator, executed in one transaction, proceeds land back in the pool. |
+| **Earn** | **Deployed on mainnet.** Seven Vesu V2 USDC lending markets in one catalog, every rate and liquidity figure a live contract read — Vesu's own API returns no stats for V2 at all. Supplying and redeeming go through `VesuEarn`, our own helper, which redeems an exact share count; positions are discovered vToken notes, so they survive a cleared browser. Always submitted by your own account. |
 | **Bridge** | **Live, outbound only.** Shielded USDC to another chain through StarkWare's deployed `OutboundAnonymizer`. |
 | **Markets** | **Deployed on mainnet.** Live Pragma prices, real market records, bets, cash-out while eligible, terminal claims and refunds. |
 | **Launch** | **Deployed on mainnet.** Real sale records, buys, graduation redemption, failed-raise refunds. |
-| **Houses** | **Live end to end.** A house is a treasury with members; a ballot's weight is public, its choice is sealed to the proposal's tally key, and no address is written on it. Our Teller opens the tally at close and cannot forge, drop or miscount a ballot, because the contract checks the arithmetic. |
+| **Houses** | **Live on mainnet.** A house is a treasury with members; a ballot's weight is public, its choice is sealed to the proposal's tally key, and no address is written on it. Our Teller opens the tally at close and cannot forge, drop or miscount a ballot, because the contract checks the arithmetic. |
 
 What does not work, stated plainly: there is no invite for an unregistered address; the bridge is
-outbound only and no crossing has been sent from this code; depositing into the pool is public —
-what the pool hides is which notes are yours afterwards. No surface substitutes fixture rows or
+outbound only and no crossing has been sent from this code; the Earn helper is deployed and proven
+against real Vesu on a mainnet fork, but no lending transaction has been sent through the live pool
+yet; a chat message
+is not on chain, not decentralized and not persistent, and this README will not call it any of those
+things; depositing into the pool is public — what the pool hides is which notes are yours afterwards. No surface substitutes fixture rows or
 invented numbers when a chain read is empty.
 
 ---
@@ -124,8 +129,8 @@ invented numbers when a chain read is empty.
 </p>
 
 The account is an embedded key made in the browser. The relayer is reached only through a
-same-origin proxy, so the browser never holds its token. Swap and bridge are one invoke sandwich —
-withdraw to the venue's privacy executor, invoke it, proceeds land back in the pool as a note.
+same-origin proxy, so the browser never holds its token. Swap, Earn and bridge are one invoke
+sandwich — withdraw to a privacy executor, invoke it, proceeds land back in the pool as a note.
 The full page, including the relayer's security model, is
 **[docs/architecture.md](docs/architecture.md)**.
 
@@ -161,7 +166,7 @@ Every statement here is checkable from mainnet.
 - **The recipient of a private transfer sees the sender.** Private does not mean anonymous to your counterparty.
 - **Anonymity sets on this pool are small.** The app shows the real number where you choose the amount, because that number — not the cryptography — is your cover.
 - **Our relayer sees network metadata** — your IP and the timing of your request — so that its address, not yours, is the visible submitter.
-- **Your viewing private key is escrowed on-chain to a StarkWare auditor, permanently.** Registration writes it encrypted to the auditor key `0x1eed60b8…801bf7`, readable by anyone via `get_enc_private_key(address)`, with no rotation and no opt-out. Chat room keys derive from the same viewing keys, so the auditor can read any conversation here. This is why nothing here is described as end-to-end encrypted.
+- **Your viewing private key is escrowed on-chain to a StarkWare auditor, permanently.** Registration writes it encrypted to the auditor key `0x1eed60b8…801bf7`, readable by anyone via `get_enc_private_key(address)`, with no rotation and no opt-out. Mail memo keys derive from the pool's channel keys, which the auditor can recover from those viewing keys, so the auditor can read any mail here. This is why nothing here is described as end-to-end encrypted.
 - **The same key reads your notes and signs your spending.** There is no watch-only version, and there never will be, because the protocol has none.
 - **Amounts are public on any leg that touches an open note** — a swap, a launch buy, a market bet all publish their size.
 - **The audit does not cover this code.** The OpenZeppelin audit is scoped to protocol commit `c5e2fb5` (May 2026); everything in this repository is unaudited.

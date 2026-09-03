@@ -11,7 +11,7 @@
 // The browser cannot hold that token. Anything shipped to a browser is public, and a shared secret
 // in a public bundle is a shared secret with the internet. So the token lives here, in a server
 // environment variable, and is attached on this side of the hop. The browser posts to its own
-// origin — `/api/submit`, `/api/room/send`, `/api/room/stream` — exactly as it does in `vite dev`,
+// origin — `/api/submit`, `/api/chain/stream` — exactly as it does in `vite dev`,
 // and never learns that a second host exists.
 //
 // ── IT FORWARDS, IT DOES NOT UNDERSTAND ──────────────────────────────────────────────────
@@ -54,12 +54,12 @@ import { pipeline } from 'node:stream/promises'
 //
 // The ceiling on one forwarded request, in seconds.
 //
-// It is the STREAM that needs it. `/api/room/stream` holds a connection open for as long as
-// someone has a chat window open, and a serverless function cannot outlive its own limit — so a
-// long conversation gets its socket closed roughly every five minutes. That is survivable rather
-// than hidden: `openRoomStream` reconnects on its own backoff and de-duplicates the backlog it is
-// replayed, so a reader sees nothing. It is stated here because "the stream is permanent" would
-// be false, and somebody debugging a reconnect every five minutes deserves to find this line.
+// It is the STREAM that needs it. The chain feed holds a connection open for as long as a tab
+// is open, and a serverless function cannot outlive its own limit — so a long session gets its
+// socket closed roughly every five minutes. That is survivable rather than hidden: the feed
+// client reconnects on its own backoff and falls back to its own reads, so a reader sees nothing.
+// It is stated here because "the stream is permanent" would be false, and somebody debugging a
+// reconnect every five minutes deserves to find this line.
 //
 export const config = { maxDuration: 300 }
 
@@ -132,19 +132,17 @@ export default async function handler(req, res) {
   // holding its own connection to the relayer until the platform kills it at `maxDuration`. Two
   // things follow, and the second is the expensive one.
   //
-  // The relayer counts SUBSCRIBERS PER ROOM and caps them (`MAX_SUBSCRIBERS_PER_ROOM`, 8). An
-  // abandoned stream keeps its slot for up to five minutes, so a person who reloads a few times
-  // in a minute can fill their own room and be refused entry to a conversation they are alone in.
-  // The stream is also cut and reopened roughly every five minutes by design, which means the
-  // leak is not an edge case — it is the ordinary lifecycle.
+  // The relayer counts feed SUBSCRIBERS and caps them (`MAX_FEED_SUBSCRIBERS`). An abandoned
+  // stream keeps its slot for up to five minutes, so a person who reloads a few times in a minute
+  // can fill slots they are no longer using. The stream is also cut and reopened roughly every
+  // five minutes by design, which means the leak is not an edge case — it is the ordinary lifecycle.
   //
   // WHAT THIS DOES NOT FIX, MEASURED RATHER THAN ASSUMED. It does not make a departure visible to
   // the relayer. This platform's edge holds the browser's connection and hands the function its
   // own; a visitor closing a tab does not reliably close anything this process can observe, so
   // `res` may emit no `close` at all until `maxDuration`. Two runs against production confirmed
-  // it: a peer who left was still counted as attached 145 seconds later. That is why presence is
-  // NOT inferred from socket liveness anywhere in this system — the relayer counts client
-  // beacons with a TTL instead (`rooms.ts`), which needs nothing from this hop.
+  // it: a departed client was still counted as attached 145 seconds later. Nothing in this system
+  // infers anything about a person from socket liveness.
   //
   // `res` emits `close` both when the client disappears and when a normal response finishes;
   // aborting after a completed fetch is a no-op, so one listener covers both without a flag.
@@ -177,8 +175,8 @@ export default async function handler(req, res) {
   }
 
   // PIPED, NOT BUFFERED. `await upstream.text()` would work for every route except the one that
-  // matters: a stream has no end to wait for, and buffering it would deliver a room's first
-  // message at the same moment as its last.
+  // matters: a stream has no end to wait for, and buffering it would deliver the feed's first
+  // tick at the same moment as its last.
   //
   // `pipeline` rather than `.pipe()`: `.pipe()` leaves the SOURCE running when the destination
   // dies, which is the second half of the leak described above — the abort signal releases the
@@ -187,7 +185,7 @@ export default async function handler(req, res) {
   try {
     await pipeline(Readable.fromWeb(upstream.body), res)
   } catch {
-    // The visitor left mid-stream. That is the ordinary end of a chat socket, not a fault, and
+    // The visitor left mid-stream. That is the ordinary end of a feed socket, not a fault, and
     // there is no longer a response to report it on.
   }
 }

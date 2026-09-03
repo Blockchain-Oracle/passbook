@@ -173,7 +173,7 @@ function Record({ house, proposals, delegate }: { house: OnChainHouse; proposals
       <ProposeDialog house={house} open={door === 'propose'} onOpenChange={(o) => !o && setDoor(null)} />
       <FundDialog house={house} open={door === 'fund'} onOpenChange={(o) => !o && setDoor(null)} />
       {invite ? <JoinDialog house={house} open={door === 'join'} onOpenChange={(o) => !o && setDoor(null)} /> : null}
-      {/* A handle arriving in the URL opens the door holding it — the chat card's destination. */}
+      {/* A handle arriving in the URL opens the door holding it — the mail card's destination. */}
       <DelegateDialog house={house} open={door === 'delegate'} onOpenChange={(o) => !o && setDoor(null)} initialDelegate={delegate} />
     </div>
   )

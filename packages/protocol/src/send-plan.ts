@@ -9,14 +9,19 @@ import type { PrivateTransfersBuilder, PrivateTransfersUser } from '@starkware-l
 
 import { STRK_TOKEN } from './constants.js'
 import type { SwapCall } from './quote.js'
+import type { EarnLeg } from './send-earn.js'
+import type { MailBody } from './mail-body.js'
 import { notEnoughShielded, type SendFailure } from './pipeline.js'
 
 export type SubmitMode = 'relayer' | 'self'
 
 export type SendKind =
   | 'transfer'
+  | 'mail'
   | 'withdraw'
   | 'swap'
+  | 'earn-supply'
+  | 'earn-redeem'
   | 'bridge'
   | 'market-create'
   | 'market-bet'
@@ -43,6 +48,9 @@ export const isFundingKind = (kind: SendKind): boolean => FUNDING_KINDS.includes
 export const isSettlingKind = (kind: SendKind): boolean => SETTLING_KINDS.includes(kind)
 export const isComputeKind = (kind: SendKind): boolean => COMPUTE_KINDS.includes(kind)
 export const isAppKind = (kind: SendKind): boolean => isFundingKind(kind) || isSettlingKind(kind) || kind === 'gov-join'
+
+/** Both Earn directions. Neither is a funding, settling or compute kind — like `swap`, they are their own shape. */
+export const isEarnKind = (kind: SendKind): boolean => kind === 'earn-supply' || kind === 'earn-redeem'
 
 /** The venue leg of a swap. The executor declares `privacy_invoke(buy_token, calls: Span<Call>, note_id)`. */
 export interface SwapLeg {
@@ -83,6 +91,21 @@ export interface AppInvokeLeg {
   payoutToken?: string
 }
 
+/**
+ * The memo leg of a mail: a transfer that also carries a sealed body to the Mailbox, posted by
+ * the pool in the same proved transaction. `recipientPublicKey` arrives from the pre-flight's
+ * registration read; `anchor` and `calldata` are filled by `proveSend` once the note is named.
+ */
+export interface MailLeg {
+  body: MailBody
+  /** The pool-only Mailbox this deployment posts to. */
+  mailbox: string
+  recipientPublicKey?: bigint
+  /** The recipient note's id, predicted from the walk; the span guard holds the SDK to it. */
+  anchor?: bigint
+  calldata?: readonly string[]
+}
+
 export interface SendRequest {
   kind: SendKind
   /** A shielded account (transfer), a public address (withdraw), or the contract the legs name. */
@@ -107,8 +130,10 @@ export interface SendRequest {
    */
   sponsored?: boolean
   swap?: SwapLeg
+  earn?: EarnLeg
   bridge?: BridgeLeg
   app?: AppInvokeLeg
+  mail?: MailLeg
 }
 
 // ── Caller-supplied wallet data (the walk the user is looking at; used for the free refusals) ──
@@ -202,8 +227,16 @@ export function validateCommon(request: SendRequest, self: string, fee: FeeLeg |
   const recipient = feltOrNull(request.recipient)
   if (recipient === null) return bad(`the recipient ${JSON.stringify(request.recipient)} is not a felt address`)
   if (request.swap && kind !== 'swap') return bad(`a ${kind} carried a swap leg; it was refused rather than dropped`)
+  if (request.earn && !isEarnKind(kind)) return bad(`a ${kind} carried an Earn leg; it was refused rather than dropped`)
+  // The symmetric half, and the one that matters more: a supply whose leg went missing somewhere
+  // upstream would compose as a bare withdrawal to our helper — value delivered and stranded, with
+  // nothing to invoke it back out. `send-preflight.ts` rebuilds the request field by field, which
+  // is exactly where a leg has been dropped before.
+  if (isEarnKind(kind) && !request.earn) return bad(`a ${kind} carried no Earn leg; it was refused rather than sent as a bare withdrawal`)
   if (request.bridge && kind !== 'bridge') return bad(`a ${kind} carried a bridge leg; it was refused rather than dropped`)
   if (request.app && !isAppKind(kind)) return bad(`a ${kind} carried an app leg; it was refused rather than dropped`)
+  if (request.mail && kind !== 'mail') return bad(`a ${kind} carried a mail leg; it was refused rather than dropped`)
+  if (kind === 'mail' && !request.mail) return bad('a mail carried no memo; it was refused rather than sent as a bare transfer')
   if (recipient === 0n) return bad('refusing to send to the zero address')
   const token = feltOrNull(request.token)
   if (token === null || token === 0n) return bad(`the token ${JSON.stringify(request.token)} is not a usable token address`)

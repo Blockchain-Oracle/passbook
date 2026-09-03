@@ -8,7 +8,7 @@
 // 30s, three Pragma pairs every 15s — N browsers × M reads, all asking the same public questions
 // and each starting from an empty price history. The relayer is one always-on machine that
 // already holds an RPC provider; it asks once and fans the answers out over the same SSE-over-POST
-// framing the chat bus proved in production (`relayer/src/rooms.ts`). The browser keeps its own
+// framing. The browser keeps its own
 // read path as a fallback, so a dead feed degrades to "slower", never to "blank".
 //
 // ── BIGINTS TRAVEL AS HEX STRINGS ────────────────────────────────────────────────────────

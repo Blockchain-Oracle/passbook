@@ -17,6 +17,7 @@ import { governancePositionAction, launchPositionAction, marketPositionAction } 
 import { positionLifecycle, type PositionTone } from '@strk20/protocol/position-lifecycle'
 import type { StoredPosition } from '@strk20/protocol/session-position-store'
 
+import { useEarnGroups } from '@/features/earn/use-earn-groups'
 import { houseTitle } from '@/features/houses/gov-send'
 import { launchStateWord } from '@/features/launch/phase'
 import { governanceWrites, housesQuery, launchPositionQuery, launchesQuery, marketByIdQuery, marketPositionQuery, marketsQuery, proposalsQuery, tokenListQuery } from '@/queries'
@@ -28,6 +29,7 @@ import { mergeClaimable, type Claim, type PositionGroup, type PositionsRead } fr
 
 export function usePositionGroups(now: number): PositionsRead {
   const stored = useQuery(storedPositionsQuery())
+  const earnGroups = useEarnGroups()
   const history = useQuery(historyQuery())
   const markets = useQuery(marketsQuery())
   const launches = useQuery(launchesQuery())
@@ -206,10 +208,14 @@ export function usePositionGroups(now: number): PositionsRead {
       )
     }
 
+    // Earn rides in from its own hook: it is derived from the note walk rather than the bearer
+    // store, so it has no secrets to read and nothing above this line applies to it.
+    out.push(...earnGroups)
+
     // Ready first — the only ordering that answers "what can I do right now" without reading it all.
     const rank: Record<PositionTone, number> = { ready: 0, waiting: 1, settled: 2 }
     return out.sort((a, b) => rank[a.tone] - rank[b.tone])
-  }, [marketHeld, launchHeld, govHeld, marketReads, launchReads, offBoardReads, offBoard, marketList, marketsPending, launchList, houseList, proposalList, tokenList, govPending, govFailed, writes, now])
+  }, [earnGroups, marketHeld, launchHeld, govHeld, marketReads, launchReads, offBoardReads, offBoard, marketList, marketsPending, launchList, houseList, proposalList, tokenList, govPending, govFailed, writes, now])
 
   if (stored.isPending) return { status: 'pending', because: null, groups: [], ready: 0, running: 0, finished: 0, claimable: [] }
   if (stored.data?.state === 'corrupt') {

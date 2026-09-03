@@ -1,16 +1,41 @@
 ---
 title: Chat
-description: Sealed messages, money attached to them, and the two things the relayer learns anyway.
+description: Gas-free relayed messages, money attached to them, and the two things the relayer learns anyway.
 ---
 
-Chat is a real surface, not a demo: multiple conversations, sealed messages, and value attached to
-a message so that paying someone and telling them why are one action.
+Chat is the free one. Multiple conversations, sealed messages, and value attached to a message so
+that paying someone and telling them why are one action — and sending an ordinary message costs
+nothing, because it is not a Starknet transaction at all.
+
+That last clause is the whole trade. [Mail](/docs/how-it-works/mail) puts a sealed memo on chain
+inside a proved pool transaction and charges the pool fee for it. Chat hands ciphertext to our
+relay and charges nothing, and in exchange nothing about it is on chain and nothing is durable.
+Both surfaces ship, because they are answers to different questions.
+
+## Chat and Mail, side by side
+
+| | **Chat** (`/chat`) | **Mail** (`/mail`) |
+| --- | --- | --- |
+| **Cost to send** | Nothing. Not a transaction. | The live pool fee plus gas, unless a covered transaction applies. |
+| **On chain?** | No. Nothing is written. | Yes — the pool posts the sealed memo to our Mailbox in the same proved transaction as the payment. |
+| **Persistence** | A bounded in-memory backlog on the relay, dropped after a quiet period, plus this browser's local log. | Permanent. It is a chain event. |
+| **Who carries it** | Our relay carries the ciphertext and sees the metadata around it. | Nobody. The recipient reads it off the chain with their viewing key. |
+| **Recovery on a new device** | Not recovered. A cleared browser loses its history. | Rebuilt from the chain and the viewing key alone. |
+| **What the relay learns** | Who is talking to whom, when, how often, message sizes, and which conversations share a participant. | Only that it submitted a transaction, and only if you used a covered one. |
+
+**Attaching money is a transaction either way.** "Gas-free" describes sending an ordinary chat
+message. A payment sent from inside a room is an ordinary pool transaction with an ordinary fee —
+the message rides the relay, the money does not.
 
 ## The honest parts
 
 **It is not end-to-end encrypted, and this documentation will not say that it is.** Room keys derive
 from the same viewing keys that are [escrowed to the auditor](/docs/privacy/the-auditor) at
 registration. There is a third party by construction, so the phrase would be false.
+
+**It is not on-chain, decentralized, or persistent either.** Those words get used loosely about
+messaging and none of them is true here. One process holds the backlog, in memory, and if it
+restarts the backlog is gone.
 
 **One socket, disclosed.** Every conversation rides a single multiplexed connection. That means a
 multiplexed subscribe tells the relayer that those rooms share one participant. The app's own copy

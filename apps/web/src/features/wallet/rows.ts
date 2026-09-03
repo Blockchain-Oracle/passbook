@@ -1,6 +1,7 @@
 import type { ShieldedBalance } from '@strk20/protocol/balances'
 import { BRIDGE_USDC, BRIDGE_USDC_DECIMALS } from '@strk20/protocol/bridge'
 import { STRK_TOKEN } from '@strk20/protocol/constants'
+import { isEarnShareToken } from '@strk20/protocol/earn-markets'
 import type { TokenInfo } from '@strk20/protocol/token-list'
 
 import type { BalanceRow } from '@/components/money/balance-cards'
@@ -40,15 +41,33 @@ function fromList(token: string, list: readonly TokenInfo[] | undefined, fallbac
 /**
  * STRK and USDC always, in that order, then anything else the shielded book holds. Decimals for
  * the extras come from the walk (verified on chain) before the list.
+ *
+ * ── EXCEPT EARN SHARES, WHICH ARE A POSITION AND NOT A BALANCE ────────────────────────────
+ *
+ * Supplying a Vesu market mints vToken notes, and the walk finds them like it finds everything
+ * else — so without this filter the wallet would grow a row reading `TOKEN —` for a token the
+ * list has never heard of, sitting beside real balances as if it were spendable money. It is not:
+ * those shares are a lending position, they are redeemed rather than sent, and `/earn` is where
+ * they are worth something. So they are excluded here and summed there.
+ *
+ * Excluded, NOT hidden: the value is on `/earn` and in `/positions`, and the wallet links to it.
+ * What must never happen is the shares being added to a shielded token balance, which would be
+ * two different kinds of holding in one number.
  */
 export function walletTokens(list: readonly TokenInfo[] | undefined, shielded: ShieldedBalance | undefined): WalletToken[] {
   const out = CORE.map((core) => fromList(core.token, list, core))
   for (const held of shielded?.tokens ?? []) {
+    if (isEarnShareToken(held.token)) continue
     if (out.some((row) => sameToken(row.token, held.token))) continue
     const known = fromList(held.token, list)
     out.push({ ...known, decimals: held.decimals ?? known.decimals })
   }
   return out
+}
+
+/** True when this walk holds any Earn position, so the wallet can offer the door to it. */
+export function holdsEarnShares(shielded: ShieldedBalance | undefined): boolean {
+  return (shielded?.tokens ?? []).some((held) => isEarnShareToken(held.token) && held.wei > 0n)
 }
 
 /** The token the wallet lists for an address, if any. */

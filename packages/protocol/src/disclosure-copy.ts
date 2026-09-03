@@ -70,7 +70,24 @@ export const REGISTRATION_ESCROW_PINNED =
 export const REGISTRATION_NO_VALUE =
   'Registering moves no tokens. There is no amount and no counterparty in this transaction.'
 
+// ── Mail ──────────────────────────────────────────────────────────────────────────────────
+
+/** A memo is a pool transaction plus one public event; what is on chain is the ciphertext and its size. */
+export const MAIL_VISIBLE =
+  'On chain: that a pool transaction posted a memo, its size, its block, and the id of the note it ' +
+  'rides with. The words and the amount are sealed; the recipient is whoever can read that note.'
+
+/** The last clause is reworded to disclaim the industry's strongest phrase without naming it (`forbidden-claims.ts`). */
+export const MAIL_AUDITOR_DERIVES =
+  "Sealed with the pool's own channel key — the one that hides this note's amount. StarkWare's " +
+  'auditor escrow can recover that key and read this memo, including old ones, without asking you. ' +
+  'So we do not use the strongest word the industry has for this.'
+
 // ── Chat ──────────────────────────────────────────────────────────────────────────────────
+//
+// A different surface from Mail, and a WEAKER one, said in its own words. Mail's memo is on chain
+// and costs the pool fee; a chat message is ciphertext through our relay and costs nothing —
+// which is exactly why the relay learns things the chain never would.
 
 /** A ROOM gives the relay the graph — who talks to whom, how often — a real step up from an ordinary send. */
 export const CHAT_RELAY_METADATA =
@@ -83,6 +100,12 @@ export const CHAT_AUDITOR_DERIVES =
   "Encrypted in transit. Free key agreement uses keys already on-chain — which means StarkWare's " +
   "auditor escrow can derive this conversation's secret and read these messages, including old " +
   'ones, without asking you. So we do not use the strongest word the industry has for this.'
+
+/** The one sentence that keeps "gas-free" from being read as "free of consequences". */
+export const CHAT_NOT_ON_CHAIN =
+  'Sending a message here is not a Starknet transaction, which is why it costs nothing — and also ' +
+  'why nothing about it is on chain. The relay keeps a short backlog in memory; a message is not ' +
+  'stored anywhere it can be recovered from later. Mail is the one that lands on chain.'
 
 // ── Swap ──────────────────────────────────────────────────────────────────────────────────
 
@@ -102,6 +125,38 @@ export const SWAP_RELAY_QUOTE =
 export const SWAP_RETURNS_TO_YOU =
   'The output returns to your own shielded pool in the same transaction, so there is no recipient ' +
   'to reveal.'
+
+// ── Earn ──────────────────────────────────────────────────────────────────────────────────
+//
+// The same shape as a swap — value out to a helper, value back as a note, one transaction — so
+// the exposure is the same shape too. What differs is that the counterparty is a named lending
+// market whose deposit is a plaintext ERC-4626 event, and that this one is always submitted by
+// the user's own account, which puts their address on it.
+
+/** Note what this does NOT say: `forbidden-claims.ts` bans "amounts are private", and here the amount is public. */
+export const EARN_VISIBLE =
+  'Visible on-chain: the market, the amount supplied or redeemed, and the timing. Hidden: which ' +
+  'account owns the position.'
+
+/** The observer's-voice sentence, matching `SWAP_OBSERVER`'s register. */
+export const EARN_OBSERVER =
+  'On-chain this appears as our helper contract supplying a Vesu market and receiving its shares; ' +
+  'the market, the amounts and the timing are public, and which account owns them is not.'
+
+/** Why the recipient row of the matrix is empty rather than hidden. */
+export const EARN_RETURNS_TO_YOU =
+  'The shares come back into your own shielded pool as a note in the same transaction, so there is ' +
+  'no recipient to reveal.'
+
+/** Earn is never relayed, so its address exposure is a standing fact rather than a choice. */
+export const EARN_SELF_SUBMIT =
+  'You submit this one yourself, so your own address is on it as the sender, and it pays the pool ' +
+  'fee and gas from your public STRK.'
+
+/** The position survives the browser, and the reason is worth stating in the panel. */
+export const EARN_POSITION_RECOVERABLE =
+  'The position is the note, not a record in this browser. A cleared browser holding the same ' +
+  'account finds it again.'
 
 // ── Bridge ────────────────────────────────────────────────────────────────────────────────
 
@@ -225,8 +280,10 @@ export const DISCLOSURE_HEADLINE = {
   'pool-send': POOL_SEES,
   'self-submit': SELF_SUBMIT_SENDER,
   registration: REGISTRATION_PUBLIC,
+  mail: MAIL_VISIBLE,
   'chat-payment': CHAT_RELAY_METADATA,
   swap: SWAP_VISIBLE,
+  earn: EARN_VISIBLE,
   unshield: UNSHIELD_SCOPE,
   'bridge-exit': BRIDGE_SCOPE,
   'markets-bet': MARKETS_BET_VISIBLE,

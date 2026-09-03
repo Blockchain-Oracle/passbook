@@ -103,7 +103,7 @@ export const SPONSORED_OFFER = 'Your first three transactions are on us — real
  * looks — these are not shield/unshield credits. They cover the pool fee on ANY pool transaction,
  * which is most of this app, and a user who thinks otherwise leaves two of them unspent.
  */
-export const SPONSORED_OFFER_NOTE = 'Once per account, not per day. Use them for anything — send, swap, chat, launch.'
+export const SPONSORED_OFFER_NOTE = 'Once per account, not per day. Use them for anything — send, swap, mail, launch.'
 
 // ── The ladder — creating the account ─────────────────────────────────────────────────────
 //

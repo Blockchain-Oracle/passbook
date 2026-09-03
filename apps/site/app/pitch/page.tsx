@@ -49,7 +49,7 @@ export default function PitchPage() {
           </h1>
           <div className="flex flex-col gap-s20">
             <p className="m-0 text-body2 text-[color:var(--ink2)]">
-              Hold, send, chat, swap, bridge out, bet, launch a token, and run a House without
+              Hold, send, mail, swap, bridge out, bet, launch a token, and run a House without
               beginning with a wallet extension or a seed phrase.
             </p>
             <div className="flex flex-wrap gap-s12">

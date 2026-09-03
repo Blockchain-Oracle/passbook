@@ -86,7 +86,7 @@ const TABLE: Readonly<Record<DegradedMode, DegradedCopy>> = {
     body:
       "The pool changed how deposits are screened, and every new deposit is being refused until it's " +
       "updated. This isn't about your deposit — nothing was submitted, nothing was charged, and no " +
-      'tokens moved. Your balance, your history and your chat rooms are unaffected.',
+      'tokens moved. Your balance, your history and your mail are unaffected.',
     blocker: 'New deposits are being refused',
   },
 

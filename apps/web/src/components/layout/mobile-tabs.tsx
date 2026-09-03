@@ -3,11 +3,10 @@ import { Link, useLocation } from '@tanstack/react-router'
 import { Ellipsis } from 'lucide-react'
 
 import { MOBILE_MORE, MOBILE_TABS, isActivePath, type NavItem } from '@/app/navigation'
-import { useSession } from '@/app/session'
 import { NotificationCenter } from '@/components/layout/notification-center'
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
 import { AccountRow } from '@/features/account'
-import { useTotalUnread } from '@/features/chat'
+import { useUnreadBadges } from '@/app/unread'
 import { cn } from '@/lib/utils'
 
 const tabClass = (active: boolean) =>
@@ -37,8 +36,7 @@ function Tab({ item, pathname, badge = 0 }: { item: NavItem; pathname: string; b
 /** Phone navigation: four tabs and a More sheet that also holds the account. Hidden from `md` up. */
 export function MobileTabs() {
   const { pathname } = useLocation()
-  const session = useSession()
-  const unread = useTotalUnread(session.status === 'ready' ? session.address : undefined)
+  const unread = useUnreadBadges()
   const [moreOpen, setMoreOpen] = useState(false)
   const moreActive = MOBILE_MORE.some((item) => isActivePath(pathname, item.to))
 
@@ -46,17 +44,17 @@ export function MobileTabs() {
   return (
     <nav className="fixed inset-x-0 bottom-0 z-40 flex border-t bg-sidebar pb-[env(safe-area-inset-bottom)] md:hidden">
       {MOBILE_TABS.map((item) => (
-        <Tab key={item.to} item={item} pathname={pathname} badge={item.to === '/chat' ? unread : 0} />
+        <Tab key={item.to} item={item} pathname={pathname} badge={unread.badgeFor(item.to)} />
       ))}
       <Sheet open={moreOpen} onOpenChange={setMoreOpen}>
-        {/* Chat is behind More on a phone, so the count has to be readable without opening it —
+        {/* Mail and Chat are both behind More on a phone, so the count has to be readable without opening it —
             a badge nobody can see until they go looking is not a notification. */}
         <SheetTrigger className={tabClass(moreActive)}>
           <span className="relative">
             <Ellipsis className="size-5" aria-hidden />
-            {unread > 0 ? (
+            {unread.total > 0 ? (
               <span className="absolute -right-2 -top-1 min-w-4 rounded-full bg-primary px-1 text-center text-[10px] leading-4 text-primary-foreground">
-                {unread > 9 ? '9+' : unread}
+                {unread.total > 9 ? '9+' : unread.total}
               </span>
             ) : null}
           </span>
@@ -82,9 +80,9 @@ export function MobileTabs() {
                 >
                   <span className="relative">
                     <item.icon className="size-5" aria-hidden />
-                    {item.to === '/chat' && unread > 0 ? (
+                    {unread.badgeFor(item.to) > 0 ? (
                       <span className="absolute -right-2 -top-1 min-w-4 rounded-full bg-primary px-1 text-center text-[10px] leading-4 text-primary-foreground">
-                        {unread > 9 ? '9+' : unread}
+                        {unread.badgeFor(item.to) > 9 ? '9+' : unread.badgeFor(item.to)}
                       </span>
                     ) : null}
                   </span>

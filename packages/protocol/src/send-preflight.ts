@@ -109,11 +109,14 @@ export async function preflightSend(
   }
   const offer: SelfSubmitOffer = { mode: 'self', feeRow: { ...feeRow, paidByUs: false }, disclosure: SELF_SUBMIT_DISCLOSURE, gasNotice: SELF_SUBMIT_GAS_LOSS }
 
-  // 2. The recipient — only a shielded transfer needs a registered one; a withdraw names a public address.
-  if (input.kind === 'transfer') {
+  // 2. The recipient — only a shielded transfer needs a registered one; a withdraw names a public
+  //    address. A mail keeps the key it reads: the memo is sealed for the channel that key names.
+  let mail = input.mail
+  if (input.kind === 'transfer' || input.kind === 'mail') {
     const route = await preflightRecipient(input.recipient, readRecipientKey)
     if (route.route === 'blocked-rpc-unknown') return { failure: { kind: 'blocked-rpc-unknown', reason: route.reason } }
     if (route.route === 'unregistered') return { failure: { kind: 'unregistered-recipient', recipient: input.recipient, door: route.door } }
+    if (mail) mail = { ...mail, recipientPublicKey: route.publicKey }
   }
 
   // 3. Where the fee goes, read live: the relayer's signing wallet rotates without a release.
@@ -130,7 +133,9 @@ export async function preflightSend(
   }
 
   // 4. The free refusals. Legs are forwarded by name — `app` was once dropped here, turning a
-  //    funding op into a plain withdraw to the contract.
+  //    funding op into a plain withdraw to the contract. An `earn` leg dropped the same way would
+  //    withdraw to our helper with nothing to invoke it back out, so `validateCommon` now refuses
+  //    an Earn kind carrying no leg rather than trusting this list to stay complete.
   const request: SendRequest = {
     kind: input.kind,
     recipient: input.recipient,
@@ -140,8 +145,10 @@ export async function preflightSend(
     mode: input.mode,
     sponsored: covered,
     swap: input.swap,
+    earn: input.earn,
     bridge: input.bridge,
     app: input.app,
+    mail,
   }
   const leg = legFor(input.kind)
   if (!leg) return { failure: { kind: 'bad-input', reason: `refusing an unknown send kind ${JSON.stringify(input.kind)}` } }

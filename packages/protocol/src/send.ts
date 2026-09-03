@@ -42,7 +42,8 @@ import {
 
 // ── Re-exports: the names the app imports from here ───────────────────────────────────────
 
-export type { AppInvokeLeg, BridgeLeg, SendInput, SendKind, SwapLeg } from './send-plan.js'
+export type { AppInvokeLeg, BridgeLeg, MailLeg, SendInput, SendKind, SwapLeg } from './send-plan.js'
+export type { EarnLeg } from './send-earn.js'
 export type { SelfSubmitOffer, SendFailure, SendResult } from './pipeline.js'
 
 /** The self seam: the proof pair rides as v3 DETAILS, both-or-neither; an executor that drops either is rejected. */
@@ -212,6 +213,7 @@ export async function sendShielded(input: SendInput, deps: SendDeps = {}): Promi
       feeRow,
       maturedNoteIds: proved.mintedNoteIds,
       sendBlock: sanitizeBlockNumber(sendBlock),
+      ...(proved.mailAnchor === undefined ? {} : { mailAnchor: proved.mailAnchor }),
     }
   } finally {
     // A `finally` that throws replaces the result, so a failed release must not erase a send that happened.

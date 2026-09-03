@@ -39,7 +39,7 @@ RUN pnpm install --frozen-lockfile
 
 COPY tsconfig.json ./
 # The deployment records. The allowlist and the keeper read contract addresses from
-# evidence/*.json at boot — an image without them starts with no MessageBook, no Markets and no
+# evidence/*.json at boot — an image without them starts with no Markets and no
 # Launch, which presents as "the relayer refuses my transaction" with the cause three layers
 # away. Found live on 27 Aug: every production image to that date had shipped without them.
 COPY evidence/ evidence/

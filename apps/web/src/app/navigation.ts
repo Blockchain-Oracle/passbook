@@ -4,7 +4,9 @@ import {
   ArrowUpRight,
   ChartCandlestick,
   Landmark,
+  Mail,
   MessageCircle,
+  PiggyBank,
   Rocket,
   Send,
   Settings,
@@ -27,7 +29,12 @@ export const NAV: readonly NavItem[] = [
   { to: '/wallet', label: 'Wallet', icon: Wallet, group: 'money' },
   { to: '/send', label: 'Send', icon: Send, group: 'money' },
   { to: '/swap', label: 'Swap', icon: ArrowLeftRight, group: 'money' },
+  { to: '/earn', label: 'Earn', icon: PiggyBank, group: 'money' },
   { to: '/bridge', label: 'Exit', icon: ArrowUpRight, group: 'money' },
+  // Two messaging surfaces on purpose. Mail is a pool transaction that lands on chain and pays the
+  // fee; Chat is ciphertext over the relay that costs nothing and stores nothing. Neither replaces
+  // the other, so neither is hidden behind the other.
+  { to: '/mail', label: 'Mail', icon: Mail, group: 'venues' },
   { to: '/chat', label: 'Chat', icon: MessageCircle, group: 'venues' },
   { to: '/markets', label: 'Markets', icon: ChartCandlestick, group: 'venues' },
   { to: '/launch', label: 'Launch', icon: Rocket, group: 'venues' },
@@ -43,7 +50,12 @@ export const GROUP_LABEL: Record<NavGroup, string> = {
   system: 'System',
 }
 
-/** The four that fit a phone's bottom bar; everything else lives behind "More". */
+/**
+ * The four that fit a phone's bottom bar; everything else lives behind "More".
+ *
+ * Earn is in and Exit is out. A phone's four slots go to what a holder does often, and leaving a
+ * one-way public exit ahead of the surface that earns on a balance had it backwards.
+ */
 export const MOBILE_TABS = NAV.slice(0, 4)
 export const MOBILE_MORE = NAV.slice(4)
 

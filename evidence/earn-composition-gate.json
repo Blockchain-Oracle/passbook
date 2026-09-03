@@ -1,0 +1,121 @@
+{
+  "what": "Offline composition of a Vesu Earn supply and an exact-share redeem, compiled against live mainnet pool state and walked. No prover, no fee, no broadcast.",
+  "network": "mainnet",
+  "chainId": "0x534e5f4d41494e",
+  "pool": "0x040337b1af3c663e86e333bab5a4b28da8d4652a15a69beee2b677776ffe812a",
+  "ranAt": "2026-09-03",
+  "provingBlocks": [
+    14301927,
+    14301929
+  ],
+  "method": "A throwaway undeployed sender with one fabricated note in the SDK registry; channels opened by autoSetup/autoRegister against the real pool; helper address is a non-zero placeholder because ours is not deployed yet. The compiled ClientAction span is read back and asserted by earn-guards.ts.",
+  "market": {
+    "label": "Re7 USDC Core",
+    "pool": "0x03976cac265a12609934089004df458ea29c776d77da423c96dc761d09d24124",
+    "vToken": "0x017891114c00b07317b9102adefbad9fd5de40c5616f094ee09fe2fad67191b1",
+    "underlying": "0x033068f6539f8e6e6b131e6b2b814e6c34a5224bc66947c47dab9dfee93b35fb",
+    "underlyingDecimals": 6,
+    "shareDecimals": 18
+  },
+  "supply": {
+    "amount": "50000000",
+    "unit": "USDC (6 decimals)",
+    "actions": 9,
+    "spanFelts": 53,
+    "withdraw": {
+      "to": "helper",
+      "token": "USDC",
+      "amount": "50000000"
+    },
+    "openNote": {
+      "token": "vToken"
+    },
+    "invokeCalldata": [
+      "0x0",
+      "USDC",
+      "vToken",
+      "0x2faf080",
+      "0x0",
+      "<open note id>"
+    ],
+    "operation": "Supply = 0",
+    "guard": "holds"
+  },
+  "redeem": {
+    "amount": "49270964422211482839",
+    "unit": "vToken SHARES (18 decimals) \u2014 NOT an underlying amount",
+    "actions": 9,
+    "spanFelts": 53,
+    "withdraw": {
+      "to": "helper",
+      "token": "vToken",
+      "amount": "49270964422211482839"
+    },
+    "openNote": {
+      "token": "USDC"
+    },
+    "invokeCalldata": [
+      "0x1",
+      "vToken",
+      "USDC",
+      "0x2abc5a117ded334d7",
+      "0x0",
+      "<open note id>"
+    ],
+    "operation": "Redeem = 1",
+    "guard": "holds",
+    "note": "This is the corrected exit. The published PRIVACY-0.14.3-RC.0 helper called Vesu withdraw(assets); the SDK README still shows an exit passing an underlying amount. The span above passes an exact share count."
+  },
+  "negative": {
+    "what": "The same compiled supply span asserted against a review amount of 999999999.",
+    "result": "refused",
+    "message": "EarnSpanMismatch: the compiled withdrawal moves 50000000 and the review said 999999999"
+  },
+  "actionLayoutsConfirmed": {
+    "Withdraw": "[to_addr, token, amount, random]",
+    "CreateOpenNote": "[recipient_addr, recipient_public_key, token, index, random]",
+    "InvokeExternal": "[contract_address, calldata_len, ...calldata]",
+    "source": "reference/privacy/packages/privacy/src/actions.cairo, confirmed by the compiled spans above"
+  },
+  "stillUnproven": [
+    "No Earn transaction has been proved, submitted or settled through the live privacy pool yet. The composition and the span guard are verified against live pool state; the PROVER has never been given an Earn action list.",
+    "The end-to-end path (pool proves -> pool invokes helper -> pool credits the open note) is verified in its parts \u2014 fork tests for the helper and the pull, Gate 1 for the composition \u2014 but not yet as one mainnet transaction."
+  ],
+  "forkTests": {
+    "what": "VesuEarn deployed onto a fork of mainnet at a pinned block and driven against the REAL Vesu vTokens \u2014 not a mock. Funded by impersonating a real USDC holder, exactly as the pool's phase-6 withdrawal funds it.",
+    "forkBlock": 14303374,
+    "rpc": "https://starknet-rpc.publicnode.com",
+    "file": "contracts/tests/test_vesu_earn_fork.cairo",
+    "results": [
+      "the_pinned_market_is_the_one_we_think_it_is \u2014 PASS",
+      "a_real_supply_returns_real_shares \u2014 PASS: shares returned equal the vault's own preview_deposit exactly",
+      "a_real_round_trip_returns_the_underlying \u2014 PASS: exact-share redeem returns preview_redeem exactly, never more than went in, every share burned",
+      "a_partial_redeem_leaves_the_rest_earning \u2014 PASS",
+      "a_second_market_works_the_same_way \u2014 PASS (Clearstar USDC Reactor)",
+      "a_stranger_cannot_drive_the_real_market_either \u2014 PASS: ONLY_POOL holds against real contracts",
+      "the_real_pool_can_pull_what_the_helper_approved \u2014 PASS: the STRK20 pool address transfer_froms the approved shares out; nothing stranded",
+      "every_market_in_the_catalog_round_trips \u2014 PASS: all SEVEN markets supply and exact-share redeem, including Re7 USDC Frontier which holds nothing (the first-depositor path)"
+    ],
+    "whyThisMatters": "The mock tests in test_vesu_earn.cairo prove the contract does what we believed Vesu's interface to be \u2014 a mock cannot disagree with the assumption it was written from. These tests prove it against Vesu itself."
+  },
+  "deployed": {
+    "contractAddress": "0x3ce7a79c53685ab178bcf36960099bf37bbd16035f0f7e2defefa5153204157",
+    "classHash": "0x3b58633c71551a2a696f13fd10d7d571c145a8439fff4260142176c4f75f963",
+    "declareTx": "0x2463e65b55dacd42a9619243daff8f7e4606e6a6aaa03487d3984e230e5e5f4",
+    "deployTx": "0x1bc3b4c4f2a719483e5045d36275eaeada7afd1b4721055f365dbe536c59662",
+    "blockNumber": 14310831,
+    "costStrk": 4.47,
+    "verifiedOnChain": {
+      "classAtAddress": "matches the class built from contracts/src/vesu_earn.cairo",
+      "pool()": "0x040337b1af3c663e86e333bab5a4b28da8d4652a15a69beee2b677776ffe812a \u2014 the privacy pool",
+      "isOpenNoteDepositorBlocked": false,
+      "onlyPoolGuard": "a non-pool caller reverts with 0x4f4e4c595f504f4f4c ('ONLY_POOL')"
+    }
+  },
+  "gateRerunAgainstDeployedHelper": {
+    "what": "Gate 1 re-run with the REAL deployed helper rather than the placeholder.",
+    "supply": "Withdraw(helper=0x3ce7a79c\u2026, USDC, 50000000) + CreateOpenNote(vToken) + InvokeExternal(helper, op=0) \u2014 guard holds",
+    "redeem": "Withdraw(helper=0x3ce7a79c\u2026, vToken, 49270964422211482839) + CreateOpenNote(USDC) + InvokeExternal(helper, op=1) \u2014 guard holds",
+    "negative": "refused: the compiled withdrawal moves 50000000 and the review said 999999999"
+  }
+}

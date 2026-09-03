@@ -8,10 +8,10 @@
 import type { AnyPositionAction, PositionLifecycle, PositionTone } from '@strk20/protocol/position-lifecycle'
 import type { StoredPosition } from '@strk20/protocol/session-position-store'
 
-export type PositionVenue = 'market' | 'launch' | 'governance'
+export type PositionVenue = 'market' | 'launch' | 'governance' | 'earn'
 
 /** The tab a group appears under. `token` is Launch in the user's words. */
-export type PositionTab = 'all' | 'market' | 'token' | 'house'
+export type PositionTab = 'all' | 'market' | 'token' | 'house' | 'earn'
 
 export interface Payout {
   token: string
@@ -53,7 +53,7 @@ export interface PositionGroup {
   /** The venue's own word for itself, under the title. */
   kicker: string
   /** Where this position lives, for the row that opens it. */
-  href: { to: '/markets/$id' | '/launch/$id' | '/houses/$id'; id: string } | null
+  href: { to: '/markets/$id' | '/launch/$id' | '/houses/$id'; id: string } | { to: '/earn'; id: string } | null
   /** When it decides, in one line, or nothing when this group cannot read a clock. */
   clock: string | null
   claims: Claim[]
@@ -64,6 +64,24 @@ export interface PositionGroup {
   claimable: Claimable[]
   /** `ready` if anything in it can be settled now — the group sorts and colours by this. */
   tone: PositionTone
+  /**
+   * Present only on an Earn group, and the reason this field exists rather than a second shape.
+   *
+   * Every other position here is a BEARER CLAIM: a secret in this browser is the money, so a group
+   * is a bag of `Claim`s and the count of them is a real number to show. An Earn position has no
+   * secret at all — it is discovered vToken notes — so it has no claims, and a row rendering
+   * "0 claims" for it would be both true and completely misleading. Its numbers live here instead,
+   * and `positions-table.tsx` prefers them when they are present.
+   */
+  earn?: {
+    /** vToken shares held, exact. */
+    readonly sharesWei: bigint
+    /** What they are worth in the underlying, or `null` when the price could not be read. */
+    readonly valueWei: bigint | null
+    /** How many notes make up the position — the honest replacement for a claim count. */
+    readonly noteCount: number
+    readonly paused: boolean
+  }
 }
 
 export interface PositionsRead {

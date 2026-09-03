@@ -1,0 +1,53 @@
+---
+title: Mail
+description: Every message is a shielded payment. The pool posts the sealed note in the same transaction, and no server ever carries it.
+---
+
+Mail is a private transfer with words attached. The money lands as a shielded note for the
+recipient; the memo rides the same proved transaction as one extra action, and the **pool** —
+not your account — calls our `Mailbox` contract with it. One hash, one receipt, one revert.
+
+## Why the pool is the caller
+
+The `Mailbox` accepts calls from the STRK20 pool and refuses every other caller. That is the
+whole of the sender anonymity on offer: what the public record shows is that *a pool
+transaction* posted a memo, not which account did. A memo posted by an account directly would
+print that account beside its ciphertext, which is why the contract does not allow it.
+
+## Where the key comes from
+
+The pool already keeps a directional channel between any two accounts that have transacted, and
+that channel has a key: the sender derives it (it hashes the sender's private viewing key), and
+the recipient recovers it by decrypting the pool's channel record with theirs. It is the same
+material the pool uses to hide a note's amount. Mail derives its memo key from it, salted with
+the id of the note the memo rides with — so the words open only against that note, and no second
+secret is ever agreed through a server.
+
+## The honest parts
+
+**It is not end-to-end encrypted, and this documentation will not say that it is.** The channel
+key derives from viewing keys that are [escrowed to the auditor](/docs/privacy/the-auditor) at
+registration. There is a third party by construction, so the phrase would be false. The key is
+also static for the life of the channel, so there is no forward secrecy.
+
+**What is on chain.** That a pool transaction invoked the Mailbox, the ciphertext and its size,
+the block, and the id of the note it rides with — which the pool's own `EncNoteCreated` event
+already publishes in the same receipt. The submitter is visible unless you spend a covered
+transaction, in which case our relayer sees your IP and timing, as it does for any send.
+
+**What it costs.** A mail is one pool transaction: the pool fee and gas, or one covered
+transaction. The memo adds no fee — the pool charges per transaction, not per action. A mail with
+nothing to pay still carries postage, because the note is how the reader finds it.
+
+**Where it lives.** Nowhere but the chain. Threads are rebuilt from the pool's channels and the
+Mailbox's events with your viewing key — on this device, or any device you bring the account to.
+This browser keeps only a "seen up to block" cursor for the unread badge.
+
+## The name directory
+
+Claiming a name publishes `name → address` on-chain. That is its entire function — a directory
+nobody can read is not a directory — and it is opt-in.
+
+**Search, however, is private.** The client fetches the whole list and matches locally, so the
+relayer never learns who you looked for. That asymmetry is deliberate: publishing your own name is
+your choice, and looking someone up should not be a disclosure.

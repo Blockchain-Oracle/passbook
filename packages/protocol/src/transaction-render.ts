@@ -14,7 +14,8 @@ import { badgeFromChip } from './option-row.js'
 import { STAGE_TITLES } from './pipeline-stage.js'
 import { NOT_YET_INDEXED, SYSTEM_NOTE_LABEL } from './activity-copy.js'
 import type { OptionRow } from './option-row.js'
-import type { ActivityKind } from './activity-entry.js'
+import { isEarnShareToken } from './earn-markets.js'
+import type { ActivityEntry, ActivityKind } from './activity-entry.js'
 import type { Transaction } from './transaction.js'
 
 /** What the chain published, as a word. Copy, not a capitalised key. */
@@ -148,24 +149,62 @@ export type ActivityCategory =
   | 'withdrawal'
   | 'registration'
   | 'swap'
+  | 'earn'
   | 'bridge'
   | 'message'
   | 'system'
   | 'note'
 
 /**
+ * Where an Earn row is recognised on a SETTLED transaction.
+ *
+ * ── WHY THIS CANNOT KEY OFF `surface` ─────────────────────────────────────────────────────
+ *
+ * `surface` is `null` on every reconstructed row by design, so a classifier that read it would
+ * only ever fire on rows this tab happened to submit — and a supply made yesterday, or on another
+ * device, would render as an ordinary withdrawal. Both signals below are public chain facts that
+ * anybody could compute, so they work on any row, forever.
+ *
+ * Two signals, because one direction is not visible in the other's terms:
+ *
+ *  - the row's token is a vToken we know (`isEarnShareToken`) — this catches every leg of a
+ *    redeem and the share legs of a supply; and
+ *  - the row is a withdrawal whose destination is our own helper — the supply's underlying leg,
+ *    which is otherwise indistinguishable from unshielding to a public address, and is the row
+ *    most worth not mislabelling.
+ *
+ * The helper address is deployment state and this module is a pure leaf, so it arrives as an
+ * argument. Absent, the token signal still stands on its own.
+ */
+function isEarnEntry(entry: ActivityEntry, earnHelper: string | null): boolean {
+  if (entry.token !== null && isEarnShareToken(entry.token)) return true
+  if (entry.kind !== 'withdrawal' || earnHelper === null || entry.counterparty === null) return false
+  try {
+    return BigInt(entry.counterparty) === BigInt(earnHelper)
+  } catch {
+    return false
+  }
+}
+
+/**
  * The one place surface attribution is allowed: an unsettled row's `surface` is a record of what
  * THIS browser did. A settled row reads only `kind` and `mine`, never `label`.
+ *
+ * `earnHelper` is optional so every existing caller compiles unchanged; passing it upgrades the
+ * one Earn row that cannot be recognised from its token alone.
  */
-export function activityCategory(tx: Transaction): ActivityCategory {
+export function activityCategory(tx: Transaction, earnHelper: string | null = null): ActivityCategory {
   if (isSystemNote(tx)) return 'system'
 
   if (tx.chain.state !== 'settled') {
     switch (tx.surface) {
       case 'swap':
         return 'swap'
+      case 'earn':
+        return 'earn'
       case 'bridge':
         return 'bridge'
+      case 'mail':
       case 'chat':
         return 'message'
       case 'wallet':
@@ -177,6 +216,10 @@ export function activityCategory(tx: Transaction): ActivityCategory {
   }
 
   const { entry } = tx.chain
+  // BEFORE the generic switch: an Earn leg read as a plain withdrawal or a plain receipt is the
+  // difference between "you supplied a lending market" and "you sent money to a stranger".
+  if (entry.mine && isEarnEntry(entry, earnHelper)) return 'earn'
+
   // Every owned kind is gated on `mine`: a stranger's deposit is a fact about the pool, not money
   // arriving in this book.
   switch (entry.kind) {
@@ -209,6 +252,10 @@ export function amountDirection(tx: Transaction): AmountDirection {
     case 'bridge':
     case 'message':
       return 'out'
+    // An Earn transaction has legs going both ways — underlying out, shares in — and which one a
+    // given row is depends on the leg, not the category. A single arrow would be a claim about
+    // the wrong half of it, so it gets none.
+    case 'earn':
     case 'registration':
     case 'system':
     case 'note':

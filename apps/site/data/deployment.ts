@@ -19,7 +19,6 @@
 //
 import { NET } from '@strk20/protocol/constants'
 
-import messageBook from '../../../evidence/deployment.json'
 import marketsLaunch from '../../../evidence/markets-launch-deployment.json'
 import registration from '../../../evidence/sponsored-registration.json'
 
@@ -34,6 +33,18 @@ export const LAUNCH_DEPLOYED = Boolean(marketsLaunch.Launch?.contractAddress)
 
 /** True when this build knows where the Governor (the Houses) lives. */
 export const GOVERNANCE_DEPLOYED = Boolean(marketsLaunch.Governance?.contractAddress)
+
+/** The Mailbox record, once the deploy has written it. Typed loosely because the key arrives with the deploy. */
+const mailbox = (marketsLaunch as { Mailbox?: { contractAddress: string } }).Mailbox
+
+/** True when this build knows where the Mailbox lives. */
+export const MAILBOX_DEPLOYED = Boolean(mailbox?.contractAddress)
+
+/** The Vesu Earn helper, once the deploy has written it. Same loose typing, same reason. */
+const vesuEarn = (marketsLaunch as { VesuEarn?: { contractAddress: string } }).VesuEarn
+
+/** True when this build knows where the Earn helper lives. Absent means Earn cannot compose. */
+export const EARN_DEPLOYED = Boolean(vesuEarn?.contractAddress)
 
 /** The block the app contracts were last read back at. */
 export const VERIFIED_AT_BLOCK = marketsLaunch.verifiedAtBlock
@@ -80,13 +91,17 @@ export const MAINNET_RECORD: readonly RecordRow[] = [
     href: contract(NET.pool),
     source: 'packages/protocol/src/constants.ts',
   },
-  {
-    kind: 'Contract',
-    label: 'MessageBook — ours',
-    address: messageBook.contractAddress,
-    href: contract(messageBook.contractAddress),
-    source: 'evidence/deployment.json',
-  },
+  ...(mailbox
+    ? [
+        {
+          kind: 'Contract' as const,
+          label: 'Mailbox — ours (pool-only memo log)',
+          address: mailbox.contractAddress,
+          href: contract(mailbox.contractAddress),
+          source: 'evidence/markets-launch-deployment.json',
+        },
+      ]
+    : []),
   {
     kind: 'Contract',
     label: 'Markets — ours (v2, standing windows)',

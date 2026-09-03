@@ -18,7 +18,7 @@ src/
   main.tsx            providers + RouterProvider
   app/                query-client, theme-provider, navigation (the one nav list)
   routes/             thin route files: createFileRoute + search validation + composition
-  features/<name>/    one folder per surface: wallet, send, swap, bridge, chat, markets,
+  features/<name>/    one folder per surface: wallet, send, swap, bridge, mail, markets,
                       launch, houses, settings, onboarding, account
   components/
     ui/               shadcn registry output — patch only with a comment saying why

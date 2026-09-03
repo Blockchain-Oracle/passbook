@@ -147,5 +147,27 @@
       }
     ],
     "floatWei": "40000000000000000000"
+  },
+  "Mailbox": {
+    "classHash": "0x7f34ebd00449a1bf49d94ae6a27064c559254a05c509c1e2fe9e493d65426a3",
+    "compiledClassHash": "0x385b5e6df32eb74db092839a856c37daf7768cc2f44ce036ce2617f7504bdf7",
+    "declareTx": "0x28679cc9a37ba9d92867dd0aaab79ddc45bfa8e04a225fd80460f9470987550",
+    "declareBlock": 14293760,
+    "deployTx": "0x515cef3a928d2e21d2360330b27f5398d7637b9362e62638ef680b381b2542d",
+    "contractAddress": "0x675196bd1c2df73c85acdf3ac97a5baffce476f0915006ca8187e00c80bba5a",
+    "pool": "0x040337b1af3c663e86e333bab5a4b28da8d4652a15a69beee2b677776ffe812a",
+    "blockNumber": 14293839,
+    "deployedAt": "2026-09-03T09:14:04.822Z"
+  },
+  "VesuEarn": {
+    "classHash": "0x3b58633c71551a2a696f13fd10d7d571c145a8439fff4260142176c4f75f963",
+    "compiledClassHash": "0x5562d3962b94224aa99414fb53c5a6080ed968fa6051eeb9ba3bbaf77aad15f",
+    "declareTx": "0x2463e65b55dacd42a9619243daff8f7e4606e6a6aaa03487d3984e230e5e5f4",
+    "deployTx": "0x1bc3b4c4f2a719483e5045d36275eaeada7afd1b4721055f365dbe536c59662",
+    "contractAddress": "0x3ce7a79c53685ab178bcf36960099bf37bbd16035f0f7e2defefa5153204157",
+    "pool": "0x040337b1af3c663e86e333bab5a4b28da8d4652a15a69beee2b677776ffe812a",
+    "blockNumber": 14310831,
+    "deployedAt": "2026-09-03T17:19:20.650Z",
+    "source": "contracts/src/vesu_earn.cairo — corrected exit: redeem(shares), not withdraw(assets)"
   }
 }

@@ -1,6 +1,6 @@
 //
 // `ClientAction` variant indices, read from the deployed pool's own ABI: the enum member order IS
-// the serde discriminant the span guards (`shield-guards.ts`, `register-prove.ts`) match on.
+// the serde discriminant the span guards (`action-span.ts` and its callers) match on.
 //
 
 export const CLIENT_ACTION = {

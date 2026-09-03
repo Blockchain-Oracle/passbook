@@ -4,12 +4,18 @@ Cairo package for the contracts the privacy pool invokes. Nothing else in this r
 
 | Contract | What it is |
 |---|---|
-| `MessageBook` | Append-only ciphertext log for chat. Touches no value. |
+| `Mailbox` | Pool-only memo log: the sealed note a private transfer carries, posted by the pool in the same transaction. Touches no value. |
+| `VesuEarn` | Pool-only Vesu lending helper: underlying in and shares out, or an exact share count in and underlying out. Holds nothing between transactions. |
 | `Markets` | Binary UP/DOWN prediction markets on a constant-product AMM, settled from Pragma. |
 | `Launch` | Token launches on a stepwise-linear epoch curve; deploys `LaunchToken` on graduation. |
 | `LaunchToken` | The minimal ERC20 a launch deploys. Declared once, deployed per graduation. |
 
-`MockERC20`, `MockPool` and `MockPragma` are snforge fixtures. They compile into `target/dev/`
+`tests/test_vesu_earn_fork.cairo` runs against a **fork of mainnet at a pinned block**, driving the
+real Vesu vTokens rather than a mock — a mock cannot disagree with the assumption it was written
+from, and this contract's whole reason for existing is an upstream helper that redeemed by the wrong
+unit. It needs network access; the other 162 tests do not.
+
+`MockERC20`, `MockPool`, `MockPragma` and `MockVToken` are snforge fixtures. They compile into `target/dev/`
 because snforge can only `declare` classes that are in the package's artifacts — they are never
 declared on mainnet.
 
@@ -38,7 +44,7 @@ Do not upgrade these to make something build. `starknet = "2.8.2"` and
 
 ```bash
 scarb build    # -> target/dev/  (this is what gets deployed)
-snforge test   # 109 tests
+snforge test   # 170 tests, 8 of them forked against live mainnet
 ```
 
 `scarb build` emits both artifacts the deploy step needs, per contract:

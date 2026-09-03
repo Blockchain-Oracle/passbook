@@ -18,17 +18,13 @@ import {
   SidebarRail,
 } from '@/components/ui/sidebar'
 import { SidebarAccount } from '@/features/account'
-import { useTotalUnread } from '@/features/chat'
-import { useSession } from '@/app/session'
+import { useUnreadBadges } from '@/app/unread'
 
 const GROUPS: readonly NavGroup[] = ['money', 'venues']
 
 export function AppSidebar() {
   const { pathname } = useLocation()
-  const session = useSession()
-  // The socket lives at the app root now, so this number is live on every surface rather than
-  // only on the one that used to own the connection.
-  const unread = useTotalUnread(session.status === 'ready' ? session.address : undefined)
+  const unread = useUnreadBadges()
 
   return (
     <Sidebar variant="inset" collapsible="icon">
@@ -58,7 +54,7 @@ export function AppSidebar() {
                       <item.icon aria-hidden />
                       <span>{item.label}</span>
                     </SidebarMenuButton>
-                    {item.to === '/chat' && unread > 0 ? <SidebarMenuBadge>{unread}</SidebarMenuBadge> : null}
+                    {unread.badgeFor(item.to) > 0 ? <SidebarMenuBadge>{unread.badgeFor(item.to)}</SidebarMenuBadge> : null}
                   </SidebarMenuItem>
                 ))}
               </SidebarMenu>

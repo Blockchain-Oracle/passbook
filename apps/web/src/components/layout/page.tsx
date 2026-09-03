@@ -11,7 +11,7 @@ interface PageProps {
   className?: string
   /**
    * Classes for the title row. For the one surface that has to reclaim it: a phone showing an open
-   * chat thread already names the person in the thread's own header, so the display title is a
+   * mail thread already names the person in the thread's own header, so the display title is a
    * fifth of the screen spent saying nothing twice.
    */
   headerClassName?: string

@@ -1,4 +1,10 @@
 {
+  "contract": "MessageBook",
+  "superseded": {
+    "by": "Mailbox",
+    "because": "permissionless (any caller), keyed by a stable conversation tag, never called by the product; emitted zero events. Replaced by the pool-only Mailbox on 2026-09-03.",
+    "on": "2026-09-03"
+  },
   "classHash": "0x52c432b3751ef6e61aa742e6b04a75bd929f2c85e1f2e632df812d424e4460f",
   "compiledClassHash": "0x2b23708a9b4e78b0be0a76652bc82ed7da8a4f771fafebf8aa5ce436863bcf4",
   "contractAddress": "0x3105b6a327ba11f5464335f480046348a4052be2c12df726f37633d50ae35bc",
