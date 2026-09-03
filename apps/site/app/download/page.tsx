@@ -1,5 +1,5 @@
 import type { Metadata } from 'next'
-import { EllipsisVertical, ExternalLink, Share2, Smartphone, SquarePlus } from 'lucide-react'
+import { Ellipsis, EllipsisVertical, ExternalLink, Share, Smartphone, SquarePlus } from 'lucide-react'
 
 import { BrandGlyph } from '@/components/brand'
 import { Band, Inner } from '@/landing/Band'
@@ -47,7 +47,10 @@ function PhoneStage() {
 
           <div className="mt-s32 flex flex-col gap-s8 rounded-large border border-surface3 bg-inset p-s16">
             <span className="flex items-center gap-s8 text-body3 font-medium">
-              <Share2 aria-hidden="true" size={17} className="text-accent1" /> Browser menu
+              <Ellipsis aria-hidden="true" size={17} className="text-accent1" /> Browser menu
+            </span>
+            <span className="flex items-center gap-s8 text-body3 font-medium">
+              <Share aria-hidden="true" size={17} className="text-accent1" /> Share
             </span>
             <span className="flex items-center gap-s8 text-body3 font-medium">
               <SquarePlus aria-hidden="true" size={17} className="text-accent1" /> Add to Home Screen
@@ -64,20 +67,33 @@ function PhoneStage() {
   )
 }
 
+// Labels as the two browsers spell them in 2026: Safari on iOS 26 keeps Share behind the ⋯ button
+// in its default Compact layout, and Chrome on Android names the menu item "Install and create
+// shortcut". Chrome may also offer the install on its own; that prompt is the same install.
 const INSTALL_STEPS = [
   {
     platform: 'iPhone or iPad',
     browser: 'Safari',
-    icon: <Share2 aria-hidden="true" size={27} strokeWidth={1.6} />,
-    steps: ['Open app.strk20.run in Safari.', 'Tap Share.', 'Choose Add to Home Screen, then tap Add.'],
-    note: 'If Safari offers “Open as Web App,” leave it enabled for the standalone window.',
+    icon: <Ellipsis aria-hidden="true" size={27} strokeWidth={1.6} />,
+    steps: [
+      'Open app.strk20.run in Safari.',
+      'Tap the ⋯ button in the address bar, then Share.',
+      'Scroll the sheet down and tap Add to Home Screen.',
+      'Leave Open as Web App on, then tap Add.',
+    ],
+    note: 'Safari’s Top and Bottom tab layouts show a Share button in the bar instead; start from that.',
   },
   {
     platform: 'Android',
     browser: 'Chrome',
     icon: <EllipsisVertical aria-hidden="true" size={27} strokeWidth={1.6} />,
-    steps: ['Open app.strk20.run in Chrome.', 'Open the three-dot menu.', 'Choose Install app or Add to Home screen, then confirm.'],
-    note: 'The exact menu label varies by Chrome version and device.',
+    steps: [
+      'Open app.strk20.run in Chrome.',
+      'If Chrome offers to install it, tap Install and you are done.',
+      'Otherwise tap the ⋮ menu, then Install and create shortcut.',
+      'Tap Install.',
+    ],
+    note: 'The icon lands on the Home screen and in the app drawer. Older Chrome versions call it Install app.',
   },
 ] as const
 
