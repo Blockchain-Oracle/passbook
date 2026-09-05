@@ -33,7 +33,7 @@ export default function DemoPage() {
                 {...EXTERNAL}
                 className="focus-ring inline-flex w-fit items-center gap-s8 text-body3 font-medium text-accent1 no-underline hover:text-accent1Hovered"
               >
-                Open on Vimeo <ArrowRight aria-hidden="true" size={17} />
+                Open on YouTube <ArrowRight aria-hidden="true" size={17} />
               </a>
             </div>
           </div>
@@ -45,7 +45,7 @@ export default function DemoPage() {
                 title="strk20.run three-minute product demo"
                 className="size-full border-0"
                 loading="lazy"
-                allow="autoplay; fullscreen; picture-in-picture"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                 referrerPolicy="strict-origin-when-cross-origin"
                 allowFullScreen
               />

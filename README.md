@@ -14,7 +14,7 @@
 <p align="center">
   <a href="https://app.strk20.run"><b>▶&nbsp; Open the app</b></a>
   &nbsp;·&nbsp;
-  <a href="https://vimeo.com/1222296410"><b>Demo video</b></a>
+  <a href="https://youtu.be/eOKX_0h673E"><b>Demo video</b></a>
   &nbsp;·&nbsp;
   <a href="https://strk20.run/docs"><b>Documentation</b></a>
   &nbsp;·&nbsp;
@@ -36,13 +36,13 @@ model is in the **[documentation](https://strk20.run/docs)**; this page is the r
 ## Demo video
 
 <p align="center">
-  <a href="https://vimeo.com/1222296410">
-    <img src="https://raw.githubusercontent.com/Blockchain-Oracle/strk20-run/main/assets/launch/demo-thumbnail.png" width="720" alt="Watch the strk20.run 3-minute demo" />
+  <a href="https://youtu.be/eOKX_0h673E">
+    <img src="https://i.ytimg.com/vi/eOKX_0h673E/maxresdefault.jpg" width="720" alt="Watch the strk20.run 3-minute demo on YouTube" />
   </a>
 </p>
 
 <p align="center">
-  <a href="https://vimeo.com/1222296410"><b>▶ Watch the 3-minute demo</b></a>
+  <a href="https://youtu.be/eOKX_0h673E"><b>▶ Watch the 3-minute demo</b></a>
 </p>
 
 ---
