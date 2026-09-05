@@ -1,13 +1,13 @@
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { notify } from '@/lib/notify'
 import { useRefusal } from '@/components/money/refusal'
 import { insufficient, parseAmountInput, toPlainText } from '@strk20/protocol/amount'
-import { MARKET_STATE, marketQuestion, type OnChainMarket } from '@strk20/protocol/app-reads'
+import { MARKET_STATE, canBetLand, marketQuestion, type OnChainMarket } from '@strk20/protocol/app-reads'
 import { disclosureFor } from '@strk20/protocol/disclosure'
 import { SIDE_DOWN, SIDE_UP } from '@strk20/protocol/market-calldata'
 import { payoutMultiple } from '@strk20/protocol/market-math'
-import { BET_PRICE_LOCKS, BET_SIDE_DOWN, BET_SIDE_UP, openingStakeLine } from '@strk20/protocol/markets-copy'
+import { BET_PRICE_LOCKS, BET_SIDE_DOWN, BET_SIDE_UP, BET_WINDOW_CLOSING, openingStakeLine } from '@strk20/protocol/markets-copy'
 
 import { Amount } from '@/components/money/amount'
 import { AssetIdentity } from '@/components/money/asset-identity'
@@ -17,7 +17,7 @@ import { ReviewSheet } from '@/components/money/review-sheet'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
-import { appContracts } from '@/queries'
+import { appContracts, marketsQuery } from '@/queries'
 import { cn } from '@/lib/utils'
 import { formatWei } from '@/lib/format'
 import { formatPrice } from '@strk20/protocol/pragma-pairs'
@@ -53,6 +53,26 @@ export function BetTicket({ market, spot = null, open, onOpenChange, initialSide
   const impliedPct = tickets && parsed.wei && tickets > 0n ? Number((parsed.wei * 10_000n) / tickets) / 100 : null
 
   // A first bet opens the window, and the contract refuses to open one for dust (seed / 100).
+  // The CHAIN clock the board's ids were derived from, advanced locally. Anchoring here rather
+  // than trusting `Date.now()` is the point: the contract judges the epoch by block time, and a
+  // device a minute out names a window that does not exist yet.
+  const board = useQuery(marketsQuery())
+  const [tick, setTick] = useState(0)
+  useEffect(() => {
+    if (!open) return
+    const id = setInterval(() => setTick((n) => n + 1), 5_000)
+    return () => clearInterval(id)
+  }, [open])
+  const nowSec = useMemo(
+    () =>
+      board.data
+        ? board.data.nowSec + Math.floor((Date.now() - board.dataUpdatedAt) / 1000)
+        : Math.floor(Date.now() / 1000),
+    // `tick` is the dependency that makes this re-read the wall clock.
+    [board.data, board.dataUpdatedAt, tick],
+  )
+  const lands = canBetLand(market, nowSec)
+
   const opening = market.state === MARKET_STATE.none && market.house
   const floorWei = opening ? market.seed / 100n : 0n
   const floorText = `${formatWei(floorWei, stake.decimals)} ${stake.symbol}`
@@ -72,7 +92,9 @@ export function BetTicket({ market, spot = null, open, onOpenChange, initialSide
             ? `Not enough shielded ${stake.symbol}`
             : parsed.wei < floorWei
               ? `At least ${floorText} to open`
-              : quote.isPending
+              : !lands
+                ? BET_WINDOW_CLOSING
+                : quote.isPending
                 ? 'Getting the quote'
                 : quote.isError || tickets === null
                   ? 'The quote could not be read'
@@ -88,6 +110,14 @@ export function BetTicket({ market, spot = null, open, onOpenChange, initialSide
 
   const confirm = async (sponsored: boolean) => {
     if (!contract || parsed.wei === null) return
+    // Re-read the clock at the last moment. The blocker above is a rendered value; this is the one
+    // that runs after the review sheet has been sitting open, and a bet that cannot land is a
+    // certain revert that still charges the fee.
+    if (!canBetLand(market, board.data ? board.data.nowSec + Math.floor((Date.now() - board.dataUpdatedAt) / 1000) : Math.floor(Date.now() / 1000))) {
+      setReviewing(false)
+      refuse(BET_WINDOW_CLOSING)
+      return
+    }
     const outcome = await placeBet({
       contract,
       market,

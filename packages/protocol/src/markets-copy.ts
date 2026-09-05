@@ -123,3 +123,11 @@ export const LAUNCH_GRADUATION =
 
 export const LAUNCH_REFUND =
   'If the deadline passes before it fills, every buyer can take their money back.'
+
+/**
+ * Why a bet is refused in the last minutes of a window. Honest about the mechanism: the id is
+ * fixed when the proof is built, so a window that rolls mid-prove cannot be corrected downstream —
+ * it can only be refused before the money is spent.
+ */
+export const BET_WINDOW_CLOSING =
+  'This window closes before a proof could land. The next one opens automatically — bet there instead.'

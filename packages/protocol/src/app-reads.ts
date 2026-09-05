@@ -99,6 +99,8 @@ export interface MarketsRead {
   series: OnChainSeries[]
   /** `market_count` — custom markets only; series windows are not counted. */
   total: number
+  /** The CHAIN clock these ids were derived from, so a countdown never runs off a skewed browser. */
+  nowSec: number
   problem: string | null
 }
 
@@ -108,13 +110,41 @@ export interface MarketsRead {
  * previous epoch rides along too, opened or settled, so a window that just closed stays visible
  * while it resolves. A cap because `market_count` is unbounded and one screen is not.
  */
+/**
+ * The chain's own clock, in seconds.
+ *
+ * `ensure_open` compares the epoch a bet names against `get_block_timestamp() / window`. Deriving
+ * that epoch from `Date.now()` makes the browser's clock the authority on which market exists — and
+ * a device a minute fast names a window that has not started, which reverts with no message worth
+ * reading. One extra round trip per board read.
+ */
+export async function readChainTimeSec(transport: Transport = rpc): Promise<number> {
+  const block = (await transport('starknet_getBlockWithTxHashes', { block_id: 'latest' })) as { timestamp?: number }
+  const t = block?.timestamp
+  if (typeof t !== 'number' || !Number.isFinite(t) || t <= 0) throw new Error('the chain returned no block timestamp')
+  return t
+}
+
 export async function readMarkets(
   contract: string,
-  { cap = 24, transport = rpc as Transport, nowSec = Math.floor(Date.now() / 1000) } = {},
+  { cap = 24, transport = rpc as Transport, nowSec }: { cap?: number; transport?: Transport; nowSec?: number } = {},
 ): Promise<MarketsRead> {
   let problem: string | null = null
   const note = (what: string, error: unknown) => {
     problem = `${what} could not be read: ${error instanceof Error ? error.message : String(error)}`
+  }
+
+  // A failed clock read falls back to the device rather than emptying the board — the landing
+  // guard downstream still refuses anything near a boundary, so a skewed clock costs a refusal
+  // rather than a revert.
+  let now = nowSec
+  if (now === undefined) {
+    try {
+      now = await readChainTimeSec(transport)
+    } catch (error) {
+      note('The chain clock', error)
+      now = Math.floor(Date.now() / 1000)
+    }
   }
 
   const series: OnChainSeries[] = []
@@ -130,7 +160,7 @@ export async function readMarkets(
   const windows: OnChainMarket[] = []
   for (const s of series) {
     if (!s.active || s.window === 0) continue
-    const epoch = Math.floor(nowSec / s.window)
+    const epoch = Math.floor(now / s.window)
     for (const e of [epoch, epoch - 1]) {
       if (e < 0) continue
       const id = seriesMarketId(s.id, e)
@@ -159,7 +189,7 @@ export async function readMarkets(
       note(`Market ${id}`, error)
     }
   }
-  return { markets: [...windows, ...custom], series, total, problem }
+  return { markets: [...windows, ...custom], series, total, nowSec: now, problem }
 }
 
 /** The house float idle in the contract for `token` — what is left to seed the next windows. */

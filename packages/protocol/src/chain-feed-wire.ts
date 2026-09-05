@@ -146,6 +146,8 @@ export type FeedFrame =
       markets: WireMarket[]
       series: WireSeries[]
       marketsTotal: number
+      /** The CHAIN clock the market ids were derived from — never the browser's. */
+      nowSec: number
       launches: WireLaunch[]
       launchesTotal: number
       prices: WirePrice[]
@@ -153,7 +155,7 @@ export type FeedFrame =
       tape: TapeItem[]
       problem: string | null
     }
-  | { t: 'markets'; markets: WireMarket[]; series: WireSeries[]; total: number }
+  | { t: 'markets'; markets: WireMarket[]; series: WireSeries[]; total: number; nowSec: number }
   | { t: 'launches'; launches: WireLaunch[]; total: number }
   | { t: 'price'; price: WirePrice }
   | { t: 'tape'; items: TapeItem[] }

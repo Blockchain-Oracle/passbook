@@ -76,6 +76,8 @@ export class ChainFeed {
   private markets: OnChainMarket[] = []
   private series: OnChainSeries[] = []
   private marketsTotal = 0
+  /** Chain seconds from the last markets read; the epoch ids above were derived from it. */
+  private marketsNowSec = 0
   private launches: OnChainLaunch[] = []
   private launchesTotal = 0
   private prices = new Map<string, WirePrice>()
@@ -118,6 +120,7 @@ export class ChainFeed {
       markets: this.markets.map(wireMarket),
       series: this.series.map(wireSeries),
       marketsTotal: this.marketsTotal,
+      nowSec: this.marketsNowSec || Math.floor(Date.now() / 1000),
       launches: this.launches.map(wireLaunch),
       launchesTotal: this.launchesTotal,
       prices: [...this.prices.values()],
@@ -181,12 +184,17 @@ export class ChainFeed {
         const markets = out.markets.map(wireMarket)
         const series = out.series.map(wireSeries)
         const wire = JSON.stringify({ markets, series })
+        // OUTSIDE the change check, deliberately. `wire` does not include the clock, so a quiet
+        // board would freeze it — and `helloFrame` would then hand a new subscriber an OLD chain
+        // time stamped as if it had just arrived. The client adds elapsed-since-arrival to this
+        // number, so that pairing under-reads `now` and the closing-window guard stops refusing.
+        this.marketsNowSec = out.nowSec
         if (wire !== this.lastMarketsWire || out.total !== this.marketsTotal) {
           this.markets = out.markets
           this.series = out.series
           this.marketsTotal = out.total
           this.lastMarketsWire = wire
-          this.broadcast({ t: 'markets', markets, series, total: out.total })
+          this.broadcast({ t: 'markets', markets, series, total: out.total, nowSec: out.nowSec })
         }
       } catch (e) {
         problems.push(`The markets could not be read: ${String(e)}`)

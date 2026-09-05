@@ -58,6 +58,7 @@ async function onFrame(frame: FeedFrame): Promise<void> {
         markets: frame.markets.map(marketFromWire),
         series: frame.series.map(seriesFromWire),
         total: frame.marketsTotal,
+        nowSec: frame.nowSec,
         problem: null,
       })
       queryClient.setQueryData(launchesQuery().queryKey, { launches: frame.launches.map(launchFromWire), total: frame.launchesTotal, problem: null })
@@ -73,6 +74,7 @@ async function onFrame(frame: FeedFrame): Promise<void> {
         markets: frame.markets.map(marketFromWire),
         series: frame.series.map(seriesFromWire),
         total: frame.total,
+        nowSec: frame.nowSec,
         problem: null,
       })
       return

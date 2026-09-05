@@ -224,6 +224,46 @@ export function decodeSeries(id: number, felts: readonly string[]): OnChainSerie
  * The window a series would open right now, before anyone has: state NONE, no line yet, the seed
  * on both sides. What the board shows with a countdown, and what a first bet turns real.
  */
+/**
+ * The contract's own `OPEN_LEAD_DIVISOR` (markets.cairo). A series window may only be OPENED while
+ * at least `window / 4` of it still remains — past that the window is closing and `ensure_open`
+ * refuses, because a market opened seconds before its deadline is a coin flip with a fee.
+ */
+export const OPEN_LEAD_DIVISOR = 4
+
+/**
+ * Seconds between a bet being BUILT and the block that executes it.
+ *
+ * This number is why bets were failing. `quote_bet` already refuses a window that cannot open, and
+ * the ticket already blocks on that refusal — but the quote is read when the user is TYPING, and
+ * the transaction lands a proof later. Proving is the slow step (tens of seconds), the review sheet
+ * is human time on top, and the market id is fixed inside the proven action span, so nothing
+ * downstream can correct an epoch that rolled in between.
+ *
+ * Measured against the real failure: market `0x1001e530a` was built for epoch 1987338 and executed
+ * 176 s after that window closed, on a series whose window is 900 s. 150 s covers a slow prove and
+ * an unhurried confirmation; the cost of being generous is refusing the last few minutes of a
+ * window, and the cost of being tight is a guaranteed revert that still charges ~3 STRK.
+ */
+export const BET_PROVE_HEADROOM_SEC = 150
+
+/**
+ * Seconds that must still remain on `market` for a bet built NOW to be accepted when it lands.
+ *
+ * Two different contract rules, and the difference matters: a window nobody has bet on yet has to
+ * be OPENED first, and `ensure_open` wants a quarter of the window left. One already ACTIVE only
+ * has to beat its deadline.
+ */
+export function betLeadSec(market: OnChainMarket): number {
+  const opening = market.state === MARKET_STATE.none && market.house
+  return (opening ? Math.floor(market.window / OPEN_LEAD_DIVISOR) : 0) + BET_PROVE_HEADROOM_SEC
+}
+
+/** Whether a bet built at `nowSec` can still be accepted by the time its proof lands. */
+export function canBetLand(market: OnChainMarket, nowSec: number): boolean {
+  return market.deadline - nowSec >= betLeadSec(market)
+}
+
 export function unopenedWindow(series: OnChainSeries, epoch: number): OnChainMarket {
   return {
     id: seriesMarketId(series.id, epoch),
