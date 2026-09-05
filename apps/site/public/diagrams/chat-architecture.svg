@@ -1,0 +1,120 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 720" role="img" aria-labelledby="chat-title chat-desc">
+  <title id="chat-title">Chat architecture</title>
+  <desc id="chat-desc">The browser derives an opaque room and directional message keys from pool registration keys, seals messages, and exchanges ciphertext through a bounded in-memory relay.</desc>
+  <defs>
+    <marker id="chat-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0 0 10 5 0 10Z" fill="#E04708" />
+    </marker>
+    <style>
+      .title { font: 700 18px ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: 2px; fill: #F1F0EB; }
+      .lane { font: 700 13px ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: 1px; fill: #F1F0EB; }
+      .head { font: 700 14px ui-monospace, SFMono-Regular, Menlo, monospace; fill: #F1F0EB; }
+      .copy { font: 12px ui-monospace, SFMono-Regular, Menlo, monospace; fill: #A3A29C; }
+      .bright { fill: #F1F0EB; }
+      .accent { fill: #E04708; }
+      .warn { fill: #F2DC4E; }
+      .box { fill: #151515; stroke: #343434; }
+      .step { fill: #E04708; }
+      .step-text { font: 700 12px ui-monospace, SFMono-Regular, Menlo, monospace; fill: #FBF4EC; text-anchor: middle; }
+      .arrow { fill: none; stroke: #E04708; stroke-width: 2; marker-end: url(#chat-arrow); }
+      .soft-arrow { fill: none; stroke: #77746D; stroke-width: 1.5; stroke-dasharray: 6 6; marker-end: url(#chat-arrow); }
+    </style>
+  </defs>
+
+  <rect width="1200" height="720" fill="#0A0A0A" />
+  <rect x="34" y="28" width="38" height="38" rx="9" fill="#C53603" />
+  <path d="M46 47h20M50 38l12 18M62 38 50 56M60 43l6 4-6 4" fill="none" stroke="#F1F0EB" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" />
+  <text x="88" y="53" class="title">CHAT · SEALED IN THE BROWSER, ROUTED BY A BOUNDED RELAY</text>
+  <text x="88" y="73" class="copy">An ordinary chat message is free because it is not a Starknet transaction.</text>
+
+  <rect x="34" y="108" width="270" height="476" rx="12" class="box" />
+  <text x="52" y="138" class="lane">BROWSER A</text>
+  <circle cx="58" cy="180" r="14" class="step" /><text x="58" y="184" class="step-text">1</text>
+  <text x="82" y="177" class="head">Read registration keys</text>
+  <text x="82" y="198" class="copy">peer public viewing key</text>
+  <text x="82" y="216" class="copy">comes from the STRK20 pool</text>
+
+  <circle cx="58" cy="262" r="14" class="step" /><text x="58" y="266" class="step-text">2</text>
+  <text x="82" y="259" class="head">Derive the room offline</text>
+  <text x="82" y="280" class="copy">ECDH → shared secret</text>
+  <text x="82" y="298" class="copy">HKDF → opaque room id,</text>
+  <text x="82" y="316" class="copy">directional AES-GCM keys</text>
+
+  <circle cx="58" cy="363" r="14" class="step" /><text x="58" y="367" class="step-text">3</text>
+  <text x="82" y="360" class="head">Seal + insert locally</text>
+  <text x="82" y="381" class="copy">random 96-bit nonce</text>
+  <text x="82" y="399" class="copy">plaintext enters browser log</text>
+  <text x="82" y="417" class="copy">before the ciphertext POST</text>
+
+  <rect x="52" y="458" width="234" height="94" rx="9" fill="#0F0F0F" stroke="#343434" />
+  <text x="68" y="483" class="head accent">LOCAL HISTORY</text>
+  <text x="68" y="505" class="copy">browser storage is the record</text>
+  <text x="68" y="525" class="copy">clearing it loses the thread</text>
+  <text x="68" y="544" class="copy">recent entries are bounded</text>
+
+  <rect x="352" y="108" width="284" height="476" rx="12" class="box" />
+  <text x="370" y="138" class="lane">APP HOST + ROOM RELAY</text>
+  <circle cx="376" cy="180" r="14" class="step" /><text x="376" y="184" class="step-text">4</text>
+  <text x="400" y="177" class="head">Route ciphertext</text>
+  <text x="370" y="216" class="copy">POST /api/room/send</text>
+  <text x="370" y="236" class="copy">one multiplexed stream returns</text>
+  <text x="370" y="256" class="copy">messages, presence and typing</text>
+
+  <rect x="370" y="286" width="248" height="114" rx="9" fill="#0F0F0F" stroke="#343434" />
+  <text x="386" y="311" class="head accent">WHAT IT KEEPS</text>
+  <text x="386" y="333" class="copy">ciphertext only, in memory</text>
+  <text x="386" y="353" class="copy">up to 50 envelopes per room</text>
+  <text x="386" y="373" class="copy">idle room dropped after 30 min</text>
+  <text x="386" y="393" class="copy">no keys, no durable archive</text>
+
+  <rect x="370" y="422" width="248" height="130" rx="9" fill="none" stroke="#6B5F1B" />
+  <text x="386" y="447" class="head warn">WHAT IT CAN OBSERVE</text>
+  <text x="386" y="469" class="copy">IP, timing and message size</text>
+  <text x="386" y="489" class="copy">opaque room + sender key hint</text>
+  <text x="386" y="509" class="copy">rooms multiplexed by one client</text>
+  <text x="386" y="529" class="copy">typing hints are not sealed</text>
+
+  <path d="M304 365H350" class="arrow" />
+
+  <rect x="684" y="108" width="270" height="476" rx="12" class="box" />
+  <text x="702" y="138" class="lane">BROWSER B</text>
+  <circle cx="708" cy="190" r="14" class="step" /><text x="708" y="194" class="step-text">5</text>
+  <text x="732" y="187" class="head">Authenticate + open</text>
+  <text x="708" y="226" class="copy">the directional key opens it</text>
+  <text x="708" y="246" class="copy">a forged envelope fails GCM</text>
+  <text x="708" y="266" class="copy">then plaintext enters its log</text>
+
+  <rect x="702" y="306" width="234" height="98" rx="9" fill="#0F0F0F" stroke="#343434" />
+  <text x="718" y="331" class="head accent">RECONNECT, NOT RECOVERY</text>
+  <text x="718" y="353" class="copy">the short relay backlog bridges</text>
+  <text x="718" y="373" class="copy">a brief disconnect; it cannot</text>
+  <text x="718" y="393" class="copy">rebuild a cleared browser</text>
+
+  <rect x="702" y="440" width="234" height="112" rx="9" fill="none" stroke="#6B5F1B" />
+  <text x="718" y="465" class="head warn">TRUST BOUNDARY</text>
+  <text x="718" y="487" class="copy">auditor escrow derives rooms</text>
+  <text x="718" y="507" class="copy">keys do not rotate</text>
+  <text x="718" y="527" class="copy">there is no forward secrecy</text>
+  <path d="M636 365H682" class="arrow" />
+
+  <rect x="1002" y="108" width="164" height="476" rx="12" class="box" />
+  <text x="1020" y="138" class="lane">CHAIN</text>
+  <rect x="1020" y="170" width="128" height="102" rx="9" fill="#0F0F0F" stroke="#8B2F0C" />
+  <text x="1036" y="195" class="head accent">POOL READS</text>
+  <text x="1036" y="217" class="copy">registration</text>
+  <text x="1036" y="237" class="copy">public keys</text>
+  <text x="1036" y="257" class="copy">free view calls</text>
+  <path d="M1020 221H980V88H320V180H306" class="soft-arrow" />
+
+  <rect x="1020" y="320" width="128" height="116" rx="9" fill="none" stroke="#55534D" />
+  <text x="1036" y="345" class="head">NO CHAT WRITE</text>
+  <text x="1036" y="367" class="copy">no message</text>
+  <text x="1036" y="387" class="copy">no receipt</text>
+  <text x="1036" y="407" class="copy">no recovery</text>
+  <text x="1036" y="427" class="copy bright">no gas</text>
+
+  <rect x="34" y="620" width="1132" height="70" rx="10" fill="#111111" stroke="#343434" />
+  <circle cx="58" cy="655" r="14" class="step" /><text x="58" y="659" class="step-text">6</text>
+  <text x="82" y="649" class="head">ATTACHING MONEY IS A SEPARATE POOL TRANSACTION.</text>
+  <text x="82" y="670" class="copy">The payment uses the normal fee-bearing send pipeline; the explanatory message still uses this relay.</text>
+</svg>

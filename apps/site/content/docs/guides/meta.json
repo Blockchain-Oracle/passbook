@@ -3,10 +3,12 @@
   "defaultOpen": true,
   "pages": [
     "create-account",
+    "passkeys",
     "fund-and-send",
     "mail",
     "chat-and-pay",
     "markets",
+    "launch",
     "earn"
   ]
 }

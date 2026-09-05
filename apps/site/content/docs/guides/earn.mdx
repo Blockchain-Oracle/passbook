@@ -3,10 +3,21 @@ title: Supply a lending market
 description: Put shielded USDC to work in a Vesu market, and take it back out.
 ---
 
-You need shielded USDC to start, and public STRK for the fee — Earn is submitted by your own
-account, so it is not covered by a sponsored transaction.
+The product route is `/earn`; `/yield` redirects to the same page. You need shielded USDC to start
+and public STRK for the fee. Earn is submitted by your own account, so a covered transaction does
+not apply.
 
-## Compare first
+<Callout type="warn" title="Rates move, and confirmation moves real value">
+Rates, utilization, liquidity, and share price are live contract reads, not promises. Supplying or
+redeeming is a real self-submitted transaction whose account, market, amount, and timing are public
+on the venue-facing leg. Check every review value before confirming.
+</Callout>
+
+<Steps>
+
+<Step>
+
+### Compare the markets first
 
 Open **Earn**. The rail lists every Vesu USDC market with its live supply rate, its available
 liquidity, and a utilization meter. Nothing here is a transaction, so read as long as you like.
@@ -22,7 +33,34 @@ Three things are worth looking at together rather than one at a time:
 The list is not sorted by rate. Sorting by rate would be the app telling you the highest number is
 the best choice, and it is not.
 
-## Supply
+<GuideShot
+  src="/guides/earn-board.svg"
+  alt="Earn board with arrows to market filters, live metrics, details and supply"
+  caption="1–3 — Compare the current rate, utilization, and available liquidity together."
+  eager
+/>
+
+</Step>
+
+<Step>
+
+### Inspect the market and its addresses
+
+Open **Details** to see the rate, available liquidity, share price, utilization explanation, and
+the deployed vToken, Vesu pool, USDC, and helper addresses. The address links are there so you can
+check the exact venue rather than trusting a display name.
+
+<GuideShot
+  src="/guides/earn-market.svg"
+  alt="Earn market detail page with arrows to market state, contract addresses and supply"
+  caption="7–9 — Inspect the market state and verify the contracts before supplying."
+/>
+
+</Step>
+
+<Step>
+
+### Enter the amount and read the cost
 
 Pick a market and the panel opens on **Supply**. The quick amounts are 25/50/75/max of your actual
 shielded USDC balance, so the buttons work whatever you hold.
@@ -32,10 +70,30 @@ Before you confirm, the panel shows what you would receive as an estimate, the p
 a small deposit that number can be months. It is there because it is the part of the decision the
 rate alone hides.
 
+<GuideShot
+  src="/guides/earn-supply.svg"
+  alt="Earn supply dialog with arrows to amount, fee, break-even and continue"
+  caption="4–6 — The captured account is unfunded, so unknown values stay as dashes and no transaction can be submitted."
+/>
+
+</Step>
+
+<Step>
+
+### Review and confirm
+
 Review, then confirm. One transaction: the USDC leaves the pool to our helper, the helper supplies
 the market, and the shares come back as a private note.
 
-## Come back later
+The progress sheet shows build, proof, submission, and confirmation. If it reaches
+**confirmation unknown**, keep the hash and check the chain before retrying; the transaction may
+already be included.
+
+</Step>
+
+<Step>
+
+### Return to the position later
 
 The position appears on **Earn** and on **Positions**, aggregated per market. You do not need this
 browser to find it again — the position is the note, so a cleared browser or a new device holding
@@ -44,7 +102,11 @@ the same account rebuilds it from the chain.
 While a supply is maturing the pool has not yet made the new note spendable; that is normal and the
 surface says which stage it is in.
 
-## Redeem
+</Step>
+
+<Step>
+
+### Redeem shares back to shielded USDC
 
 A **Redeem** tab appears once you hold something. It spends shares, not USDC, so the quick amounts
 are percentages of your share balance and the estimate below shows the USDC that would come back.
@@ -55,10 +117,20 @@ Two things to check:
   currently holds. The panel shows both numbers.
 - A **paused** market refuses new supply but still lets you redeem. The banner says both halves.
 
-## Moving to another market
+</Step>
+
+<Step>
+
+### Move between markets only as two transactions
 
 Moving is two transactions with two fees, and the plan says so up front. After the first leg your
 money is shielded USDC — you can supply the new market, or stop there and keep it.
 
 If the first leg finishes in an unknown state, the second is held back until the chain settles the
 question. Nothing retries on its own, because a redemption sent twice is a real way to lose money.
+
+</Step>
+
+</Steps>
+
+The full contract and note path is in [how Earn works](/docs/how-it-works/earn).

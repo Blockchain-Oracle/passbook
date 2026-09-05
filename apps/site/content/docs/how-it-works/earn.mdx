@@ -10,11 +10,25 @@ never touches a public address of yours in between.
 
 What the helper does here is supply a Vesu lending market and hand back the shares.
 
+The app calls this surface **Earn**. `/yield` is a working alias that redirects to `/earn`, so a
+reader looking for yield reaches the same place rather than a separate product.
+
+<GuideShot
+  src="/diagrams/earn-architecture.svg"
+  alt="Earn and Yield architecture from live Vesu market reads and browser rehearsal through the STRK20 pool, VesuEarn helper, Vesu market and returned private note"
+  caption="Earn flow: live reads inform the review; one self-submitted invoke sandwich supplies or redeems; the returned note is the position."
+  width={1200}
+  height={720}
+  eager
+/>
+
+[Open the PNG version](/diagrams/earn-architecture.png).
+
 ## Seven markets, one protocol
 
 Vesu is one protocol containing several isolated markets. A market is one pool/asset pair with its
-own rate, its own liquidity, and its own curator, and they differ a lot: at the time of writing the
-spread across the seven USDC markets ran from 5.12% down to 0%.
+own rate, its own liquidity, and its own curator, and they can differ sharply. The cards carry the
+observation time because the figures move; this page does not freeze one day's ranking into prose.
 
 All seven are in the catalog, including the empty one. A list that quietly drops the markets nobody
 is using teaches you that everything you can see is fine.

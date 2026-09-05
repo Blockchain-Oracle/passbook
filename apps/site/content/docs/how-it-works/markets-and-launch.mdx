@@ -1,36 +1,154 @@
 ---
 title: Markets and Launch
-description: Prediction markets settled against a live oracle, and token launches that record no buyer address.
+description: Two bearer-position venues, with different pricing, creation and settlement paths.
 ---
 
-Both contracts are deployed on Starknet mainnet — the addresses and deploy transactions are in
-[the evidence](/docs/evidence), and [surface status](/docs/surfaces) computes their state from that
-same file rather than asserting it.
+Markets and Launch share one privacy pattern: shielded value leaves the STRK20 pool for a venue,
+and the venue records a **commitment** instead of an owner address. The browser keeps the secret
+behind that commitment so the position can be cashed out, claimed, redeemed or refunded later.
 
-## Markets
+That shared shape does not make them the same product. Markets settles a priced side against
+Pragma. Launch sells fixed units along an epoch staircase and ends in either a deployed token or a
+full refund. The contracts are deployed on Starknet mainnet; addresses and deploy transactions are
+in [the evidence](/docs/evidence).
 
-Prediction markets that settle against **Pragma**, the on-chain oracle. The price strip and chart on
-the surface are live reads from the same oracle a market settles against — not a decorative chart,
-and not a fixture.
-
-Betting is done from shielded notes, so the bet is not linked to a public address of yours. The
-**size** of the bet is public, like every leg that touches an open note.
-
-<Callout type="warn">
-There is one privacy caveat the app states on the surface itself: your bet is hidden as long as
-your denomination has company. If you are the only participant at that size, your bet is
-identifiable. A privacy claim that is usually true is the most dangerous kind, so the product
-carries the condition rather than the headline.
+<Callout type="warn" title="Bearer means the secret controls the position">
+The browser stores each position secret before it broadcasts the transaction. Keep the recovery
+backup while a position remains open. A commitment can be read publicly, but it cannot claim the
+position without its secret.
 </Callout>
 
-## Launch
+## Markets architecture
 
-Token launches with an epoch mechanism. Buys arrive as **withdrawals from the pool**, which means:
+<GuideShot
+  src="/diagrams/markets-architecture.svg"
+  alt="Markets architecture from live contract and Pragma reads through a pool-funded bearer bet, oracle settlement and a payout note"
+  caption="Markets: the first bet can create a standing window; settlement or cash-out returns value through the pool."
+  width={1200}
+  height={720}
+  eager
+/>
 
-> **the launch records no buyer address.**
+[Open the Markets PNG](/diagrams/markets-architecture.png).
 
-That is the narrow, true claim. The tempting version — "your address never appears on the launch" —
-is false and is on the [refused claims](/docs/privacy/refused-claims) list, because your address
-does appear on the deposit that funded you and on any public withdrawal you make later.
+### 1. The board is a live read surface
 
-The difference between those two sentences is exactly the difference this product is about.
+The client reads the current and previous window for every active series, recent custom markets,
+the idle house float, contract quotes and the public event tape. Pragma prices feed the cards and
+charts. TanStack Query owns those reads; the chain feed writes into the same cache, with RPC polling
+as the fallback.
+
+An untouched standing window is not yet a stored market. Its id and deadline are derived from the
+series and the current epoch. The first valid bet opens it, takes a fresh Pragma median as the line
+and moves that series' seed out of the house float. A bet too late in the window, below the opening
+minimum, or against a stale or thin oracle is refused before any market opens.
+
+### 2. A bet creates a bearer claim
+
+The ticket asks the Markets contract for `quote_bet`, then the browser creates a random secret and
+stores `poseidon(secret)` as the public commitment. The secret is written to the local position
+record before submission. The pool spends shielded STRK and calls `privacy_invoke(OP_BET, …)` in the
+same transaction.
+
+The market uses a constant-product reserve machine. A stake buys tickets; a winning ticket pays one
+unit of the stake token. Standing series deduct their displayed vig before pricing the tickets.
+Every rounding decision goes toward the pot so the contract cannot promise more than it holds.
+
+### 3. The record is public, but has no bettor field
+
+`BetPlaced` publishes the market id, side, amount, tickets, reserve movement and commitment. The
+transaction submitter and timing are public too. If a covered transaction is used, the relayer is
+the submitter and also learns network metadata; otherwise the user's account submits and pays.
+
+The commitment is not an address field. That protects the bettor's identity only when the public
+facts do not single the position out. A unique amount or an otherwise unique pattern can identify a
+bet, which is why the app says the denomination needs company.
+
+### 4. Cash-out, resolve and void are separate doors
+
+Before the deadline, a bettor can sell the **whole** position back to the machine. The quote moves
+with the reserves, and the transaction carries a 1% tolerance floor so a worse landing price
+reverts.
+
+After the deadline, anyone may call `resolve` during the five-minute resolution window. The
+contract reads Pragma, checks the price scale and freshness, and for standing markets also checks
+the minimum source count. Strictly above the line wins Over; equal to or below wins Under.
+
+If no valid resolution lands, anyone may call `void` after ten minutes. Bettors then reclaim what
+they paid. A resolved winner claims tickets; a custom-market seeder claims the residual. Each
+terminal payout is pulled back through the pool into a fresh open note.
+
+## Launch architecture
+
+<GuideShot
+  src="/diagrams/launch-architecture.svg"
+  alt="Launch architecture showing public creation, shielded buys through the pool, a bearer commitment and the graduation or refund branches"
+  caption="Launch: creation is a direct account call; buyer value uses the pool; graduation and failure lead to different bearer payouts."
+  width={1200}
+  height={720}
+/>
+
+[Open the Launch PNG](/diagrams/launch-architecture.png).
+
+### 1. Creation is deliberately a public path
+
+Creating a launch moves no sale money, so it calls `create_launch` directly instead of going through
+`privacy_invoke`. The transaction's submitting account is public: normally the creator's account,
+or the relayer when the creator explicitly spends a covered transaction.
+
+Before submission, the browser stores a creator secret and sends only its commitment. That secret
+controls the later sweep of the raise; the transaction submitter does not. An optional logo is
+pinned before the chain call when pinning is configured. The contract checks the URI length but
+does not fetch or endorse whatever the URI serves.
+
+### 2. The curve advances in whole units
+
+Every epoch contains exactly 16 units. All units inside one epoch have the same price; the unit
+price is `p0 + epoch × step`. A purchase that crosses an epoch boundary is split across the curve,
+so its later units pay the later price. Prices are per unit rather than per token, avoiding a
+fractional token price that would round to zero in integer contract arithmetic.
+
+The buyer reads `quote_buy`, chooses a whole-unit count, and reviews the shielded STRK cost. The
+browser stores a new buyer secret, then the pool sends the stake to
+`privacy_invoke(OP_BUY, …)`. `Bought` publishes the launch, starting epoch, units, total cost,
+post-buy sold count and commitment. It has no buyer-address field, but the amount, timing and
+transaction submitter remain public.
+
+### 3. Sold out and missed deadline are different state machines
+
+When every unit sells, **anyone** may call `graduate`. The Launch contract deploys a token from its
+pinned class hash, mints the complete supply to itself and books that supply for buyer redemption.
+Each buyer reveals the position secret through a pool-only redeem operation, and the launch tokens
+land as a new pool note.
+
+The creator uses the separate creator secret to sweep the raised STRK to a named public address.
+That recipient and amount are public. Graduation does not create a DEX market, add liquidity, pay a
+royalty or offer a buy-back.
+
+If the deadline passes before the units sell out, the first valid refund marks the launch failed.
+No keeper is required. Each buyer then reclaims exactly that position's recorded cost into a new
+STRK pool note.
+
+### 4. Talk is not part of token settlement
+
+Each launch page also exposes an open Talk thread. It uses the same relay family as Chat, keeps at
+most 50 messages in relay memory and is readable by anyone who derives the room from the launch id.
+It does not write to the Launch contract and does not affect a buy, graduation, redeem, sweep or
+refund.
+
+## Markets and Launch side by side
+
+| Boundary | Markets | Launch |
+|---|---|---|
+| Free reads | Market registry, events, float, Pragma price and quotes | Launch registry, metadata, curve state and quotes |
+| Opening action | Standing window opens on its first valid bet; custom markets use the pool | Creator calls `create_launch` directly |
+| Buyer input | Shielded STRK through the pool | Shielded STRK through the pool |
+| Public position facts | Side, amount, tickets, odds movement, timing and commitment | Units, cost, epoch, sold count, timing and commitment |
+| Local bearer material | Bet or seed secret | Buyer secret and, for creators, a separate sweep secret |
+| Early exit | Whole-position cash-out before close | No sell-back before graduation |
+| Success path | Pragma resolution, then winning-ticket or seeder-residual claim | Token deployment, buyer redemption, public creator sweep |
+| Failure path | Permissionless void, then cash-in refund | First refund marks failed, then cash-in refund |
+| Returned value | Stake-token pool note | Launch-token pool note on success; stake-token note on failure |
+
+Use [the Markets guide](/docs/guides/markets) for the betting flow and
+[the Launch guide](/docs/guides/launch) for creation, buying and settlement.

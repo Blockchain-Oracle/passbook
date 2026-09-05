@@ -1,12 +1,18 @@
 ---
-title: Mainnet record
-description: Every contract and transaction, on Starknet mainnet, with the file each value came out of.
+title: Mainnet submission record
+description: Every declared contract and qualifying transaction, with its mainnet evidence source.
 ---
 
 Network is `SN_MAIN`. Every row is independently checkable with one RPC call, and every one was read
 back off the chain rather than copied from a deployment log.
 
 <MainnetRecord />
+
+The seven rows labelled **Qualifying pool transaction** are the hashes in `strk20.json`. Each
+receipt is `SUCCEEDED`, finalized on L1, and contains events from both the STRK20 pool and the named
+app contract. The sweep also found successful setup, creation, resolution and tally transactions;
+those remain in `evidence/submission-chain-sweep.json` but are not declared because they emit no
+pool event and therefore do not meet the sprint validator.
 
 ## Why each row names a file
 

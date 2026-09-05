@@ -21,6 +21,7 @@ import { NET } from '@strk20/protocol/constants'
 
 import marketsLaunch from '../../../evidence/markets-launch-deployment.json'
 import registration from '../../../evidence/sponsored-registration.json'
+import submissionSweep from '../../../evidence/submission-chain-sweep.json'
 
 /** Markets v2 — standing windows — when deployed; the v1 record stays in the file for its history. */
 const markets = marketsLaunch.MarketsV2 ?? marketsLaunch.Markets
@@ -46,8 +47,8 @@ const vesuEarn = (marketsLaunch as { VesuEarn?: { contractAddress: string } }).V
 /** True when this build knows where the Earn helper lives. Absent means Earn cannot compose. */
 export const EARN_DEPLOYED = Boolean(vesuEarn?.contractAddress)
 
-/** The block the app contracts were last read back at. */
-export const VERIFIED_AT_BLOCK = marketsLaunch.verifiedAtBlock
+/** The block where every submission contract and transaction was last read back. */
+export const VERIFIED_AT_BLOCK = submissionSweep.checkedAtBlock
 
 /** The pinned pool class hash, for the sentence about what the app refuses to guess at. */
 export const POOL_CLASS_HASH = NET.poolClassHash
@@ -76,6 +77,34 @@ export interface RecordRow {
 const contract = (address: string) => `${NET.explorer}/contract/${address}`
 const tx = (hash: string) => `${NET.explorer}/tx/${hash}`
 
+const CONTRACT_LABELS: Readonly<Record<string, string>> = {
+  MarketsV1: 'Markets v1 — ours (historical qualifying emitter)',
+  MarketsV2: 'Markets v2 — ours (current)',
+  Launch: 'Launch — ours (current)',
+  GovernanceV1: 'Governance v1 — ours (historical qualifying emitter)',
+  GovernanceV2: 'Governance v2 — ours (current)',
+  Mailbox: 'Mailbox — ours (current)',
+  VesuEarn: 'VesuEarn — ours (current)',
+}
+
+const submissionContracts: readonly RecordRow[] = submissionSweep.contracts.map((row) => ({
+  kind: 'Contract',
+  label: CONTRACT_LABELS[row.name] ?? `${row.name} — ours`,
+  address: row.address,
+  href: contract(row.address),
+  source: 'evidence/submission-chain-sweep.json',
+}))
+
+const qualifyingTransactions: readonly RecordRow[] = submissionSweep.qualifyingTransactions.map(
+  (row) => ({
+    kind: 'Tx',
+    label: `Qualifying pool transaction · ${row.appContract}`,
+    address: row.transactionHash,
+    href: tx(row.transactionHash),
+    source: 'evidence/submission-chain-sweep.json',
+  }),
+)
+
 /**
  * The record, in the order it reads best: the thing the product stands on, then what this team put
  * on the chain, then the proof that a stranger's first transaction was paid for by somebody else.
@@ -91,31 +120,7 @@ export const MAINNET_RECORD: readonly RecordRow[] = [
     href: contract(NET.pool),
     source: 'packages/protocol/src/constants.ts',
   },
-  ...(mailbox
-    ? [
-        {
-          kind: 'Contract' as const,
-          label: 'Mailbox — ours (pool-only memo log)',
-          address: mailbox.contractAddress,
-          href: contract(mailbox.contractAddress),
-          source: 'evidence/markets-launch-deployment.json',
-        },
-      ]
-    : []),
-  {
-    kind: 'Contract',
-    label: 'Markets — ours (v2, standing windows)',
-    address: markets.contractAddress,
-    href: contract(markets.contractAddress),
-    source: 'evidence/markets-launch-deployment.json',
-  },
-  {
-    kind: 'Contract',
-    label: 'Launch — ours',
-    address: marketsLaunch.Launch.contractAddress,
-    href: contract(marketsLaunch.Launch.contractAddress),
-    source: 'evidence/markets-launch-deployment.json',
-  },
+  ...submissionContracts,
   {
     kind: 'Contract',
     label: 'Pragma oracle — read live by Markets',
@@ -123,6 +128,7 @@ export const MAINNET_RECORD: readonly RecordRow[] = [
     href: contract(marketsLaunch.pragma),
     source: 'evidence/markets-launch-deployment.json',
   },
+  ...qualifyingTransactions,
   {
     kind: 'Tx',
     label: 'Sponsored registration, via our relayer',

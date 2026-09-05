@@ -39,7 +39,7 @@ export function RefusedClaims() {
   )
 }
 
-/** Where each of the six surfaces stands. Markets and Launch are computed from the evidence file. */
+/** Where each surface stands. Deployed states are computed from the evidence file. */
 export function SurfaceStatus() {
   return (
     <div className="my-s20 overflow-hidden rounded-card border border-surface3 not-prose">

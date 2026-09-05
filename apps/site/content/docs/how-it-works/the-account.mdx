@@ -20,7 +20,8 @@ see [the auditor](/docs/privacy/the-auditor).
 
 With a password, the account record is sealed under an encrypted vault. A passkey wraps the same
 vault key and can restore the sealed account record on a compatible device. Both can protect the
-same account.
+same account. The exact WebAuthn, vault-key and cross-browser boundaries are mapped in
+[how Passkey works](/docs/how-it-works/passkeys).
 
 <Callout type="warn">
 If neither option is selected, the key remains in browser storage in plaintext. A script running

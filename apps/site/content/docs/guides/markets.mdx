@@ -6,6 +6,12 @@ description: Choose a live window, inspect the public terms, set a side and carr
 Market windows and oracle prices are live reads. The values in these captures were visible on
 2 September 2026 and will not match a later visit.
 
+<Callout type="warn" title="A bet is a real bearer position">
+The final confirmation spends shielded STRK. Its amount, side, timing, odds movement, commitment
+and transaction submitter are public. The secret that controls the position is stored in this
+browser before the transaction is sent; keep the recovery backup until the position is closed.
+</Callout>
+
 <Steps>
 
 <Step>
@@ -15,6 +21,11 @@ Market windows and oracle prices are live reads. The values in these captures we
 Use the duration tabs, then open a market card. A card shows the current price, line state, time
 remaining, seed and the two displayed outcomes. You can open the card for its tape and terms, or
 press a side directly.
+
+A standing card whose line says **opens on first bet** is a computed window, not a market already
+stored on chain. The first valid bet reads a fresh Pragma median, locks that line and moves the
+house seed into the window. The contract refuses a stale or thin oracle, a late opener and an
+opening stake below the displayed minimum.
 
 <GuideShot
   src="/guides/markets-board.svg"
@@ -45,9 +56,10 @@ hidden behind a failed transaction.
 
 ### Review and retain the bearer position
 
-The review explains what becomes public before submission. The position secret is stored before
-the transaction is sent because that secret is needed later to cash out, claim or refund. Follow
-the result in **Positions** and keep the transaction receipt.
+The review explains what becomes public and whether your account or the covered-transaction relayer
+will submit. The position secret is stored before the transaction is sent because that secret is
+needed later to cash out, claim or refund. Follow the result in **Positions** and keep the
+transaction receipt.
 
 <Callout type="warn">
 A bearer position is controlled by its secret. Do not clear the browser or discard recovery data
@@ -56,6 +68,34 @@ while a position can still be claimed.
 
 </Step>
 
+<Step>
+
+### Sell the whole position while the window is open
+
+An eligible position can be sold back before the deadline. The quote follows the current reserve
+state, so it can be above or below what you paid. The app sends the whole position with a 1% minimum
+output tolerance; there is no partial cash-out.
+
+The returned STRK lands as a fresh pool note. The secret is removed only after the transaction is
+confirmed, not while confirmation is unknown.
+
+</Step>
+
+<Step>
+
+### Claim after resolution, or reclaim after a void
+
+Anyone can resolve a closed market during its five-minute window. The contract reads Pragma and
+checks freshness, scale and, for standing markets, the minimum source count. A price strictly above
+the line pays Over; equality pays Under.
+
+If no valid resolution lands, anyone can void the market after ten minutes. Open bettor positions
+then reclaim their recorded cash-in. The **Positions** page reads claimability by public commitment
+and reveals the secret only inside the pool transaction that creates the payout note.
+
+</Step>
+
 </Steps>
 
-For the public/private split, see [Markets and Launch](/docs/how-it-works/markets-and-launch).
+For the exact pool, contract, oracle and recovery path, see
+[Markets architecture](/docs/how-it-works/markets-and-launch#markets-architecture).

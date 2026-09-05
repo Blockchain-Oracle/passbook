@@ -1,0 +1,131 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 720" role="img" aria-labelledby="mail-title mail-desc">
+  <title id="mail-title">Mail architecture</title>
+  <desc id="mail-desc">Seven steps from local recipient lookup and memo sealing through one STRK20 pool transaction to chain-backed recovery in the recipient browser.</desc>
+  <defs>
+    <marker id="mail-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0 0 10 5 0 10Z" fill="#E04708" />
+    </marker>
+    <style>
+      .title { font: 700 18px ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: 2px; fill: #F1F0EB; }
+      .lane { font: 700 13px ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: 1px; fill: #F1F0EB; }
+      .head { font: 700 14px ui-monospace, SFMono-Regular, Menlo, monospace; fill: #F1F0EB; }
+      .copy { font: 12px ui-monospace, SFMono-Regular, Menlo, monospace; fill: #A3A29C; }
+      .bright { fill: #F1F0EB; }
+      .accent { fill: #E04708; }
+      .warn { fill: #F2DC4E; }
+      .box { fill: #151515; stroke: #343434; }
+      .step { fill: #E04708; }
+      .step-text { font: 700 12px ui-monospace, SFMono-Regular, Menlo, monospace; fill: #FBF4EC; text-anchor: middle; }
+      .arrow { fill: none; stroke: #E04708; stroke-width: 2; marker-end: url(#mail-arrow); }
+      .soft { fill: none; stroke: #55534D; stroke-width: 1.5; stroke-dasharray: 6 6; }
+    </style>
+  </defs>
+
+  <rect width="1200" height="720" fill="#0A0A0A" />
+  <rect x="34" y="28" width="38" height="38" rx="9" fill="#C53603" />
+  <path d="M46 47h20M50 38l12 18M62 38 50 56M60 43l6 4-6 4" fill="none" stroke="#F1F0EB" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" />
+  <text x="88" y="53" class="title">MAIL · ONE PAYMENT, ONE SEALED MEMO, ONE RECEIPT</text>
+  <text x="88" y="73" class="copy">No message server. The chain carries ciphertext; the viewing key rebuilds the thread.</text>
+
+  <rect x="34" y="102" width="260" height="500" rx="12" class="box" />
+  <text x="52" y="132" class="lane">SENDER BROWSER</text>
+
+  <circle cx="58" cy="169" r="14" class="step" /><text x="58" y="173" class="step-text">1</text>
+  <text x="82" y="166" class="head">Resolve the recipient</text>
+  <text x="82" y="187" class="copy">fetch the whole public directory</text>
+  <text x="82" y="205" class="copy">match the name locally</text>
+
+  <circle cx="58" cy="254" r="14" class="step" /><text x="58" y="258" class="step-text">2</text>
+  <text x="82" y="251" class="head">Name the note first</text>
+  <text x="82" y="272" class="copy">predict recipient note id</text>
+  <text x="82" y="290" class="copy">channel key comes from pool state</text>
+
+  <circle cx="58" cy="339" r="14" class="step" /><text x="58" y="343" class="step-text">3</text>
+  <text x="82" y="336" class="head">Seal the body</text>
+  <text x="82" y="357" class="copy">HKDF(channel key, note id)</text>
+  <text x="82" y="375" class="copy">AES-GCM binds chain, pool,</text>
+  <text x="82" y="393" class="copy">Mailbox, note id and token</text>
+
+  <circle cx="58" cy="442" r="14" class="step" /><text x="58" y="446" class="step-text">4</text>
+  <text x="82" y="439" class="head">Compose, then inspect</text>
+  <text x="82" y="460" class="copy">Transfer + InvokeExternal</text>
+  <text x="82" y="478" class="copy">compile_actions is rehearsed</text>
+  <text x="82" y="496" class="copy">span guard checks note + memo</text>
+
+  <rect x="52" y="530" width="224" height="52" rx="8" fill="none" stroke="#5A260F" />
+  <text x="66" y="551" class="copy bright">The SDK chooses notes, change</text>
+  <text x="66" y="570" class="copy bright">and surplus. The app does not.</text>
+
+  <rect x="330" y="102" width="236" height="500" rx="12" class="box" />
+  <text x="348" y="132" class="lane">SUBMISSION</text>
+  <circle cx="354" cy="205" r="14" class="step" /><text x="354" y="209" class="step-text">5</text>
+  <text x="378" y="202" class="head">Choose one path</text>
+  <rect x="348" y="232" width="200" height="102" rx="9" fill="#0F0F0F" stroke="#343434" />
+  <text x="364" y="257" class="head accent">OWN ACCOUNT</text>
+  <text x="364" y="279" class="copy">direct to a Starknet node</text>
+  <text x="364" y="299" class="copy warn">your address is submitter</text>
+  <text x="364" y="319" class="copy">you pay pool fee + gas</text>
+
+  <rect x="348" y="354" width="200" height="132" rx="9" fill="#0F0F0F" stroke="#343434" />
+  <text x="364" y="379" class="head accent">COVERED TRANSACTION</text>
+  <text x="364" y="401" class="copy">same-origin /api/* proxy</text>
+  <text x="364" y="421" class="copy">injects the server token</text>
+  <text x="364" y="441" class="copy warn">relayer sees IP + timing</text>
+  <text x="364" y="461" class="copy">relayer is submitter</text>
+
+  <path d="M294 442H318V283H346" class="arrow" />
+  <path d="M318 442H346" class="arrow" />
+
+  <rect x="602" y="102" width="268" height="500" rx="12" class="box" />
+  <text x="620" y="132" class="lane">STARKNET · ONE TRANSACTION</text>
+  <circle cx="626" cy="181" r="14" class="step" /><text x="626" y="185" class="step-text">6</text>
+  <text x="650" y="178" class="head">STRK20 pool applies it</text>
+
+  <rect x="620" y="210" width="232" height="94" rx="9" fill="#0F0F0F" stroke="#8B2F0C" />
+  <text x="636" y="235" class="head accent">A · PRIVATE TRANSFER</text>
+  <text x="636" y="257" class="copy">spend notes + recipient note</text>
+  <text x="636" y="277" class="copy">change stays in the pool</text>
+  <text x="636" y="294" class="copy">flat pool fee, once</text>
+
+  <path d="M736 304V332" class="arrow" />
+  <rect x="620" y="334" width="232" height="94" rx="9" fill="#0F0F0F" stroke="#8B2F0C" />
+  <text x="636" y="359" class="head accent">B · MAILBOX INVOKE</text>
+  <text x="636" y="381" class="copy">pool-only caller check</text>
+  <text x="636" y="401" class="copy">one-time note anchor</text>
+  <text x="636" y="418" class="copy">ciphertext body in Posted</text>
+
+  <rect x="620" y="466" width="232" height="100" rx="9" fill="none" stroke="#55534D" />
+  <text x="636" y="491" class="head">SAME RECEIPT</text>
+  <text x="636" y="513" class="copy">Pool EncNoteCreated</text>
+  <text x="636" y="533" class="copy">Mailbox Posted</text>
+  <text x="636" y="553" class="copy bright">one hash · one revert</text>
+  <path d="M566 360H600" class="arrow" />
+
+  <rect x="906" y="102" width="260" height="500" rx="12" class="box" />
+  <text x="924" y="132" class="lane">RECIPIENT BROWSER</text>
+  <circle cx="930" cy="188" r="14" class="step" /><text x="930" y="192" class="step-text">7</text>
+  <text x="954" y="185" class="head">Rebuild from chain</text>
+  <text x="930" y="224" class="copy">1. walk pool channels + notes</text>
+  <text x="930" y="246" class="copy">2. scan Mailbox Posted events</text>
+  <text x="930" y="268" class="copy">3. join on the public note id</text>
+  <text x="930" y="290" class="copy">4. derive the memo key</text>
+  <text x="930" y="312" class="copy">5. authenticate + open locally</text>
+
+  <rect x="924" y="350" width="224" height="100" rx="9" fill="#0F0F0F" stroke="#343434" />
+  <text x="940" y="375" class="head accent">DURABILITY</text>
+  <text x="940" y="397" class="copy">chain event is the record</text>
+  <text x="940" y="417" class="copy">new device + same account</text>
+  <text x="940" y="437" class="copy bright">rebuilds the same thread</text>
+
+  <rect x="924" y="474" width="224" height="92" rx="9" fill="none" stroke="#6B5F1B" />
+  <text x="940" y="499" class="head warn">TRUST BOUNDARY</text>
+  <text x="940" y="521" class="copy">auditor escrow can read it</text>
+  <text x="940" y="541" class="copy">channel key has no rotation</text>
+  <text x="940" y="558" class="copy">or forward secrecy</text>
+  <path d="M870 516H904" class="arrow" />
+
+  <path d="M52 635H1148" class="soft" />
+  <text x="52" y="663" class="copy bright">MAIL</text>
+  <text x="102" y="663" class="copy">paid · on-chain · chain-persistent · payment and memo are atomic</text>
+  <text x="52" y="688" class="copy">A browser stores only its unread cursor. The ciphertext body remains public chain data.</text>
+</svg>

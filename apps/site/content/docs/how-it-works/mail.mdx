@@ -7,6 +7,17 @@ Mail is a private transfer with words attached. The money lands as a shielded no
 recipient; the memo rides the same proved transaction as one extra action, and the **pool** —
 not your account — calls our `Mailbox` contract with it. One hash, one receipt, one revert.
 
+<GuideShot
+  src="/diagrams/mail-architecture.svg"
+  alt="Mail architecture from local recipient lookup and memo sealing through the STRK20 pool and Mailbox to chain-backed recipient recovery"
+  caption="Mail flow: the browser prepares it, the pool posts it, and the recipient rebuilds it from chain events."
+  width={1200}
+  height={720}
+  eager
+/>
+
+[Open the PNG version](/diagrams/mail-architecture.png).
+
 ## Why the pool is the caller
 
 The `Mailbox` accepts calls from the STRK20 pool and refuses every other caller. That is the
@@ -25,10 +36,10 @@ secret is ever agreed through a server.
 
 ## The honest parts
 
-**It is not end-to-end encrypted, and this documentation will not say that it is.** The channel
-key derives from viewing keys that are [escrowed to the auditor](/docs/privacy/the-auditor) at
-registration. There is a third party by construction, so the phrase would be false. The key is
-also static for the life of the channel, so there is no forward secrecy.
+**The auditor is inside the trust boundary.** The channel key derives from viewing keys that are
+[escrowed to the auditor](/docs/privacy/the-auditor) at registration, so the auditor can recover
+and read the memo. The key is also static for the life of the channel, so there is no forward
+secrecy.
 
 **What is on chain.** That a pool transaction invoked the Mailbox, the ciphertext and its size,
 the block, and the id of the note it rides with — which the pool's own `EncNoteCreated` event
@@ -42,6 +53,14 @@ nothing to pay still carries postage, because the note is how the reader finds i
 **Where it lives.** Nowhere but the chain. Threads are rebuilt from the pool's channels and the
 Mailbox's events with your viewing key — on this device, or any device you bring the account to.
 This browser keeps only a "seen up to block" cursor for the unread badge.
+
+## What the browser does before it proves
+
+The app predicts the recipient note id from the current channel walk, seals the body against that
+id, then asks the privacy SDK builder for a transfer plus one `InvokeExternal`. It reads the
+compiled action span before proving and refuses unless there is exactly one matching recipient
+note and the Mailbox calldata is the sealed envelope verbatim. A stale walk is therefore a free
+refusal, not a fee paid to discover a broken memo on chain.
 
 ## The name directory
 

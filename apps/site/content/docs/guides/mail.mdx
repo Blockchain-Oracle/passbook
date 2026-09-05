@@ -3,8 +3,14 @@ title: Send mail
 description: Find a registered account and send it a shielded payment with a sealed note — one transaction, posted by the pool.
 ---
 
-Mail needs a registered recipient: the memo is sealed for the channel the pool keeps between the
-two accounts. Register your own account first.
+Mail needs two registered accounts: the memo is sealed for the channel the pool keeps between
+them. Register your own account first, then verify the resolved address before composing.
+
+<Callout type="warn" title="A Mail is a real pool transaction">
+The final **Send mail** button submits value, pays the live pool fee and gas, or consumes one
+covered transaction. If confirmation becomes unknown, check the hash before trying again because
+the first transaction may have landed.
+</Callout>
 
 <Steps>
 
@@ -12,21 +18,48 @@ two accounts. Register your own account first.
 
 ### Start a thread
 
-Open **Mail**, press **New mail**, then search a claimed name or paste a Starknet address. Name
+Open **Mail** at `/mail`, press **New**, then search a claimed name or paste a Starknet address. Name
 search runs against a list fetched to the browser; the relayer never learns who you looked for.
 A name is a label somebody claimed, so check the resolved address before relying on it.
+
+<GuideShot
+  src="/guides/mail-new.svg"
+  alt="New Mail dialog with an arrow to local recipient search"
+  caption="1 — Find a registered recipient, then verify the resolved address."
+  eager
+/>
 
 </Step>
 
 <Step>
 
-### Write, choose what it carries, review
+### Choose what the Mail carries
 
 Write the message. **Amount** sets what the mail pays; leave it empty and it carries postage
 (0.01 of the token), which is the smallest note the reader can find it by. The paperclip attaches
-an ask for money, your voter handle, or a finished bet. **Send mail** opens the review sheet: the
-recipient, the amount, the message, the disclosure of who sees what, and the covered-transaction
-toggle if you have one left.
+an ask for money, your voter handle, or a finished bet.
+
+<GuideShot
+  src="/guides/mail-compose.svg"
+  alt="Mail composer with arrows to amount, attachment, memo and review"
+  caption="2–5 — Amount and attachments are optional; the memo is not."
+/>
+
+</Step>
+
+<Step>
+
+### Review before anything is submitted
+
+**Send mail** opens a review sheet. Check the resolved recipient, postage or payment amount,
+message, disclosure, and covered-transaction toggle. A covered transaction changes who submits
+and pays; it does not turn Mail into Chat or remove the on-chain Mailbox event.
+
+<GuideShot
+  src="/guides/mail-review.svg"
+  alt="Mail review sheet with arrows to the payload, disclosure and final confirmation"
+  caption="6–8 — The screenshot stops at review; no Mail was submitted."
+/>
 
 </Step>
 
@@ -44,4 +77,5 @@ comes back from the chain.
 
 </Steps>
 
-The full trust boundary is in [Mail](/docs/how-it-works/mail).
+For the full path, read [how Mail works](/docs/how-it-works/mail). For the transport and recovery
+differences, see [Chat and Mail side by side](/docs/how-it-works/chat#chat-and-mail-side-by-side).

@@ -1,0 +1,89 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 720" role="img" aria-labelledby="launch-title launch-desc">
+  <title id="launch-title">Launch architecture</title>
+  <desc id="launch-desc">A public direct creation records a creator commitment. Buyers spend shielded notes through the pool and receive bearer commitments, then redeem launch tokens or reclaim stake through new pool notes.</desc>
+  <defs>
+    <marker id="launch-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 10 5 0 10Z" fill="#E04708" /></marker>
+    <marker id="launch-yellow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 10 5 0 10Z" fill="#F2DC4E" /></marker>
+    <style>
+      .title{font:700 18px ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:2px;fill:#F1F0EB}.lane{font:700 13px ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:1px;fill:#F1F0EB}.head{font:700 14px ui-monospace,SFMono-Regular,Menlo,monospace;fill:#F1F0EB}.copy{font:12px ui-monospace,SFMono-Regular,Menlo,monospace;fill:#A3A29C}.bright{fill:#F1F0EB}.accent{fill:#E04708}.warn{fill:#F2DC4E}.box{fill:#151515;stroke:#343434}.step{fill:#E04708}.step-text{font:700 12px ui-monospace,SFMono-Regular,Menlo,monospace;fill:#FBF4EC;text-anchor:middle}.arrow{fill:none;stroke:#E04708;stroke-width:2;marker-end:url(#launch-arrow)}.public{fill:none;stroke:#F2DC4E;stroke-width:2;marker-end:url(#launch-yellow)}.read{fill:none;stroke:#77746D;stroke-width:1.5;stroke-dasharray:6 6;marker-end:url(#launch-arrow)}
+    </style>
+  </defs>
+  <rect width="1200" height="720" fill="#0A0A0A" />
+  <rect x="34" y="28" width="38" height="38" rx="9" fill="#C53603" />
+  <path d="M46 47h20M50 38l12 18M62 38 50 56M60 43l6 4-6 4" fill="none" stroke="#F1F0EB" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" />
+  <text x="88" y="53" class="title">LAUNCH · PUBLIC CREATION + SHIELDED BUYS + BEARER CLAIMS</text>
+  <text x="88" y="73" class="copy">Creation and creator sweep are public-account paths. Buyer value enters and leaves through the STRK20 pool.</text>
+
+  <rect x="34" y="102" width="1132" height="116" rx="12" class="box" />
+  <text x="52" y="132" class="lane">FREE READ LANE · NO TRANSACTION</text>
+  <circle cx="58" cy="169" r="14" class="step"/><text x="58" y="173" class="step-text">1</text>
+  <text x="82" y="166" class="head">TanStack Query reads every launch, its curve, state, metadata and quote_buy</text>
+  <text x="82" y="188" class="copy">16 units per epoch · flat price inside an epoch · price step between epochs · newest launch first</text>
+  <text x="82" y="207" class="copy warn">The logo is an optional URI. The contract checks its length, not the content behind it.</text>
+  <path d="M790 168H1128" class="read" />
+
+  <rect x="34" y="252" width="252" height="352" rx="12" class="box" />
+  <text x="52" y="282" class="lane">BROWSER + ACCOUNT</text>
+  <circle cx="58" cy="323" r="14" class="step"/><text x="58" y="327" class="step-text">2</text>
+  <text x="82" y="320" class="head">Create: direct path</text>
+  <text x="52" y="354" class="copy">name · symbol · curve · deadline</text>
+  <text x="52" y="374" class="copy">optional logo pin before chain</text>
+  <text x="52" y="394" class="copy">creator secret stored first</text>
+  <text x="52" y="414" class="copy warn">self: creator account submits</text>
+  <circle cx="58" cy="463" r="14" class="step"/><text x="58" y="467" class="step-text">3</text>
+  <text x="82" y="460" class="head">Buy: pool path</text>
+  <text x="52" y="494" class="copy">choose whole units · read cost</text>
+  <text x="52" y="514" class="copy">mint secret → commitment</text>
+  <text x="52" y="534" class="copy warn">store secret before broadcast</text>
+  <path d="M286 472H330" class="arrow" />
+
+  <rect x="332" y="252" width="252" height="352" rx="12" class="box" />
+  <text x="350" y="282" class="lane">STRK20 POOL</text>
+  <circle cx="356" cy="323" r="14" class="step"/><text x="356" y="327" class="step-text">4</text>
+  <text x="380" y="320" class="head">Move buyer value</text>
+  <rect x="350" y="352" width="216" height="76" rx="8" fill="#0F0F0F" stroke="#8B2F0C" />
+  <text x="366" y="378" class="head accent">BUY</text>
+  <text x="366" y="400" class="copy">spend shielded STRK note</text>
+  <text x="366" y="418" class="copy">InvokeExternal → Launch</text>
+  <rect x="350" y="454" width="216" height="96" rx="8" fill="#0F0F0F" stroke="#8B2F0C" />
+  <text x="366" y="480" class="head accent">REDEEM OR REFUND</text>
+  <text x="366" y="502" class="copy">secret proves bearer claim</text>
+  <text x="366" y="522" class="copy">token or STRK returns as</text>
+  <text x="366" y="540" class="copy">a new open pool note</text>
+  <text x="350" y="579" class="copy bright">Pool-only payout operations</text>
+
+  <rect x="630" y="252" width="252" height="352" rx="12" class="box" />
+  <text x="648" y="282" class="lane">LAUNCH CONTRACT</text>
+  <circle cx="654" cy="323" r="14" class="step"/><text x="654" y="327" class="step-text">5</text>
+  <text x="678" y="320" class="head">Custody + public record</text>
+  <text x="648" y="354" class="copy">commitment, units, cost, epoch</text>
+  <text x="648" y="374" class="copy">ordered curve update per buy</text>
+  <text x="648" y="394" class="copy">buyer address is not a field</text>
+  <rect x="648" y="432" width="216" height="132" rx="8" fill="#0F0F0F" stroke="#6B5F1B" />
+  <text x="664" y="458" class="head warn">TWO OUTCOMES</text>
+  <text x="664" y="480" class="copy">sold out → anyone graduates</text>
+  <text x="664" y="500" class="copy">token deploys; buyers redeem</text>
+  <text x="664" y="526" class="copy">deadline short → first refund</text>
+  <text x="664" y="546" class="copy">marks failed; buyers reclaim</text>
+  <path d="M584 472H628" class="arrow" />
+
+  <rect x="928" y="252" width="238" height="352" rx="12" class="box" />
+  <text x="946" y="282" class="lane">TERMINAL OWNERSHIP</text>
+  <circle cx="952" cy="323" r="14" class="step"/><text x="952" y="327" class="step-text">6</text>
+  <text x="976" y="320" class="head">Bearer records</text>
+  <text x="946" y="354" class="copy">buyer secret → payout note</text>
+  <text x="946" y="374" class="copy">creator secret → raise</text>
+  <text x="946" y="394" class="copy">backup carries both records</text>
+  <rect x="946" y="432" width="202" height="132" rx="8" fill="none" stroke="#8B2F0C" />
+  <text x="962" y="458" class="head accent">PUBLIC CREATOR EXIT</text>
+  <text x="962" y="480" class="copy">graduated: sweep sends</text>
+  <text x="962" y="500" class="copy">raise to named address</text>
+  <text x="962" y="526" class="copy warn">no DEX listing or buy-back</text>
+  <text x="962" y="546" class="copy warn">is performed automatically</text>
+  <path d="M882 472H926" class="public" />
+  <path d="M946 574H906V590H584" class="arrow" />
+
+  <rect x="34" y="630" width="1132" height="62" rx="10" fill="#111111" stroke="#343434" />
+  <text x="52" y="656" class="head">SEPARATE TALK LANE</text>
+  <text x="52" y="678" class="copy">Each launch page also has a public relay room: last 50 messages in memory, readable by anyone, and unrelated to token settlement.</text>
+</svg>

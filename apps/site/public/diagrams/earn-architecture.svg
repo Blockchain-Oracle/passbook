@@ -1,0 +1,120 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 720" role="img" aria-labelledby="earn-title earn-desc">
+  <title id="earn-title">Earn and Yield architecture</title>
+  <desc id="earn-desc">Live Vesu reads feed a reviewed self-submitted transaction that withdraws a pool note to the VesuEarn helper and returns the proceeds to a new private pool note.</desc>
+  <defs>
+    <marker id="earn-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0 0 10 5 0 10Z" fill="#E04708" />
+    </marker>
+    <marker id="earn-yellow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0 0 10 5 0 10Z" fill="#F2DC4E" />
+    </marker>
+    <style>
+      .title { font: 700 18px ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: 2px; fill: #F1F0EB; }
+      .lane { font: 700 13px ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: 1px; fill: #F1F0EB; }
+      .head { font: 700 14px ui-monospace, SFMono-Regular, Menlo, monospace; fill: #F1F0EB; }
+      .copy { font: 12px ui-monospace, SFMono-Regular, Menlo, monospace; fill: #A3A29C; }
+      .bright { fill: #F1F0EB; }
+      .accent { fill: #E04708; }
+      .warn { fill: #F2DC4E; }
+      .box { fill: #151515; stroke: #343434; }
+      .step { fill: #E04708; }
+      .step-text { font: 700 12px ui-monospace, SFMono-Regular, Menlo, monospace; fill: #FBF4EC; text-anchor: middle; }
+      .arrow { fill: none; stroke: #E04708; stroke-width: 2; marker-end: url(#earn-arrow); }
+      .public { fill: none; stroke: #F2DC4E; stroke-width: 2; marker-end: url(#earn-yellow); }
+      .read { fill: none; stroke: #77746D; stroke-width: 1.5; stroke-dasharray: 6 6; marker-end: url(#earn-arrow); }
+    </style>
+  </defs>
+
+  <rect width="1200" height="720" fill="#0A0A0A" />
+  <rect x="34" y="28" width="38" height="38" rx="9" fill="#C53603" />
+  <path d="M46 47h20M50 38l12 18M62 38 50 56M60 43l6 4-6 4" fill="none" stroke="#F1F0EB" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" />
+  <text x="88" y="53" class="title">EARN / YIELD · SHIELDED USDC ↔ VESU SHARES</text>
+  <text x="88" y="73" class="copy">/yield redirects to /earn. Supply and redeem are one transaction each; moving markets is two.</text>
+
+  <rect x="34" y="102" width="1132" height="116" rx="12" class="box" />
+  <text x="52" y="132" class="lane">FREE READ LANE · NO TRANSACTION</text>
+  <circle cx="58" cy="169" r="14" class="step" /><text x="58" y="173" class="step-text">1</text>
+  <text x="82" y="166" class="head">Browser reads seven pinned Vesu V2 USDC markets through RPC</text>
+  <text x="82" y="188" class="copy">PoolFactory identity · market pause · utilization · reserve · curator fee · borrow rate · share price · preview quote</text>
+  <text x="82" y="207" class="copy warn">Every card is timestamped. Vesu's V2 API publishes no stats or risk score, so the app invents neither.</text>
+  <path d="M640 158H1128" class="read" />
+
+  <rect x="34" y="252" width="252" height="352" rx="12" class="box" />
+  <text x="52" y="282" class="lane">BROWSER + ACCOUNT</text>
+  <circle cx="58" cy="323" r="14" class="step" /><text x="58" y="327" class="step-text">2</text>
+  <text x="82" y="320" class="head">Review trade-offs</text>
+  <text x="52" y="354" class="copy">rate · liquidity · utilization</text>
+  <text x="52" y="374" class="copy">entry fee · estimated exit fee</text>
+  <text x="52" y="394" class="copy">break-even · redeemable now</text>
+
+  <circle cx="58" cy="437" r="14" class="step" /><text x="58" y="441" class="step-text">3</text>
+  <text x="82" y="434" class="head">Rehearse before proving</text>
+  <text x="52" y="468" class="copy">validate market + helper wiring</text>
+  <text x="52" y="488" class="copy">compile_actions free view</text>
+  <text x="52" y="508" class="copy">guard exact action span + amount</text>
+  <text x="52" y="528" class="copy">proof at latest − 10</text>
+
+  <rect x="52" y="552" width="216" height="34" rx="7" fill="none" stroke="#6B5F1B" />
+  <text x="66" y="574" class="copy warn">self-submit: no relayer</text>
+
+  <rect x="332" y="252" width="252" height="352" rx="12" class="box" />
+  <text x="350" y="282" class="lane">STRK20 POOL</text>
+  <circle cx="356" cy="323" r="14" class="step" /><text x="356" y="327" class="step-text">4</text>
+  <text x="380" y="320" class="head">Build the sandwich</text>
+
+  <rect x="350" y="352" width="216" height="72" rx="8" fill="#0F0F0F" stroke="#8B2F0C" />
+  <text x="366" y="378" class="head accent">WITHDRAW INPUT</text>
+  <text x="366" y="400" class="copy">USDC on supply</text>
+  <text x="366" y="418" class="copy">exact shares on redeem</text>
+
+  <rect x="350" y="448" width="216" height="72" rx="8" fill="#0F0F0F" stroke="#8B2F0C" />
+  <text x="366" y="474" class="head accent">OPEN OUTPUT NOTE</text>
+  <text x="366" y="496" class="copy">vToken shares on supply</text>
+  <text x="366" y="514" class="copy">USDC on redeem</text>
+
+  <text x="350" y="557" class="copy bright">One v3 transaction</text>
+  <text x="350" y="577" class="copy warn">account address is submitter</text>
+  <path d="M286 430H330" class="arrow" />
+
+  <rect x="630" y="252" width="252" height="352" rx="12" class="box" />
+  <text x="648" y="282" class="lane">VESUEARN HELPER (OURS)</text>
+  <circle cx="654" cy="323" r="14" class="step" /><text x="654" y="327" class="step-text">5</text>
+  <text x="678" y="320" class="head">Pool-only execution</text>
+
+  <rect x="648" y="352" width="216" height="86" rx="8" fill="#0F0F0F" stroke="#343434" />
+  <text x="664" y="378" class="head accent">SUPPLY</text>
+  <text x="664" y="400" class="copy">approve USDC → vToken</text>
+  <text x="664" y="420" class="copy">deposit assets, measure shares</text>
+
+  <rect x="648" y="458" width="216" height="86" rx="8" fill="#0F0F0F" stroke="#343434" />
+  <text x="664" y="484" class="head accent">REDEEM</text>
+  <text x="664" y="506" class="copy">redeem exact share count</text>
+  <text x="664" y="526" class="copy">measure returned USDC</text>
+
+  <text x="648" y="575" class="copy">approve output back to pool</text>
+  <path d="M584 430H628" class="arrow" />
+
+  <rect x="928" y="252" width="238" height="352" rx="12" class="box" />
+  <text x="946" y="282" class="lane">VESU MARKET + RETURN</text>
+  <circle cx="952" cy="323" r="14" class="step" /><text x="952" y="327" class="step-text">6</text>
+  <text x="976" y="320" class="head">Public venue leg</text>
+
+  <rect x="946" y="352" width="202" height="116" rx="8" fill="#0F0F0F" stroke="#6B5F1B" />
+  <text x="962" y="378" class="head warn">VISIBLE ON CHAIN</text>
+  <text x="962" y="400" class="copy">market · amount · timing</text>
+  <text x="962" y="420" class="copy">your account submits the tx</text>
+  <text x="962" y="440" class="copy">venue sees the helper,</text>
+  <text x="962" y="458" class="copy">not your depositor address</text>
+
+  <rect x="946" y="492" width="202" height="86" rx="8" fill="none" stroke="#8B2F0C" />
+  <text x="962" y="518" class="head accent">BACK TO THE POOL</text>
+  <text x="962" y="540" class="copy">pool pulls measured output</text>
+  <text x="962" y="560" class="copy">and credits the open note</text>
+  <path d="M882 430H926" class="public" />
+  <path d="M946 550H906V584H584" class="arrow" />
+
+  <rect x="34" y="630" width="1132" height="62" rx="10" fill="#111111" stroke="#343434" />
+  <circle cx="58" cy="661" r="14" class="step" /><text x="58" y="665" class="step-text">7</text>
+  <text x="82" y="656" class="head">THE POSITION IS THE NOTE.</text>
+  <text x="82" y="678" class="copy">The note walk finds and aggregates vToken notes per market, so the same account recovers them on another device.</text>
+</svg>

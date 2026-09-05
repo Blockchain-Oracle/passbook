@@ -1,0 +1,142 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 720" role="img" aria-labelledby="passkey-title passkey-desc">
+  <title id="passkey-title">Passkey architecture</title>
+  <desc id="passkey-desc">The browser seals a random account collection with a random vault key. A WebAuthn passkey wraps that vault key, while the recovery service stores public credential state and opaque ciphertext for conditional fresh-browser recovery.</desc>
+  <defs>
+    <marker id="passkey-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0 0 10 5 0 10Z" fill="#E04708" />
+    </marker>
+    <style>
+      .title { font: 700 18px ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: 2px; fill: #F1F0EB; }
+      .lane { font: 700 13px ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: 1px; fill: #F1F0EB; }
+      .head { font: 700 14px ui-monospace, SFMono-Regular, Menlo, monospace; fill: #F1F0EB; }
+      .copy { font: 12px ui-monospace, SFMono-Regular, Menlo, monospace; fill: #A3A29C; }
+      .bright { fill: #F1F0EB; }
+      .accent { fill: #E04708; }
+      .warn { fill: #F2DC4E; }
+      .box { fill: #151515; stroke: #343434; }
+      .step { fill: #E04708; }
+      .step-text { font: 700 12px ui-monospace, SFMono-Regular, Menlo, monospace; fill: #FBF4EC; text-anchor: middle; }
+      .arrow { fill: none; stroke: #E04708; stroke-width: 2; marker-end: url(#passkey-arrow); }
+      .soft { fill: none; stroke: #55534D; stroke-width: 1.5; stroke-dasharray: 6 6; }
+    </style>
+  </defs>
+
+  <rect width="1200" height="720" fill="#0A0A0A" />
+  <rect x="34" y="28" width="38" height="38" rx="9" fill="#C53603" />
+  <path d="M46 47h20M50 38l12 18M62 38 50 56M60 43l6 4-6 4" fill="none" stroke="#F1F0EB" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" />
+  <text x="88" y="53" class="title">PASSKEY · THE CREDENTIAL UNLOCKS THE VAULT</text>
+  <text x="88" y="73" class="copy">It never becomes the Stark account key. Setup and recovery do not submit a Starknet transaction.</text>
+
+  <rect x="34" y="102" width="268" height="468" rx="12" class="box" />
+  <text x="52" y="132" class="lane">BROWSER · ACCOUNT VAULT</text>
+
+  <circle cx="58" cy="172" r="14" class="step" /><text x="58" y="176" class="step-text">1</text>
+  <text x="82" y="169" class="head">Random account collection</text>
+  <text x="82" y="190" class="copy">private key + viewing material</text>
+  <text x="82" y="208" class="copy">generated in this browser</text>
+
+  <path d="M168 222V248" class="arrow" />
+  <circle cx="58" cy="274" r="14" class="step" /><text x="58" y="278" class="step-text">2</text>
+  <text x="82" y="271" class="head">Random VEK seals it</text>
+  <text x="82" y="292" class="copy">AES-GCM encrypted body</text>
+  <text x="82" y="310" class="copy">public header stays local</text>
+
+  <rect x="52" y="340" width="232" height="92" rx="9" fill="#0F0F0F" stroke="#8B2F0C" />
+  <text x="68" y="365" class="head accent">LOCAL VAULT V2</text>
+  <text x="68" y="387" class="copy">ciphertext body + vault id</text>
+  <text x="68" y="407" class="copy">password / passkey wrappers</text>
+  <text x="68" y="425" class="copy bright">both open the same VEK</text>
+
+  <rect x="52" y="462" width="232" height="82" rx="9" fill="none" stroke="#55534D" />
+  <text x="68" y="487" class="head">LOCAL UNLOCK</text>
+  <text x="68" y="509" class="copy">ciphertext checks the key</text>
+  <text x="68" y="529" class="copy bright">relayer can be unavailable</text>
+
+  <rect x="326" y="102" width="260" height="468" rx="12" class="box" />
+  <text x="344" y="132" class="lane">PASSKEY · USER VERIFICATION</text>
+
+  <circle cx="350" cy="172" r="14" class="step" /><text x="350" y="176" class="step-text">3</text>
+  <text x="374" y="169" class="head">Create discoverable key</text>
+  <text x="374" y="190" class="copy">registration prompt</text>
+  <text x="374" y="208" class="copy">scoped to the app RP ID</text>
+
+  <circle cx="350" cy="254" r="14" class="step" /><text x="350" y="258" class="step-text">4</text>
+  <text x="374" y="251" class="head">Approve one assertion</text>
+  <text x="374" y="272" class="copy">second prompt obtains PRF output</text>
+  <text x="374" y="290" class="copy">Face ID, Touch ID, PIN or phone</text>
+
+  <rect x="344" y="320" width="224" height="112" rx="9" fill="#0F0F0F" stroke="#8B2F0C" />
+  <text x="360" y="345" class="head accent">PRF → HKDF → KEK</text>
+  <text x="360" y="367" class="copy">stable app input → 32 bytes</text>
+  <text x="360" y="387" class="copy">per-wrapper salt derives KEK</text>
+  <text x="360" y="407" class="copy bright">KEK wraps the random VEK</text>
+  <text x="360" y="425" class="copy warn">PRF result stays in browser</text>
+
+  <rect x="344" y="462" width="224" height="82" rx="9" fill="none" stroke="#6B5F1B" />
+  <text x="360" y="487" class="head warn">BACKUP STATE MATTERS</text>
+  <text x="360" y="509" class="copy">backed up = other-device path</text>
+  <text x="360" y="529" class="copy">device-only = stays here</text>
+
+  <path d="M344 376H306" class="arrow" />
+
+  <rect x="610" y="102" width="270" height="468" rx="12" class="box" />
+  <text x="628" y="132" class="lane">RECOVERY SERVICE</text>
+
+  <circle cx="634" cy="172" r="14" class="step" /><text x="634" y="176" class="step-text">5</text>
+  <text x="658" y="169" class="head">Verify signed ceremonies</text>
+  <text x="658" y="190" class="copy">allow-listed origin + RP ID</text>
+  <text x="658" y="208" class="copy">one-use challenge · 5 min</text>
+
+  <rect x="628" y="236" width="234" height="126" rx="9" fill="#0F0F0F" stroke="#343434" />
+  <text x="644" y="261" class="head accent">STORES</text>
+  <text x="644" y="283" class="copy">public key + counter</text>
+  <text x="644" y="303" class="copy">backup flag + user handle</text>
+  <text x="644" y="323" class="copy">opaque body + wrappers</text>
+  <text x="644" y="343" class="copy">compare-and-swap revision</text>
+
+  <rect x="628" y="382" width="234" height="162" rx="9" fill="none" stroke="#6B5F1B" />
+  <text x="644" y="407" class="head warn">DOES NOT RECEIVE</text>
+  <text x="644" y="429" class="copy">PRF output or VEK</text>
+  <text x="644" y="449" class="copy">password or account key</text>
+  <text x="644" y="469" class="copy">account address or label</text>
+  <text x="644" y="497" class="copy bright">It can delete or withhold the copy,</text>
+  <text x="644" y="517" class="copy bright">but cannot open its ciphertext.</text>
+
+  <path d="M302 392H608" class="arrow" />
+
+  <rect x="904" y="102" width="262" height="468" rx="12" class="box" />
+  <text x="922" y="132" class="lane">FRESH BROWSER OR DEVICE</text>
+
+  <circle cx="928" cy="172" r="14" class="step" /><text x="928" y="176" class="step-text">6</text>
+  <text x="952" y="169" class="head">Discover the passkey</text>
+  <text x="952" y="190" class="copy">no credential id is supplied</text>
+  <text x="952" y="208" class="copy">provider offers app credential</text>
+
+  <circle cx="928" cy="260" r="14" class="step" /><text x="928" y="264" class="step-text">7</text>
+  <text x="952" y="257" class="head">Verify, fetch ciphertext</text>
+  <text x="952" y="278" class="copy">relayer returns sealed envelope</text>
+  <text x="952" y="296" class="copy">only after signed assertion</text>
+
+  <circle cx="928" cy="348" r="14" class="step" /><text x="928" y="352" class="step-text">8</text>
+  <text x="952" y="345" class="head">Recreate PRF locally</text>
+  <text x="952" y="366" class="copy">KEK unwraps VEK</text>
+  <text x="952" y="384" class="copy">VEK opens same account collection</text>
+
+  <rect x="922" y="418" width="226" height="126" rx="9" fill="#0F0F0F" stroke="#8B2F0C" />
+  <text x="938" y="443" class="head accent">RESTORED HERE</text>
+  <text x="938" y="465" class="copy bright">accounts + wrappers</text>
+  <text x="938" y="491" class="head warn">NOT RESTORED</text>
+  <text x="938" y="513" class="copy">local positions + claim secrets</text>
+  <text x="938" y="533" class="copy">bets + activity + chat history</text>
+
+  <path d="M880 278H902" class="arrow" />
+  <path d="M586 376H594V604H1036V570" class="soft" />
+
+  <rect x="34" y="588" width="1132" height="112" rx="12" fill="#101010" stroke="#343434" />
+  <text x="52" y="614" class="head accent">ANOTHER BROWSER GETS THE SAME ACCOUNTS ONLY WHEN ALL FOUR CONDITIONS HOLD</text>
+  <text x="52" y="641" class="copy bright">1 · provider-synced / backed-up passkey</text>
+  <text x="610" y="641" class="copy bright">2 · WebAuthn PRF support</text>
+  <text x="52" y="664" class="copy bright">3 · sealed copy synced + available</text>
+  <text x="610" y="664" class="copy bright">4 · the same app RP domain</text>
+  <text x="52" y="688" class="copy warn">Keep each account's Recovery File separately; it does not restore bearer positions or local history.</text>
+</svg>

@@ -16,6 +16,10 @@ Press **Create an account**, learn the two-balance model, choose an optional lab
 whether to claim that label publicly. On the protection screen, choose a password, passkey, both,
 or neither, then generate the key.
 
+Passkey setup uses two approvals and another-device recovery has explicit compatibility and sync
+conditions. Read the [Passkey architecture](/docs/how-it-works/passkeys) before treating it as a
+backup.
+
 <Callout type="warn">
 A password or passkey seals the account record in an encrypted vault. Choosing neither stores the
 key in browser storage in plaintext, readable by scripts on the origin and by someone holding the
@@ -67,9 +71,14 @@ if a deposit does not arrive, it will look like our bug.
 ### Send or use another surface
 
 Inside the pool your value is a set of shielded notes. From here the surfaces do what they say:
-sends are private to everyone except your recipient, and swaps and bridges use
+sends are private to everyone except your recipient; Mail attaches a sealed memo to one of those
+sends; Earn, swaps and bridges use
 [the invoke sandwich](/docs/how-it-works/invoke-sandwich) so value never lands on a public address
 of yours in between.
+
+Chat is the separate gas-free lane. Its messages use the relay rather than the chain, and its local
+history does not recover from the account key. [Compare Chat and Mail](/docs/how-it-works/chat)
+before choosing between them.
 
 Amounts on any leg that touches an open note remain public. **What is hidden is who.**
 
@@ -77,8 +86,11 @@ Amounts on any leg that touches an open note remain public. **What is hidden is 
 
 </Steps>
 
-For the illustrated path, continue with [Create your account](/docs/guides/create-account) and
-[Fund, shield and send](/docs/guides/fund-and-send).
+For the illustrated paths, continue with [Create your account](/docs/guides/create-account),
+[Passkey](/docs/guides/passkeys),
+[Fund, shield and send](/docs/guides/fund-and-send), [Mail](/docs/guides/mail),
+[Chat](/docs/guides/chat-and-pay), [Markets](/docs/guides/markets),
+[Launch](/docs/guides/launch), or [Earn / Yield](/docs/guides/earn).
 
 ## Running it yourself
 

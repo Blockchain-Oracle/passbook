@@ -5,6 +5,12 @@ description: Find a registered account, open a sealed room and send a message wi
 
 Chat uses pool registration keys to derive a room in the browser. Register the account first.
 
+<Callout type="warn" title="Chat is free, temporary, and relay-carried">
+An ordinary message is not a transaction, but the relay sees connection metadata and keeps only a
+short in-memory ciphertext buffer. Your readable history lives in this browser. Clearing site data
+removes it, and the auditor escrow can derive the room secret.
+</Callout>
+
 <Steps>
 
 <Step>
@@ -18,7 +24,7 @@ still makes the fallback explicit.
 <GuideShot
   src="/guides/chat-new.svg"
   alt="New message dialog with an arrow to recipient search"
-  caption="1 — Names are labels, so verify the resolved address before relying on one."
+  caption="1 — Search is local, but names are labels; verify the resolved address."
   eager
 />
 
@@ -28,14 +34,14 @@ still makes the fallback explicit.
 
 ### Write, attach value if needed, then send
 
-The paperclip opens the money attachment. Set the asset and amount there, return to the composer,
-write the message and press Send. Attached value and the message are prepared as one product
-action, while the transaction lifecycle remains visible.
+The header shows the room id derived in the browser. Write the message and press **Send** for a
+free relay message. The paperclip opens an optional money attachment; that payment is a separate,
+fee-bearing pool transaction even though it begins inside the same conversation.
 
 <GuideShot
   src="/guides/chat-compose.svg"
   alt="Conversation composer with arrows to Attach money, message field and Send"
-  caption="2–4 — Captured against a registered evidence account; no message or money was sent."
+  caption="2–5 — The room was derived locally; no message or money was sent."
 />
 
 </Step>
@@ -53,4 +59,5 @@ clearing site data removes it.
 
 </Steps>
 
-The full trust boundary is in [Chat](/docs/how-it-works/chat).
+The full trust boundary and the exact comparison with Mail are in
+[how Chat works](/docs/how-it-works/chat#chat-and-mail-side-by-side).

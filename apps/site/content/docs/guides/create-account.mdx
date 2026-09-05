@@ -47,7 +47,9 @@ where anyone can look it up.
 
 Choose a password, a passkey, both, or neither. A password or passkey seals the account record in
 an encrypted vault. Choosing neither leaves the key in browser storage in plaintext. Press
-**Generate my key** only after that choice is deliberate.
+**Generate my key** only after that choice is deliberate. Passkey setup asks twice—once to create
+the credential, then once to obtain the local PRF result used to wrap the vault key. See the
+[Passkey guide](/docs/guides/passkeys) before relying on another-device restore.
 
 <GuideShot
   src="/guides/account-protection.svg"

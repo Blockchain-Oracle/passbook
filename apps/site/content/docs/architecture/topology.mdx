@@ -15,6 +15,14 @@ prices, constants and action rehearsal.
   eager
 />
 
+<Callout>
+The numbered route is for pool writes. **Chat is the exception:** its ciphertext goes from browser
+to `/api/room/*`, through the app host and room relay, then to the other browser; it never reaches
+Starknet. Follow the separate [Chat map](/docs/how-it-works/chat),
+[Mail map](/docs/how-it-works/mail), [Passkey map](/docs/how-it-works/passkeys), or
+[Earn / Yield map](/docs/how-it-works/earn) for each complete path.
+</Callout>
+
 <Steps>
 
 <Step>
@@ -73,7 +81,7 @@ public leg; later note ownership is what the pool obscures.
 |---|---|---|
 | **Your browser** | Holds the active key; a password or passkey can seal the stored account record | Everything needed to prepare the action |
 | **App host proxy** | Same origin. The browser posts to `/api/*` and the host injects the relayer auth token | The request. The browser never holds the token |
-| **Relayer** | A trust assumption, and named as one | Your IP and request timing. Carries no message: mail is a pool transaction. Holds no key of yours |
+| **Relayer** | A trust assumption, and named as one | Pool writes: your IP and request timing. Chat: ciphertext plus room metadata. It never carries Mail and holds no key of yours |
 | **Starknet · STRK20 pool** | The public record | Deposits: depositor and amount. What it hides is which notes are yours afterwards |
 
 ## The proxy exists so the browser never holds a secret
@@ -93,7 +101,8 @@ listed as a trust assumption on the surface and here, rather than described as i
 ## Design rules that follow
 
 **The account is an embedded key.** Generated in the browser during setup, then optionally sealed
-with a password or passkey. See [the account](/docs/how-it-works/the-account).
+with a password or passkey. See [the account](/docs/how-it-works/the-account) and the separate
+[Passkey architecture](/docs/how-it-works/passkeys).
 
 **The name directory is public by construction.** Claiming a name publishes `name → address`; that
 is its function. Search is private — the client fetches the whole list and matches locally.

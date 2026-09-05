@@ -1,0 +1,127 @@
+---
+title: Use Launch
+description: Read a live token sale, create an epoch curve, buy whole units and recover the terminal bearer payout.
+---
+
+The captures below show the mainnet Launch surface on 3 September 2026. At that moment no sale was
+open and two past launches were refundable. That is a real empty-live state, not a fixture; a later
+visit can show different launches and prices.
+
+<Callout type="warn" title="The orange final action broadcasts">
+Creating and buying are real transactions. Creation is a direct account call; a buy spends shielded
+STRK through the pool. Do not press **Launch it** or the final buy confirmation until the names,
+curve, amount, public disclosures and submitter are correct.
+</Callout>
+
+<Steps>
+
+<Step>
+
+### Read the board before acting
+
+Open **Launch** at `/launch`. The board separates sales still accepting buys from graduated or
+closed records. Each card shows the current epoch price, units sold, target and phase. The footer
+states the two important boundaries: buyers hold bearer claims, while price action and the
+transaction submitter remain public.
+
+<GuideShot
+  src="/guides/launch-board.svg"
+  alt="Launch board with arrows to the public create action, current open-sale state and past refundable launches"
+  caption="1–3 — Current mainnet state, including the honest case where no launch is selling."
+  eager
+/>
+
+</Step>
+
+<Step>
+
+### Define the token and the epoch curve
+
+Press **Create**. Set the name and symbol, then choose the first epoch's price, the price step,
+epoch count, tokens per epoch and deadline. Every epoch contains 16 whole units; a unit is one
+sixteenth of that epoch's token allocation.
+
+The logo is optional. Uploading or generating one prepares an image in the browser, then the app
+tries to pin it before the chain transaction. If pinning is unavailable, the seeded token mark is
+the deliberate fallback. The contract stores a URI and checks its length, but does not inspect the
+content behind it.
+
+<GuideShot
+  src="/guides/launch-create.svg"
+  alt="Launch creation form with arrows to token identity, optional logo and price curve inputs"
+  caption="1–3 — This is a documentation example. It was filled locally and was not submitted."
+/>
+
+</Step>
+
+<Step>
+
+### Read the creator boundary before launching
+
+The lower form repeats the epoch structure and names the submission boundary. By default, the
+creator's account signs and pays; choosing a covered transaction makes the relayer the visible
+submitter and spends one allowance. Either way, creation is not a pool-funded buyer action.
+
+The browser stores a creator secret before broadcasting and sends its commitment. That secret—not
+the submitting account—controls the later sweep of a successful raise. **Launch it** is the final
+broadcast button; there is no second review sheet after it.
+
+<GuideShot
+  src="/guides/launch-review.svg"
+  alt="Lower Launch form with arrows to epoch settings, the public creator disclosure and the final Launch it button"
+  caption="4–6 — The capture stops before Launch it; no launch was created."
+/>
+
+</Step>
+
+<Step>
+
+### Buy whole units from an open sale
+
+Open a selling launch and choose **Buy**. The contract's `quote_buy` returns the total STRK cost for
+the chosen whole-unit count, including any units that cross into the next epoch. The review shows
+units, shielded cost, tokens due at graduation and the submitter choice.
+
+Before submission the browser creates and stores a separate buyer secret. The pool spends the
+shielded STRK and calls the Launch contract in the same transaction. The public event contains the
+epoch, unit count, cost, sold count and commitment; it does not carry a buyer-address field.
+
+There was no open mainnet sale during these captures, so this guide does not fabricate a buy-panel
+screenshot. The architecture page documents the exact path from the implemented form and contract.
+
+</Step>
+
+<Step>
+
+### Follow the sale to its real terminal state
+
+A detail page shows the public staircase, sold count, amount raised, target and tokens per unit. If
+every unit sells, anyone may graduate the launch. Buyers then redeem with their bearer secrets and
+receive launch tokens as new pool notes. The creator separately sweeps the raised STRK to a named
+public address.
+
+If the deadline passes short, the first eligible refund marks the launch failed—no keeper has to
+do it first. Each buyer then reclaims exactly the STRK recorded on that position.
+
+<GuideShot
+  src="/guides/launch-detail.svg"
+  alt="Failed Launch detail with arrows to the public staircase, full-refund state and open relay thread"
+  caption="7–9 — A real failed raise: the curve remains inspectable and buyer positions are refundable."
+/>
+
+</Step>
+
+<Step>
+
+### Keep Talk separate from the sale
+
+The **Talk** tab is a public room derived from the launch id. It uses the relay, keeps a bounded
+in-memory backlog and can be read by anyone on the page. Posting does not buy a unit, alter the
+curve, graduate a token or settle a position.
+
+</Step>
+
+</Steps>
+
+For both state machines and every public/private boundary, see
+[Markets and Launch architecture](/docs/how-it-works/markets-and-launch).

@@ -8,7 +8,7 @@
 
 <p align="center">
   Open the app and you have an account — no wallet to connect, nothing to install, nothing to paste.<br/>
-  Hold and send shielded value, mail a payment with a sealed note, swap, bet, launch, bridge out.
+  Hold and send shielded value, mail a payment with a sealed note, chat, earn, swap, bet, launch, bridge out.
 </p>
 
 <p align="center">
@@ -59,39 +59,38 @@ Network `SN_MAIN`. Every row was read back off the chain, not copied from a depl
 | `Markets` (ours) — standing windows | [`0x30b487e6…a3c702`](https://voyager.online/contract/0x30b487e6b15d65fae30482fd07dcbfaa47b5b07e5133c0cdb10d8e49a3c702) |
 | `Launch` (ours) | [`0x3fc07897…32eb54`](https://voyager.online/contract/0x3fc07897f657b184ff9b0dab28939bb5a175d7cff9290406a1bd4b3d032eb54) |
 | `Mailbox` (ours) — pool-only memo log | [`0x675196bd…0bba5a`](https://voyager.online/contract/0x675196bd1c2df73c85acdf3ac97a5baffce476f0915006ca8187e00c80bba5a) |
+| `VesuEarn` (ours) — exact-share Vesu exits | [`0x3ce7a79c…204157`](https://voyager.online/contract/0x3ce7a79c53685ab178bcf36960099bf37bbd16035f0f7e2defefa5153204157) |
 | `Governance` — the Houses (ours) | [`0x731207e6…4babc5`](https://voyager.online/contract/0x731207e62d01d80632e9d6e911072bb5a3eeaf86232123d2ab9fc50654babc5) |
 | Pragma oracle (read live by Markets) | [`0x2a85bd61…fa875b`](https://voyager.online/contract/0x2a85bd616f912537c50a49a4076db02c00b29b2cdc8a197ce92ed1837fa875b) |
 
-Two of these were redeployed after the transactions below were made, and the manifest names the
-contract each transaction actually ran through rather than the current one — a declared transaction
-has to match the address that emitted it. `Markets` superseded
+Two of these were redeployed after the first transactions below were made. The manifest includes
+both the current contract and the historical emitter because a declared transaction has to match
+the address it actually ran through. `Markets` superseded
 [`0x7905ba4e…72a783`](https://voyager.online/contract/0x7905ba4e7535a3e7c1f9f4045762cc7ce83cfb120fe916f97a0dc512d72a783)
 on 29 Aug; `Governance` superseded
 [`0xdbe26582…37f9bf`](https://voyager.online/contract/0xdbe265829e0f1c859f3a8c1bd8fcfb0a774836b9e07191c6a624a59e37f9bf)
 on 30 Aug, once the tally-key and exclusion fixes landed. Both older addresses stay readable, and
 `evidence/markets-launch-deployment.json` records what replaced what.
 
-**Eleven declared transactions** — every successful mainnet transaction that ran through one of
-our contracts, found by sweeping their events — each with the evidence file that recorded it:
+**Seven qualifying transactions** — every successful mainnet transaction found in the sweep that
+emits from both the STRK20 pool and one of our declared contracts:
 
 | What happened | Evidence | Transaction |
 |---|---|---|
 | Market 0 created — BTC/USD, priced off Pragma | `seq-market.json` | [`0x77fceec7…16f978`](https://voyager.online/tx/0x77fceec7b1dab186b6f6121db07aca62c727dedae35b3a9db22c17b9716f978) |
 | The ladder — 3 bets on market 0, one transaction, one fee | `seq-bet.json` | [`0x16933dd6…d72523`](https://voyager.online/tx/0x16933dd6edd5ade29c3b3cb3954da2c3b5bb806f85040fe42810f73acd72523) |
-| Launch 0 created — a confidential sale on the epoch curve | `seq-launch.json` | [`0x13b246bd…4e4c93`](https://voyager.online/tx/0x13b246bd1ce1eb11af8ae5cbe3b2aa9ab8b458fe472b92511302048a74e4c93) |
 | The hidden buy — 4 units on launch 0, buyer never named | `seq-buy.json` | [`0x84a59651…3871d4`](https://voyager.online/tx/0x84a59651f14c6c995eac59ce0598e9cb58a7b1d02334870db9494acf3871d4) |
-| Market 0 resolved against the oracle | `seq-claim.json` | [`0x6dc4d81c…0ab73d`](https://voyager.online/tx/0x6dc4d81c7e1e7b03b1e5b78f50541c8a1998bdd6281c8fe6f722ca9600ab73d) |
 | The batch claim — 3 of 4 positions settled in one transaction | `seq-claim.json` | [`0x15eb0939…6561c0`](https://voyager.online/tx/0x15eb0939a124cbe8fc6a0e5825004f665f031e0d6abb80088bab0a8466561c0) |
-| House 0 activated — "Passbook Founders" | `seq-gov-house.json` | [`0x11981995…3be3c5`](https://voyager.online/tx/0x11981995373bac3baf023588bb60e0e09652de7bda335decf54dee2bb3be3c5) |
-| A proposal, sealed until close | `seq-gov-propose.json` | [`0x237a47cb…ca2726`](https://voyager.online/tx/0x237a47cbb3e88194b8e684351f0709cdfff44898f9c5e06cca3b650ecca2726) |
 | A sealed FOR ballot, weight escrowed through the pool | `seq-gov-ballot.json` | [`0x448ed7fc…d6e7df`](https://voyager.online/tx/0x448ed7fc67b968b829d0e5cf8f7946fbb0fc47ef48903b33b8cd7be4dd6e7df) |
-| The tally the curve accepts | `seq-gov-tally.json` | [`0x16bd3806…cbff0b`](https://voyager.online/tx/0x16bd3806cab40f1628e25c62ab8453d7af487b2c7006f0820f0d63405cbff0b) |
-| The tally key, on-chain forever | `seq-gov-tally.json` | [`0x475b97c4…c25227`](https://voyager.online/tx/0x475b97c46df69c24fbf92429a9ce03a0df3779a4a23415b2d51960b36c25227) |
+| A shielded bet through the current Markets contract | `submission-chain-sweep.json` | [`0x22f0d0a0…884d1c6`](https://voyager.online/tx/0x22f0d0a0ae52be2a04213f536b0f922fc2add07e472b17804e9acbf3884d1c6) |
+| A second shielded buy through Launch | `submission-chain-sweep.json` | [`0x2ce4fa15…a3d27`](https://voyager.online/tx/0x2ce4fa1571a30dc6986ba0acccc4aaf973e8d735aaef468170a3161199a3d27) |
 
 Two notes. The sponsored registration this project landed through its own relayer
 ([`0x4fbbf9aa…bfe27d`](https://voyager.online/tx/0x4fbbf9aa7992a95d313554bc17b2fff311b35a5974271defc6672f57abfe27d))
 touches the pool but not our contracts, so under the judges' *mine* rule it is history rather
-than manifest. And the pool class hash is pinned on purpose: the pool is upgradeable with zero
+than manifest. Setup, creation, resolution and tally actions are real app history, but the sweep
+keeps them out of `strk20.json` because they emit no pool event. The full classification is in
+`evidence/submission-chain-sweep.json`. And the pool class hash is pinned on purpose: the pool is upgradeable with zero
 delay, so if the running class stops matching, the app says so and stops rather than guess.
 
 ---
@@ -132,7 +131,13 @@ The account is an embedded key made in the browser. The relayer is reached only 
 same-origin proxy, so the browser never holds its token. Swap, Earn and bridge are one invoke
 sandwich — withdraw to a privacy executor, invoke it, proceeds land back in the pool as a note.
 The full page, including the relayer's security model, is
-**[docs/architecture.md](docs/architecture.md)**.
+**[docs/architecture.md](docs/architecture.md)**. The feature-level maps live in the documentation:
+**[Mail](https://strk20.run/docs/how-it-works/mail)**,
+**[Chat](https://strk20.run/docs/how-it-works/chat)**,
+**[Passkey](https://strk20.run/docs/how-it-works/passkeys)**,
+**[Earn / Yield](https://strk20.run/docs/how-it-works/earn)**,
+**[Markets](https://strk20.run/docs/how-it-works/markets-and-launch#markets-architecture)**, and
+**[Launch](https://strk20.run/docs/how-it-works/markets-and-launch#launch-architecture)**.
 
 ---
 
@@ -166,13 +171,13 @@ Every statement here is checkable from mainnet.
 - **The recipient of a private transfer sees the sender.** Private does not mean anonymous to your counterparty.
 - **Anonymity sets on this pool are small.** The app shows the real number where you choose the amount, because that number — not the cryptography — is your cover.
 - **Our relayer sees network metadata** — your IP and the timing of your request — so that its address, not yours, is the visible submitter.
-- **Your viewing private key is escrowed on-chain to a StarkWare auditor, permanently.** Registration writes it encrypted to the auditor key `0x1eed60b8…801bf7`, readable by anyone via `get_enc_private_key(address)`, with no rotation and no opt-out. Mail memo keys derive from the pool's channel keys, which the auditor can recover from those viewing keys, so the auditor can read any mail here. This is why nothing here is described as end-to-end encrypted.
-- **The same key reads your notes and signs your spending.** There is no watch-only version, and there never will be, because the protocol has none.
+- **Your viewing private key is escrowed on-chain to a StarkWare auditor, permanently.** Registration writes it encrypted to the auditor key `0x1eed60b8…801bf7`, readable by anyone via `get_enc_private_key(address)`, with no rotation and no opt-out. Mail memo keys derive from the pool's channel keys, which the auditor can recover from those viewing keys, so the auditor can read any mail here. The auditor is always inside the trust boundary.
+- **The same key reads your notes and signs your spending.** The protocol exposes no separate observation key.
 - **Amounts are public on any leg that touches an open note** — a swap, a launch buy, a market bet all publish their size.
 - **The audit does not cover this code.** The OpenZeppelin audit is scoped to protocol commit `c5e2fb5` (May 2026); everything in this repository is unaudited.
 - **Compliance is not ours.** Deposits are screened by a third-party provider the pool operator chose; a refusal is silent and will look like our bug.
 
-We will not say: *fully anonymous* · *untraceable* · *your amounts are private* · *your deposit is hidden* · *end-to-end encrypted* · *watch-only* · *unlinkable* · that compliance is handled for you.
+We do not claim complete anonymity, universal untraceability, hidden deposits, sole-reader messaging, cross-surface separation, or automatic compliance.
 
 > *"Claim identity privacy; never claim amount privacy for swaps."* — the sponsor's rule, and ours.
 <!-- claims-lint:enable -->
