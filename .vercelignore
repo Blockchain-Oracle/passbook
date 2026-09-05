@@ -37,7 +37,6 @@ _bmad-output/
 **/.vercel/
 contracts/target/
 contracts/.snfoundry_cache/
-apps/web/dist/
 context/
 .env
 .env.*

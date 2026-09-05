@@ -9,6 +9,7 @@ import type { PrivateTransfersBuilder, PrivateTransfersUser } from '@starkware-l
 
 import { STRK_TOKEN } from './constants.js'
 import type { SwapCall } from './quote.js'
+import type { TxShape } from './fee-ceiling.js'
 import type { EarnLeg } from './send-earn.js'
 import type { MailBody } from './mail-body.js'
 import { notEnoughShielded, type SendFailure } from './pipeline.js'
@@ -51,6 +52,20 @@ export const isAppKind = (kind: SendKind): boolean => isFundingKind(kind) || isS
 
 /** Both Earn directions. Neither is a funding, settling or compute kind — like `swap`, they are their own shape. */
 export const isEarnKind = (kind: SendKind): boolean => kind === 'earn-supply' || kind === 'earn-redeem'
+
+/**
+ * The kinds where the pool moves notes and NOTHING outside it executes. Everything else is an
+ * invoke sandwich and burns materially more l2 gas — see `INVOKE_SANDWICH_L2_GAS`.
+ *
+ * Written as the small list rather than the long one deliberately: a kind added later is an
+ * external invoke until someone says otherwise, so the default is the wider bound. The other way
+ * round, a new venue silently inherits a ceiling nobody measured it against and reverts on its
+ * first real transaction — which is exactly how `earn-supply` shipped.
+ */
+const POOL_ONLY_KINDS: readonly string[] = ['transfer', 'mail', 'withdraw']
+
+/** What the proof carries, which is what sizes the l2 lane. */
+export const txShapeOf = (kind: SendKind): TxShape => (POOL_ONLY_KINDS.includes(kind) ? 'pool' : 'invoke')
 
 /** The venue leg of a swap. The executor declares `privacy_invoke(buy_token, calls: Span<Call>, note_id)`. */
 export interface SwapLeg {

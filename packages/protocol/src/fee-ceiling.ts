@@ -121,6 +121,42 @@ export const GAS_PRICE_HEADROOM_PERCENT = 25n
  */
 export const GAS_UNITS_HEADROOM_PERCENT = 30n
 
+/**
+ * WHAT THE PROOF CARRIES, which is the only thing that decides the l2 lane.
+ *
+ * `pool` — the pool moves notes and nothing outside it executes. This is what every number above
+ * was measured against.
+ *
+ * `invoke` — an INVOKE SANDWICH: the proof withdraws to one of our helpers, mints an open note and
+ * calls an external contract, all inside the one transaction. Swap, Earn, Bridge and every app kind
+ * are this shape, and the external call's gas was never in the sample `GAS_UNITS` came from.
+ */
+export type TxShape = 'pool' | 'invoke'
+
+/**
+ * Measured on mainnet, the expensive way: an `earn-supply` REVERTED on 2026-09-05 with
+ * `Insufficient max L2Gas: max amount: 120000000, actual used: 153292720`. That is the observation
+ * — a real span, with a real Vesu deposit executing inside it — and it is 28 % past the pool-only
+ * ceiling the constant was built from.
+ */
+export const INVOKE_SANDWICH_L2_OBSERVED = 153_292_720n
+
+/**
+ * The l2 floor for an invoke sandwich: the observation plus the same units headroom every other
+ * bound here gets. Written as the derivation rather than as the number it produces (199,280,536),
+ * so re-measuring means editing the observation and nothing else.
+ *
+ * It is a FLOOR, not a replacement. A measurement taken from pool receipts describes pool-only
+ * transactions, so letting it pull this lane DOWN would reproduce exactly the revert above.
+ */
+export const INVOKE_SANDWICH_L2_GAS = (INVOKE_SANDWICH_L2_OBSERVED * (100n + GAS_UNITS_HEADROOM_PERCENT)) / 100n
+
+/** The l2 lane's floor, and its unmeasured expectation, per shape. */
+const SHAPE_L2 = {
+  pool: { floor: 0n, expected: 85_000_000n },
+  invoke: { floor: INVOKE_SANDWICH_L2_GAS, expected: INVOKE_SANDWICH_L2_OBSERVED },
+} as const satisfies Record<TxShape, { floor: bigint; expected: bigint }>
+
 /** Units a proven transaction is expected to burn, from wherever we could actually observe them. */
 export interface MeasuredGas {
   l2Gas: bigint
@@ -151,10 +187,14 @@ export interface MeasuredGas {
  * "this lane is always zero", and the l2 lane, which is where the money actually is, follows the
  * measurement down regardless.
  */
-export function resourceBoundsFor(prices: GasPrices, measured?: MeasuredGas): ResourceBounds {
+export function resourceBoundsFor(
+  prices: GasPrices,
+  measured?: MeasuredGas,
+  shape: TxShape = 'pool',
+): ResourceBounds {
   const price = (fri: bigint) => (fri * (100n + GAS_PRICE_HEADROOM_PERCENT)) / 100n
   const pad = (units: bigint) => (units * (100n + GAS_UNITS_HEADROOM_PERCENT)) / 100n
-  const l2 = measured ? pad(measured.l2Gas) : GAS_UNITS.l2_gas
+  const l2 = bigger(measured ? pad(measured.l2Gas) : GAS_UNITS.l2_gas, SHAPE_L2[shape].floor)
   const l1 = measured ? bigger(pad(measured.l1Gas), GAS_UNITS.l1_gas) : GAS_UNITS.l1_gas
   const l1d = measured ? bigger(pad(measured.l1DataGas), GAS_UNITS.l1_data_gas) : GAS_UNITS.l1_data_gas
   return {
@@ -180,8 +220,13 @@ export function gasBoundWei(bounds: ResourceBounds): bigint {
  * approve ceiling above is allowance, not balance — a fee jump between read and execution
  * reverts rather than demanding a second fee parked forever.
  */
-export function feeFloor(liveFeeWei: bigint, prices: GasPrices, measured?: MeasuredGas): bigint {
-  return liveFeeWei + gasBoundWei(resourceBoundsFor(prices, measured))
+export function feeFloor(
+  liveFeeWei: bigint,
+  prices: GasPrices,
+  measured?: MeasuredGas,
+  shape: TxShape = 'pool',
+): bigint {
+  return liveFeeWei + gasBoundWei(resourceBoundsFor(prices, measured, shape))
 }
 
 // ── What a balance can actually do, in three bands ────────────────────────────────────────
@@ -216,14 +261,18 @@ export function fundingBand(
   liveFeeWei: bigint,
   prices: GasPrices,
   measured?: MeasuredGas,
+  shape: TxShape = 'pool',
 ): FundingBand {
   if (balanceWei < liveFeeWei) return 'short'
-  if (balanceWei >= feeFloor(liveFeeWei, prices, measured)) return 'clear'
-  return balanceWei >= liveFeeWei + expectedGasWei(prices, measured) ? 'tight' : 'short'
+  if (balanceWei >= feeFloor(liveFeeWei, prices, measured, shape)) return 'clear'
+  return balanceWei >= liveFeeWei + expectedGasWei(prices, measured, shape) ? 'tight' : 'short'
 }
 
 /** What the gas is expected to cost at today's prices — the measurement, unpadded. */
-export function expectedGasWei(prices: GasPrices, measured?: MeasuredGas): bigint {
-  const units = measured ?? { l2Gas: 85_000_000n, l1Gas: 0n, l1DataGas: 2_000n }
+export function expectedGasWei(prices: GasPrices, measured?: MeasuredGas, shape: TxShape = 'pool'): bigint {
+  // An invoke sandwich's measurement, where one exists, describes pool-only work — so the shape's
+  // own observation is the floor here too, or the `tight` band would call a certain revert affordable.
+  const l2 = bigger(measured?.l2Gas ?? 85_000_000n, SHAPE_L2[shape].expected)
+  const units = measured ? { ...measured, l2Gas: l2 } : { l2Gas: l2, l1Gas: 0n, l1DataGas: 2_000n }
   return units.l2Gas * prices.l2GasFri + units.l1Gas * prices.l1GasFri + units.l1DataGas * prices.l1DataGasFri
 }

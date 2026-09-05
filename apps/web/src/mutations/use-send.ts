@@ -5,6 +5,7 @@ import type { ActivitySurface } from '@strk20/protocol/transaction'
 
 import { STRK_TOKEN } from '@strk20/protocol/constants'
 import { feeFloor } from '@strk20/protocol/fee-ceiling'
+import { txShapeOf } from '@strk20/protocol/send-plan'
 import { notEnoughPublicStrk } from '@strk20/protocol/pipeline'
 
 import { getSessionSnapshot } from '@/app/session'
@@ -103,7 +104,7 @@ async function send(ask: SendAsk): Promise<SendResult> {
   ])
   const haveWei = publicStrk?.[STRK_TOKEN] ?? null
   if (!ask.sponsored && pool && haveWei !== null) {
-    const floorWei = feeFloor(pool.feeWei, pool.gasPrices)
+    const floorWei = feeFloor(pool.feeWei, pool.gasPrices, undefined, txShapeOf(ask.kind))
     if (haveWei < floorWei) {
       return refused({
         kind: 'insufficient-fee-balance',

@@ -27,6 +27,7 @@ import {
 import { readPoolHealth, type PoolHealth } from './pool.js'
 import { healthFailure, preflightSend, type OkHealth } from './send-preflight.js'
 import { proveFailureFrom, proveSend, type ProveSendInput, type ProvedSend } from './send-prove.js'
+import { txShapeOf } from './send-plan.js'
 import type { SendInput } from './send-plan.js'
 import type { Allowance } from './relayer-wire.js'
 import { withFallback } from './rpc.js'
@@ -152,7 +153,10 @@ export async function sendShielded(input: SendInput, deps: SendDeps = {}): Promi
     reach('relay')
     // The identical batch in both modes: `collect_fee` pulls from whoever submits, so they approve first, in-batch.
     const calls: Call[] = [selfSubmitApprove(health.feeWei), proved.call]
-    const details: SubmitDetails = { proofFacts: proved.proofFacts, proof: proved.proof, resourceBounds: resourceBoundsFor(health.gasPrices) }
+    // The l2 lane is sized by what the proof CARRIES: a swap/Earn/app span executes an external
+    // contract inside it, and the pool-only ceiling is 28 % short of what that burns.
+    const bounds = resourceBoundsFor(health.gasPrices, undefined, txShapeOf(request.kind))
+    const details: SubmitDetails = { proofFacts: proved.proofFacts, proof: proved.proof, resourceBounds: bounds }
     let transactionHash: string
     if (input.mode === 'self') {
       try {
